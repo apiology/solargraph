@@ -40,8 +40,8 @@ module Solargraph
         when RBS::AST::Declarations::Interface
           # STDERR.puts "Skipping interface #{decl.name.relative!}"
           interface_decl_to_pin decl
-        when RBS::AST::Declarations::Alias
-          type_aliases[decl.name.to_s] = decl
+        when RBS::AST::Declarations::AliasDecl
+          type_aliases[decl.new_name.to_s] = decl
         when RBS::AST::Declarations::Module
           module_decl_to_pin decl
         when RBS::AST::Declarations::Constant
@@ -220,9 +220,12 @@ module Solargraph
       end
 
       # @param decl [RBS::AST::Members::MethodDefinition]
-      # @param pin [Pin::Method]
+      # @param pin [Pin::Signature]
+      # @return [Array<Pin::Signature>]
       def method_def_to_sigs decl, pin
-        decl.types.map do |type|
+        # @param overload [RBS::AST::Members::MethodDefinition::Overload]
+        decl.overloads.map do |overload|
+          type = overload.method_type
           parameters, return_type = parts_of_function(type, pin)
           block = if type.block
             Pin::Signature.new(*parts_of_function(type.block, pin))
@@ -232,12 +235,16 @@ module Solargraph
         end
       end
 
+      # @param type [RBS::MethodType,RBS::Types::Block]
       def parts_of_function type, pin
         parameters = []
         arg_num = -1
-        type.type.required_positionals.each do |param|
-          name = param.name ? param.name.to_s : "arg#{arg_num += 1}"
-          parameters.push Solargraph::Pin::Parameter.new(decl: :arg, name: name, closure: pin, return_type: ComplexType.try_parse(other_type_to_tag(param.type)))
+        if type.type.is_a?(RBS::Types::UntypedFunction)
+          type.type.each_param do |param|
+            raise "Found param #{param} in untyped function"
+          end
+          return [[],
+                  ComplexType.try_parse(method_type_to_tag(type))]
         end
         type.type.optional_positionals.each do |param|
           name = param.name ? param.name.to_s : "arg#{arg_num += 1}"
