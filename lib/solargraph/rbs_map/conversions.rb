@@ -246,6 +246,10 @@ module Solargraph
           return [[],
                   ComplexType.try_parse(method_type_to_tag(type))]
         end
+        type.type.required_positionals.each do |param|
+          name = param.name ? param.name.to_s : "arg#{arg_num += 1}"
+          parameters.push Solargraph::Pin::Parameter.new(decl: :arg, name: name, closure: pin, return_type: ComplexType.try_parse(other_type_to_tag(param.type)))
+        end
         type.type.optional_positionals.each do |param|
           name = param.name ? param.name.to_s : "arg#{arg_num += 1}"
           parameters.push Solargraph::Pin::Parameter.new(decl: :optarg, name: name, closure: pin)
