@@ -136,6 +136,30 @@ describe Solargraph::Source::Chain::Call do
     api_map = Solargraph::ApiMap.new
     api_map.map source
     chain = Solargraph::Source::SourceChainer.chain(source, Solargraph::Position.new(7, 8))
+  end
+
+  it 'infers generic parameterized types' do
+    source = Solargraph::Source.load_string(%(
+      # @generic GenericTypeParam
+      class Foo
+        # @return [Foo<String>]
+        def self.bar
+        end
+
+        # @return [Array<param<GenericTypeParam>>]
+        def baz
+        end
+      end
+
+      Foo.bar.baz
+      Foo.bar.baz.first
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+    chain = Solargraph::Source::SourceChainer.chain(source, Solargraph::Position.new(12, 15))
+    type = chain.infer(api_map, Solargraph::Pin::ROOT_PIN, api_map.source_map('test.rb').locals)
+    expect(type.tag).to eq('Array<String>')
+    chain = Solargraph::Source::SourceChainer.chain(source, Solargraph::Position.new(13, 20))
     type = chain.infer(api_map, Solargraph::Pin::ROOT_PIN, api_map.source_map('test.rb').locals)
     expect(type.tag).to eq('String')
   end

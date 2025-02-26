@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'yard-solargraph'
+
 module Solargraph
   module Pin
     class Namespace < Closure
@@ -14,7 +16,7 @@ module Solargraph
       # @param type [::Symbol] :class or :module
       # @param visibility [::Symbol] :public or :private
       # @param gates [Array<String>]
-      def initialize type: :class, visibility: :public, gates: [''], parameters: [], **splat
+      def initialize type: :class, visibility: :public, gates: [''], parameters: nil, **splat
         # super(location, namespace, name, comments)
         super(**splat)
         @type = type
@@ -88,6 +90,11 @@ module Solargraph
         else
           [path] + @open_gates
         end
+      end
+
+      # @return [Array<String>]
+      def parameters
+        @parameters ||= docstring.tags(:generic).map(&:name)
       end
     end
   end
