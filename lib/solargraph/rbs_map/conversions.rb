@@ -160,11 +160,13 @@ module Solargraph
           name: decl.name.relative!.to_s,
           closure: Solargraph::Pin::ROOT_PIN,
           comments: decl.comment&.string,
+          location: rbs_location_to_location(decl.location),
           generics: decl.type_params.map(&:name).map(&:to_s)
         )
         pins.push class_pin
         if decl.super_class
           pins.push Solargraph::Pin::Reference::Superclass.new(
+            location: rbs_location_to_location(decl.super_class.location),
             closure: class_pin,
             name: decl.super_class.name.relative!.to_s
           )
@@ -178,6 +180,7 @@ module Solargraph
       def interface_decl_to_pin decl, closure
         class_pin = Solargraph::Pin::Namespace.new(
           type: :module,
+          location: rbs_location_to_location(decl.location),
           name: decl.name.relative!.to_s,
           closure: Solargraph::Pin::ROOT_PIN,
           comments: decl.comment&.string,
@@ -196,6 +199,7 @@ module Solargraph
         module_pin = Solargraph::Pin::Namespace.new(
           type: :module,
           name: decl.name.relative!.to_s,
+          location: rbs_location_to_location(decl.location),
           closure: Solargraph::Pin::ROOT_PIN,
           comments: decl.comment&.string,
           generics: decl.type_params.map(&:name).map(&:to_s),
@@ -293,6 +297,7 @@ module Solargraph
           pin = Solargraph::Pin::Method.new(
             name: decl.name.to_s,
             closure: closure,
+            location: rbs_location_to_location(decl.location),
             comments: decl.comment&.string,
             scope: :instance,
             signatures: [],
@@ -327,6 +332,7 @@ module Solargraph
             name: decl.name.to_s,
             closure: closure,
             comments: decl.comment&.string,
+            location: rbs_location_to_location(decl.location),
             scope: :class,
             signatures: [],
             generics: generics,
@@ -410,6 +416,7 @@ module Solargraph
       def attr_reader_to_pin(decl, closure)
         pin = Solargraph::Pin::Method.new(
           name: decl.name.to_s,
+          location: rbs_location_to_location(decl.location),
           closure: closure,
           comments: decl.comment&.string,
           scope: :instance,
@@ -425,6 +432,7 @@ module Solargraph
       def attr_writer_to_pin(decl, closure)
         pin = Solargraph::Pin::Method.new(
           name: "#{decl.name.to_s}=",
+          location: rbs_location_to_location(decl.location),
           closure: closure,
           comments: decl.comment&.string,
           scope: :instance,
