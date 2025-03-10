@@ -1618,7 +1618,7 @@ describe Solargraph::SourceMap::Clip do
 
   it 'infers yield parameters from defined methods in RBS' do
     source = Solargraph::Source.load_string(%(
-      # @type [Array<String>]
+      # @type [Enumerable<String>]
       a = ['a', 'b', 'c']
       a.each do |s|
         s
