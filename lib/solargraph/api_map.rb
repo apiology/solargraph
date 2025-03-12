@@ -248,7 +248,7 @@ module Solargraph
       cached = cache.get_qualified_namespace(namespace, context_namespace)
 
       return cached.clone unless cached.nil?
-      result = if tag.start_with?('::')
+      result = if namespace.start_with?('::')
                  inner_qualify(namespace[2..-1], '', Set.new)
                else
                  inner_qualify(namespace, context_namespace, Set.new)
