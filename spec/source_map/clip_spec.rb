@@ -1616,7 +1616,7 @@ describe Solargraph::SourceMap::Clip do
     expect(type.to_s).to eq('String, nil')
   end
 
-  it 'infers yield parameters from defined methods in RBS' do
+  it 'infers yield parameters from self type defined methods in RBS' do
     source = Solargraph::Source.load_string(%(
       # @type [Enumerable<String>]
       a = ['a', 'b', 'c']
