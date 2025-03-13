@@ -216,7 +216,7 @@ module Solargraph
       # @param name [String]
       # @param tag [String]
       # @param comments [String]
-      # @param decl [RBS::AST::Declarations::ClassAlias, RBS::AST::Declarations::Constant]
+      # @param decl [RBS::AST::Declarations::ClassAlias, RBS::AST::Declarations::Constant, RBS::AST::Declarations::ModuleAlias]
       # @param type [Symbol] :class or :module
       #
       # @return [Solargraph::Pin::Constant]
@@ -273,7 +273,7 @@ module Solargraph
       def constant_decl_to_pin decl
         tag = other_type_to_tag(decl.type)
         # @todo Class or Module?
-        pins.push create_constant(decl.name.relative!.to_s, tag, decl.comment&.string, :class)
+        pins.push create_constant(decl.name.relative!.to_s, tag, decl, :class)
       end
 
       # @param decl [RBS::AST::Declarations::Global]
