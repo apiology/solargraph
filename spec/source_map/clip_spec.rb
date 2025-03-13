@@ -1118,7 +1118,7 @@ describe Solargraph::SourceMap::Clip do
   it 'completes from repaired sources with missing nodes' do
     source = Solargraph::Source.load_string(%(
       x = []
-      
+
     ), 'test.rb')
     api_map = Solargraph::ApiMap.new
     api_map.map source
@@ -1619,6 +1619,10 @@ describe Solargraph::SourceMap::Clip do
   it 'infers yield parameters from defined methods in RBS' do
     source = Solargraph::Source.load_string(%(
       # @type [Array<String>]
+
+  it 'infers yield parameters from self type defined methods in RBS' do
+    source = Solargraph::Source.load_string(%(
+      # @type [Enumerable<String>]
       a = ['a', 'b', 'c']
       a.each do |s|
         s
