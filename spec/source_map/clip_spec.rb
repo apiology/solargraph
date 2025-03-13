@@ -1654,6 +1654,7 @@ describe Solargraph::SourceMap::Clip do
     clip = api_map.clip_at('test.rb', [3, 6])
     type = clip.infer
     expect(type.to_s).to eq('Array(Array(Symbol, String, Array(Integer, Integer)))')
+  end
 
   it 'picks correct overload in Hash#transform_values!' do
     source = Solargraph::Source.load_string(%(
