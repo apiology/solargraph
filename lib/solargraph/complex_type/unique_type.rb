@@ -67,8 +67,17 @@ module Solargraph
       end
 
       # @return [String]
+      def rbs_namespace
+        if ['', Array].include?(namespace) && fixed_parameters?
+          'tuple'
+        else
+          namespace
+        end
+      end
+
+      # @return [String]
       def to_rbs
-        "#{namespace}#{parameters? ? "[#{subtypes.map { |s| s.to_rbs }.join(', ')}]" : ''}"
+        "#{rbs_namespace}#{parameters? ? "[#{subtypes.map { |s| s.to_rbs }.join(', ')}]" : ''}"
         # "
       end
 
