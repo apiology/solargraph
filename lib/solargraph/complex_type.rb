@@ -43,7 +43,7 @@ module Solargraph
     end
 
     # @yieldparam [UniqueType]
-    # @return [Array]
+    # @return [Array<UniqueType>]
     def map &block
       @items.map &block
     end
@@ -195,7 +195,7 @@ module Solargraph
       #
       # @param *strings [Array<String>] The type definitions to parse
       # @param partial [Boolean] True if the string is part of a another type
-      # @return [ComplexType, Array<UniqueType>] Array if partial is true
+      # @return [ComplexType, UniqueType, Array<UniqueType>] Array if partial is true
       def parse *strings, partial: false
         # @type [Hash{Array<String> => ComplexType}]
         @cache ||= {}

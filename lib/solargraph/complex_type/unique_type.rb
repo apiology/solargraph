@@ -8,6 +8,7 @@ module Solargraph
     class UniqueType
       include TypeMethods
 
+      # @return [Array<ComplexType>]
       attr_reader :all_params
 
       # Create a UniqueType with the specified name and an optional substring.
@@ -27,11 +28,11 @@ module Solargraph
         end
         @substring = substring
         @tag = @name + substring
-        # @type [Array<ComplexType>]
+        # @type [Array<ComplexType, UniqueType>]
         @key_types = []
-        # @type [Array<ComplexType>]
+        # @type [Array<ComplexType, UniqueType>]
         @subtypes = []
-        # @type [Array<ComplexType>]
+        # @type [Array<ComplexType, UniqueType>]
         @all_params = []
         return unless parameters?
         # @todo we should be able to probe the type of 'subs' without
