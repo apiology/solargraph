@@ -68,13 +68,40 @@ module Solargraph
       # @return [String]
       def to_rbs
         "#{namespace}#{parameters? ? "[#{subtypes.map { |s| s.to_rbs }.join(', ')}]" : ''}"
-      # "
+        # "
       end
 
       def generic?
         name == GENERIC_TAG_NAME || all_params.any?(&:generic?)
       end
 
+
+      # @param context_type [UniqueType, nil]
+      # @param resolved_generic_values [Hash{String => ComplexType}] Added to as types are encountered or resolved
+      # @return [UniqueType, ComplexType]
+      # TODO: Maybe break this into three functions - one that adds to resolved_generic_values, one that applies changes, and one that runs those two until no more can be completed?
+      def resolve_generics_from_context context_type, resolved_generic_values
+        return self unless generic?
+
+        new_binding = false
+        if name == GENERIC_TAG_NAME
+          type_param = subtypes.first&.name
+          unless context_type.nil? || !resolved_generic_values[type_param].nil?
+            new_binding = true
+            resolved_generic_values[type_param] = context_type
+          end
+          if new_binding
+            resolved_generic_values.transform_values! do |complex_type|
+              complex_type.resolve_generics_from_context(nil, resolved_generic_values)
+            end
+          end
+          resolved_generic_values[type_param] || self
+        else
+          transform(name) do |t|
+            t.resolve_generics_from_context(nil, resolved_generic_values)
+          end
+        end
+      end
 
       # Probe the concrete type for each of the generic type
       # parameters used in this type, and return a new type if
@@ -86,7 +113,7 @@ module Solargraph
       def resolve_generics definitions, context_type
         if name == GENERIC_TAG_NAME
           idx = definitions.generics.index(subtypes.first&.name)
-          return ComplexType::UNDEFINED if idx.nil?
+          return self if idx.nil?
           param_type = context_type.all_params[idx]
           return ComplexType::UNDEFINED unless param_type
           new_name = param_type.to_s
@@ -98,13 +125,25 @@ module Solargraph
         end
       end
 
+      # @yieldparam t [self]
+      # @yieldreturn [self]
+      # @return [Array<self>]
+      def map &block
+        [block.yield(self)]
+      end
+
+      # @return [Array<UniqueType>]
+      def to_a
+        [self]
+      end
+
       # @param new_name [String]
-      # @yieldparam t [ComplexType]
-      # @yieldreturn [ComplexType]
+      # @yieldparam t [UniqueType]
+      # @yieldreturn [UniqueType]
       # @return [UniqueType, nil]
       def transform(new_name, &transform_type)
-        new_key_types = @key_types.map { |t| transform_type.yield t }.compact
-        new_subtypes = @subtypes.map { |t| transform_type.yield t }.compact
+        new_key_types = @key_types.flat_map { |ct| ct.map { |ut| transform_type.yield ut } }.compact
+        new_subtypes = @subtypes.flat_map { |ct| ct.map { |ut| transform_type.yield ut } }.compact
 
         return UniqueType.new(new_name) if new_key_types.empty? && new_subtypes.empty?
 

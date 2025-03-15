@@ -1690,4 +1690,23 @@ describe Solargraph::SourceMap::Clip do
     type = clip.infer
     expect(type.to_s).to eq('Integer, nil')
   end
+
+  it 'picks correct overload in Hash#each_with_object and resolves return type' do
+    source = Solargraph::Source.load_string(%(
+      # @param klass [Class]
+      # @param pin_class_hash [Hash{String => Class}]
+      def pins_by_class klass, pin_class_hash
+        # @type [Set<Integer>]
+        s = Set.new
+        pin_class_hash.each_with_object(s) { |(key, o), n| n.merge(o) if key <= klass }
+      end
+
+      out = pins_by_class Symbol, {}
+      out
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [10, 6])
+    type = clip.infer
+    expect(type.to_s).to eq('Set<Integer>')
+  end
 end
