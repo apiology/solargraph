@@ -10,10 +10,18 @@ module Solargraph
       # @return [self]
       attr_reader :block
 
+      # @return [Array<String>]
+      attr_reader :generics
+
+      # @param generics [Array<String>]
       # @param parameters [Array<Parameter>]
       # @param return_type [ComplexType]
       # @param block [Signature, nil]
-      def initialize parameters, return_type, block = nil
+      def initialize generics, parameters, return_type, block = nil
+        raise "Must be provided" if generics.nil? # TODO remove
+        raise "Must be provided" if return_type.nil? # TODO remove
+        raise "Must be correct" unless return_type.instance_of? ComplexType # TODO remove
+        @generics = generics
         @parameters = parameters
         @return_type = return_type
         @block = block
@@ -37,22 +45,33 @@ module Solargraph
         end
       end
 
-      # Probe the concrete type for each of the generic type
-      # parameters used in this method, and return a new method pin if
-      # possible.
-      #
-      # @param definitions [Pin::Namespace] The module/class which uses generic types
-      # @param context_type [ComplexType] The receiver type, including the parameters
-      #   we want to substitute into 'definitions'
+      # @yieldparam [ComplexType]
+      # @yieldreturn [ComplexType]
       # @return [self]
-      def resolve_generics definitions, context_type
-        signature = super
+      def transform_types(&transform)
+        # @todo 'super' alone should work here I think, but doesn't typecheck at level typed
+        signature = super(&transform)
         signature.parameters = signature.parameters.map do |param|
-          param.resolve_generics(definitions, context_type)
+          param.transform_types(&transform)
         end
-        signature.block = block.resolve_generics(definitions, context_type) if signature.block?
-        signature.return_type = return_type.resolve_generics(definitions, context_type)
+        signature.block = block.transform_types(&transform) if signature.block?
         signature
+      end
+
+      # @return [self]
+      def erase_generics
+        # @param type [ComplexType::UniqueType]
+        transform_types do |type|
+          if type.name == ComplexType::GENERIC_TAG_NAME
+            if type.all_params.length == 1 && generics.include?(type.all_params.first.to_s)
+              ComplexType::UNDEFINED
+            else
+              type
+            end
+          else
+            type
+          end
+        end
       end
 
       # @param arg_types [Array<ComplexType>, nil]
@@ -100,7 +119,10 @@ module Solargraph
                                                 yield_arg_types,
                                                 yield_return_type_context,
                                                 resolved_generic_values)
-        return new_pin if last_resolved_generic_values == resolved_generic_values
+        if last_resolved_generic_values == resolved_generic_values
+          # erase anything unresolved
+          return new_pin.erase_generics
+        end
         new_pin.resolve_generics_from_context_until_complete(arg_types,
                                                              return_type_context,
                                                              yield_arg_types,

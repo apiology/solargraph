@@ -38,23 +38,16 @@ module Solargraph
         @return_type = return_type
       end
 
-      # Probe the concrete type for each of the generic type
-      # parameters used in this method, and return a new method pin if
-      # possible.
-      #
-      # @param definitions [Pin::Namespace] The module/class which uses generic types
-      # @param context_type [ComplexType] The receiver type, including the parameters
-      #   we want to substitute into 'definitions'
-      # @return [self]
-      def resolve_generics definitions, context_type
-        m = super
+      def transform_types(&transform)
+        # @todo 'super' alone should work here I think, but doesn't typecheck at level typed
+        m = super(&transform)
         m.signatures = m.signatures.map do |sig|
-          sig.resolve_generics(definitions, context_type)
+          sig.transform_types(&transform)
         end
         m.parameters = m.parameters.map do |param|
-          param.resolve_generics(definitions, context_type)
+          param.transform_types(&transform)
         end
-        m.block = block&.resolve_generics(definitions, context_type)
+        m.block = block&.transform_types(&transform)
         m
       end
 
@@ -88,6 +81,7 @@ module Solargraph
         block = nil
         yieldparam_tags = docstring.tags(:yieldparam)
         yieldreturn_tags = docstring.tags(:yieldreturn)
+        generics = docstring.tags(:generic).map(&:name)
         needs_block_param_signature =
           parameters.last&.block? || !yieldreturn_tags.empty? || !yieldparam_tags.empty?
         if needs_block_param_signature
@@ -109,9 +103,9 @@ module Solargraph
             )
           end
           yield_return_type = ComplexType.try_parse(*yieldreturn_tags.flat_map(&:types))
-          block = Signature.new(yield_parameters, yield_return_type)
+          block = Signature.new(generics, yield_parameters, yield_return_type)
         end
-        Signature.new(parameters, return_type, block)
+        Signature.new(generics, parameters, return_type, block)
       end
 
       # @return [::Array<Signature>]
@@ -276,6 +270,7 @@ module Solargraph
       def overloads
         @overloads ||= docstring.tags(:overload).map do |tag|
           Pin::Signature.new(
+            generics,
             tag.parameters.map do |src|
               name, decl = parse_overload_param(src.first)
               Pin::Parameter.new(
