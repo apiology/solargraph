@@ -171,16 +171,7 @@ module Solargraph
         return ComplexType::UNDEFINED if possibles.empty?
 
         if possibles.first.map(&:name).include?('Enumerator') && links.last&.arguments&.first&.links&.first.is_a?(BlockSymbol)
-          callee = possibles.first.items.find { |sub| sub.name == 'Enumerator' }.subtypes.first
-          link = links.last.arguments.first.links.first
-          name_pin = pins.first
-
-          generic = api_map.get_method_stack(callee.tag, link.word)
-                           .reject { |pin| pin.return_type.undefined? }
-          return ComplexType::UNDEFINED if generic.empty?
-
-          resolved = generic.first.return_type.resolve_generics(name_pin, callee)
-          ComplexType.try_parse("#{name_pin.namespace}<#{resolved.tag}>")
+          ComplexType.parse(possibles.first.items.find { |sub| sub.name != 'Enumerator' }.to_s)
         else
           type = if possibles.length > 1
             sorted = possibles.map { |t| t.rooted? ? "::#{t}" : t.to_s }.sort { |a, _| a == 'nil' ? 1 : 0 }
