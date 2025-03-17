@@ -15,12 +15,10 @@ module Solargraph
 
         # @param word [String]
         # @param arguments [::Array<Chain>]
-        # @param with_block [Boolean] True if the chain is inside a block
         # @param block [Chain, nil]
-        def initialize word, arguments = [], with_block = false, block = nil
+        def initialize word, arguments = [], block = nil
           @word = word
           @arguments = arguments
-          @with_block = with_block
           @block = block
           fix_block_pass
         end
@@ -87,7 +85,6 @@ module Solargraph
                 end
                 atype ||= arg.infer(api_map, Pin::ProxyType.anonymous(context), locals)
                 # @todo Weak type comparison
-                # unless atype.tag == param.return_type.tag || api_map.super_and_sub?(param.return_type.tag, atype.tag)
                 unless param.return_type.undefined? || atype.name == param.return_type.name || api_map.super_and_sub?(param.return_type.name, atype.name)
                   match = false
                   break
