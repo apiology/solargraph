@@ -1690,4 +1690,15 @@ describe Solargraph::SourceMap::Clip do
     type = clip.infer
     expect(type.to_s).to eq('Gem::Specification')
   end
+
+  it 'infers block-pass symbols' do
+    source = Solargraph::Source.load_string(%(
+      array = [0]
+      array.map(&:to_s)
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [2, 13])
+    type = clip.infer
+    expect(type.to_s).to eq('Array<String>')
+  end
 end
