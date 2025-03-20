@@ -23,10 +23,6 @@ module Solargraph
 
       # @return [Array<String>]
       def generics
-        @generics ||= []
-      end
-
-      def generics
         @generics ||= [].freeze
       end
 
