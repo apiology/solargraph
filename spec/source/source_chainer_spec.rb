@@ -335,6 +335,7 @@ describe Solargraph::Source::SourceChainer do
     ))
     chain = Solargraph::Source::SourceChainer.chain(source, Solargraph::Position.new(1, 9))
     expect(chain.links.map(&:class)).to be
+    expect(chain.links.last.block).to be
   end
 
   xit 'infers specific array type from block sent to Array#map' do

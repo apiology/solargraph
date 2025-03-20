@@ -1801,6 +1801,17 @@ describe Solargraph::SourceMap::Clip do
     expect(type.to_s).to eq('undefined')
   end
 
+  it 'infers block-pass symbols with variant yields' do
+    source = Solargraph::Source.load_string(%(
+      array = [0, 1, 2]
+      array.max_by(&:abs)
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [2, 13])
+    type = clip.infer
+    expect(type.to_s).to eq('Integer, nil')
+  end
+
   xit 'infers block-pass symbols with variant yields' do
     source = Solargraph::Source.load_string(%(
       array = [0]
