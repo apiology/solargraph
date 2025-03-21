@@ -170,8 +170,8 @@ describe 'NodeChainer' do
       foo(&:bar)
     ))
     chain = Solargraph::Parser.chain(source.node)
-    args = chain.links.first.arguments
-    expect(args).to be_empty
+    arg = chain.links.first.block.links.first
+    expect(arg).to be_a(Solargraph::Source::Chain::BlockSymbol)
   end
 
   # feature added in Ruby 3.1
