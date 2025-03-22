@@ -141,7 +141,7 @@ describe Solargraph::Pin::Parameter do
     expect(method.documentation).to eq("Block Params:\n*  [Array] \n\nBlock Returns:\n* [Integer] \n\nReturns:\n* [Integer] \n\nVisibility: public")
     expect(method.return_type.tag).to eq('Integer')
 
-    expect(map.locals.map(&:to_s)).to eq(['blk', 'things'])
+    expect(map.locals.map(&:to_s)).to eq(['blk untyped', 'things untyped'])
     expect(map.locals.map(&:return_type).map(&:to_s)).to eq(['Proc', 'Set'])
     expect(map.locals.map(&:decl)).to eq([:blockarg, :arg])
   end
