@@ -94,6 +94,16 @@ module Solargraph
     map 'clear-cache' => :clear
     map 'clear-cores' => :clear
 
+    desc 'cache', 'Cache a gem', hide: true
+    # @return [void]
+    # @param gem [String]
+    # @param version [String, nil]
+    def cache gem, version = nil
+      spec = Gem::Specification.find_by_name(gem, version)
+      pins = GemPins.build(spec)
+      Cache.save('gems', "#{spec.name}-#{spec.version}.ser", pins)
+    end
+
     desc 'uncache GEM [...GEM]', "Delete cached gem documentation"
     # @return [void]
     def uncache *gems
@@ -102,6 +112,34 @@ module Solargraph
         spec = Gem::Specification.find_by_name(gem)
         Cache.uncache('gems', "#{spec.name}-#{spec.version}.ser")
         Cache.uncache('gems', "#{spec.name}-#{spec.version}.yardoc")
+      end
+    end
+
+    desc 'gems', 'Cache documentation for installed gems'
+    option :rebuild, type: :boolean, desc: 'Rebuild existing documentation', default: false
+    # @return [void]
+    def gems *names
+      if names.empty?
+        Gem::Specification.to_a.each do |spec|
+          next unless options.rebuild || !Yardoc.cached?(spec)
+
+          puts "Processing gem: #{spec.name} #{spec.version}"
+          pins = GemPins.build(spec)
+          Cache.save('gems', "#{spec.name}-#{spec.version}.ser", pins)
+        end
+      else
+        names.each do |name|
+          spec = Gem::Specification.find_by_name(name)
+          if spec
+            next unless options.rebuild || !Yardoc.cached?(spec)
+
+            puts "Processing gem: #{spec.name} #{spec.version}"
+            pins = GemPins.build(spec)
+            Cache.save('gems', "#{spec.name}-#{spec.version}.ser", pins)
+          else
+            warn "Gem '#{name}' not found"
+          end
+        end
       end
     end
 
