@@ -234,9 +234,10 @@ module Solargraph
     #   Should not be prefixed with '::'.
     # @return [String, nil] fully qualified tag
     def qualify tag, context_tag = ''
-      return tag if ['self', nil].include?(tag)
-      context_type = ComplexType.parse("::#{context_tag}")
+      return tag if ['Boolean', 'self', nil].include?(tag)
       type = ComplexType.parse(tag)
+      return tag if type.literal?
+      context_type = ComplexType.parse("::#{context_tag}")
       fqns = qualify_namespace(type.rooted_namespace, context_type.namespace)
       return nil if fqns.nil?
       fqns + type.substring

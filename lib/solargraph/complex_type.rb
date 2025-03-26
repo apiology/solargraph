@@ -154,8 +154,20 @@ module Solargraph
       map(&:tag).join(', ')
     end
 
+    def tags
+      map(&:tag).join(', ')
+    end
+
     def rooted_tags
       map(&:rooted_tag).join(', ')
+    end
+
+    def simple_tags
+      simplify_literals.tags
+    end
+
+    def literal?
+      @items.all?(&:literal?)
     end
 
     def all? &block
@@ -172,6 +184,10 @@ module Solargraph
 
     def generic?
       any?(&:generic?)
+    end
+
+    def simplify_literals
+      ComplexType.new(map(&:simplify_literals))
     end
 
     # @param new_name [String, nil]
@@ -250,9 +266,13 @@ module Solargraph
       # @param *strings [Array<String>] The type definitions to parse
       # @return [ComplexType]
       # @overload parse(*strings, partial: false)
-      #  @todo Need ability to use a literal true as a type below
-      #  @param partial [Boolean] True if the string is part of a another type
+      #  @param *strings [Array<String>] The type definitions to parse
+      #  @param partial [true] True if the string is part of a another type
       #  @return [Array<UniqueType>]
+      # @overload parse(*strings, partial: false)
+      #  @param *strings [Array<String>] The type definitions to parse
+      #  @param partial [false] True if the string is part of a another type
+      #  @return [ComplexType]
       def parse *strings, partial: false
         # @type [Hash{Array<String> => ComplexType}]
         @cache ||= {}

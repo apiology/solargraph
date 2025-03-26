@@ -59,6 +59,7 @@ module Solargraph
         ComplexType.new(types.uniq)
       end
 
+      # @param other [Object]
       def == other
         return false unless super
         assignment == other.assignment
