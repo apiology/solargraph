@@ -19,7 +19,7 @@ module Solargraph
         Solargraph::Pin::Method.new(name: 'tap', scope: :instance,
                                     closure: Solargraph::Pin::Namespace.new(name: 'Object')),
         Solargraph::Pin::Method.new(name: 'class', scope: :instance,
-                                    closure: Solargraph::Pin::Namespace.new(name: 'Object'), comments: '@return [Class<self>]')
+                                    closure: Solargraph::Pin::Namespace.new(name: 'Object'), comments: '@return [::Class<self>]')
       ]
 
       OVERRIDES = [
