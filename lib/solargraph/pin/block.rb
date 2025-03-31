@@ -14,11 +14,9 @@ module Solargraph
       # @param context [ComplexType, nil]
       # @param args [::Array<Parameter>]
       def initialize receiver: nil, args: [], context: nil, node: nil, **splat
-        super(**splat)
+        super(**splat, parameters: args)
         @receiver = receiver
         @context = context
-        @parameters = args
-        @return_type = ComplexType.parse('::Proc')
         @node = node
       end
 
@@ -30,16 +28,6 @@ module Solargraph
 
       def binder
         @rebind&.defined? ? @rebind : closure.binder
-      end
-
-      # @return [::Array<Parameter>]
-      def parameters
-        @parameters ||= []
-      end
-
-      # @return [::Array<String>]
-      def parameter_names
-        @parameter_names ||= parameters.map(&:name)
       end
 
       # @param yield_types [::Array<ComplexType>]
