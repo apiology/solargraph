@@ -2249,6 +2249,17 @@ describe Solargraph::SourceMap::Clip do
     expect(type.to_s).to eq('Array(Array(String, Integer), Array(String, Symbol))')
   end
 
+  it 'infers literal heterogeneous arrays into tuples' do
+    source = Solargraph::Source.load_string(%(
+      h = [['foo', 1], ['bar', 2]]
+      h
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [2, 6])
+    type = clip.infer
+    expect(type.to_s).to eq('Array<Array(String, Integer)>')
+  end
+
   it 'excludes Kernel singleton methods from chained methods' do
     source = Solargraph::Source.load_string('[].put', 'test.rb')
     api_map = Solargraph::ApiMap.new.map(source)
