@@ -227,7 +227,7 @@ module Solargraph
       return tag if ['self', nil].include?(tag)
       type = ComplexType.parse(tag)
       return tag if type.literal? || type.name == 'Boolean'
-      context_type = ComplexType.parse("::#{context_tag}")
+      context_type = ComplexType.parse(context_tag).force_rooted
       fqns = qualify_namespace(type.rooted_namespace, context_type.namespace)
       return nil if fqns.nil?
       fqns + type.substring
