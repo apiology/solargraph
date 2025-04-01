@@ -361,10 +361,11 @@ describe Solargraph::SourceMap::Clip do
       # @return [String, Array]
       def foo; end
       var = foo
+      var
     ), 'test.rb')
     map = Solargraph::ApiMap.new
     map.map source
-    clip = map.clip_at('test.rb', Solargraph::Position.new(3, 7))
+    clip = map.clip_at('test.rb', Solargraph::Position.new(4, 6))
     type = clip.infer
     expect(type.to_s).to eq('String, Array')
   end
@@ -738,10 +739,11 @@ describe Solargraph::SourceMap::Clip do
         end
       end
       value = Value.new
+      value
     ), 'test.rb')
     api_map = Solargraph::ApiMap.new
     api_map.map source
-    clip = api_map.clip_at('test.rb', [6, 11])
+    clip = api_map.clip_at('test.rb', [7, 11])
     expect(clip.infer.tag).to eq('Class')
   end
 
@@ -1282,6 +1284,7 @@ describe Solargraph::SourceMap::Clip do
       class Mod
         def meth
           arr = []
+          arr
           1.times do
             arr
           end
@@ -1291,11 +1294,11 @@ describe Solargraph::SourceMap::Clip do
     ), 'test.rb')
     api_map = Solargraph::ApiMap.new
     api_map.map source
-    clip = api_map.clip_at('test.rb', [3, 11])
+    clip = api_map.clip_at('test.rb', [4, 11])
     expect(clip.infer.tag).to eq('Array')
-    clip = api_map.clip_at('test.rb', [5, 12])
+    clip = api_map.clip_at('test.rb', [6, 12])
     expect(clip.infer.tag).to eq('Array')
-    clip = api_map.clip_at('test.rb', [7, 10])
+    clip = api_map.clip_at('test.rb', [8, 10])
     expect(clip.infer.tag).to eq('Array')
   end
 
@@ -2627,4 +2630,164 @@ describe Solargraph::SourceMap::Clip do
   xit 'uses is_a? in an if-then-else() to refine types'
 
   xit 'uses is_a? in a if-then-elsif-else() to refine types'
+
+  it 'understands compatible reassignments' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @return [Foo]
+        def baz; end
+      end
+      bar = Foo.new
+      bar
+      bar = Foo.new
+      bar
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [6, 6])
+    expect(clip.infer.to_s).to eq('Foo')
+
+    clip = api_map.clip_at('test.rb', [8, 6])
+    expect(clip.infer.to_s).to eq('Foo')
+  end
+
+  it 'understands compatible reassignments from same object' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @return [Foo]
+        def baz; end
+      end
+      bar = Foo.new
+      bar
+      bar = bar.baz
+      bar
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [6, 6])
+    expect(clip.infer.to_s).to eq('Foo')
+
+    clip = api_map.clip_at('test.rb', [8, 6])
+    expect(clip.infer.to_s).to eq('Foo')
+  end
+
+  it 'does not get confused by overlapping names between methods and variables' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @return [Foo]
+        def bar; end
+      end
+      bar = Foo.new
+      bar
+      bar = bar.bar
+      bar
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [6, 6])
+    expect(clip.infer.to_s).to eq('Foo')
+
+    clip = api_map.clip_at('test.rb', [8, 6])
+    expect(clip.infer.to_s).to eq('Foo')
+  end
+
+  xit 'replaces nil with reassignments' do
+    source = Solargraph::Source.load_string(%(
+      bar = nil
+      bar
+      bar = 123
+      bar
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [2, 6])
+    expect(clip.infer.to_s).to eq('nil')
+
+    clip = api_map.clip_at('test.rb', [4, 6])
+    expect(clip.infer.to_s).to eq('Integer')
+  end
+
+  xit 'replaces type with reassignments' do
+    source = Solargraph::Source.load_string(%(
+      bar = 'a'
+      bar
+      bar = 123
+      bar
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [2, 6])
+    expect(clip.infer.to_s).to eq('String')
+
+    clip = api_map.clip_at('test.rb', [4, 6])
+    expect(clip.infer.to_s).to eq('Integer')
+  end
+
+  it 'expands nil type with conditional reassignments' do
+    source = Solargraph::Source.load_string(%(
+      bar = nil
+      if foo
+        bar = 'a'
+      end
+      bar
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [5, 6])
+    expect(clip.infer.to_s).to eq('String, nil')
+  end
+
+  xit 'replaces nil with alternate reassignments' do
+    source = Solargraph::Source.load_string(%(
+      bar = nil
+      if baz
+        bar = :foo
+      else
+        bar = 123
+      end
+      bar
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [7, 6])
+    expect(clip.infer.to_s).to eq('Symbol, Integer')
+  end
+
+  xit 'replaces type with alternate reassignments' do
+    source = Solargraph::Source.load_string(%(
+      bar = 'a'
+      if baz
+        bar = :foo
+      else
+        bar = 123
+      end
+      bar
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [7, 6])
+    expect(clip.infer.to_s).to eq('Symbol, Integer')
+  end
+
+  it 'expands nil with conditional reassignments' do
+    source = Solargraph::Source.load_string(%(
+      bar = nil
+      if baz
+        bar = :foo
+      elsif qux
+        bar = 123
+      end
+      bar
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [7, 6])
+    expect(clip.infer.to_s).to eq('Symbol, Integer, nil')
+  end
+
+  it 'expands type with conditional reassignments' do
+    source = Solargraph::Source.load_string(%(
+      bar = 'a'
+      if baz
+        bar = :foo
+      elsif qux
+        bar = 123
+      end
+      bar
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [7, 6])
+    expect(clip.infer.to_s).to eq('String, Symbol, Integer')
+  end
 end
