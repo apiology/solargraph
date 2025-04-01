@@ -373,7 +373,7 @@ describe Solargraph::Source::Chain do
     api_map.map source
     pin = api_map.get_path_pins('#foo').first
     type = pin.probe(api_map)
-    expect(type.simple_tags).to eq('String, nil')
+    expect(type.simple_tags).to eq('String')
   end
 
   it 'recognizes nil safe navigation' do
