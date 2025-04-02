@@ -13,7 +13,7 @@ module Solargraph
         @return_type
       end
 
-      # @param return_type [ComplexType]
+      # @param return_type [ComplexType, ComplexType::UniqueType]
       # @return [ProxyType]
       def self.anonymous return_type
         parts = return_type.namespace.split('::')

@@ -22,6 +22,8 @@ module Solargraph
           end
           type = if child_types.uniq.length == 1 && child_types.first.defined?
                    ComplexType::UniqueType.new('Array', [], child_types.uniq, rooted: true, parameters_type: :list)
+                 elsif child_types.uniq.length > 1 && child_types.first.defined?
+                   ComplexType::UniqueType.new('Array', [], child_types.uniq, rooted: true, parameters_type: :fixed)
                  else
                    ComplexType::UniqueType.new('Array', rooted: true)
                  end
