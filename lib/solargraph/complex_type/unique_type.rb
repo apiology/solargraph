@@ -297,7 +297,7 @@ module Solargraph
         new_name ||= name
         new_key_types ||= @key_types
         new_subtypes ||= @subtypes
-        parameters_type ||= @parameters_type
+        parameters_type ||= @parameters_type || :list
         make_rooted = @rooted if make_rooted.nil?
         UniqueType.new(new_name, new_key_types, new_subtypes, rooted: make_rooted, parameters_type: parameters_type)
       end
