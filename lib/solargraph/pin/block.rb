@@ -46,13 +46,6 @@ module Solargraph
         parameters.map { ComplexType::UNDEFINED }
       end
 
-      # @todo the next step with parameters, arguments, destructuring,
-      #   kwargs, etc logic is probably either creating a Parameters
-      #   or Callable pin that encapsulates and shares the logic
-      #   between methods, blocks and signatures.  It could live in
-      #   Signature if Method didn't also own potentially different
-      #   set of parameters, generics and return types.
-
       # @param api_map [ApiMap]
       # @return [::Array<ComplexType>]
       def typify_parameters(api_map)
