@@ -198,6 +198,7 @@ module Solargraph
         return ComplexType::UNDEFINED if possibles.empty?
 
         type = if possibles.length > 1
+          # Move nil to the end by convention
           sorted = possibles.sort { |a, _| a.tag == 'nil' ? 1 : 0 }
           ComplexType.new(sorted.uniq)
         else
@@ -213,7 +214,7 @@ module Solargraph
       def maybe_nil type
         return type if type.undefined? || type.void? || type.nullable?
         return type unless nullable?
-        ComplexType.try_parse("#{type}, nil")
+        ComplexType.new(type.items + [ComplexType::NIL])
       end
     end
   end
