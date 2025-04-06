@@ -2437,6 +2437,186 @@ describe Solargraph::SourceMap::Clip do
     expect(clip.infer.to_s).to eq('Bar')
   end
 
+  it 'uses is_a? in a simple if() to refine types on a simple class' do
+    source = Solargraph::Source.load_string(%(
+      class ReproBase; end
+      class Repro < ReproBase; end
+      # @param repr [ReproBase]
+      def verify_repro(repr)
+        if repr.is_a?(Repro)
+          repr
+        else
+          repr
+        end
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [6, 10])
+    expect(clip.infer.to_s).to eq('Repro')
+
+    clip = api_map.clip_at('test.rb', [8, 10])
+    expect(clip.infer.to_s).to eq('ReproBase')
+  end
+
+  it 'uses is_a? in a simple if() to refine types on a module-scoped class' do
+    source = Solargraph::Source.load_string(%(
+      class ReproBase; end
+      module Foo
+        class Repro < ReproBase; end
+      end
+      # @param repr [ReproBase]
+      def verify_repro(repr)
+        if repr.is_a?(Foo::Repro)
+          repr
+        else
+          repr
+        end
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [8, 10])
+    expect(clip.infer.to_s).to eq('Foo::Repro')
+
+    clip = api_map.clip_at('test.rb', [10, 10])
+    expect(clip.infer.to_s).to eq('ReproBase')
+  end
+
+  xit 'uses is_a? in a simple if() to refine types on a double-module-scoped class' do
+    source = Solargraph::Source.load_string(%(
+      class ReproBase; end
+      module Foo
+        module Bar
+          class Repro < ReproBase; end
+        end
+      end
+      # @param repr [ReproBase]
+      def verify_repro(repr)
+        if repr.is_a?(Foo::Bar::Repro)
+          repr
+        else
+          repr
+        end
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [10, 10])
+    expect(clip.infer.to_s).to eq('Foo::Bar::Repro')
+
+    clip = api_map.clip_at('test.rb', [12, 10])
+    expect(clip.infer.to_s).to eq('ReproBase')
+  end
+
+  it 'uses is_a? in a simple if() to refine types on a simple class' do
+    source = Solargraph::Source.load_string(%(
+      class ReproBase; end
+      class Repro < ReproBase; end
+      # @param repr [ReproBase]
+      def verify_repro(repr)
+        if repr.is_a?(Repro)
+          repr
+        else
+          repr
+        end
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [6, 10])
+    expect(clip.infer.to_s).to eq('Repro')
+
+    clip = api_map.clip_at('test.rb', [8, 10])
+    expect(clip.infer.to_s).to eq('ReproBase')
+  end
+
+  it 'uses is_a? in a simple if() to refine types on a module-scoped class' do
+    source = Solargraph::Source.load_string(%(
+      class ReproBase; end
+      module Foo
+        class Repro < ReproBase; end
+      end
+      # @param repr [ReproBase]
+      def verify_repro(repr)
+        if repr.is_a?(Foo::Repro)
+          repr
+        else
+          repr
+        end
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [8, 10])
+    expect(clip.infer.to_s).to eq('Foo::Repro')
+
+    clip = api_map.clip_at('test.rb', [10, 10])
+    expect(clip.infer.to_s).to eq('ReproBase')
+  end
+
+  it 'uses is_a? in a simple unless statement to refine types on a simple class' do
+    source = Solargraph::Source.load_string(%(
+      class ReproBase; end
+      class Repro < ReproBase; end
+      # @param repr [ReproBase]
+      def verify_repro(repr)
+        unless repr.is_a?(Repro)
+          repr
+        else
+          repr
+        end
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [6, 10])
+    expect(clip.infer.to_s).to eq('ReproBase')
+
+    clip = api_map.clip_at('test.rb', [8, 10])
+    expect(clip.infer.to_s).to eq('Repro')
+  end
+
+  xit 'uses is_a? in a "break unless" statement to refine types' do
+    source = Solargraph::Source.load_string(%(
+      class ReproBase; end
+      class Repro < ReproBase; end
+      # @type [Array<ReproBase>]
+      foo = bar
+      foo.each do |value|
+        break unless value.is_a? Repro
+        value
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [7, 8])
+    expect(clip.infer.to_s).to eq('Repro')
+  end
+
+  xit 'uses is_a? in a simple if() to refine types on a double-module-scoped class' do
+    source = Solargraph::Source.load_string(%(
+      class ReproBase; end
+      module Foo
+        module Bar
+          class Repro < ReproBase; end
+        end
+      end
+      # @param repr [ReproBase]
+      def verify_repro(repr)
+        if repr.is_a?(Foo::Bar::Repro)
+          repr
+        else
+          repr
+        end
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [10, 10])
+    expect(clip.infer.to_s).to eq('Foo::Bar::Repro')
+
+    clip = api_map.clip_at('test.rb', [12, 10])
+    expect(clip.infer.to_s).to eq('ReproBase')
+  end
+
+  xit 'uses is_a? in an if-then-else() to refine types'
+
+  xit 'uses is_a? in a if-then-elsif-else() to refine types'
+
+>>>>>>> flow-sensitive-typing
   it 'understands compatible reassignments' do
     source = Solargraph::Source.load_string(%(
       class Foo
