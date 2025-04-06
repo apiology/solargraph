@@ -2616,7 +2616,6 @@ describe Solargraph::SourceMap::Clip do
 
   xit 'uses is_a? in a if-then-elsif-else() to refine types'
 
->>>>>>> flow-sensitive-typing
   it 'understands compatible reassignments' do
     source = Solargraph::Source.load_string(%(
       class Foo
