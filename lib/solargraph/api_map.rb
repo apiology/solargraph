@@ -75,6 +75,9 @@ module Solargraph
     # @param bench [Bench]
     # @return [self]
     def catalog bench
+      # @todo teach this to load a user-configured RBS directory from
+      #   the workspace so folks can specify their own RBS files as
+      #   fills when needed
       implicit.clear
       @cache.clear
       @source_map_hash = bench.source_maps.map { |s| [s.filename, s] }.to_h
@@ -249,11 +252,10 @@ module Solargraph
     # @return [String, nil] fully qualified tag
     def qualify tag, context_tag = ''
       return tag if ['Boolean', 'self', nil].include?(tag)
-
       type = ComplexType.try_parse(tag)
       return unless type
-
       return tag if type.literal?
+
 
       context_type = ComplexType.try_parse(context_tag)
       return unless context_type
@@ -331,6 +333,11 @@ module Solargraph
     # @param deep [Boolean] True to include superclasses, mixins, etc.
     # @return [Array<Solargraph::Pin::Method>]
     def get_methods rooted_tag, scope: :instance, visibility: [:public], deep: true
+      if rooted_tag.start_with? 'Array('
+        # Array() are really tuples - use our fill, as the RBS repo
+        # does not give us definitions for it
+        rooted_tag = "Solargraph::Fills::Tuple(#{rooted_tag[6..-2]})"
+      end
       cached = cache.get_methods(rooted_tag, scope, visibility, deep)
       return cached.clone unless cached.nil?
       result = []
