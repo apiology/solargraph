@@ -35,7 +35,7 @@ module Solargraph
         @context ||= begin
           result = super
           if scope == :instance
-            Solargraph::ComplexType.parse(result.rooted_namespace)
+            result.reduce_class_type
           else
             result
           end
