@@ -2,7 +2,7 @@
 
 module Solargraph
   module Pin
-    class Block < Closure
+    class Block < Callable
       include Breakable
 
       # @return [Parser::AST::Node]
