@@ -737,7 +737,6 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message)).to eq(['Unresolved call to upcase'])
     end
 
-
     it 'does not falsely enforce nil in return types' do
       checker = type_checker(%(
       # @return [Integer]
@@ -749,6 +748,20 @@ describe Solargraph::TypeChecker do
       end
       ))
       expect(checker.problems.map(&:message)).to be_empty
+    end
+
+    it 'refines types on is_a? and && to downcast and avoid false positives' do
+      checker = type_checker(%(
+        def foo
+          # @sg-ignore
+          # @type [Object]
+          a = bar
+          if a.is_a?(String) && a.length > 0
+            a.upcase
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq([])
     end
 
     it 'interprets self references correctly' do
