@@ -28,8 +28,6 @@ module Solargraph
       @preferences = preferences.compact
       @rbs_path = rbs_path
       @environ = Convention.for_global(self)
-      @requires.concat @environ.requires
-      @requires.uniq
       generate_gem_pins
       pins.concat @environ.pins
     end
@@ -72,7 +70,7 @@ module Solargraph
 
     # @return [Hash{String => Gem::Specification, nil}]
     def required_gem_map
-      @required_gem_map ||= requires.to_h { |path| [path, resolve_path_to_gemspec(path)] }
+      @required_gem_map ||= (requires + environ.requires).uniq.to_h { |path| [path, resolve_path_to_gemspec(path)] }
     end
 
     # @return [Hash{String => Gem::Specification}]
