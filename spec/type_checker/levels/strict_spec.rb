@@ -786,7 +786,6 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message)).to eq([])
     end
 
-
     it "doesn't get confused about rooted types from attr_accessors" do
       checker = type_checker(%(
         module Foo
