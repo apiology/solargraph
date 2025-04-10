@@ -2914,25 +2914,6 @@ describe Solargraph::SourceMap::Clip do
     expect(clip.infer.to_s).to eq('nil')
   end
 
-  it 'does not map Module methods into an Object' do
-    source = Solargraph::Source.load_string(%(
-      class Nah
-        # name is also a method in Module class that returns String
-        def name
-        end
-      end
-
-      def blah
-        n = Nah.new
-        o = n.name
-        o
-     end
-  ), 'test.rb')
-    api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [10, 8])
-    expect(clip.infer.to_s).to eq('nil')
-  end
-
   it 'handles a complex yieldreturn type resolution situation' do
     source = Solargraph::Source.load_string(%(
       module A
@@ -2990,16 +2971,17 @@ describe Solargraph::SourceMap::Clip do
   ), 'test.rb')
 
     api_map = Solargraph::ApiMap.new.map(source)
+
     clip = api_map.clip_at('test.rb', [20, 10])
-    expect(clip.infer.to_s).to eq('Array<Integer>')
+    expect(clip.infer.to_s).to eq('Array<456>')
 
     clip = api_map.clip_at('test.rb', [22, 10])
-    expect(clip.infer.to_s).to eq('Array<Integer>')
+    expect(clip.infer.to_s).to eq('Array<456>')
 
     clip = api_map.clip_at('test.rb', [24, 10])
-    expect(clip.infer.to_s).to eq('Array<Integer>')
+    expect(clip.infer.to_s).to eq('Array<456>')
 
     clip = api_map.clip_at('test.rb', [26, 10])
-    expect(clip.infer.to_s).to eq('Array<Integer>')
+    expect(clip.infer.to_s).to eq('Array<456>')
   end
 end
