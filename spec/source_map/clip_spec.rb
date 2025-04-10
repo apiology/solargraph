@@ -2955,6 +2955,7 @@ describe Solargraph::SourceMap::Clip do
 
     clip = api_map.clip_at('test.rb', [9, 14])
     expect(clip.infer.to_s).to eq('Array<A::B>')
+  end
 
   it 'can infer assignments-in-return-position from complex expressions' do
     source = Solargraph::Source.load_string(%(
