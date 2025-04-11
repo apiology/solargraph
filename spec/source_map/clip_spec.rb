@@ -2266,4 +2266,126 @@ describe Solargraph::SourceMap::Clip do
     clip = api_map.clip_at('test.rb', [10, 8])
     expect(clip.infer.to_s).to eq('nil')
   end
+
+  it 'handles a complex yieldreturn type resolution situation' do
+    source = Solargraph::Source.load_string(%(
+      module A
+        class B
+          class C
+            # @param x [Array<B>]
+            # @yieldreturn [Array<B>]
+            def d(x)
+              x
+              y = yield
+              y
+            end
+          end
+        end
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [7, 14])
+    expect(clip.infer.to_s).to eq('Array<A::B>')
+
+    clip = api_map.clip_at('test.rb', [9, 14])
+    expect(clip.infer.to_s).to eq('Array<A::B>')
+  end
+
+  it 'can infer assignments-in-return-position from complex expressions' do
+    source = Solargraph::Source.load_string(%(
+      class A
+        def foo
+          blah = ['foo'].map { 456 }
+        end
+
+        def bar
+          nah ||= ['foo'].map { 456 }
+        end
+
+        def foo1
+          @blah = ['foo'].map { 456 }
+        end
+
+        def bar1
+          @nah2 ||= ['foo'].map { 456 }
+        end
+
+        def baz
+          a = foo
+          a
+          b = bar
+          b
+          a1 = foo1
+          a1
+          b2 = bar1
+          b2
+        end
+      end
+  ), 'test.rb')
+
+    api_map = Solargraph::ApiMap.new.map(source)
+
+    clip = api_map.clip_at('test.rb', [20, 10])
+    expect(clip.infer.to_s).to eq('Array<456>')
+
+    clip = api_map.clip_at('test.rb', [22, 10])
+    expect(clip.infer.to_s).to eq('Array<456>')
+
+    clip = api_map.clip_at('test.rb', [24, 10])
+    expect(clip.infer.to_s).to eq('Array<456>')
+
+    clip = api_map.clip_at('test.rb', [26, 10])
+    expect(clip.infer.to_s).to eq('Array<456>')
+  end
+
+  it 'handles block method yield scenarios' do
+    source = Solargraph::Source.load_string(%(
+      # @yieldreturn [Integer]
+      def foo
+        bar = yield
+        bar
+        [1,2,3].each do |i|
+          baz = yield
+          baz
+        end
+      end
+    ), 'test.rb')
+
+    api_map = Solargraph::ApiMap.new.map(source)
+
+    clip = api_map.clip_at('test.rb', [4, 8])
+    expect(clip.infer.to_s).to eq('Integer')
+
+    clip = api_map.clip_at('test.rb', [7, 10])
+    expect(clip.infer.to_s).to eq('Integer')
+  end
+
+  it 'handles block method super scenarios' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @return [Integer]
+        def foo
+        end
+      end
+
+      class Bar < Foo
+        def foo
+          bar = super
+          bar
+          [1,2,3].each do |i|
+            baz = super
+            baz
+          end
+        end
+      end
+    ), 'test.rb')
+
+    api_map = Solargraph::ApiMap.new.map(source)
+
+    clip = api_map.clip_at('test.rb', [10, 10])
+    expect(clip.infer.to_s).to eq('Integer')
+
+    clip = api_map.clip_at('test.rb', [13, 12])
+    expect(clip.infer.to_s).to eq('Integer')
+  end
 end
