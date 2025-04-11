@@ -23,37 +23,6 @@ module Solargraph
       end
 
       # @param if_node [Parser::AST::Node]
-      def add_downcast_local(pin, downcast_type_name, presence)
-        # @todo Create pin#update method
-        new_pin = Solargraph::Pin::LocalVariable.new(
-          location: pin.location,
-          closure: pin.closure,
-          name: pin.name,
-          assignment: pin.assignment,
-          comments: pin.comments,
-          presence: presence,
-          return_type: ComplexType.try_parse(downcast_type_name),
-          declaration: true
-        )
-        locals.push(new_pin)
-      end
-
-      # @return [void]
-      def process_facts(facts_by_pin, presences)
-        #
-        # Add specialized locals for the rest of the block
-        #
-        facts_by_pin.each_pair do |pin, facts|
-          facts.each do |fact|
-            downcast_type_name = fact.fetch(:type)
-            presences.each do |presence|
-              add_downcast_local(pin, downcast_type_name, presence)
-            end
-          end
-        end
-      end
-
-      # @param if_node [Parser::AST::Node]
       def process_if(if_node)
         #
         # See if we can refine a type based on the result of 'if foo.nil?'
@@ -74,7 +43,7 @@ module Solargraph
         if always_breaks?(else_clause)
           unless enclosing_breakable_pin.nil?
             rest_of_breakable_body = Range.new(get_node_end_position(if_node),
-                                                get_node_end_position(enclosing_breakable_pin.node))
+                                               get_node_end_position(enclosing_breakable_pin.node))
             true_ranges << rest_of_breakable_body
           end
         end
@@ -92,6 +61,60 @@ module Solargraph
         process_conditional(conditional_node, true_ranges)
       end
 
+      # Find a variable pin by name and where it is used.
+      #
+      # Resolves our most specific view of this variable's type by
+      # preferring pins created by flow-sensitive typing when we have
+      # them based on the Closure and Location.
+      #
+      # @param pins [Array<Pin::LocalVariable>]
+      # @param closure [Pin::Closure]
+      # @param location [Location]
+      def self.visible_pins(pins, name, closure, location)
+        pins_with_name = pins.select { |p| p.name == name }
+        return [] if pins_with_name.empty?
+        pins_with_specific_visibility = pins.select { |p| p.name == name && p.presence && p.visible_at?(closure, location) }
+        return pins_with_name if pins_with_specific_visibility.empty?
+        visible_pins_specific_to_this_closure = pins_with_specific_visibility.select { |p| p.closure == closure }
+        return pins_with_specific_visibility if visible_pins_specific_to_this_closure.empty?
+        flow_defined_pins = pins_with_specific_visibility.select { |p| p.presence_certain? }
+        return visible_pins_specific_to_this_closure if flow_defined_pins.empty?
+        flow_defined_pins
+      end
+
+      private
+
+      # @param if_node [Parser::AST::Node]
+      def add_downcast_local(pin, downcast_type_name, presence)
+        # @todo Create pin#update method
+        new_pin = Solargraph::Pin::LocalVariable.new(
+          location: pin.location,
+          closure: pin.closure,
+          name: pin.name,
+          assignment: pin.assignment,
+          comments: pin.comments,
+          presence: presence,
+          return_type: ComplexType.try_parse(downcast_type_name),
+          presence_certain: true
+        )
+        locals.push(new_pin)
+      end
+
+      # @return [void]
+      def process_facts(facts_by_pin, presences)
+        #
+        # Add specialized locals for the rest of the block
+        #
+        facts_by_pin.each_pair do |pin, facts|
+          facts.each do |fact|
+            downcast_type_name = fact.fetch(:type)
+            presences.each do |presence|
+              add_downcast_local(pin, downcast_type_name, presence)
+            end
+          end
+        end
+      end
+
       def process_conditional(conditional_node, true_ranges)
         if conditional_node.type == :send
           process_isa(conditional_node, true_ranges)
@@ -99,8 +122,6 @@ module Solargraph
           process_and(conditional_node, true_ranges)
         end
       end
-
-      private
 
       # @param isa_node [Parser::AST::Node]
       def parse_isa(isa_node)
