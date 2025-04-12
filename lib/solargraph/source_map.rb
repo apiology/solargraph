@@ -117,6 +117,9 @@ module Solargraph
       _locate_pin line, character, Pin::Closure
     end
 
+    # @deprecated Please use #locate_closure_pin
+    alias locate_block_pin locate_closure_pin
+
     # @param other_map [SourceMap]
     # @return [Boolean]
     def try_merge! other_map
