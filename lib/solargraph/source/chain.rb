@@ -5,8 +5,13 @@ require 'solargraph/source/chain/link'
 
 module Solargraph
   class Source
-    # A chain of constants, variables, and method calls for inferring types of
-    # values.
+    #
+    # Represents an expression as a single call chain at the parse
+    # tree level, made up of constants, variables, and method calls,
+    # each represented as a Link object.
+    #
+    # Computes Pins and/or ComplexTypes representing the interpreted
+    # expression.
     #
     class Chain
       include Logging
@@ -63,7 +68,12 @@ module Solargraph
         @base ||= Chain.new(links[0..-2])
       end
 
-      # Determine potential pins returned by this chain of words
+
+      # Determine potential Pins returned by this chain of words
+      #
+      # @param api_map [ApiMap]
+      # @param name_pin [Pin::Base]
+      # @param locals [::Enumerable<Pin::LocalVariable>]
       #
       # @param api_map [ApiMap]
       # @param name_pin [Pin::Closure] the surrounding closure pin for
