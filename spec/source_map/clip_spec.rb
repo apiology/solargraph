@@ -3085,6 +3085,8 @@ describe Solargraph::SourceMap::Clip do
         # @return [Array(Integer, String)]
         def baz
           [1, 'foo']
+        end
+      end
     ), 'test.rb')
 
     api_map = Solargraph::ApiMap.new.map(source)
