@@ -43,6 +43,7 @@ module Solargraph
         # @param name_pin [Pin::Closure] name_pin.binder should give us the object on which 'word' will be invoked @see Chain#define
         # @param locals [::Array<Pin::LocalVariable>]
         def resolve api_map, name_pin, locals
+          logger.debug { "Call#resolve(name_pin.binder=#{name_pin.binder}, word=#{word}, name_pin=#{name_pin}) - starting" }
           return super_pins(api_map, name_pin) if word == 'super'
           return yield_pins(api_map, name_pin) if word == 'yield'
           found = if head?
@@ -50,14 +51,30 @@ module Solargraph
           else
             []
           end
-          return inferred_pins(found, api_map, name_pin, locals) unless found.empty?
+          unless found.empty?
+            out = inferred_pins(found, api_map, name_pin, locals)
+            logger.debug { "Call#resolve(word=#{word}, name_pin=#{name_pin}) - found=#{found} => #{out}" }
+            return out
+          end
+          # @param [ComplexType::UniqueType]
           pins = name_pin.binder.each_unique_type.flat_map do |context|
             method_context = context.namespace == '' ? '' : context.tag
             api_map.get_method_stack(method_context, word, scope: context.scope)
           end
-          return [] if pins.empty?
-          inferred_pins(pins, api_map, name_pin, locals)
+          if pins.empty?
+            logger.debug { "Call#resolve(word=#{word}, name_pin=#{name_pin}, name_pin.binder=#{name_pin.binder}) => [] - found no pins for #{word} in #{name_pin.binder}" }
+            return []
+          end
+          out = inferred_pins(pins, api_map, name_pin, locals)
+          logger.debug { "Call#resolve(word=#{word}, name_pin=#{name_pin}) - pins=#{pins} => #{out}" }
+          out
         end
+
+        def desc
+          "#{word}(#{arguments.map(&:desc).join(', ')})"
+        end
+
+        include Logging
 
         private
 
@@ -91,6 +108,7 @@ module Solargraph
                   match = ol.parameters.any?(&:restarg?)
                   break
                 end
+                logger.debug { "Call#inferred_pins(word=#{word}, name_pin=#{name_pin}, name_pin.binder=#{name_pin.binder}) - resolving arg #{arg.desc}" }
                 atype = atypes[idx] ||= arg.infer(api_map, Pin::ProxyType.anonymous(name_pin.context), locals)
                 ptype = param.return_type
                 # @todo Weak type comparison
@@ -128,7 +146,7 @@ module Solargraph
             end
             p
           end
-          result.map do |pin|
+          out = result.map do |pin|
             if pin.path == 'Class#new' && name_pin.context.tag != 'Class'
               reduced_context = name_pin.context.reduce_class_type
               pin.proxy(reduced_context)
@@ -138,6 +156,8 @@ module Solargraph
               selfy == pin.return_type ? pin : pin.proxy(selfy)
             end
           end
+          logger.debug { "Call#inferred_pins(pins=#{pins}, name_pin=#{name_pin}) => #{out}" }
+          out
         end
 
         # @param pin [Pin::Base]

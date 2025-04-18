@@ -632,7 +632,9 @@ module Solargraph
       namespace_pin = store.get_path_pins(fqns).select { |p| p.is_a?(Pin::Namespace) }.first
       methods = if namespace_pin && rooted_tag != fqns
                   methods = raw_methods.map do |method_pin|
-                    method_pin.resolve_generics(namespace_pin, rooted_type)
+                    out = method_pin.resolve_generics(namespace_pin, rooted_type)
+                    logger.debug { "ApiMap#inner_get_methods(rooted_tag=#{rooted_tag}) - resolved generics on #{method_pin} to #{out} from #{namespace_pin} and #{rooted_type}}" } if method_pin.name == '[]'
+                    out
                   end
                 else
                   raw_methods
@@ -830,5 +832,10 @@ module Solargraph
       }
       Pin::Method.new **args
     end
+
+    private
+
+    include Logging
+
   end
 end
