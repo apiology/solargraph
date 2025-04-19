@@ -80,7 +80,7 @@ module Solargraph
       # @param closure [Pin::Namespace]
       # @return [void]
       def convert_self_type_to_pins decl, closure
-        type = generic_type(decl.name, decl.args)
+        type = build_type(decl.name, decl.args)
         generic_values = type.all_params.map(&:to_s)
         include_pin = Solargraph::Pin::Reference::Include.new(
           name: decl.name.relative!.to_s,
