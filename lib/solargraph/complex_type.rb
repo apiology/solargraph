@@ -248,6 +248,10 @@ module Solargraph
 
     attr_reader :items
 
+    def rooted?
+      @items.all?(&:rooted?)
+    end
+
     protected
 
     # @return [ComplexType]
