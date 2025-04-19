@@ -621,7 +621,7 @@ module Solargraph
       def add_mixins decl, namespace
         decl.each_mixin do |mixin|
           klass = mixin.is_a?(RBS::AST::Members::Include) ? Pin::Reference::Include : Pin::Reference::Extend
-          type = generic_type(mixin.name, mixin.args)
+          type = build_type(mixin.name, mixin.args)
           generic_values = type.all_params.map(&:to_s)
           pins.push klass.new(
             name: mixin.name.relative!.to_s,
