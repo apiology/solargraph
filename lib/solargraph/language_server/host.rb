@@ -172,7 +172,8 @@ module Solargraph
       def open uri, text, version
         src = sources.open(uri, text, version)
         libraries.each do |lib|
-          lib.merge src
+          lib.merge(src)
+          lib.attach(src)
         end
         diagnoser.schedule uri
       end

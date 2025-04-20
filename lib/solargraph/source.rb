@@ -233,9 +233,9 @@ module Solargraph
       end
     end
 
+    # @deprecated
     def synchronized?
-      @synchronized = true if @synchronized.nil?
-      @synchronized
+      true
     end
 
     # Get a hash of comments grouped by the line numbers of the associated code.
