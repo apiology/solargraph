@@ -2361,6 +2361,7 @@ describe Solargraph::SourceMap::Clip do
       # @type [Hash{String => Array, Hash, Integer, nil}]
       raw_data = {}
       a = raw_data['domains']
+
       a
     ), 'test.rb')
 
@@ -2380,5 +2381,17 @@ describe Solargraph::SourceMap::Clip do
     api_map = Solargraph::ApiMap.new.map(source)
     clip = api_map.clip_at('test.rb', [4, 6])
     expect(clip.infer.to_s).to eq('Array, Hash, Integer, nil')
+  end
+
+  it 'resolves String#split overloads' do
+    source = Solargraph::Source.load_string(%(
+      a = 'abc\ndef'.split('\n')
+      a
+    ), 'test.rb')
+
+    api_map = Solargraph::ApiMap.new.map(source)
+
+    clip = api_map.clip_at('test.rb', [2, 6])
+    expect(clip.infer.to_s).to eq('Array<String>')
   end
 end
