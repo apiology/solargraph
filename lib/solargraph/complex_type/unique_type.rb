@@ -207,7 +207,7 @@ module Solargraph
       def resolve_generics definitions, context_type
         return self if definitions.nil? || definitions.generics.empty?
 
-        transform(name) do |t|
+        out = transform(name) do |t|
           if t.name == GENERIC_TAG_NAME
             idx = definitions.generics.index(t.subtypes.first&.name)
             next t if idx.nil?
@@ -226,6 +226,8 @@ module Solargraph
             t
           end
         end
+        # logger.debug { "UniqueType#resolve_generics(self=#{self.rooted_tag}, definitions=#{definitions}, context_type=#{context_type.rooted_tags}) => #{out}" }
+        out
       end
 
       # @yieldparam t [self]
@@ -308,6 +310,8 @@ module Solargraph
 
       UNDEFINED = UniqueType.new('undefined', rooted: false)
       BOOLEAN = UniqueType.new('Boolean', rooted: true)
+
+      include Logging
     end
   end
 end
