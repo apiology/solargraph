@@ -74,7 +74,7 @@ module Solargraph
                 logger.debug { "Block#typify_parameters() - arg_type=#{arg_type}, namespace_pin=#{namespace_pin}, param_type=#{param_type}, after_generics=#{after_generics}" }
                 after_generics
               else
-                arg_type.self_to(chain.base.infer(api_map, self, locals).namespace).qualify(api_map, meth.context.namespace)
+                arg_type.self_to_type(chain.base.infer(api_map, self, locals)).qualify(api_map, meth.context.namespace)
               end
             end
           end
@@ -108,7 +108,7 @@ module Solargraph
         target = chain.base.infer(api_map, receiver_pin, locals)
         target = full_context unless target.defined?
 
-        ComplexType.try_parse(*types).qualify(api_map, receiver_pin.context.namespace).self_to(target.to_s)
+        ComplexType.try_parse(*types).qualify(api_map, receiver_pin.context.namespace).self_to_type(target)
       end
     end
   end
