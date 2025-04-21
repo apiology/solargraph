@@ -174,9 +174,9 @@ module Solargraph
     # @return [Array<Solargraph::Pin::Base>, nil]
     # @todo Take filename/position instead of filename/line/column
     def definitions_at filename, line, column
+      sync_catalog
       position = Position.new(line, column)
       cursor = Source::Cursor.new(read(filename), position)
-      sync_catalog
       if cursor.comment?
         source = read(filename)
         offset = Solargraph::Position.to_offset(source.code, Solargraph::Position.new(line, column))
@@ -205,9 +205,9 @@ module Solargraph
     # @return [Array<Solargraph::Pin::Base>, nil]
     # @todo Take filename/position instead of filename/line/column
     def type_definitions_at filename, line, column
+      sync_catalog
       position = Position.new(line, column)
       cursor = Source::Cursor.new(read(filename), position)
-      sync_catalog
       mutex.synchronize { api_map.clip(cursor).types }
     rescue FileNotFoundError => e
       handle_file_not_found filename, e
@@ -222,9 +222,9 @@ module Solargraph
     # @return [Array<Solargraph::Pin::Base>]
     # @todo Take filename/position instead of filename/line/column
     def signatures_at filename, line, column
+      sync_catalog
       position = Position.new(line, column)
       cursor = Source::Cursor.new(read(filename), position)
-      sync_catalog
       mutex.synchronize { api_map.clip(cursor).signify }
     end
 
@@ -568,24 +568,9 @@ module Solargraph
     def maybe_map source
       return unless source
       return unless @current == source || workspace.has_file?(source.filename)
-      if source_map_hash.key?(source.filename)
-        return if source_map_hash[source.filename].code == source.code &&
-          source_map_hash[source.filename].source.synchronized? &&
-          source.synchronized?
-        if source.synchronized?
-          new_map = Solargraph::SourceMap.map(source)
-          unless source_map_hash[source.filename].try_merge!(new_map)
-            source_map_hash[source.filename] = new_map
-            find_external_requires(source_map_hash[source.filename])
-          end
-        else
-          # @todo Smelly instance variable access
-          source_map_hash[source.filename].instance_variable_set(:@source, source)
-        end
-      else
-        source_map_hash[source.filename] = Solargraph::SourceMap.map(source)
-        find_external_requires(source_map_hash[source.filename])
-      end
+      return if source_map_hash[source.filename]&.code == source.code
+      source_map_hash[source.filename] = Solargraph::SourceMap.map(source)
+      find_external_requires(source_map_hash[source.filename])
     end
 
     # @return [Set<Gem::Specification>]
