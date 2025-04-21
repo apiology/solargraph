@@ -222,7 +222,7 @@ describe Solargraph::Pin::Method do
     api_map.map source
     pin = api_map.get_path_pins('Foo#bar').first
     type = pin.probe(api_map)
-    expect(type.tag).to eq('Integer')
+    expect(type.simple_tags).to eq('Integer')
   end
 
   it 'infers return types from other parameters' do
@@ -323,7 +323,7 @@ describe Solargraph::Pin::Method do
     api_map.map source
     pin = api_map.get_path_pins('Foo#bar').first
     type = pin.probe(api_map)
-    expect(type.to_s).to eq('Integer, nil')
+    expect(type.simple_tags).to eq('Integer, nil')
   end
 
   it 'infers from chains' do
@@ -354,7 +354,7 @@ describe Solargraph::Pin::Method do
     api_map.map source
     pin = api_map.get_path_pins('Foo#bar').first
     type = pin.probe(api_map)
-    expect(type.to_s).to eq('Integer')
+    expect(type.simple_tags).to eq('Integer')
   end
 
   it 'infers from literal array dereference' do
@@ -582,7 +582,7 @@ describe Solargraph::Pin::Method do
       api_map.map source
       pin = api_map.get_path_pins('Foo#bar').first
       expect(pin.typify(api_map)).to be_undefined
-      expect(pin.probe(api_map).items.map(&:tag)).to eq(%w[String Integer])
+      expect(pin.probe(api_map).simple_tags).to eq('String, Integer')
     end
 
     it 'infers return types from begin rescue block' do
@@ -601,7 +601,7 @@ describe Solargraph::Pin::Method do
       api_map.map source
       pin = api_map.get_path_pins('Foo#bar').first
       expect(pin.typify(api_map)).to be_undefined
-      expect(pin.probe(api_map).items.map(&:tag)).to eq(%w[String Integer])
+      expect(pin.probe(api_map).simple_tags).to eq('String, Integer')
     end
 
     it 'infers return types from compound statements in conditionals' do
@@ -617,7 +617,7 @@ describe Solargraph::Pin::Method do
       api_map.map source
       pin = api_map.get_path_pins('Foo#bar').first
       expect(pin.typify(api_map)).to be_undefined
-      expect(pin.probe(api_map).items.map(&:tag)).to eq(%w[Symbol Float String Integer])
+      expect(pin.probe(api_map).simple_tags).to eq('Symbol, Float, String, Integer')
     end
 
     it 'ignores malformed overload tags' do

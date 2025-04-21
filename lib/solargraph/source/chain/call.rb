@@ -94,7 +94,8 @@ module Solargraph
             # use it.  If we didn't pass a block, the logic below will
             # reject it regardless
 
-            sorted_overloads = overloads.sort { |ol| ol.block? ? -1 : 1 }
+            with_block, without_block = overloads.partition(&:block?)
+            sorted_overloads = with_block + without_block
             new_signature_pin = nil
             atypes = []
             sorted_overloads.each do |ol|
@@ -117,12 +118,9 @@ module Solargraph
                 end
                 logger.debug { "Call#inferred_pins(word=#{word}, name_pin=#{name_pin}, name_pin.binder=#{name_pin.binder}) - resolving arg #{arg.desc}" }
                 atype = atypes[idx] ||= arg.infer(api_map, Pin::ProxyType.anonymous(name_pin.context), locals)
-
                 # make sure we get types from up the method
                 # inheritance chain if we don't have them on this pin
                 ptype = param.typify api_map
-                # @todo Weak type comparison
-                # unless atype.tag == param.return_type.tag || api_map.super_and_sub?(param.return_type.tag, atype.tag)
                 unless ptype.undefined? || atype.name == ptype.name || ptype.any? { |current_ptype| api_map.super_and_sub?(current_ptype.name, atype.name) } || ptype.generic? || param.restarg?
                   logger.debug { "Call#inferred_pins(word=#{word}, name_pin=#{name_pin}, name_pin.binder=#{name_pin.binder}) - rejecting signature #{ol}" }
                   match = false
