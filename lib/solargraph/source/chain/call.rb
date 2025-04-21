@@ -260,7 +260,10 @@ module Solargraph
           logger.debug { "Call#yield_pins(name_pin=#{name_pin}) - method_pin=#{method_pin.inspect}" }
           return [] unless method_pin
 
-          method_pin.signatures.map(&:block).compact
+          method_pin.signatures.map(&:block).compact.map do |signature_pin|
+            return_type = signature_pin.return_type.qualify(api_map, name_pin.namespace)
+            signature_pin.proxy(return_type)
+          end
         end
 
         # @param type [ComplexType]
