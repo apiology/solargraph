@@ -2320,6 +2320,31 @@ describe Solargraph::SourceMap::Clip do
     # expect(clip.infer.to_s).to eq('Array<Integer>')
   end
 
+  it 'handles mass assignment into instance variables' do
+    source = Solargraph::Source.load_string(%(
+      class Blah
+        def initialize
+          @foo, @bar = baz
+          @foo
+          @bar
+        end
+
+        # @return [Array(Integer, String)]
+        def baz
+          [1, 'foo']
+        end
+      end
+    ), 'test.rb')
+
+    api_map = Solargraph::ApiMap.new.map(source)
+
+    clip = api_map.clip_at('test.rb', [4, 10])
+    expect(clip.infer.to_s).to eq('Integer')
+
+    clip = api_map.clip_at('test.rb', [5, 10])
+    expect(clip.infer.to_s).to eq('String')
+  end
+
   xit 'resolves overloads based on kwarg existence' do
     source = Solargraph::Source.load_string(%(
       class Blah
