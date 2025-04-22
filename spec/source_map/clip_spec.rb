@@ -2196,6 +2196,31 @@ describe Solargraph::SourceMap::Clip do
     expect(type.to_s).to eq(':foo')
   end
 
+  it 'does not pay attention to method signatures which have been redefind by subclass' do
+    source = Solargraph::Source.load_string(%(
+      class Bar < Foo
+        # @return [String]
+        def meth arg
+          super(arg, 123).to_s
+        end
+      end
+
+      class Foo
+        # @param arg [String]
+        # @return [Integer]
+        def meth arg, arg2
+        end
+      end
+
+      a = Bar.new.meth('456')
+      a
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [15, 6])
+    type = clip.infer
+    expect(type.to_s).to eq('String')
+  end
+
   it 'dereferences tuple types with [](idx) via literals' do
     source = Solargraph::Source.load_string(%(
       # @type [Array(String, Integer)]

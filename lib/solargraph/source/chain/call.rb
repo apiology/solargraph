@@ -59,7 +59,8 @@ module Solargraph
           # @param [ComplexType::UniqueType]
           pins = name_pin.binder.each_unique_type.flat_map do |context|
             method_context = context.namespace == '' ? '' : context.tag
-            api_map.get_method_stack(method_context, word, scope: context.scope)
+            stack = api_map.get_method_stack(method_context, word, scope: context.scope)
+            [stack.first].compact
           end
           if pins.empty?
             logger.debug { "Call#resolve(name_pin.binder=#{name_pin.binder}, word=#{word}, name_pin=#{name_pin}, name_pin.binder=#{name_pin.binder}) => [] - found no pins for #{word} in #{name_pin.binder}" }
