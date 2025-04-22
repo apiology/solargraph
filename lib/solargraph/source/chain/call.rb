@@ -58,8 +58,8 @@ module Solargraph
           end
           # @param [ComplexType::UniqueType]
           pins = name_pin.binder.each_unique_type.flat_map do |context|
-            method_context = context.namespace == '' ? '' : context.tag
-            stack = api_map.get_method_stack(method_context, word, scope: context.scope)
+            ns_tag = context.namespace == '' ? '' : context.namespace_type.tag
+            stack = api_map.get_method_stack(ns_tag, word, scope: context.scope)
             [stack.first].compact
           end
           if pins.empty?
