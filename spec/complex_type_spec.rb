@@ -492,7 +492,6 @@ describe Solargraph::ComplexType do
     expect(type.to_rbs).to eq('[::Symbol, ::String, [::Integer, ::Integer]]')
   end
 
-
   ['generic<T>', "nil", "true", "false", ":123", "123"].each do |tag|
     it "treats #{tag} as rooted" do
       types = Solargraph::ComplexType.parse(tag)
@@ -517,5 +516,10 @@ describe Solargraph::ComplexType do
     expect(type.tag).to eq('Array(Symbol, String, Array(Integer, Integer))')
     expect(type.to_rbs).to eq('[Symbol, String, [Integer, Integer]]')
     expect(type.to_s).to eq('Array(Symbol, String, Array(Integer, Integer))')
+  end
+
+  it 'throws away other types when in union with an undefined' do
+    type = Solargraph::ComplexType.parse('Symbol, String, Array(Integer, Integer), undefined')
+    expect(type.to_s).to eq('undefined')
   end
 end
