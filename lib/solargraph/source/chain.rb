@@ -89,7 +89,7 @@ module Solargraph
       # @return [::Array<Pin::Base>] Pins representing possible return
       #   types of this method.
       def define api_map, name_pin, locals
-        logger.debug { "Chain#define(links=#{links.map(&:desc)}, name_pin=#{name_pin.inspect}, locals=#{locals}) - starting" }
+        logger.debug { "Chain#define(name_pin=#{name_pin.desc}, links=#{links.map(&:desc)}, locals=#{locals}) - starting" }
         return [] if undefined?
 
         # working_pin is the surrounding closure pin for the link
@@ -111,7 +111,7 @@ module Solargraph
         end
         links.last.last_context = working_pin
         out = links.last.resolve(api_map, working_pin, locals)
-        logger.debug { "Chain#define(links=#{links.map(&:desc)}, name_pin=#{name_pin.inspect}, locals=#{locals}) => #{out}" }
+        logger.debug { "Chain#define(name_pin=#{name_pin.desc}, links=#{links.map(&:desc)}, locals=#{locals}) => #{out}" }
         out
       end
 
@@ -141,7 +141,7 @@ module Solargraph
         pins = define(api_map, name_pin, locals)
         type = infer_first_defined(pins, links.last.last_context, api_map, locals)
         out = maybe_nil(type)
-        logger.debug { "Chain#infer_uncached(links=#{self.links.map(&:desc)} => #{out}" }
+        logger.debug { "Chain#infer_uncached(links=#{self.links.map(&:desc)}, locals=#{locals.map(&:desc)}) => #{out}" }
         out
       end
 
