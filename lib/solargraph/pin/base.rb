@@ -74,7 +74,7 @@ module Solargraph
         transform_types { |t| t.resolve_generics(definitions, context_type) if t }
       end
 
-      # @param generics_to_erase [Enumerable<String>]
+      # @param generics_to_erase [::Array<String>]
       # @return [self]
       def erase_generics(generics_to_erase)
         return self if generics_to_erase.empty?
