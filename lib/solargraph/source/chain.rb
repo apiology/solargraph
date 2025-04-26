@@ -175,6 +175,10 @@ module Solargraph
         links.map(&:desc).to_s
       end
 
+      def to_s
+        desc
+      end
+
       private
 
       include Logging

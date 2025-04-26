@@ -155,6 +155,10 @@ module Solargraph
       map(&:tag).join(', ')
     end
 
+    def desc
+      rooted_tags
+    end
+
     def tags
       map(&:tag).join(', ')
     end
