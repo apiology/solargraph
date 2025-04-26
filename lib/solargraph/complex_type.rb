@@ -45,7 +45,7 @@ module Solargraph
         t.qualify api_map, context
       end
       out = ComplexType.new(types).reduce_object
-      logger.debug { "ComplexType#qualify(self=#{self}, context=#{context.inspect}) => #{out.rooted_tags}" }
+      logger.debug { "ComplexType#qualify(self=#{self.rooted_tags}, context=#{context.inspect}) => #{out.rooted_tags}" }
       out
     end
 
@@ -215,7 +215,9 @@ module Solargraph
     # @return [ComplexType]
     def resolve_generics definitions, context_type
       result = @items.map { |i| i.resolve_generics(definitions, context_type) }
-      ComplexType.new(result)
+      out = ComplexType.new(result)
+      # logger.debug { "ComplexType#resolve_generics(self=#{rooted_tags}, definitions=#{definitions}, context_type=#{context_type.rooted_tags} => #{out.rooted_tags}" }
+      out
     end
 
     def nullable?

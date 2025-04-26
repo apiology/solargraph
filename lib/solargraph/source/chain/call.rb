@@ -53,7 +53,7 @@ module Solargraph
           end
           logger.debug { "Call#resolve(name_pin.binder=#{name_pin.binder.rooted_tags}, word=#{word}, arguments=#{arguments.map(&:desc)}, name_pin=#{name_pin}) - found=#{found}" }
           unless found.empty?
-            out = inferred_pins(found, api_map, name_pin, locals)
+            out = inferred_pins(found, api_map, name_pin, locals) unless found.empty?
             logger.debug { "Call#resolve(word=#{word}, name_pin=#{name_pin}) - found=#{found} => #{out}" }
             return out
           end
@@ -64,7 +64,7 @@ module Solargraph
             [stack.first].compact
           end
           if pins.empty?
-            logger.debug { "Call#resolve(name_pin.binder=#{name_pin.binder.rooted_tags}, word=#{word}, arguments=#{arguments.map(&:desc)}, name_pin=#{name_pin}, name_pin.binder=#{name_pin.binder}) => [] - found no pins for #{word} in #{name_pin.binder}" }
+            logger.debug { "Call#resolve(name_pin.binder=#{name_pin.binder.rooted_tags}, word=#{word}, arguments=#{arguments.map(&:desc)}, name_pin=#{name_pin}) => [] - found no pins for #{word} in #{name_pin.binder}" }
             return []
           end
           out = inferred_pins(pins, api_map, name_pin, locals)
@@ -140,6 +140,7 @@ module Solargraph
                   end
                 end
                 new_signature_pin = ol.resolve_generics_from_context_until_complete(ol.generics, atypes, nil, nil, blocktype)
+                logger.debug { "Call#inferred_pins(name_pin.binder=#{name_pin.binder}, word=#{word}, atypes=#{atypes.map(&:rooted_tags)}, name_pin=#{name_pin}) - resolved generics in #{ol} (#{ol.generics}) to #{new_signature_pin}" }
                 new_return_type = new_signature_pin.return_type
                 type = with_params(new_return_type.self_to_type(name_pin.context), name_pin.context).qualify(api_map, name_pin.context.namespace) if new_return_type.defined?
                 type ||= ComplexType::UNDEFINED
