@@ -5,7 +5,7 @@ module Solargraph
     class Chain
       #
       # Handles both method calls and local variable references by
-      # first looking for a local with the name 'word', then
+      # first looking for a variable with the name 'word', then
       # proceeding to method signature resolution if not found.
       #
       class Call < Chain::Link
