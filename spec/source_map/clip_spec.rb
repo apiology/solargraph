@@ -2792,12 +2792,26 @@ describe Solargraph::SourceMap::Clip do
   it 'resolves String#split overloads' do
     source = Solargraph::Source.load_string(%(
       a = 'abc\ndef'.split('\n')
-
       a
     ), 'test.rb')
 
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [3, 6])
+
+    clip = api_map.clip_at('test.rb', [2, 6])
+    expect(clip.infer.to_s).to eq('Array<String>')
+  end
+
+  it 'preserves hash value when it is a union without brackets' do
+    source = Solargraph::Source.load_string(%(
+      # @type [Hash{String => Array, Hash, Integer, nil}]
+      raw_data = {}
+      a = raw_data['domains']
+      a
+    ), 'test.rb')
+
+    api_map = Solargraph::ApiMap.new.map(source)
+
+    clip = api_map.clip_at('test.rb', [4, 6])
     type = clip.infer
   end
 
@@ -2811,8 +2825,8 @@ describe Solargraph::SourceMap::Clip do
     api_map = Solargraph::ApiMap.new
     api_map.map source
 
-    clip = api_map.clip_at('test.rb', [2, 6])
-    expect(clip.infer.to_s).to eq('String')
+    clip = api_map.clip_at('test.rb', [3, 6])
+    expect(clip.infer.to_s).to eq('Array, Hash, Integer, NilClass')
   end
 
   xit 'preserves hash value when it is a union with brackets' do
