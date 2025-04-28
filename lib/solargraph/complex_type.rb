@@ -115,10 +115,6 @@ module Solargraph
       @items
     end
 
-    def tags
-      @items.map(&:tag).join(', ')
-    end
-
     # @param index [Integer]
     # @return [UniqueType]
     def [](index)
@@ -159,6 +155,18 @@ module Solargraph
       map(&:tag).join(', ')
     end
 
+    def tags
+      map(&:tag).join(', ')
+    end
+
+    def simple_tags
+      simplify_literals.tags
+    end
+
+    def literal?
+      @items.any?(&:literal?)
+    end
+
     def rooted_tags
       map(&:rooted_tag).join(', ')
     end
@@ -177,6 +185,10 @@ module Solargraph
 
     def generic?
       any?(&:generic?)
+    end
+
+    def simplify_literals
+      ComplexType.new(map(&:simplify_literals))
     end
 
     # @param new_name [String, nil]

@@ -87,7 +87,8 @@ module Solargraph
             # use it.  If we didn't pass a block, the logic below will
             # reject it regardless
 
-            sorted_overloads = overloads.sort { |ol| ol.block? ? -1 : 1 }
+            with_block, without_block = overloads.partition(&:block?)
+            sorted_overloads = with_block + without_block
             new_signature_pin = nil
             atypes = []
             sorted_overloads.each do |ol|
