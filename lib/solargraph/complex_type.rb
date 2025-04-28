@@ -37,6 +37,19 @@ module Solargraph
       [self.class, @items].hash
     end
 
+    def eql?(other)
+      self.class == other.class &&
+        @items == other.items
+    end
+
+    def ==(other)
+      self.eql?(other)
+    end
+
+    def hash
+      [self.class, @items].hash
+    end
+
     # @param api_map [ApiMap]
     # @param context [String]
     # @return [ComplexType]

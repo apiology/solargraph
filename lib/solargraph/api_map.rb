@@ -270,7 +270,7 @@ module Solargraph
       context_type = ComplexType.try_parse(context_tag)
       return unless context_type
 
-      fqns = qualify_namespace(type.rooted_namespace, context_type.rooted_namespace)
+      fqns = qualify_namespace(type.rooted_namespace, context_type.namespace)
       return unless fqns
 
       fqns + type.substring
@@ -348,6 +348,11 @@ module Solargraph
     # @param deep [Boolean] True to include superclasses, mixins, etc.
     # @return [Array<Solargraph::Pin::Method>]
     def get_methods rooted_tag, scope: :instance, visibility: [:public], deep: true
+      if rooted_tag.start_with? 'Array('
+        # Array() are really tuples - use our fill, as the RBS repo
+        # does not give us definitions for it
+        rooted_tag = "Solargraph::Fills::Tuple(#{rooted_tag[6..-2]})"
+      end
       rooted_type = ComplexType.try_parse(rooted_tag)
       fqns = rooted_type.namespace
       namespace_pin = store.get_path_pins(fqns).select { |p| p.is_a?(Pin::Namespace) }.first
