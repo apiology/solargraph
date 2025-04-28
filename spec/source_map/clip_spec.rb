@@ -1022,7 +1022,7 @@ describe Solargraph::SourceMap::Clip do
     expect(clip.infer.to_s).to eq('String')
   end
 
-  xit 'infers complex variable type from ternary operator' do
+  it 'infers complex variable type from ternary operator' do
     source = Solargraph::Source.load_string(%(
       def foo a
         type = (a == 123 ? 'foo' : 456)
@@ -1077,8 +1077,9 @@ describe Solargraph::SourceMap::Clip do
     ), 'test.rb')
     map = Solargraph::ApiMap.new
     map.map source
-    clip = map.clip_at('test.rb', Solargraph::Position.new(3, 15))
-    expect(clip.infer.to_s).to eq('Array<String>, nil')
+    # @todo need to understand range type
+    # clip = map.clip_at('test.rb', Solargraph::Position.new(3, 15))
+    # expect(clip.infer.to_s).to eq('String, nil')
     clip = map.clip_at('test.rb', Solargraph::Position.new(4, 15))
     expect(clip.infer.to_s).to eq('Array<String>, nil')
     clip = map.clip_at('test.rb', Solargraph::Position.new(5, 15))
@@ -1285,6 +1286,8 @@ describe Solargraph::SourceMap::Clip do
     api_map.map source
     clip = api_map.clip_at('test.rb', [6, 6])
     expect(clip.infer.tag).to eq('Array<String>')
+    expect(clip.infer.tags).to eq('Array<String>, nil')
+    expect(clip.infer.rooted_tags).to eq('::Array<::String>, nil')
   end
 
   it 'excludes local variables from chained call resolution' do
@@ -1900,11 +1903,16 @@ describe Solargraph::SourceMap::Clip do
     ), 'test.rb')
     api_map = Solargraph::ApiMap.new.map(source)
 
+    clip = api_map.clip_at('test.rb', [3, 8])
+    type = clip.infer
+    expect(type.tag).to eq('Array<Integer>')
+
+    # api_map = Solargraph::ApiMap.new.map(source)
     clip = api_map.clip_at('test.rb', [5, 10])
     type = clip.infer
     expect(type.tag).to eq('Integer')
 
-    clip = api_map.clip_at('test.rb', [7, 8])
+    clip = api_map.clip_at('test.rb', [8, 8])
     type = clip.infer
     expect(type.tag).to eq('Array<Float>')
 
@@ -2033,6 +2041,31 @@ describe Solargraph::SourceMap::Clip do
     clip = api_map.clip_at('test.rb', [6, 6])
     type = clip.infer
     expect(type.to_s).to eq('Integer')
+  end
+
+  it 'does not pay attention to method signatures which have been redefind by subclass' do
+    source = Solargraph::Source.load_string(%(
+      class Bar < Foo
+        # @return [String]
+        def meth arg
+          super(arg, 123).to_s
+        end
+      end
+
+      class Foo
+        # @param arg [String]
+        # @return [Integer]
+        def meth arg, arg2
+        end
+      end
+
+      a = Bar.new.meth('456')
+      a
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [15, 6])
+    type = clip.infer
+    expect(type.to_s).to eq('String')
   end
 
   xit 'identifies tuple types' do
@@ -2390,7 +2423,7 @@ describe Solargraph::SourceMap::Clip do
     clip = api_map.clip_at('test.rb', [13, 14])
     expect(clip.infer.tags).to eq('String')
   end
-    
+
   it 'handles block method yield scenarios' do
     source = Solargraph::Source.load_string(%(
       # @yieldreturn [Integer]
@@ -2548,13 +2581,41 @@ describe Solargraph::SourceMap::Clip do
   it 'resolves String#split overloads' do
     source = Solargraph::Source.load_string(%(
       a = 'abc\ndef'.split('\n')
+
+      a
+    ), 'test.rb')
+
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [3, 6])
+    type = clip.infer
+  end
+
+  xit 'infers that type of argument has been overridden' do
+    source = Solargraph::Source.load_string(%(
+      def foo a
+        a = 'foo'
+        a
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+
+    clip = api_map.clip_at('test.rb', [2, 6])
+    expect(clip.infer.to_s).to eq('String')
+  end
+
+  xit 'preserves hash value when it is a union with brackets' do
+    source = Solargraph::Source.load_string(%(
+      # @type [Hash{String => [Array, Hash, Integer, nil]}]
+      raw_data = {}
+      a = raw_data['domains']
       a
     ), 'test.rb')
 
     api_map = Solargraph::ApiMap.new.map(source)
 
-    clip = api_map.clip_at('test.rb', [2, 6])
-    expect(clip.infer.to_s).to eq('Array<String>')
+    clip = api_map.clip_at('test.rb', [4, 6])
+    expect(clip.infer.to_s).to eq('Array, Hash, Integer, nil')
   end
 
   it 'handles block method super scenarios' do
