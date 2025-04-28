@@ -1044,7 +1044,7 @@ describe Solargraph::SourceMap::Clip do
     api_map = Solargraph::ApiMap.new
     api_map.map source
     clip = api_map.clip_at('test.rb', [5, 14])
-    expect(clip.infer.to_s).to eq('String, Integer')
+    expect(clip.infer.to_s).to eq('String, 456')
   end
 
   xit 'handles parallel type possibilities' do
