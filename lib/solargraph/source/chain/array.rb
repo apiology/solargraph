@@ -28,7 +28,9 @@ module Solargraph
                    # tuple
                    ComplexType::UniqueType.new('Array', [], child_types, rooted: true, parameters_type: :fixed)
                  end
-          [Pin::ProxyType.anonymous(type)]
+          out = [Pin::ProxyType.anonymous(type)]
+          logger.debug { "Array#resolve(self=#{self}) => #{out}" }
+          out
         end
       end
     end
