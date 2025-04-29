@@ -207,6 +207,7 @@ module Solargraph
         end
       end
 
+      # @sg-ignore
       def documentation
         if @documentation.nil?
           @documentation ||= super || ''
