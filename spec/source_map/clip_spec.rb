@@ -689,8 +689,7 @@ describe Solargraph::SourceMap::Clip do
     ), 'test.rb')
     api_map = Solargraph::ApiMap.new
     api_map.map source
-    # [[4, 39], [7, 15], [11, 13], [12, 37], [15, 37]].each do |loc|
-    [[7, 15]].each do |loc|
+    [[4, 39], [7, 15], [11, 13], [12, 37], [15, 37]].each do |loc|
       clip = api_map.clip_at('test.rb', loc)
       paths = clip.complete.pins.map(&:path)
       expect(paths).to include('String#upcase'), -> { %(expected #{paths} at #{loc} to include "String#upcase") }
@@ -1946,6 +1945,8 @@ describe Solargraph::SourceMap::Clip do
     expect(type.tag).to eq('Array<Integer>')
 
     # api_map = Solargraph::ApiMap.new.map(source)
+    api_map = Solargraph::ApiMap.new.map(source)
+
     clip = api_map.clip_at('test.rb', [5, 10])
     type = clip.infer
     expect(type.tag).to eq('Integer')
@@ -3027,6 +3028,19 @@ describe Solargraph::SourceMap::Clip do
     api_map = Solargraph::ApiMap.new.map(source)
 
     clip = api_map.clip_at('test.rb', [3, 10])
+    expect(clip.infer.to_s).to eq('String')
+  end
+
+  xit 'infers that type of argument has been overridden' do
+    source = Solargraph::Source.load_string(%(
+      def foo a
+        a = 'foo'
+        a
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+    clip = api_map.clip_at('test.rb', [3, 8])
     expect(clip.infer.to_s).to eq('String')
   end
 
