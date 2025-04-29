@@ -14,6 +14,8 @@ module Solargraph
     # expression.
     #
     class Chain
+      include Logging
+
       #
       # A chain of constants, variables, and method calls for inferring types of
       # values.
