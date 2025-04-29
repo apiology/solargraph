@@ -521,7 +521,7 @@ describe Solargraph::Source::Chain::Call do
     #   * emit type checker warning when adding [B.new] and type whole thing as '::A::C'
     #   * type whole thing as '::A::B, A::C'
     #   * type as undefined
-    expect(type.rooted_tags).to eq('::A::B, ::A::C').or be_undefined
+    expect(type.rooted_tags).to eq('::A::C, ::A::B').or be_undefined
     expect(type.rooted_tags).not_to eq('::A::C')
   end
 
