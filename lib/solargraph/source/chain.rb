@@ -14,8 +14,6 @@ module Solargraph
     # expression.
     #
     class Chain
-      include Logging
-
       #
       # A chain of constants, variables, and method calls for inferring types of
       # values.
@@ -192,11 +190,14 @@ module Solargraph
         links.any?(&:nullable?)
       end
 
-
       include Logging
 
       def desc
         links.map(&:desc).to_s
+      end
+
+      def to_s
+        desc
       end
 
       private
