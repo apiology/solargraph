@@ -184,6 +184,10 @@ module Solargraph
       @items.any?(&:literal?)
     end
 
+    def desc
+      rooted_tags
+    end
+
     def rooted_tags
       map(&:rooted_tag).join(', ')
     end
