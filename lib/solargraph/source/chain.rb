@@ -197,8 +197,6 @@ module Solargraph
         links.any?(&:nullable?)
       end
 
-      include Logging
-
       def desc
         links.map(&:desc).to_s
       end
@@ -206,6 +204,10 @@ module Solargraph
       def to_s
         desc
       end
+
+      include Logging
+
+      private
 
       # @param pins [::Array<Pin::Base>]
       # @param context [Pin::Base]

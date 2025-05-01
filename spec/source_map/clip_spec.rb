@@ -1944,9 +1944,6 @@ describe Solargraph::SourceMap::Clip do
     type = clip.infer
     expect(type.tag).to eq('Array<Integer>')
 
-    # api_map = Solargraph::ApiMap.new.map(source)
-    api_map = Solargraph::ApiMap.new.map(source)
-
     clip = api_map.clip_at('test.rb', [5, 10])
     type = clip.infer
     expect(type.tag).to eq('Integer')
