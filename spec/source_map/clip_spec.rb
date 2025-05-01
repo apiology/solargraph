@@ -1032,7 +1032,7 @@ describe Solargraph::SourceMap::Clip do
     expect(clip.infer.to_s).to eq('String')
   end
 
-  xit 'overcomes untyped argument used in comparison' do
+  it 'infers complex variable type from ternary operator' do
     source = Solargraph::Source.load_string(%(
       def foo a
         type = (a == 123 ? 'foo' : 456)
@@ -2441,6 +2441,17 @@ describe Solargraph::SourceMap::Clip do
     expect(type.to_s).to eq('Integer')
   end
 
+  it 'infers literal heterogeneous arrays into tuples' do
+    source = Solargraph::Source.load_string(%(
+      h = [['foo', 1], ['bar', 2]]
+      h
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [2, 6])
+    type = clip.infer
+    expect(type.to_s).to eq('Array<Array(String, Integer)>')
+  end
+
   it 'excludes Kernel singleton methods from chained methods' do
     source = Solargraph::Source.load_string('[].put', 'test.rb')
     api_map = Solargraph::ApiMap.new.map(source)
@@ -3204,7 +3215,7 @@ describe Solargraph::SourceMap::Clip do
     expect(clip.infer.to_s).to eq('Array<456>')
   end
 
-  xit 'resolves overloads based on kwarg existence' do
+  it 'resolves overloads based on kwarg existence' do
     source = Solargraph::Source.load_string(%(
       class Blah
         # @param *strings [Array<String>] The type definitions to parse
