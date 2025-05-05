@@ -48,7 +48,7 @@ module Solargraph
         # @param name_pin [Pin::Closure] name_pin.binder should give us the type of the object on which 'word' will be invoked
         # @param locals [::Array<Pin::LocalVariable>]
         def resolve api_map, name_pin, locals
-          logger.debug { "Call#resolve(name_pin.binder=#{name_pin.binder.rooted_tags}, word=#{word}, arguments=#{arguments.map(&:desc)}, name_pin=#{name_pin}) - starting" }
+          logger.debug { "Call#resolve(name_pin.binder=#{name_pin.binder.rooted_tags.inspect}, word=#{word}, arguments=#{arguments.map(&:desc)}, name_pin=#{name_pin}) - starting" }
           return super_pins(api_map, name_pin) if word == 'super'
           return yield_pins(api_map, name_pin) if word == 'yield'
           found = if head?
