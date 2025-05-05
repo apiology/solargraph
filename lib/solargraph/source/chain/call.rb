@@ -104,6 +104,7 @@ module Solargraph
 
             with_block, without_block = overloads.partition(&:block?)
             sorted_overloads = with_block + without_block
+            # @type [Pin::Signature, nil]
             new_signature_pin = nil
             atypes = []
             sorted_overloads.each do |ol|
@@ -143,6 +144,7 @@ module Solargraph
                     blocktype = block_call_type(api_map, name_pin, locals)
                   end
                 end
+                # @type new_signature_pin [Pin::Signature]
                 new_signature_pin = ol.resolve_generics_from_context_until_complete(ol.generics, atypes, nil, nil, blocktype)
                 logger.debug { "Call#inferred_pins(name_pin.binder=#{name_pin.binder}, word=#{word}, atypes=#{atypes.map(&:rooted_tags)}, name_pin=#{name_pin}) - resolved generics in #{ol} (#{ol.generics}) to #{new_signature_pin}" }
                 new_return_type = new_signature_pin.return_type
