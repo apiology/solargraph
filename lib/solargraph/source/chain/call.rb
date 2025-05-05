@@ -127,7 +127,7 @@ module Solargraph
                 logger.debug { "Call#inferred_pins(word=#{word}, name_pin=#{name_pin}, name_pin.binder=#{name_pin.binder}) - resolving arg #{arg.desc}" }
                 atype = atypes[idx] ||= arg.infer(api_map, Pin::ProxyType.anonymous(name_pin.context), locals)
                 unless param.compatible_arg?(atype, api_map) || param.restarg?
-                  logger.debug { "Call#inferred_pins(name_pin.binder=#{name_pin.binder}, word=#{word}, atypes=#{atypes.map(&:rooted_tags)}, name_pin=#{name_pin}) - rejecting signature #{ol}" }
+                  logger.debug { "Call#inferred_pins(name_pin.binder=#{name_pin.binder}, name_pin.context=#{name_pin.context}, word=#{word}, atypes=#{atypes.map(&:rooted_tags)}, name_pin=#{name_pin}) - rejecting signature #{ol}" }
                   match = false
                   break
                 end
