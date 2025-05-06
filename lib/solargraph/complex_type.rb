@@ -25,17 +25,9 @@ module Solargraph
       @items = items
     end
 
-    def eql?(other)
-      self.class == other.class &&
-        @items == other.items
-    end
-
-    def ==(other)
-      self.eql?(other)
-    end
-
-    def hash
-      [self.class, @items].hash
+    # @sg-ignore Fix "Not enough arguments to Module#protected"
+    protected def equality_fields
+      [self.class, items]
     end
 
     # @sg-ignore Fix "Not enough arguments to Module#protected"
