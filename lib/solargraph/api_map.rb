@@ -12,6 +12,7 @@ module Solargraph
     autoload :Cache,          'solargraph/api_map/cache'
     autoload :SourceToYard,   'solargraph/api_map/source_to_yard'
     autoload :Store,          'solargraph/api_map/store'
+    autoload :Index,          'solargraph/api_map/index'
 
     # @return [Array<String>]
     attr_reader :unresolved_requires
@@ -49,14 +50,14 @@ module Solargraph
       equality_fields.hash
     end
 
-     def to_s
-       self.class.to_s
-     end
+    def to_s
+      self.class.to_s
+    end
 
-     # avoid enormous dump
-     def inspect
-       to_s
-     end
+    # avoid enormous dump
+    def inspect
+      to_s
+    end
 
     # @param pins [Array<Pin::Base>]
     # @return [self]
@@ -66,7 +67,7 @@ module Solargraph
       @source_map_hash = {}
       implicit.clear
       cache.clear
-      @store = Store.new(@@core_map.pins + pins)
+      store.update @@core_map.pins, pins
       self
     end
 
@@ -85,10 +86,9 @@ module Solargraph
     # @param bench [Bench]
     # @return [self]
     def catalog bench
-      old_api_hash = @source_map_hash&.values&.map(&:api_hash)
-      need_to_uncache = (old_api_hash != bench.source_maps.map(&:api_hash))
-      @source_map_hash = bench.source_maps.map { |s| [s.filename, s] }.to_h
-      pins = bench.source_maps.flat_map(&:pins).flatten
+      @source_map_hash = bench.source_map_hash
+      iced_pins = bench.icebox.flat_map(&:pins)
+      live_pins = bench.live_map&.pins || []
       implicit.clear
       source_map_hash.each_value do |map|
         implicit.merge map.environ
@@ -97,11 +97,8 @@ module Solargraph
       if @unresolved_requires != unresolved_requires || @doc_map&.uncached_gemspecs&.any?
         @doc_map = DocMap.new(unresolved_requires, [], bench.workspace.rbs_collection_path) # @todo Implement gem preferences
         @unresolved_requires = unresolved_requires
-        need_to_uncache = true
       end
-      @store = Store.new(@@core_map.pins + shim_pins(bench.workspace) + @doc_map.pins + implicit.pins + pins)
-      @cache.clear if need_to_uncache
-
+      @cache.clear if store.update(@@core_map.pins, @doc_map.pins, implicit.pins, iced_pins, live_pins)
       @missing_docs = [] # @todo Implement missing docs
       self
     end
@@ -110,7 +107,7 @@ module Solargraph
     #   that this overload of 'protected' will typecheck @sg-ignore
     # @sg-ignore
     protected def equality_fields
-      [self.class, @source_map_hash, implicit, @doc_map, @unresolved_requires, @missing_docs]
+      [self.class, @source_map_hash, implicit, @doc_map, @unresolved_requires]
     end
 
     def doc_map
@@ -210,7 +207,7 @@ module Solargraph
 
     # @return [Array<Solargraph::Pin::Base>]
     def pins
-      store.pins
+      store.pins.clone.freeze
     end
 
     # An array of pins based on Ruby keywords (`if`, `end`, etc.).
