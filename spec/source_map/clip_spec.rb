@@ -746,7 +746,7 @@ describe Solargraph::SourceMap::Clip do
     expect(clip.infer.tag).to eq('Class')
   end
 
-  it 'infers BasicObject from Class#new' do
+  it 'infers undefined from Class#new' do
     source = Solargraph::Source.load_string(%(
       cls = Class.new
       cls.new
@@ -754,7 +754,7 @@ describe Solargraph::SourceMap::Clip do
     api_map = Solargraph::ApiMap.new
     api_map.map source
     clip = api_map.clip_at('test.rb', [2, 11])
-    expect(clip.infer.tag).to eq('BasicObject')
+    expect(clip.infer.tag).to eq('undefined')
   end
 
   it 'infers undefined from Class.new.new' do
