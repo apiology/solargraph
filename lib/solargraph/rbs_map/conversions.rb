@@ -382,8 +382,7 @@ module Solargraph
                                                          source: :rbs)
         end
         if type.type.rest_positionals
-          # TODO fix
-          name = type.type.rest_positionals.name ? type.type.rest_positionals.name.to_s : "arg#{arg_num += 1}"
+          name = type.type.rest_positionals.name ? type.type.rest_positionals.name.to_s : "arg_#{arg_num += 1}"
           parameters.push Solargraph::Pin::Parameter.new(decl: :restarg, name: name, closure: pin, source: :rbs)
         end
         type.type.trailing_positionals.each do |param|
@@ -403,8 +402,7 @@ module Solargraph
                                                          source: :rbs)
         end
         if type.type.rest_keywords
-          # TODO fix
-          name = type.type.rest_keywords.name ? type.type.rest_keywords.name.to_s : "arg#{arg_num += 1}"
+          name = type.type.rest_keywords.name ? type.type.rest_keywords.name.to_s : "arg_#{arg_num += 1}"
           parameters.push Solargraph::Pin::Parameter.new(decl: :kwrestarg, name: type.type.rest_keywords.name.to_s, closure: pin,
                                                          source: :rbs)
         end
