@@ -27,8 +27,7 @@ module Solargraph
         # name = parts.last.to_s
         # ProxyType.new(nil, namespace, name, return_type)
         ProxyType.new(
-          # TODO fix
-          closure: closure, return_type: context, binder: binder || context, source: :source
+          closure: closure, return_type: context, binder: binder || context, source: source
         )
       end
     end
