@@ -414,6 +414,7 @@ module Solargraph
     SELF = ComplexType.parse('self')
     BOOLEAN = ComplexType.parse('::Boolean')
     BOT = ComplexType.parse('bot')
+    BASIC_OBJECT = ComplexType.parse('BasicObject')
 
     include Logging
 
