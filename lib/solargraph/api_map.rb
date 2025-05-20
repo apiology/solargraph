@@ -421,9 +421,10 @@ module Solargraph
               signatures: init_pin.signatures.map { |sig| sig.proxy(type) },
               return_type: type,
               comments: init_pin.comments,
-              closure: init_pin.closure
-            # @todo Hack to force TypeChecker#internal_or_core?
-            ).tap { |pin| pin.source = :rbs }
+              closure: init_pin.closure,
+              # @todo Hack to force TypeChecker#internal_or_coref?
+              source: :rbs
+            )
           end
         end
         result.concat inner_get_methods('Kernel', :instance, [:public], deep, skip) if visibility.include?(:private)
@@ -462,7 +463,7 @@ module Solargraph
       result = Set.new
       complex_type.each do |type|
         if type.duck_type?
-          result.add Pin::DuckMethod.new(name: type.to_s[1..-1])
+          result.add Pin::DuckMethod.new(name: type.to_s[1..-1], source: :api_map)
           result.merge get_methods('Object')
         else
           unless type.nil? || type.name == 'void'
@@ -893,6 +894,7 @@ module Solargraph
       return nil if origin.nil?
       args = {
         location: pin.location,
+        type_location: origin.type_location,
         closure: pin.closure,
         name: pin.name,
         comments: origin.comments,
@@ -903,6 +905,7 @@ module Solargraph
         attribute: origin.attribute?,
         generics: origin.generics,
         return_type: origin.return_type,
+        source: :resolve_method_alias
       }
       Pin::Method.new **args
     end

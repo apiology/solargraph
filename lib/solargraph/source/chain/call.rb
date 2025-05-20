@@ -126,7 +126,7 @@ module Solargraph
                   break
                 end
                 logger.debug { "Call#inferred_pins(word=#{word}, name_pin=#{name_pin}, name_pin.binder=#{name_pin.binder}) - resolving arg #{arg.desc}" }
-                atype = atypes[idx] ||= arg.infer(api_map, Pin::ProxyType.anonymous(name_pin.context, closure: name_pin.closure), locals)
+                atype = atypes[idx] ||= arg.infer(api_map, Pin::ProxyType.anonymous(name_pin.context, closure: name_pin.closure, source: :chain), locals)
                 unless param.compatible_arg?(atype, api_map) || param.restarg?
                   logger.debug { "Call#inferred_pins(name_pin.binder=#{name_pin.binder}, name_pin.context=#{name_pin.context}, word=#{word}, atypes=#{atypes.map(&:rooted_tags)}, name_pin=#{name_pin}) - rejecting signature #{ol}" }
                   match = false
@@ -220,7 +220,7 @@ module Solargraph
             result = inner_process_macro(pin, macro, api_map, context, locals)
             return result unless result.return_type.undefined?
           end
-          Pin::ProxyType.anonymous(ComplexType::UNDEFINED)
+          Pin::ProxyType.anonymous(ComplexType::UNDEFINED, source: :chain)
         end
 
         # @param pin [Pin::Method]
@@ -235,7 +235,7 @@ module Solargraph
             result = inner_process_macro(pin, macro, api_map, context, locals)
             return result unless result.return_type.undefined?
           end
-          Pin::ProxyType.anonymous ComplexType::UNDEFINED
+          Pin::ProxyType.anonymous ComplexType::UNDEFINED, source: :chain
         end
 
         # @param pin [Pin::Base]
@@ -245,7 +245,7 @@ module Solargraph
         # @param locals [::Array<Pin::LocalVariable, Pin::Parameter>]
         # @return [Pin::ProxyType]
         def inner_process_macro pin, macro, api_map, context, locals
-          vals = arguments.map{ |c| Pin::ProxyType.anonymous(c.infer(api_map, pin, locals)) }
+          vals = arguments.map{ |c| Pin::ProxyType.anonymous(c.infer(api_map, pin, locals), source: :chain) }
           txt = macro.tag.text.clone
           if txt.empty? && macro.tag.name
             named = api_map.named_macro(macro.tag.name)
@@ -259,9 +259,9 @@ module Solargraph
           docstring = Solargraph::Source.parse_docstring(txt).to_docstring
           tag = docstring.tag(:return)
           unless tag.nil? || tag.types.nil?
-            return Pin::ProxyType.anonymous(ComplexType.try_parse(*tag.types))
+            return Pin::ProxyType.anonymous(ComplexType.try_parse(*tag.types), source: :chain)
           end
-          Pin::ProxyType.anonymous(ComplexType::UNDEFINED)
+          Pin::ProxyType.anonymous(ComplexType::UNDEFINED, source: :chain)
         end
 
         # @param docstring [YARD::Docstring]
