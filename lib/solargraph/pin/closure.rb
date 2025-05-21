@@ -27,6 +27,7 @@ module Solargraph
         new_attrs = {
           scope: assert_same(other, :scope),
           generics: generics.empty? ? other.generics : generics,
+          generic_defaults: generic_defaults.empty? ? other.generic_defaults : generic_defaults,
         }.merge(attrs)
         super(other, new_attrs)
       end
