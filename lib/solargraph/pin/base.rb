@@ -219,7 +219,6 @@ module Solargraph
         end
 
         val1.combine_with(val2)
->>>>>>> combine_pins
       end
 
       # @return [String]
