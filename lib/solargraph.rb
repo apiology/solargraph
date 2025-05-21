@@ -66,6 +66,11 @@ module Solargraph
                     end
   end
 
+  def self.assert_or_log(type, msg)
+    raise msg if asserts_on?(type)
+    logger.info msg
+  end
+
   # A convenience method for Solargraph::Logging.logger.
   #
   # @return [Logger]
