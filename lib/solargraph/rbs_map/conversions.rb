@@ -445,7 +445,8 @@ module Solargraph
           parameters: [
             Solargraph::Pin::Parameter.new(
               name: 'value',
-              return_type: ComplexType.try_parse(other_type_to_tag(decl.type)).force_rooted
+              return_type: ComplexType.try_parse(other_type_to_tag(decl.type)).force_rooted,
+              source: :rbs
             )
           ],
           comments: decl.comment&.string,
