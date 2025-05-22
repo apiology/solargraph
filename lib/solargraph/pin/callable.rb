@@ -6,7 +6,7 @@ module Solargraph
       # @return [Signature]
       attr_reader :block
 
-      attr_reader :parameters
+      attr_accessor :parameters
 
       # @return [ComplexType, nil]
       attr_reader :return_type
@@ -207,8 +207,6 @@ module Solargraph
       protected
 
       attr_writer :block
-
-      attr_writer :parameters
     end
   end
 end

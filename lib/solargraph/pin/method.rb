@@ -14,6 +14,8 @@ module Solargraph
         @virtual_class_method
       end
 
+      attr_writer :signatures
+
       # @return [Parser::AST::Node]
       attr_reader :node
 
@@ -418,8 +420,6 @@ module Solargraph
 
       attr_writer :block
 
-      attr_writer :signatures
-
       attr_writer :signature_help
 
       attr_writer :documentation
@@ -607,8 +607,6 @@ module Solargraph
       end
 
       protected
-
-      attr_writer :signatures
 
       attr_writer :return_type
     end
