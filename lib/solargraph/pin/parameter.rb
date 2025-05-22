@@ -42,9 +42,8 @@ module Solargraph
         keyword?
       end
 
-
       def arity_decl
-        name = (name || '(anon)')
+        name = (self.name || '(anon)')
         type = (return_type&.to_rbs || 'untyped')
         case decl
         when :arg
