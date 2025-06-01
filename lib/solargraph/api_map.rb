@@ -294,7 +294,7 @@ module Solargraph
       context_type = ComplexType.try_parse(context_tag)
       return unless context_type
 
-      fqns = qualify_namespace(type.rooted_namespace, context_type.namespace)
+      fqns = qualify_namespace(type.rooted_namespace, context_type.rooted_namespace)
       return unless fqns
 
       fqns + type.substring

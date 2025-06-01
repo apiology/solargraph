@@ -38,11 +38,12 @@ module Solargraph
       # @param name [String]
       # @param comments [String]
       # @param source [Symbol, nil]
-      def initialize location: nil, type_location: nil, closure: nil, name: '', comments: '', docstring: nil, source: nil, directives: nil
+      def initialize location: nil, type_location: nil, closure: nil, source: nil, name: '', comments: '', docstring: nil, directives: nil
         @location = location
         @type_location = type_location
         @closure = closure
         @name = name
+        @source = source
         @comments = comments
         @source = source
         raise "Please provide a source" if Solargraph.asserts_on?(:source) && source.nil?

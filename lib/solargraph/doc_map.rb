@@ -160,10 +160,11 @@ module Solargraph
         gemspecs = Bundler.definition.locked_gems.specs.flat_map do |lazy_spec|
           [Gem::Specification.find_by_name(lazy_spec.name, lazy_spec.version)]
         rescue Gem::MissingSpecError => e
+          logger.info("Could not find #{lazy_spec.name}:#{lazy_spec.version} with find_by_name, falling back to guess")
           # can happen in local filesystem references
           specs = resolve_path_to_gemspecs lazy_spec.name
           logger.info "Gem #{lazy_spec.name} #{lazy_spec.version} from bundle not found: #{e}" if specs.nil?
-          specs
+          next specs
         end.compact
 
         return gemspecs

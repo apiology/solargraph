@@ -30,11 +30,6 @@ module Solargraph
       [self.class, items]
     end
 
-    # @sg-ignore Fix "Not enough arguments to Module#protected"
-    protected def equality_fields
-      [self.class, items]
-    end
-
     # @param api_map [ApiMap]
     # @param context [String]
     # @return [ComplexType]
