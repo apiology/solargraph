@@ -10,7 +10,6 @@ module Solargraph
       include Documenting
       include Logging
 
-
       # @return [YARD::CodeObjects::Base]
       attr_reader :code_object
 
@@ -129,6 +128,10 @@ module Solargraph
           other.return_type
         elsif other.return_type.undefined?
           return_type
+        elsif dodgy_return_type_source? && !other.dodgy_return_type_source?
+          other.return_type
+        elsif other.dodgy_return_type_source? && !dodgy_return_type_source?
+          return_type
         else
           all_items = return_type.items + other.return_type.items
           if all_items.any? { |item| item.selfy? } && all_items.any? { |item| item.rooted_tag == context.rooted_tag }
@@ -137,6 +140,11 @@ module Solargraph
           end
           ComplexType.new(all_items)
         end
+      end
+
+      def dodgy_return_type_source?
+        # uses a lot of 'Object' instead of 'self'
+        location&.filename&.include?('core_ext/object/')
       end
 
       def <=>(p1)
@@ -229,7 +237,7 @@ module Solargraph
         val1 = send(attr)
         val2 = other.send(attr)
         if val1&.name != val2&.name
-          Solargraph.assert_or_log(:combine_with,
+          Solargraph.assert_or_log("combine_with_#{attr}_name".to_sym,
                                    "Inconsistent #{attr.inspect} name values between \nself =#{inspect} and \nother=#{other.inspect}:\n\n self.#{attr} = #{val1.inspect}\nother.#{attr} = #{val2.inspect}")
         end
         [val1, val2].compact.min
