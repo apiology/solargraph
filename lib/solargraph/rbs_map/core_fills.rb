@@ -52,16 +52,6 @@ module Solargraph
                                                 source: :core_fill)
       ]
 
-      # @todo I don't see any direct link in RBS to build this from -
-      #   presumably RBS is using duck typing to match interfaces
-      #   against concrete classes
-      INCLUDES = [
-        Solargraph::Pin::Reference::Include.new(name: '_ToAry',
-                                                closure: Solargraph::Pin::Namespace.new(name: 'Array', source: :core_fill),
-                                                generic_values: ['generic<Elem>'],
-                                                source: :core_fill)
-      ]
-
       # HACK: Add Errno exception classes
       errno = Solargraph::Pin::Namespace.new(name: 'Errno', source: :core_fill)
       errnos = []
