@@ -22,7 +22,7 @@ module Solargraph
         unless closure
           parts = context.namespace.split('::')
           namespace = parts[0..-2].join('::').to_s
-          closure = Solargraph::Pin::Namespace.new(name: namespace, source: source)
+          closure = Solargraph::Pin::Namespace.new(name: namespace, source: :proxy_type)
         end
         # name = parts.last.to_s
         # ProxyType.new(nil, namespace, name, return_type)

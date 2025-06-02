@@ -43,7 +43,6 @@ module Solargraph
         @type_location = type_location
         @closure = closure
         @name = name
-        @source = source
         @comments = comments
         @source = source
         raise "Please provide a source" if Solargraph.asserts_on?(:source) && source.nil?
@@ -504,7 +503,7 @@ module Solargraph
       def inner_desc
         closure_info = closure&.desc
         binder_info = binder&.desc
-        "name=#{name.inspect} context=#{context.rooted_tags}, closure=#{closure_info}, binder=#{binder_info}, return_type=#{type_desc}"
+        "name=#{name.inspect} return_type=#{type_desc}, context=#{context.rooted_tags}, closure=#{closure_info}, binder=#{binder_info}"
       end
 
       def desc
