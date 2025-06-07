@@ -22,14 +22,16 @@ module Solargraph
     # @return [Environ]
     attr_reader :environ
 
+    attr_reader :rbs_collection_path
+
     # @param requires [Array<String>]
     # @param preferences [Array<Gem::Specification>]
-    # @param rbs_path [String, Pathname, nil]
-    def initialize(requires, preferences, rbs_path = nil)
+    # @param rbs_collection_path [String, Pathname, nil]
+    def initialize(requires, preferences, rbs_collection_path = nil)
       @requires = requires.compact
       @preferences = preferences.compact
-      @rbs_path = rbs_path
       @environ = Convention.for_global(self)
+      @rbs_collection_path = rbs_collection_path
       generate_gem_pins
       pins.concat @environ.pins
     end
@@ -44,9 +46,12 @@ module Solargraph
       @unresolved_requires ||= required_gems_map.select { |_, gemspecs| gemspecs.nil? }.keys
     end
 
-    # @return [Hash{Gem::Specification => Array[Pin::Base]}]
-    def self.gems_in_memory
+    def self.all_gems_in_memory
       @gems_in_memory ||= {}
+    end
+
+    def gems_in_memory
+      self.class.all_gems_in_memory[rbs_collection_path] ||= {}
     end
 
     # @return [Set<Gem::Specification>]
@@ -91,7 +96,7 @@ module Solargraph
       if Cache.exist?(cache_file)
         cached = Cache.load(cache_file)
         gempins = update_from_collection(gemspec, cached)
-        self.class.gems_in_memory[gemspec] = gempins
+        gems_in_memory[gemspec] = gempins
         @pins.concat gempins
       else
         logger.debug "No pin cache for #{gemspec.name} #{gemspec.version}"
@@ -115,7 +120,7 @@ module Solargraph
     # @param gemspec [Gem::Specification]
     # @return [Boolean]
     def try_gem_in_memory gemspec
-      gempins = DocMap.gems_in_memory[gemspec]
+      gempins = gems_in_memory[gemspec]
       return false unless gempins
       logger.debug { "Found #{gemspec.name} #{gemspec.version} in memory" }
       @pins.concat gempins
@@ -124,7 +129,7 @@ module Solargraph
 
     # @param gemspec [Gem::Specification]
     def update_from_collection gemspec, gempins
-      unless @rbs_path && File.directory?(@rbs_path)
+      unless @rbs_collection_path && File.directory?(@rbs_collection_path)
         logger.debug { "DocMap#update_from_collection: No collection" }
         return gempins
       end
@@ -134,13 +139,13 @@ module Solargraph
         return GemPins.combine(gempins, rbs_map)
       end
 
-      rbs_map = RbsMap.new(gemspec.name, gemspec.version, directories: [@rbs_path])
+      rbs_map = RbsMap.new(gemspec.name, gemspec.version, directories: [@rbs_collection_path])
       if rbs_map.resolved?
         logger.info "Updating #{gemspec.name} #{gemspec.version} from collection"
         return GemPins.combine(gempins, rbs_map)
       end
 
-      rbs_map = RbsMap.new(gemspec.name, nil, directories: [@rbs_path])
+      rbs_map = RbsMap.new(gemspec.name, nil, directories: [@rbs_collection_path])
       if rbs_map.resolved?
         logger.info "Updating #{gemspec.name} #{gemspec.version} from collection"
         return GemPins.combine(gempins, rbs_map)
