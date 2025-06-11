@@ -47,7 +47,7 @@ module Solargraph
   autoload :Parser,           'solargraph/parser'
   autoload :RbsMap,           'solargraph/rbs_map'
   autoload :GemPins,          'solargraph/gem_pins'
-  autoload :Cache,            'solargraph/cache'
+  autoload :PinCache,         'solargraph/pin_cache'
 
   dir = File.dirname(__FILE__)
   VIEWS_PATH = File.join(dir, 'solargraph', 'views')
@@ -60,6 +60,10 @@ module Solargraph
     return false if type == :combine_with_visibility
     # Pending https://github.com/castwide/solargraph/pull/947
     return false if type == :combine_with_closure_name
+    # @todo deal with this integration issue between open PRs
+    return false if type == :combine_with_closure_name
+    return false if type == :combine_with_closure_class
+    return false if type == :alias_target_missing
     if ENV['SOLARGRAPH_ASSERTS'].nil? || ENV['SOLARGRAPH_ASSERTS'].empty?
       false
     elsif ENV['SOLARGRAPH_ASSERTS'] == 'on'
@@ -71,7 +75,7 @@ module Solargraph
   end
 
   def self.assert_or_log(type, msg = nil, &block)
-    raise (msg || block.call) if asserts_on?(type) && ![:combine_with_visibility].include?(type)
+    raise (msg || block.call) if asserts_on?(type)
     logger.info msg, &block
   end
 

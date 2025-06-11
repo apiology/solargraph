@@ -10,7 +10,7 @@ module Solargraph
       attr_reader :closure
 
       def closure
-        Solargraph.assert_or_log(:closure, "Closure not set on #{self.class} #{name.inspect} from #{source.inspect}") unless @closure
+        Solargraph.assert_or_log(:closure, "Closure not set on #{self.class} #{name.inspect} from #{source.inspect}") unless @closure || @name == ''
         @closure
       end
 

@@ -17,11 +17,12 @@ module Solargraph
     #
     # @param gemspec [Gem::Specification]
     # @return [Array<Pin::Base>]
-    def self.build(gemspec)
-      yard_pins = build_yard_pins(gemspec)
-      rbs_map = RbsMap.from_gemspec(gemspec)
-      combine yard_pins, rbs_map
+    def self.build_yard_pins(gemspec)
+      Yardoc.cache(gemspec) unless Yardoc.cached?(gemspec)
+      yardoc = Yardoc.load!(gemspec)
+      YardMap::Mapper.new(yardoc, gemspec).map
     end
+
 
     def self.combine_method_pins_by_path(pins)
       # @type [Hash{::Array(String, String) => ::Array<Pin::Method>}]
@@ -47,12 +48,15 @@ module Solargraph
       out
     end
 
+    # Build an array of pins by combining YARD and RBS
+    # information.
+    #
     # @param yard_pins [Array<Pin::Base>]
     # @param rbs_map [RbsMap]
     # @return [Array<Pin::Base>]
-    def self.combine(yard_pins, rbs_map)
+    def self.combine(yard_pins, rbs_pins)
       in_yard = Set.new
-      rbs_api_map = Solargraph::ApiMap.new(pins: rbs_map.pins)
+      rbs_api_map = Solargraph::ApiMap.new(pins: rbs_pins)
       combined = yard_pins.map do |yard_pin|
         next yard_pin unless yard_pin.class == Pin::Method
 
@@ -68,7 +72,7 @@ module Solargraph
         logger.debug { "GemPins.combine: Combining yard.path=#{yard_pin.path} - rbs=#{rbs_pin.inspect} with yard=#{yard_pin.inspect} into #{out}" }
         out
       end
-      in_rbs_only = rbs_map.pins.select do |pin|
+      in_rbs_only = rbs_pins.select do |pin|
         pin.path.nil? || !in_yard.include?(pin.path)
       end
       combined + in_rbs_only
@@ -76,14 +80,6 @@ module Solargraph
 
     class << self
       private
-
-      # @param gemspec [Gem::Specification]
-      # @return [Array<Pin::Base>]
-      def build_yard_pins(gemspec)
-        Yardoc.cache(gemspec) unless Yardoc.cached?(gemspec)
-        yardoc = Yardoc.load!(gemspec)
-        YardMap::Mapper.new(yardoc, gemspec).map
-      end
 
       # Select the first defined type.
       #
