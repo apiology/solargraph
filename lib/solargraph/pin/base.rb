@@ -49,6 +49,7 @@ module Solargraph
         @identity = nil
         @docstring = docstring
         @directives = directives
+        assert_location_provided
       end
 
       # @param other [self]
@@ -272,6 +273,12 @@ module Solargraph
         end
 
         val1.combine_with(val2)
+      end
+
+      def assert_location_provided
+        return unless best_location.nil? && [:yardoc, :source, :rbs].include?(source)
+
+        Solargraph.assert_or_log(:best_location, "Neither location nor type_location provided - #{path} #{source} #{self.class}")
       end
 
       # @return [String]
