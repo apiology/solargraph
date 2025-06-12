@@ -50,6 +50,7 @@ module Solargraph
         @docstring = docstring
         @directives = directives
         assert_location_provided
+        assert_source_provided
       end
 
       # @param other [self]
@@ -279,6 +280,9 @@ module Solargraph
         return unless best_location.nil? && [:yardoc, :source, :rbs].include?(source)
 
         Solargraph.assert_or_log(:best_location, "Neither location nor type_location provided - #{path} #{source} #{self.class}")
+
+      def assert_source_provided
+        Solargraph.assert_or_log(:source, "source not provided - #{@path} #{@source} #{self.class}") if source.nil?
       end
 
       # @return [String]
