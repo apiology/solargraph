@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'rbs'
+
 module Solargraph
   class RbsMap
     # Ruby core pins
@@ -11,8 +13,7 @@ module Solargraph
         true
       end
 
-      def initialize
-      end
+      FILLS_DIRECTORY = File.join(File.dirname(__FILE__), '..', '..', '..', 'rbs', 'fills')
 
       def pins
         return @pins if @pins
@@ -35,7 +36,12 @@ module Solargraph
       end
 
       def loader
-        @loader ||= RBS::EnvironmentLoader.new(repository: RBS::Repository.new(no_stdlib: false))
+        @loader ||= begin
+                      loader = RBS::EnvironmentLoader.new(repository: RBS::Repository.new(no_stdlib: false))
+                      loader.add(path: Pathname(FILLS_DIRECTORY))
+                      STDERR.puts("Loaded fills")
+                      loader
+                    end
       end
     end
   end
