@@ -38,7 +38,6 @@ module Solargraph
         @loader ||= begin
                       loader = RBS::EnvironmentLoader.new(repository: RBS::Repository.new(no_stdlib: false))
                       loader.add(path: Pathname(FILLS_DIRECTORY))
-                      STDERR.puts("Loaded fills")
                       loader
                     end
       end
