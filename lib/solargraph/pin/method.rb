@@ -39,6 +39,7 @@ module Solargraph
         @virtual_class_method = virtual_class_method
       end
 
+      # @return [Array<Pin::Signature>]
       def combine_all_signature_pins(*signature_pins)
         by_arity = {}
         signature_pins.each do |signature_pin|
@@ -54,6 +55,8 @@ module Solargraph
         by_arity.values.flatten
       end
 
+      # @param other [Pin::Method]
+      # @return [Symbol]
       def combine_visibility(other)
         if dodgy_visibility_source? && !other.dodgy_visibility_source?
           other.visibility
@@ -64,6 +67,8 @@ module Solargraph
         end
       end
 
+      # @param other [Pin::Method]
+      # @return [Array<Pin::Signature>]
       def combine_signatures(other)
         all_undefined = signatures.all? { |sig| sig.return_type.undefined? }
         other_all_undefined = other.signatures.all? { |sig| sig.return_type.undefined? }
@@ -97,6 +102,7 @@ module Solargraph
         super(other, new_attrs)
       end
 
+      # @param other [Pin::Method]
       def == other
         super && other.node == node
       end
@@ -112,6 +118,7 @@ module Solargraph
         m
       end
 
+      # @return [void]
       def reset_generated!
         super
         unless signatures.empty?
@@ -217,6 +224,8 @@ module Solargraph
         end
       end
 
+      # @param return_type [ComplexType]
+      # @return [self]
       def proxy_with_signatures return_type
         out = proxy return_type
         out.signatures = out.signatures.map { |sig| sig.proxy return_type }
@@ -274,6 +283,7 @@ module Solargraph
         @path ||= "#{namespace}#{(scope == :instance ? '#' : '.')}#{name}"
       end
 
+      # @return [String]
       def method_name
         name
       end
@@ -435,6 +445,7 @@ module Solargraph
       end
 
       # @param api_map [ApiMap]
+      # @return [Array<Pin::Method>]
       def rest_of_stack api_map
         api_map.get_method_stack(method_namespace, method_name, scope: scope).reject { |pin| pin.path == path }
       end
@@ -451,7 +462,7 @@ module Solargraph
         # as of 2025-03-12, the RBS generator used for
         # e.g. activesupport did not understand 'private' markings
         # inside 'class << self' blocks, but YARD did OK at it
-        source == :rbs && scope == :class && type_location&.filename&.include?('generated') && return_value.undefined? ||
+        source == :rbs && scope == :class && type_location&.filename&.include?('generated') && return_type.undefined? ||
           # YARD's RBS generator seems to miss a lot of should-be protected instance methods
           source == :rbs && scope == :instance && namespace.start_with?('YARD::') ||
           # private on attr_readers seems to be broken in Prism's auto-generator script
@@ -522,6 +533,7 @@ module Solargraph
         resolve_reference match[1], api_map
       end
 
+      # @return [String]
       def method_namespace
         namespace
       end
