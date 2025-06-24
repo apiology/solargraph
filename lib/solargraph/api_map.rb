@@ -656,6 +656,19 @@ module Solargraph
       store.get_includes(host_ns).map { |inc_tag| ComplexType.parse(inc_tag).name }.include?(module_ns)
     end
 
+    # @param pins [Enumerable<Pin::Base>]
+    # @param visibility [Enumerable<Symbol>]
+    # @return [Array<Pin::Base>]
+    def resolve_method_aliases pins, visibility = [:public, :private, :protected]
+      with_resolved_aliases = pins.map do |pin|
+        resolved = resolve_method_alias(pin)
+        next nil if resolved.respond_to?(:visibility) && !visibility.include?(resolved.visibility)
+        resolved
+      end.compact
+      logger.debug { "ApiMap#resolve_method_aliases(pins=#{pins.map(&:name)}, visibility=#{visibility}) => #{with_resolved_aliases.map(&:name)}" }
+      GemPins.combine_method_pins_by_path(with_resolved_aliases)
+    end
+
     private
 
     # A hash of source maps with filename keys.
@@ -886,17 +899,6 @@ module Solargraph
         end
       end
       result + nil_pins
-    end
-
-    # @param pins [Enumerable<Pin::Base>]
-    # @param visibility [Enumerable<Symbol>]
-    # @return [Array<Pin::Base>]
-    def resolve_method_aliases pins, visibility = [:public, :private, :protected]
-      pins.map do |pin|
-        resolved = resolve_method_alias(pin)
-        next pin if resolved.respond_to?(:visibility) && !visibility.include?(resolved.visibility)
-        resolved
-      end.compact
     end
 
     # @param pin [Pin::MethodAlias, Pin::Base]
