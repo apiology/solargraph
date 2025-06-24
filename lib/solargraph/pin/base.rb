@@ -50,6 +50,7 @@ module Solargraph
         @identity = nil
         @docstring = docstring
         @directives = directives
+        assert_location_provided
         assert_source_provided
       end
 
@@ -302,6 +303,12 @@ module Solargraph
         end
         # arbitrary way of choosing a pin
         [val1, val2].compact.min_by { _1.best_location.to_s }
+      end
+
+      def assert_location_provided
+        return unless best_location.nil? && [:yardoc, :source, :rbs].include?(source)
+
+        Solargraph.assert_or_log(:best_location, "Neither location nor type_location provided - #{path} #{source} #{self.class}")
       end
 
       def assert_source_provided
