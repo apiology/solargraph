@@ -12,6 +12,10 @@ module Solargraph
 
       attr_writer :signatures
 
+      def virtual_class_method?
+        @virtual_class_method
+      end
+
       # @return [Parser::AST::Node]
       attr_reader :node
 
@@ -22,7 +26,8 @@ module Solargraph
       # @param attribute [Boolean]
       # @param signatures [::Array<Signature>, nil]
       # @param anon_splat [Boolean]
-      def initialize visibility: :public, explicit: true, block: :undefined, node: nil, attribute: false, signatures: nil, anon_splat: false, **splat
+      def initialize visibility: :public, explicit: true, block: :undefined, node: nil, attribute: false, signatures: nil, anon_splat: false,
+                     virtual_class_method: false, **splat
         super(**splat)
         @visibility = visibility
         @explicit = explicit
@@ -31,6 +36,7 @@ module Solargraph
         @attribute = attribute
         @signatures = signatures
         @anon_splat = anon_splat
+        @virtual_class_method = virtual_class_method
       end
 
       # @return [Array<Pin::Signature>]
