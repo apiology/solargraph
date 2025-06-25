@@ -503,7 +503,7 @@ module Solargraph
           type_location: location_decl_to_pin_location(decl.location),
           closure: closure,
           comments: decl.comment&.string,
-          scope: :instance,
+          scope: final_scope,
           attribute: true,
           visibility: visibility,
           source: :rbs
@@ -528,7 +528,7 @@ module Solargraph
           closure: closure,
           parameters: [],
           comments: decl.comment&.string,
-          scope: :instance,
+          scope: final_scope,
           attribute: true,
           visibility: visibility,
           source: :rbs
@@ -647,11 +647,13 @@ module Solargraph
       # @param closure [Pin::Namespace]
       # @return [void]
       def alias_to_pin decl, closure
+        final_scope = decl.singleton? ? :class : :instance
         pins.push Solargraph::Pin::MethodAlias.new(
           name: decl.new_name.to_s,
           type_location: location_decl_to_pin_location(decl.location),
           original: decl.old_name.to_s,
           closure: closure,
+          scope: final_scope,
           source: :rbs,
         )
       end
