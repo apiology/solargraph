@@ -12,10 +12,6 @@ module Solargraph
 
       attr_writer :signatures
 
-      def virtual_class_method?
-        @virtual_class_method
-      end
-
       # @return [Parser::AST::Node]
       attr_reader :node
 
@@ -36,7 +32,6 @@ module Solargraph
         @attribute = attribute
         @signatures = signatures
         @anon_splat = anon_splat
-        @virtual_class_method = virtual_class_method
       end
 
       # @return [Array<Pin::Signature>]
