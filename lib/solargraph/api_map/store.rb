@@ -61,9 +61,10 @@ module Solargraph
       # @param visibility [Array<Symbol>]
       # @return [Enumerable<Solargraph::Pin::Method>]
       def get_methods fqns, scope: :instance, visibility: [:public]
-        namespace_children(fqns).select do |pin|
+        all_pins = namespace_children(fqns).select do |pin|
           pin.is_a?(Pin::Method) && pin.scope == scope && visibility.include?(pin.visibility)
         end
+        GemPins.combine_method_pins_by_path(all_pins)
       end
 
       # @param fq_tag [String]
@@ -128,7 +129,9 @@ module Solargraph
       # @param fqns [String]
       # @return [Boolean]
       def namespace_exists?(fqns)
-        fqns_pins(fqns).any?
+        out = fqns_pins(fqns).any?
+        logger.debug { "Store#namespace_exists?(#{fqns.inspect}) => #{out}" }
+        out
       end
 
       # @return [Set<String>]
@@ -194,8 +197,12 @@ module Solargraph
           base = ''
           name = fqns
         end
-        fqns_pins_map[[base, name]]
+        out = fqns_pins_map[[base, name]]
+        logger.debug { "Store#fqns_pins(#{fqns.inspect}) => #{out}" }
+        out
       end
+
+      include Logging
 
       private
 

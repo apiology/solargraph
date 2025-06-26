@@ -93,9 +93,13 @@ module Solargraph
         implicit.merge map.environ
       end
       unresolved_requires = (bench.external_requires + implicit.requires + bench.workspace.config.required).to_a.compact.uniq
-      if @unresolved_requires != unresolved_requires || @doc_map&.uncached_gemspecs&.any?
+      recreate_docmap = @unresolved_requires != unresolved_requires ||
+                     @doc_map&.uncached_yard_gemspecs&.any? ||
+                     @doc_map&.uncached_rbs_collection_gemspecs&.any? ||
+                     @doc_map&.rbs_collection_path != bench.workspace.rbs_collection_path
+      if recreate_docmap
         @doc_map = DocMap.new(unresolved_requires, [], bench.workspace) # @todo Implement gem preferences
-        @unresolved_requires = unresolved_requires
+        @unresolved_requires = @doc_map.unresolved_requires
       end
       @cache.clear if store.update(@@core_map.pins, @doc_map.pins, implicit.pins, iced_pins, live_pins)
       @missing_docs = [] # @todo Implement missing docs
@@ -109,9 +113,23 @@ module Solargraph
       [self.class, @source_map_hash, implicit, @doc_map, @unresolved_requires]
     end
 
+    def doc_map
+      @doc_map ||= DocMap.new([], [])
+    end
+
     # @return [::Array<Gem::Specification>]
     def uncached_gemspecs
       @doc_map&.uncached_gemspecs || []
+    end
+
+    # @return [::Array<Gem::Specification>]
+    def uncached_rbs_collection_gemspecs
+      @doc_map.uncached_rbs_collection_gemspecs
+    end
+
+    # @return [::Array<Gem::Specification>]
+    def uncached_yard_gemspecs
+      @doc_map.uncached_yard_gemspecs
     end
 
     # @return [Array<Pin::Base>]
@@ -150,8 +168,12 @@ module Solargraph
     # @param position [Position, Array(Integer, Integer)]
     # @return [SourceMap::Clip]
     def clip_at filename, position
+      logger.debug { "ApiMap#clip_at(filename=#{filename}, position=#{position}) - start" }
+
       position = Position.normalize(position)
-      clip(cursor_at(filename, position))
+      out = clip(cursor_at(filename, position))
+      logger.debug { "ApiMap#clip_at(filename=#{filename}, position=#{position}) => #{out}" }
+      out
     end
 
     # Create an ApiMap with a workspace in the specified directory.
@@ -168,6 +190,18 @@ module Solargraph
       api_map
     end
 
+    def cache_all!(out)
+      @doc_map.cache_all!(out)
+    end
+
+    def cache_gem(gemspec, rebuild: false, out: nil)
+      @doc_map.cache(gemspec, rebuild: rebuild, out: out)
+    end
+
+    class << self
+      include Logging
+    end
+
     # Create an ApiMap with a workspace in the specified directory and cache
     # any missing gems.
     #
@@ -178,15 +212,14 @@ module Solargraph
     # @param directory [String]
     # @param out [IO] The output stream for messages
     # @return [ApiMap]
-    def self.load_with_cache directory, out = IO::NULL
+    def self.load_with_cache directory, out
       api_map = load(directory)
-      return api_map if api_map.uncached_gemspecs.empty?
-
-      api_map.uncached_gemspecs.each do |gemspec|
-        out.puts "Caching gem #{gemspec.name} #{gemspec.version}"
-        pins = GemPins.build(gemspec)
-        Solargraph::Cache.save('gems', "#{gemspec.name}-#{gemspec.version}.ser", pins)
+      if api_map.uncached_gemspecs.empty?
+        logger.info { "All gems cached for #{directory}" }
+        return api_map
       end
+
+      api_map.cache_all!(out)
       load(directory)
     end
 
@@ -225,6 +258,7 @@ module Solargraph
     # @param contexts [Array<String>] The contexts
     # @return [Array<Solargraph::Pin::Base>]
     def get_constants namespace, *contexts
+      logger.debug { "ApiMap#get_constants(namespace=#{namespace.inspect}, contexts=#{contexts.inspect})" }
       namespace ||= ''
       contexts.push '' if contexts.empty?
       cached = cache.get_constants(namespace, contexts)
@@ -233,11 +267,13 @@ module Solargraph
       result = []
       contexts.each do |context|
         fqns = qualify(namespace, context)
+        logger.debug { "ApiMap#get_constants(namespace=#{namespace.inspect}, contexts=#{contexts.inspect}) - fqns=#{fqns}" }
         visibility = [:public]
         visibility.push :private if fqns == context
         result.concat inner_get_constants(fqns, visibility, skip)
       end
       cache.set_constants(namespace, contexts, result)
+      logger.debug { "ApiMap#get_constants(namespace=#{namespace.inspect}, contexts=#{contexts.inspect}) => #{result}" }
       result
     end
 
@@ -294,6 +330,7 @@ module Solargraph
     # @return [String, nil] fully qualified namespace
     def qualify_namespace(namespace, context_namespace = '')
       cached = cache.get_qualified_namespace(namespace, context_namespace)
+      logger.debug { "ApiMap#qualify_namespace(namespace=#{namespace.inspect}, context_namespace=#{context_namespace.inspect}) - cached=#{cached.inspect}" }
       return cached.clone unless cached.nil?
       result = if namespace.start_with?('::')
                  inner_qualify(namespace[2..-1], '', Set.new)
@@ -301,6 +338,7 @@ module Solargraph
                  inner_qualify(namespace, context_namespace, Set.new)
                end
       cache.set_qualified_namespace(namespace, context_namespace, result)
+      logger.debug { "ApiMap#qualify_namespace(namespace=#{namespace.inspect}, context_namespace=#{context_namespace.inspect}) => #{result.inspect}" }
       result
     end
 
@@ -333,7 +371,9 @@ module Solargraph
     # @param namespace [String] A fully qualified namespace
     # @return [Enumerable<Solargraph::Pin::ClassVariable>]
     def get_class_variable_pins(namespace)
-      prefer_non_nil_variables(store.get_class_variables(namespace))
+      out = prefer_non_nil_variables(store.get_class_variables(namespace))
+      logger.debug { "ApiMap#get_class_variable_pins(namespace=#{namespace.inspect}) => #{out}" }
+      out
     end
 
     # @return [Enumerable<Solargraph::Pin::Base>]
@@ -627,6 +667,19 @@ module Solargraph
       store.get_includes(host_ns).map { |inc_tag| ComplexType.parse(inc_tag).name }.include?(module_ns)
     end
 
+    # @param pins [Enumerable<Pin::Base>]
+    # @param visibility [Enumerable<Symbol>]
+    # @return [Array<Pin::Base>]
+    def resolve_method_aliases pins, visibility = [:public, :private, :protected]
+      with_resolved_aliases = pins.map do |pin|
+        resolved = resolve_method_alias(pin)
+        next nil if resolved.respond_to?(:visibility) && !visibility.include?(resolved.visibility)
+        resolved
+      end.compact
+      logger.debug { "ApiMap#resolve_method_aliases(pins=#{pins.map(&:name)}, visibility=#{visibility}) => #{with_resolved_aliases.map(&:name)}" }
+      GemPins.combine_method_pins_by_path(with_resolved_aliases)
+    end
+
     private
 
     # A hash of source maps with filename keys.
@@ -670,6 +723,8 @@ module Solargraph
       # namespaces; resolving the generics in the method pins is this
       # class' responsibility
       methods = store.get_methods(fqns, scope: scope, visibility: visibility).sort{ |a, b| a.name <=> b.name }
+      methods = methods.map(&:as_virtual_class_method) if store.get_includes(fqns).include?('ActiveSupport::Concern') && scope == :class
+      logger.info { "ApiMap#inner_get_methods(rooted_tag=#{rooted_tag.inspect}, scope=#{scope.inspect}, visibility=#{visibility.inspect}, deep=#{deep.inspect}, skip=#{skip.inspect}, fqns=#{fqns}) - added from store: #{methods}" }
       result.concat methods
       if deep
         if scope == :instance
@@ -682,6 +737,31 @@ module Solargraph
             result.concat inner_get_methods_from_reference(rooted_sc_tag, namespace_pin, rooted_type, scope, visibility, true, skip, no_core)
           end
         else
+          store.get_includes(fqns).reverse.each do |include_tag|
+            rooted_include_tag = qualify(include_tag, rooted_tag)
+            logger.debug { "ApiMap#inner_get_methods(#{fqns}, #{scope}, #{visibility}, #{deep}) - Handling class include include_tag=#{include_tag}" }
+            module_extends = store.get_extends(rooted_include_tag)
+            # ActiveSupport::Concern is syntactic sugar for a common
+            # pattern to include class methods while mixing-in a Module
+
+            # See https://api.rubyonrails.org/classes/ActiveSupport/Concern.html
+            logger.debug { "ApiMap#inner_get_methods(#{fqns}, #{scope}, #{visibility}, #{deep}) - Handling class include include_tag=#{include_tag}" }
+            if module_extends.include? 'ActiveSupport::Concern'
+              unless rooted_include_tag.nil?
+                # yard-activesupport-concern pulls methods inside
+                # 'class_methods' blocks into main class visible from YARD
+                included_class_pins = inner_get_methods_from_reference(rooted_include_tag, namespace_pin, rooted_type, :class, visibility, deep, skip, true)
+                result.concat included_class_pins
+
+                # another pattern is to put class methods inside a submodule
+                classmethods_include_tag = rooted_include_tag + "::ClassMethods"
+                included_classmethods_pins = inner_get_methods_from_reference(classmethods_include_tag, namespace_pin, rooted_type, :instance, visibility, deep, skip, true)
+                result.concat included_classmethods_pins
+              end
+            end
+          end
+
+          logger.info { "ApiMap#inner_get_methods(#{fqns}, #{scope}, #{visibility}, #{deep}, #{skip}) - looking for get_extends() from #{fqns}" }
           store.get_extends(fqns).reverse.each do |em|
             fqem = qualify(em, fqns)
             result.concat inner_get_methods(fqem, :instance, visibility, deep, skip, true) unless fqem.nil?
@@ -744,14 +824,20 @@ module Solargraph
     # @param skip [Set<String>]
     # @return [Array<Pin::Base>]
     def inner_get_constants fqns, visibility, skip
-      return [] if fqns.nil? || skip.include?(fqns)
+      logger.debug { "ApiMap#inner_get_constants(fqns=#{fqns.inspect}, visibility=#{visibility.inspect}, skip=#{skip.inspect}) - starting" }
+      if fqns.nil? || skip.include?(fqns)
+        logger.debug { "ApiMap#inner_get_constants(fqns=#{fqns.inspect}, visibility=#{visibility.inspect}, skip=#{skip.inspect}) => [] - fqns=#{fqns.inspect}, skip=#{skip}" }
+        return []
+      end
       skip.add fqns
       result = []
       store.get_prepends(fqns).each do |is|
         result.concat inner_get_constants(qualify(is, fqns), [:public], skip)
       end
-      result.concat store.get_constants(fqns, visibility)
-                    .sort { |a, b| a.name <=> b.name }
+      constants = store.get_constants(fqns, visibility)
+                      .sort { |a, b| a.name <=> b.name }
+      logger.debug { "Constants in #{fqns} with visibility #{visibility}, constants=#{constants}" }
+      result.concat constants
       store.get_includes(fqns).each do |is|
         result.concat inner_get_constants(qualify(is, fqns), [:public], skip)
       end
@@ -759,6 +845,7 @@ module Solargraph
       unless %w[Object BasicObject].include?(fqsc)
         result.concat inner_get_constants(fqsc, [:public], skip)
       end
+      logger.debug { "ApiMap#inner_get_constants(fqns=#{fqns.inspect}, visibility=#{visibility.inspect}, skip=#{skip.inspect}) => #{result}" }
       result
     end
 
@@ -794,6 +881,7 @@ module Solargraph
     # @param skip [Set<String>] Contexts already searched
     # @return [String, nil] Fully qualified ("rooted") namespace
     def inner_qualify name, root, skip
+      logger.debug { "ApiMap#inner_qualify(name=#{name.inspect}, root=#{root.inspect}, skip=#{skip.inspect}) - starting" }
       return name if name == ComplexType::GENERIC_TAG_NAME
       return nil if name.nil?
       return nil if skip.include?(root)
@@ -857,17 +945,6 @@ module Solargraph
         end
       end
       result + nil_pins
-    end
-
-    # @param pins [Enumerable<Pin::Base>]
-    # @param visibility [Enumerable<Symbol>]
-    # @return [Array<Pin::Base>]
-    def resolve_method_aliases pins, visibility = [:public, :private, :protected]
-      pins.map do |pin|
-        resolved = resolve_method_alias(pin)
-        next pin if resolved.respond_to?(:visibility) && !visibility.include?(resolved.visibility)
-        resolved
-      end.compact
     end
 
     # @param pin [Pin::MethodAlias, Pin::Base]

@@ -21,6 +21,15 @@ module Solargraph
         @return_type = return_type
       end
 
+      def combine_with(other, attrs={})
+        attrs.merge({
+          assignment: assert_same(other, :assignment),
+          mass_assignment: assert_same(other, :mass_assignment),
+          return_type: combine_return_type(other),
+        })
+        super(other, attrs)
+      end
+
       def completion_item_kind
         Solargraph::LanguageServer::CompletionItemKinds::VARIABLE
       end
@@ -66,6 +75,7 @@ module Solargraph
             types.push result unless result.undefined?
           end
         end
+        logger.debug { "BaseVariable#return_types_from_node(#{parent_node}) => #{types.map(&:rooted_tags)}" }
         types
       end
 
@@ -99,17 +109,11 @@ module Solargraph
         assignment == other.assignment
       end
 
-      # @param pin [self]
-      def try_merge! pin
-        return false unless super
-        @assignment = pin.assignment
-        @return_type = pin.return_type
-        true
-      end
-
       def type_desc
         "#{super} = #{assignment&.type.inspect}"
       end
+
+      include Logging
 
       private
 
