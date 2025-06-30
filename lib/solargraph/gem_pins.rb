@@ -11,10 +11,6 @@ module Solargraph
       include Logging
     end
 
-    def log_level
-      :debug
-    end
-
     # @param gemspec [Gem::Specification]
     # @return [Array<Pin::Base>]
     def self.build_yard_pins(gemspec)
@@ -56,11 +52,10 @@ module Solargraph
       in_yard = Set.new
       rbs_api_map = Solargraph::ApiMap.new(pins: rbs_pins)
       combined = yard_pins.map do |yard_pin|
-        next yard_pin unless yard_pin.class == Pin::Method
-
         in_yard.add yard_pin.path
-
         rbs_pin = rbs_api_map.get_path_pins(yard_pin.path).filter { |pin| pin.is_a? Pin::Method }.first
+        next yard_pin unless rbs_pin && yard_pin.class == Pin::Method
+
         unless rbs_pin
           logger.debug { "GemPins.combine: No rbs pin for #{yard_pin.path} - using YARD's '#{yard_pin.inspect} (return_type=#{yard_pin.return_type}; signatures=#{yard_pin.signatures})" }
           next yard_pin
@@ -73,7 +68,9 @@ module Solargraph
       in_rbs_only = rbs_pins.select do |pin|
         pin.path.nil? || !in_yard.include?(pin.path)
       end
-      combined + in_rbs_only
+      out = combined + in_rbs_only
+      logger.debug { "GemPins#combine: Returning #{out.length} combined pins" }
+      out
     end
 
     class << self

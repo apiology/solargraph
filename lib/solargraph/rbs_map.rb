@@ -35,6 +35,10 @@ module Solargraph
       add_library loader, library, version
     end
 
+    def loader
+      @loader ||= RBS::EnvironmentLoader.new(core_root: nil, repository: repository)
+    end
+
     # @return string representing the version of the RBS info fetched
     #   for the given library.  Must change when the RBS info is
     #   updated upstream for the same library and version.  May change

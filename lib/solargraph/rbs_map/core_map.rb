@@ -12,8 +12,7 @@ module Solargraph
 
       FILLS_DIRECTORY = File.join(File.dirname(__FILE__), '..', '..', '..', 'rbs', 'fills')
 
-      def initialize
-      end
+      def initialize; end
 
       def pins
         return @pins if @pins
