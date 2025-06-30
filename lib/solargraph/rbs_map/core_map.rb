@@ -25,16 +25,12 @@ module Solargraph
           loader.add(path: Pathname(FILLS_DIRECTORY))
           @pins = conversions.pins
           @pins.concat RbsMap::CoreFills::ALL
-          processed = ApiMap::Store.new(pins).pins.reject { |p| p.is_a?(Solargraph::Pin::Reference::Override) }
+          processed = ApiMap::Store.new(@pins).pins.reject { |p| p.is_a?(Solargraph::Pin::Reference::Override) }
           @pins.replace processed
 
           PinCache.serialize_core @pins
         end
         @pins
-      end
-
-      def loader
-        @loader ||= RBS::EnvironmentLoader.new(repository: RBS::Repository.new(no_stdlib: false))
       end
 
       private

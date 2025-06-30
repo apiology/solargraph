@@ -22,7 +22,8 @@ module Solargraph
       # @param attribute [Boolean]
       # @param signatures [::Array<Signature>, nil]
       # @param anon_splat [Boolean]
-      def initialize visibility: :public, explicit: true, block: :undefined, node: nil, attribute: false, signatures: nil, anon_splat: false, **splat
+      def initialize visibility: :public, explicit: true, block: :undefined, node: nil, attribute: false, signatures: nil, anon_splat: false,
+                     **splat
         super(**splat)
         @visibility = visibility
         @explicit = explicit
@@ -199,9 +200,11 @@ module Solargraph
             )
           end
           yield_return_type = ComplexType.try_parse(*yieldreturn_tags.flat_map(&:types))
-          block = Signature.new(generics: generics, parameters: yield_parameters, return_type: yield_return_type, source: source, closure: self)
+          block = Signature.new(generics: generics, parameters: yield_parameters, return_type: yield_return_type, source: source,
+                                closure: self, location: location, type_location: type_location)
         end
-        signature = Signature.new(generics: generics, parameters: parameters, return_type: return_type, block: block, closure: self, source: source)
+        signature = Signature.new(generics: generics, parameters: parameters, return_type: return_type, block: block, closure: self, source: source,
+                                  location: location, type_location: type_location)
         block.closure = signature if block
         signature
       end
@@ -296,7 +299,13 @@ module Solargraph
           logger.debug { "Method#typify(self=#{self}) => #{qualified.rooted_tags.inspect}" }
           return qualified
         end
-        super
+        if name.end_with?('?')
+          logger.debug { "Method#typify(self=#{self}) => Boolean (? suffix)" }
+          ComplexType::BOOLEAN
+        else
+          logger.debug { "Method#typify(self=#{self}) => undefined" }
+          ComplexType::UNDEFINED
+        end
       end
 
       # @sg-ignore

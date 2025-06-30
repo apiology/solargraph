@@ -436,17 +436,6 @@ module Solargraph
       )
     end
 
-    # Get an array of foldable ranges for the specified file.
-    #
-    # @deprecated The library should not need to handle folding ranges. The
-    #   source itself has all the information it needs.
-    #
-    # @param filename [String]
-    # @return [Array<Range>]
-    def folding_ranges filename
-      read(filename).folding_ranges
-    end
-
     # Create a library from a directory.
     #
     # @param directory [String] The path to be used for the workspace
@@ -587,7 +576,7 @@ module Solargraph
 
     # @return [void]
     def cache_next_gemspec
-      return if @cache_progres
+      return if @cache_progress
       spec = (api_map.uncached_yard_gemspecs + api_map.uncached_rbs_collection_gemspecs).
                find { |spec| !cache_errors.include?(spec) }
       return end_cache_progress unless spec
