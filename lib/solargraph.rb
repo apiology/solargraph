@@ -53,8 +53,7 @@ module Solargraph
   dir = File.dirname(__FILE__)
   VIEWS_PATH = File.join(dir, 'solargraph', 'views')
 
-  # @param type [Symbol] Type of assert.
-  def self.asserts_on?(type)
+  def self.asserts_on?
     if ENV['SOLARGRAPH_ASSERTS'].nil? || ENV['SOLARGRAPH_ASSERTS'].empty?
       false
     elsif ENV['SOLARGRAPH_ASSERTS'] == 'on'
@@ -66,7 +65,16 @@ module Solargraph
   end
 
   def self.assert_or_log(type, msg = nil, &block)
-    raise (msg || block.call) if asserts_on?(type) && ![:combine_with_visibility].include?(type)
+    if asserts_on?
+      msg ||= block.call
+
+      # not ready for prime time
+      return if [:combine_with_visibility].include?(type)
+      # conditional aliases to handle compatibility corner cases
+      return if type == :alias_target_missing && msg.include?('highline/compatibility.rb')
+      return if type == :alias_target_missing && msg.include?('lib/json/add/date.rb')
+      raise msg
+    end
     logger.info msg, &block
   end
 
