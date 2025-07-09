@@ -40,6 +40,7 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency 'rubocop', '~> 1.76'
   s.add_runtime_dependency 'rubocop-rake', '~> 0.7'
   s.add_runtime_dependency 'rubocop-rspec', '~> 3.6'
+  s.add_runtime_dependency 'sord', '~> 7.0'
   s.add_runtime_dependency 'thor', '~> 1.0'
   s.add_runtime_dependency 'tilt', '~> 2.0'
   s.add_runtime_dependency 'yard', '~> 0.9', '>= 0.9.24'
