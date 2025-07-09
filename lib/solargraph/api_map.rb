@@ -657,7 +657,10 @@ module Solargraph
     def resolve_method_aliases pins, visibility = [:public, :private, :protected]
       with_resolved_aliases = pins.map do |pin|
         resolved = resolve_method_alias(pin)
-        next nil if resolved.respond_to?(:visibility) && !visibility.include?(resolved.visibility)
+        if resolved.respond_to?(:visibility) && !visibility.include?(resolved.visibility)
+          Solargraph.assert_or_log(:alias_visibility) { "Rejecting alias - visibility of target is #{resolved.visibility}, looking for visibility #{visibility}" }
+          next nil
+        end
         resolved
       end.compact
       logger.debug { "ApiMap#resolve_method_aliases(pins=#{pins.map(&:name)}, visibility=#{visibility}) => #{with_resolved_aliases.map(&:name)}" }
@@ -904,7 +907,10 @@ module Solargraph
       @method_alias_stack.push pin.path
       origin = get_method_stack(pin.full_context.tag, pin.original, scope: pin.scope, preserve_generics: true).first
       @method_alias_stack.pop
-      return nil if origin.nil?
+      if origin.nil?
+        Solargraph.assert_or_log(:alias_target_missing) { "Rejecting alias - target is missing = #{pin.inspect}" }
+        return nil
+      end
       args = {
         location: pin.location,
         type_location: origin.type_location,
