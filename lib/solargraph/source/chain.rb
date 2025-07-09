@@ -15,7 +15,12 @@ module Solargraph
     #
     class Chain
       include Equality
+      include Logging
 
+      #
+      # A chain of constants, variables, and method calls for inferring types of
+      # values.
+      #
       autoload :Link,             'solargraph/source/chain/link'
       autoload :Call,             'solargraph/source/chain/call'
       autoload :QCall,            'solargraph/source/chain/q_call'
@@ -158,7 +163,7 @@ module Solargraph
           logger.debug { "Chain#infer_uncached(links=#{links.map(&:desc)}, locals=#{locals.map(&:desc)}) => undefined - no pins" }
           return ComplexType::UNDEFINED
         end
-        type = infer_from_definitions(pins, links.last.last_context, api_map, locals)
+        type = infer_first_defined(pins, links.last.last_context, api_map, locals)
         out = maybe_nil(type)
         logger.debug { "Chain#infer_uncached(links=#{self.links.map(&:desc)}, locals=#{locals.map(&:desc)}, name_pin=#{name_pin}, name_pin.closure=#{name_pin.closure.inspect}, name_pin.binder=#{name_pin.binder}) => #{out.rooted_tags.inspect}" }
         out
