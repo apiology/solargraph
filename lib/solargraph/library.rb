@@ -610,6 +610,7 @@ module Solargraph
       end
     end
 
+    # @return [Array<Gem::Specification>]
     def cacheable_specs
       cacheable = api_map.uncached_yard_gemspecs +
                   api_map.uncached_rbs_collection_gemspecs -
@@ -620,6 +621,7 @@ module Solargraph
       queued_gemspec_cache
     end
 
+    # @return [Array<Gem::Specification>]
     def queued_gemspec_cache
       @queued_gemspec_cache ||= []
     end
@@ -661,6 +663,7 @@ module Solargraph
       @total = nil
     end
 
+    # @return [void]
     def sync_catalog
       return if @sync_count == 0
 
