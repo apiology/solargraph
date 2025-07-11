@@ -80,7 +80,9 @@ module Solargraph
 
       # Determine potential Pins returned by this chain of words
       #
-      # @param api_map [ApiMap] @param name_pin [Pin::Base] A pin
+      # @param api_map [ApiMap]
+      #
+      # @param name_pin [Pin::Base] A pin
       # representing the place in which expression is evaluated (e.g.,
       # a Method pin, or a Module or Class pin if not run within a
       # method - both in terms of the closure around the chain, as well
@@ -197,6 +199,7 @@ module Solargraph
 
       include Logging
 
+      # @return [String]
       def desc
         links.map(&:desc).to_s
       end
