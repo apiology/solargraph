@@ -64,6 +64,10 @@ module Solargraph
     end
   end
 
+  # @param type [Symbol] The type of assertion to perform.
+  # @param msg [String, nil] An optional message to log
+  # @param block [Proc] A block that returns a message to log
+  # @return [void]
   def self.assert_or_log(type, msg = nil, &block)
     if asserts_on?
       msg ||= block.call
@@ -87,6 +91,11 @@ module Solargraph
 
   # A helper method that runs Bundler.with_unbundled_env or falls back to
   # Bundler.with_clean_env for earlier versions of Bundler.
+  #
+  # @generic T
+  # @yieldreturn [generic<T>]
+  # @sg-ignore dynamic call, but both functions behave the same
+  # @return [generic<T>]
   def self.with_clean_env &block
     meth = if Bundler.respond_to?(:with_original_env)
       :with_original_env
