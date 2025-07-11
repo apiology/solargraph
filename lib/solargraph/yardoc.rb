@@ -35,6 +35,7 @@ module Solargraph
 
     # True if another process is currently building the yardoc cache.
     #
+    # @param gemspec [Gem::Specification]
     def processing?(gemspec)
       yardoc = File.join(PinCache.yardoc_path(gemspec), 'processing')
       File.exist?(yardoc)
