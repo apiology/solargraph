@@ -53,8 +53,7 @@ module Solargraph
   dir = File.dirname(__FILE__)
   VIEWS_PATH = File.join(dir, 'solargraph', 'views')
 
-  # @param type [Symbol] Type of assert.
-  def self.asserts_on?(type)
+  def self.asserts_on?
     if ENV['SOLARGRAPH_ASSERTS'].nil? || ENV['SOLARGRAPH_ASSERTS'].empty?
       false
     elsif ENV['SOLARGRAPH_ASSERTS'] == 'on'
@@ -65,8 +64,24 @@ module Solargraph
     end
   end
 
+  # @param type [Symbol] The type of assertion to perform.
+  # @param msg [String, nil] An optional message to log
+  # @param block [Proc] A block that returns a message to log
+  # @return [void]
   def self.assert_or_log(type, msg = nil, &block)
-    raise (msg || block.call) if asserts_on?(type) && ![:combine_with_visibility].include?(type)
+    if asserts_on?
+      # @type [String, nil]
+      msg ||= block.call
+
+      raise "No message given for #{type.inspect}" if msg.nil?
+
+      # not ready for prime time
+      return if [:combine_with_visibility].include?(type)
+      # conditional aliases to handle compatibility corner cases
+      return if type == :alias_target_missing && msg.include?('highline/compatibility.rb')
+      return if type == :alias_target_missing && msg.include?('lib/json/add/date.rb')
+      raise msg
+    end
     logger.info msg, &block
   end
 
@@ -79,6 +94,11 @@ module Solargraph
 
   # A helper method that runs Bundler.with_unbundled_env or falls back to
   # Bundler.with_clean_env for earlier versions of Bundler.
+  #
+  # @generic T
+  # @yieldreturn [generic<T>]
+  # @sg-ignore dynamic call, but both functions behave the same
+  # @return [generic<T>]
   def self.with_clean_env &block
     meth = if Bundler.respond_to?(:with_original_env)
       :with_original_env

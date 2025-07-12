@@ -15,7 +15,12 @@ module Solargraph
     #
     class Chain
       include Equality
+      include Logging
 
+      #
+      # A chain of constants, variables, and method calls for inferring types of
+      # values.
+      #
       autoload :Link,             'solargraph/source/chain/link'
       autoload :Call,             'solargraph/source/chain/call'
       autoload :QCall,            'solargraph/source/chain/q_call'
@@ -75,7 +80,9 @@ module Solargraph
 
       # Determine potential Pins returned by this chain of words
       #
-      # @param api_map [ApiMap] @param name_pin [Pin::Base] A pin
+      # @param api_map [ApiMap]
+      #
+      # @param name_pin [Pin::Base] A pin
       # representing the place in which expression is evaluated (e.g.,
       # a Method pin, or a Module or Class pin if not run within a
       # method - both in terms of the closure around the chain, as well
@@ -192,6 +199,7 @@ module Solargraph
 
       include Logging
 
+      # @return [String]
       def desc
         links.map(&:desc).to_s
       end

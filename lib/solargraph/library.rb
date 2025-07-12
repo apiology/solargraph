@@ -258,11 +258,11 @@ module Solargraph
           referenced&.path == pin.path
         end
         if pin.path == 'Class#new'
-          caller = cursor.chain.base.infer(api_map, clip.send(:block), clip.locals).first
+          caller = cursor.chain.base.infer(api_map, clip.send(:closure), clip.locals).first
           if caller.defined?
             found.select! do |loc|
               clip = api_map.clip_at(loc.filename, loc.range.start)
-              other = clip.send(:cursor).chain.base.infer(api_map, clip.send(:block), clip.locals).first
+              other = clip.send(:cursor).chain.base.infer(api_map, clip.send(:closure), clip.locals).first
               caller == other
             end
           else
@@ -434,17 +434,6 @@ module Solargraph
         external_requires: external_requires,
         live_map: @current ? source_map_hash[@current.filename] : nil
       )
-    end
-
-    # Get an array of foldable ranges for the specified file.
-    #
-    # @deprecated The library should not need to handle folding ranges. The
-    #   source itself has all the information it needs.
-    #
-    # @param filename [String]
-    # @return [Array<Range>]
-    def folding_ranges filename
-      read(filename).folding_ranges
     end
 
     # Create a library from a directory.
@@ -621,6 +610,7 @@ module Solargraph
       end
     end
 
+    # @return [Array<Gem::Specification>]
     def cacheable_specs
       cacheable = api_map.uncached_yard_gemspecs +
                   api_map.uncached_rbs_collection_gemspecs -
@@ -631,6 +621,7 @@ module Solargraph
       queued_gemspec_cache
     end
 
+    # @return [Array<Gem::Specification>]
     def queued_gemspec_cache
       @queued_gemspec_cache ||= []
     end
@@ -672,6 +663,7 @@ module Solargraph
       @total = nil
     end
 
+    # @return [void]
     def sync_catalog
       return if @sync_count == 0
 
