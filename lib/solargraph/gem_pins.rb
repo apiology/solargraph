@@ -11,14 +11,6 @@ module Solargraph
       include Logging
     end
 
-    # @param gemspec [Gem::Specification]
-    # @return [Array<Pin::Base>]
-    def self.build_yard_pins(gemspec)
-      Yardoc.cache(gemspec) unless Yardoc.cached?(gemspec)
-      yardoc = Yardoc.load!(gemspec)
-      YardMap::Mapper.new(yardoc, gemspec).map
-    end
-
     # @param pins [Array<Pin::Base>]
     def self.combine_method_pins_by_path(pins)
       method_pins, alias_pins = pins.partition { |pin| pin.class == Pin::Method }
@@ -42,6 +34,28 @@ module Solargraph
       end
       logger.debug { "GemPins.combine_method_pins(pins.length=#{pins.length}, pins=#{pins}) => #{out.inspect}" }
       out
+    end
+
+    # Build an array of pins from a gem specification. The process starts with
+    # YARD, enhances the resulting pins with RBS definitions, and appends RBS
+    # pins that don't exist in the YARD mapping.
+    #
+    # @param yard_plugins [Array<String>]
+    # @param gemspec [Gem::Specification]
+    # @return [Array<Pin::Base>]
+    def self.build(yard_plugins, gemspec)
+      yard_pins = build_yard_pins(yard_plugins, gemspec)
+      rbs_map = RbsMap.from_gemspec(gemspec, rbs_collection_path, rbs_collection_config_path)
+      combine yard_pins, rbs_map
+    end
+
+    # @param yard_plugins [Array<String>] The names of YARD plugins to use.
+    # @param gemspec [Gem::Specification]
+    # @return [Array<Pin::Base>]
+    def self.build_yard_pins(yard_plugins, gemspec)
+      Yardoc.cache(yard_plugins, gemspec) unless Yardoc.cached?(gemspec)
+      yardoc = Yardoc.load!(gemspec)
+      YardMap::Mapper.new(yardoc, gemspec).map
     end
 
     # @param yard_pins [Array<Pin::Base>]

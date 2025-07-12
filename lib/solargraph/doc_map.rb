@@ -82,7 +82,7 @@ module Solargraph
     # @param out [IO]
     # @return [void]
     def cache_yard_pins(gemspec, out)
-      pins = GemPins.build_yard_pins(gemspec)
+      pins = GemPins.build_yard_pins(yard_plugins, gemspec)
       PinCache.serialize_yard_gem(gemspec, pins)
       logger.info { "Cached #{pins.length} YARD pins for gem #{gemspec.name}:#{gemspec.version}" } unless pins.empty?
     end
@@ -156,6 +156,10 @@ module Solargraph
     # @return [Hash{Array(String, String) => Array<Pin::Base>}] Indexed by gemspec name and version
     def combined_pins_in_memory
       self.class.all_combined_pins_in_memory
+    end
+
+    def yard_plugins
+      @environ.yard_plugins
     end
 
     # @return [Set<Gem::Specification>]
