@@ -22,7 +22,7 @@ module Solargraph
       by_path.values + alias_pins
     end
 
-    # @param pins [Pin::Base]
+    # @param pins [Pin::Method]
     # @return [Pin::Base, nil]
     def self.combine_method_pins(*pins)
       out = pins.reduce(nil) do |memo, pin|
@@ -56,7 +56,8 @@ module Solargraph
       rbs_store = Solargraph::ApiMap::Store.new(rbs_pins)
       combined = yard_pins.map do |yard_pin|
         rbs_pin = rbs_store.get_path_pins(yard_pin.path).filter { |pin| pin.is_a? Pin::Method }.first
-        next yard_pin unless rbs_pin && yard_pin.class == Pin::Method
+
+        next yard_pin unless rbs_pin && yard_pin.is_a?(Pin::Method)
 
         in_yard.add yard_pin.path
 
@@ -65,6 +66,13 @@ module Solargraph
           next yard_pin
         end
 
+        # at this point both yard_pins and rbs_pins are methods or
+        # method aliases.  if not plain methods, prefer the YARD one
+        next yard_pin if rbs_pin.class != Pin::Method
+
+        next rbs_pin if yard_pin.class != Pin::Method
+
+        # both are method pins
         out = combine_method_pins(rbs_pin, yard_pin)
         logger.debug { "GemPins.combine: Combining yard.path=#{yard_pin.path} - rbs=#{rbs_pin.inspect} with yard=#{yard_pin.inspect} into #{out}" }
         out
