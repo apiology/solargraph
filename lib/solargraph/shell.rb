@@ -307,18 +307,11 @@ module Solargraph
           if options[:probe] && type.undefined?
             type = pin.probe(api_map)
           end
-          if options[:rbs]
-            puts type.to_rbs
-          else
-            puts type.rooted_tag
-          end
-        else
-          if options[:rbs]
-            puts pin.to_rbs
-          else
-            puts pin.inspect
-          end
+          print_type(type)
+          next
         end
+
+        print_pin(pin)
       end
     end
 
@@ -347,6 +340,26 @@ module Solargraph
       # @todo if the rebuild: option is passed as a positional arg,
       #   typecheck doesn't complain on the below line
       api_map.cache_gem(gemspec, rebuild: options.rebuild, out: $stdout)
+    end
+
+    # @param type [ComplexType]
+    # @return [void]
+    def print_type(type)
+      if options[:rbs]
+        puts type.to_rbs
+      else
+        puts type.rooted_tag
+      end
+    end
+
+    # @param pin [Solargraph::Pin::Base]
+    # @return [void]
+    def print_pin(pin)
+      if options[:rbs]
+        puts pin.to_rbs
+      else
+        puts pin.inspect
+      end
     end
   end
 end
