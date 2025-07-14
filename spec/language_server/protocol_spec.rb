@@ -82,7 +82,7 @@ describe Protocol do
   it "handles initialized" do
     @protocol.request 'initialized', nil
     response = @protocol.response
-    expect(response['error']).to be_nil
+    expect(response['error']).to be_nil, ->{ "Received response #{response.inspect} wtih unexpected error" }
   end
 
   it "configured default dynamic registration capabilities from initialized" do
