@@ -170,9 +170,10 @@ module Solargraph
         uncache(core_path, out: out)
       end
 
+      # @param out [IO, nil]
       # @return [void]
-      def uncache_stdlib
-        uncache(stdlib_path)
+      def uncache_stdlib(out: nil)
+        uncache(stdlib_path, out: out)
       end
 
       # @param gemspec [Gem::Specification]
