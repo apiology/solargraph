@@ -27,8 +27,25 @@ Style/MethodDefParentheses:
 Layout/EmptyLineAfterGuardClause:
   Enabled: false
 
+Lint/UnusedMethodArgument:
+  AllowUnusedKeywordArguments: true
+
+Metrics/ParameterLists:
+  Max: 7
+  CountKeywordArgs: false
+
+
+#
+# Set a relaxed standard on harder-to-address item for ease of
+# contribution - if you are good at refactoring, we welcome PRs to
+# improve existing code!
+#
+Metrics/AbcSize:
+  Max: 65
 Metrics/MethodLength:
-  Max: 25
+  Max: 60
+Metrics/ClassLength:
+  Max: 500
 
 plugins:
   - rubocop-rspec
