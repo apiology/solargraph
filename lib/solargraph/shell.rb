@@ -5,6 +5,7 @@ require 'thor'
 require 'yard'
 require 'sord'
 require 'tmpdir'
+require 'yaml'
 
 module Solargraph
   class Shell < Thor
@@ -39,6 +40,7 @@ module Solargraph
         Signal.trap("TERM") do
           Backport.stop
         end
+        # @sg-ignore https://github.com/castwide/backport/pull/5
         Backport.prepare_tcp_server host: options[:host], port: port, adapter: Solargraph::LanguageServer::Transport::Adapter
         STDERR.puts "Solargraph is listening PORT=#{port} PID=#{Process.pid}"
       end
@@ -55,6 +57,7 @@ module Solargraph
         Signal.trap("TERM") do
           Backport.stop
         end
+        # @sg-ignore https://github.com/castwide/backport/pull/5
         Backport.prepare_stdio_server adapter: Solargraph::LanguageServer::Transport::Adapter
         STDERR.puts "Solargraph is listening on stdio PID=#{Process.pid}"
       end
@@ -67,6 +70,7 @@ module Solargraph
     def config(directory = '.')
       matches = []
       if options[:extensions]
+        # @sg-ignore Unresolved call to each
         Gem::Specification.each do |g|
           if g.name.match(/^solargraph\-[A-Za-z0-9_\-]*?\-ext/)
             require g.name
@@ -81,6 +85,7 @@ module Solargraph
         end
       end
       File.open(File.join(directory, '.solargraph.yml'), 'w') do |file|
+        # @sg-ignore Unresolved call to to_yaml
         file.puts conf.to_yaml
       end
       STDOUT.puts "Configuration file initialized."
@@ -104,9 +109,33 @@ module Solargraph
     # @param gem [String]
     # @param version [String, nil]
     def cache gem, version = nil
-      api_map = Solargraph::ApiMap.load(Dir.pwd)
-      spec = Gem::Specification.find_by_name(gem, version)
-      api_map.cache_gem(spec, rebuild: options[:rebuild], out: $stdout)
+      gems(gem + version ? "=#{version}" : '')
+      # "
+    end
+
+    desc 'gems [GEM[=VERSION]]', 'Cache documentation for installed gems'
+    option :rebuild, type: :boolean, desc: 'Rebuild existing documentation', default: false
+    # @param names [Array<String>]
+    # @return [void]
+    def gems *names
+      api_map = ApiMap.load('.')
+      if names.empty?
+        api_map.cache_all_for_workspace!($stdout, rebuild: options.rebuild)
+      else
+        STDERR.puts("Caching these gems: #{names}")
+        names.each do |name|
+          if name == 'core'
+            PinCache.cache_core(out: $stdout)
+            next
+          end
+
+          gemspec = api_map.find_gem(*name.split('='))
+          api_map.cache_gem(gemspec, rebuild: options.rebuild, out: $stdout)
+        rescue Gem::MissingSpecError
+          warn "Gem '#{name}' not found"
+        end
+        STDERR.puts "Documentation cached for #{names.count} gems."
+      end
     end
 
     desc 'uncache GEM [...GEM]', "Delete specific cached gem documentation"
@@ -119,6 +148,7 @@ module Solargraph
     # @return [void]
     def uncache *gems
       raise ArgumentError, 'No gems specified.' if gems.empty?
+      workspace = Workspace.new('.')
       gems.each do |gem|
         if gem == 'core'
           PinCache.uncache_core(out: $stdout)
@@ -131,27 +161,7 @@ module Solargraph
         end
 
         spec = Gem::Specification.find_by_name(gem)
-        PinCache.uncache_gem(spec, out: $stdout)
-      end
-    end
-
-    desc 'gems [GEM[=VERSION]]', 'Cache documentation for installed gems'
-    option :rebuild, type: :boolean, desc: 'Rebuild existing documentation', default: false
-    # @param names [Array<String>]
-    # @return [void]
-    def gems *names
-      api_map = ApiMap.load('.')
-      if names.empty?
-        Gem::Specification.to_a.each { |spec| do_cache spec, api_map }
-        STDERR.puts "Documentation cached for all #{Gem::Specification.count} gems."
-      else
-        names.each do |name|
-          spec = Gem::Specification.find_by_name(*name.split('='))
-          do_cache spec, api_map
-        rescue Gem::MissingSpecError
-          warn "Gem '#{name}' not found"
-        end
-        STDERR.puts "Documentation cached for #{names.count} gems."
+        workspace.uncache_gem(spec, out: $stdout)
       end
     end
 
@@ -333,13 +343,24 @@ module Solargraph
       desc
     end
 
-    # @param gemspec [Gem::Specification]
-    # @param api_map [ApiMap]
+    # @param type [ComplexType]
     # @return [void]
-    def do_cache gemspec, api_map
-      # @todo if the rebuild: option is passed as a positional arg,
-      #   typecheck doesn't complain on the below line
-      api_map.cache_gem(gemspec, rebuild: options.rebuild, out: $stdout)
+    def print_type(type)
+      if options[:rbs]
+        puts type.to_rbs
+      else
+        puts type.rooted_tag
+      end
+    end
+
+    # @param pin [Solargraph::Pin::Base]
+    # @return [void]
+    def print_pin(pin)
+      if options[:rbs]
+        puts pin.to_rbs
+      else
+        puts pin.inspect
+      end
     end
 
     # @param type [ComplexType]

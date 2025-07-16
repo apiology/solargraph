@@ -22,6 +22,9 @@ module Solargraph
     # @return [Array<String>]
     attr_reader :missing_docs
 
+    # @return [Solargraph::PinCache]
+    attr_reader :pin_cache
+
     # @param pins [Array<Solargraph::Pin::Base>]
     def initialize pins: []
       @source_map_hash = {}
@@ -47,6 +50,7 @@ module Solargraph
       self.eql?(other)
     end
 
+    # @return [Integer]
     def hash
       equality_fields.hash
     end
@@ -96,11 +100,12 @@ module Solargraph
       end
       unresolved_requires = (bench.external_requires + implicit.requires + bench.workspace.config.required).to_a.compact.uniq
       recreate_docmap = @unresolved_requires != unresolved_requires ||
-                     @doc_map&.uncached_yard_gemspecs&.any? ||
-                     @doc_map&.uncached_rbs_collection_gemspecs&.any? ||
-                     @doc_map&.rbs_collection_path != bench.workspace.rbs_collection_path
+                        workspace.rbs_collection_path != bench.workspace.rbs_collection_path ||
+                        @doc_map.any_uncached?
+
       if recreate_docmap
-        @doc_map = DocMap.new(unresolved_requires, [], bench.workspace) # @todo Implement gem preferences
+        @doc_map = DocMap.new(unresolved_requires, bench.workspace) # @todo Implement gem preferences
+        @pin_cache = @doc_map.pin_cache
         @unresolved_requires = @doc_map.unresolved_requires
       end
       @cache.clear if store.update(@@core_map.pins, @doc_map.pins, implicit.pins, iced_pins, live_pins)
@@ -115,24 +120,12 @@ module Solargraph
       [self.class, @source_map_hash, implicit, @doc_map, @unresolved_requires]
     end
 
-    # @return [DocMap]
-    def doc_map
-      @doc_map ||= DocMap.new([], [])
-    end
+    # @return [DocMap, nil]
+    attr_reader :doc_map
 
     # @return [::Array<Gem::Specification>]
     def uncached_gemspecs
       @doc_map&.uncached_gemspecs || []
-    end
-
-    # @return [::Array<Gem::Specification>]
-    def uncached_rbs_collection_gemspecs
-      @doc_map.uncached_rbs_collection_gemspecs
-    end
-
-    # @return [::Array<Gem::Specification>]
-    def uncached_yard_gemspecs
-      @doc_map.uncached_yard_gemspecs
     end
 
     # @return [Array<Pin::Base>]
@@ -191,16 +184,29 @@ module Solargraph
 
     # @param out [IO, nil]
     # @return [void]
-    def cache_all!(out)
-      @doc_map.cache_all!(out)
+    def cache_all_for_doc_map!(out)
+      @doc_map&.cache_doc_map_gems!(out)
+    end
+
+    # @param out [IO, nil]
+    # @param rebuild [Boolean]
+    # @return [void]
+    def cache_all_for_workspace!(out, rebuild: false)
+      workspace.cache_all_for_workspace!(out, rebuild: rebuild)
+    end
+
+    # @return [Workspace]
+    def workspace
+      @doc_map&.workspace
     end
 
     # @param gemspec [Gem::Specification]
     # @param rebuild [Boolean]
+    # @param only_if_used [Boolean]
     # @param out [IO, nil]
     # @return [void]
-    def cache_gem(gemspec, rebuild: false, out: nil)
-      @doc_map.cache(gemspec, rebuild: rebuild, out: out)
+    def cache_gem(gemspec, rebuild: false, only_if_used: false, out: nil)
+      @doc_map&.cache(gemspec, rebuild: rebuild, out: out, only_if_used: only_if_used)
     end
 
     class << self
@@ -224,7 +230,7 @@ module Solargraph
         return api_map
       end
 
-      api_map.cache_all!(out)
+      api_map.cache_all_for_doc_map!(out)
       load(directory)
     end
 
@@ -379,6 +385,9 @@ module Solargraph
     end
 
     # @see Solargraph::Parser::FlowSensitiveTyping#visible_pins
+    # @param (see Solargraph::Parser::FlowSensitiveTyping#visible_pins)
+    # @return (see Solargraph::Parser::FlowSensitiveTyping#visible_pins)
+    # @sg-ignore Missing @return tag for Solargraph::ApiMap#visible_pins
     def visible_pins(*args, **kwargs, &blk)
       Solargraph::Parser::FlowSensitiveTyping.visible_pins(*args, **kwargs, &blk)
     end
@@ -541,7 +550,8 @@ module Solargraph
     # @param name [String] Method name to look up
     # @param scope [Symbol] :instance or :class
     # @param visibility [Array<Symbol>] :public, :protected, and/or :private
-    # @param preserve_generics [Boolean]
+    # @param preserve_generics [Boolean] True to preserve any
+    #   unresolved generic parameters, false to erase them
     # @return [Array<Solargraph::Pin::Method>]
     def get_method_stack rooted_tag, name, scope: :instance, visibility: [:private, :protected, :public], preserve_generics: false
       rooted_type = ComplexType.parse(rooted_tag)
