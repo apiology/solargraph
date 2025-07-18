@@ -89,11 +89,6 @@ module Solargraph
       @gemspecs ||= required_gems_map.values.compact.flatten
     end
 
-    # @return [Array<String>]
-    def yard_plugins
-      @environ.yard_plugins
-    end
-
     # @return [Set<Gem::Specification>]
     def dependencies
       @dependencies ||= (gemspecs.flat_map { |spec| workspace.fetch_dependencies(spec) } - gemspecs).to_set
