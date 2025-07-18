@@ -127,13 +127,36 @@ module Solargraph
       # @return [Array<Gem::Specification>]
       def all_gemspecs_from_this_bundle
         # Find only the gems bundler is now using
-        Bundler.definition.locked_gems.specs.map(&:materialize_for_installation).map do |spec|
-          if spec.is_a?(Gem::Specification)
-            spec
-          elsif spec.is_a?(Bundler::StubSpecification)
-            spec.stub.spec
+        specish_objects = Bundler.definition.locked_gems.specs
+        if specish_objects.first.respond_to?(:materialize_for_installation)
+          specish_objects = specish_objects.map(&:materialize_for_installation)
+        end
+        specish_objects.map do |specish|
+          case specish
+          when Gem::Specification
+            # yay!
+            specish
+          when Bundler::LazySpecification
+            # materializing didn't work.  Let's look in the local
+            # rubygems without bundler's help
+            resolve_gem_ignoring_local_bundle specish.name, specish.version
+          when Bundler::StubSpecification
+            # turns a Bundler::StubSpecification into a
+            # Gem::StubSpecification into a Gem::Specification
+            specish = specish.stub
+            if specish.respond_to?(:spec)
+              specish.spec
+            else
+              resolve_gem_ignoring_local_bundle specish.name, specish.version
+            end
+          else
+            @@warned_on_gem_type ||= false # rubocop:disable Style/ClassVars
+            unless @@warned_on_gem_type
+              logger.warn "Unexpected type while resolving gem: #{specish.class}"
+              @@warned_on_gem_type = true # rubocop:disable Style/ClassVars
+            end
           end
-        end.flatten
+        end
       end
 
       # @return [Array<Gem::Specification>]
