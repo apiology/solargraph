@@ -1,13 +1,11 @@
 describe Solargraph::YardMap::Mapper do
-  before do
-    Solargraph::ApiMap.load_with_cache('.', $stderr)
+  before :all do # rubocop:disable RSpec/BeforeAfterAll
+    @api_map = Solargraph::ApiMap.load('.')
   end
 
-  let(:workspace) { Solargraph::Workspace.new(Dir.pwd) }
-
   def pins_with require
-    doc_map = Solargraph::DocMap.new([require], workspace)
-    doc_map.cache_doc_map_gems!($stderr)
+    doc_map = Solargraph::DocMap.new([require], @api_map.workspace, out: nil) # rubocop:disable RSpec/InstanceVariable
+    doc_map.cache_doc_map_gems!(nil)
     doc_map.pins
   end
 

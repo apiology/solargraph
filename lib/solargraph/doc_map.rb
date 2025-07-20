@@ -32,15 +32,15 @@ module Solargraph
 
     # @param requires [Array<String>]
     # @param workspace [Workspace]
-    def initialize(requires, workspace)
+    # @param out [IO, nil] output stream for logging
+    def initialize requires, workspace, out: $stderr
       @requires = requires.compact
       @workspace = workspace
       @global_environ = Convention.for_global(self)
-      load_serialized_gem_pins
+      load_serialized_gem_pins(out: out)
       pins.concat global_environ.pins
     end
 
-    # TODO: Does this need to be public?
     # @return [Solargraph::PinCache]
     def pin_cache
       @pin_cache ||= workspace.fresh_pincache
@@ -58,15 +58,15 @@ module Solargraph
     # Cache all pins needed for the sources in this doc_map
     # @param out [IO, nil] output stream for logging
     # @return [void]
-    def cache_doc_map_gems!(out)
-      # if we log at debug level:
-      if logger.info?
-        gem_desc = uncached_gemspecs.map { |gemspec| "#{gemspec.name}:#{gemspec.version}" }.join(', ')
-        logger.info "Caching pins for gems: #{gem_desc}" unless uncached_gemspecs.empty?
+    def cache_doc_map_gems! out
+      unless uncached_gemspecs.empty?
+        logger.info do
+          gem_desc = uncached_gemspecs.map { |gemspec| "#{gemspec.name}:#{gemspec.version}" }.join(', ')
+          "Caching pins for gems: #{gem_desc}"
+        end
       end
-      logger.debug { "Caching: #{uncached_gemspecs.map(&:name)}" }
-      PinCache.cache_core unless PinCache.has_core?
-      load_serialized_gem_pins
+      PinCache.cache_core unless PinCache.core?
+      load_serialized_gem_pins(out: out)
       time = Benchmark.measure do
         uncached_gemspecs.each do |gemspec|
           cache(gemspec, out: out)
@@ -76,7 +76,7 @@ module Solargraph
       if (milliseconds > 500) && uncached_gemspecs.any? && out && uncached_gemspecs.any?
         out.puts "Built #{uncached_gemspecs.length} gems in #{milliseconds} ms"
       end
-      load_serialized_gem_pins
+      load_serialized_gem_pins(out: out)
     end
 
     # @return [Array<String>]
@@ -84,17 +84,10 @@ module Solargraph
       @unresolved_requires ||= required_gems_map.select { |_, gemspecs| gemspecs.nil? }.keys
     end
 
-    # @return [Array<Gem::Specification>]
-    def gemspecs
-      @gemspecs ||= required_gems_map.values.compact.flatten
-    end
-
     # @return [Set<Gem::Specification>]
     def dependencies
       @dependencies ||= (gemspecs.flat_map { |spec| workspace.fetch_dependencies(spec) } - gemspecs).to_set
     end
-
-    private
 
     # Cache gem documentation if needed for this doc_map
     #
@@ -104,7 +97,7 @@ module Solargraph
     # @param out [IO, nil] output stream for logging
     #
     # @return [void]
-    def cache(gemspec, rebuild: false, only_if_used: false, out: nil)
+    def cache gemspec, rebuild: false, only_if_used: false, out: nil
       return if only_if_used && !uncached_gemspecs.include?(gemspec)
 
       pin_cache.cache_gem(gemspec: gemspec,
@@ -112,9 +105,16 @@ module Solargraph
                           out: out)
     end
 
+    private
+
+    # @return [Array<Gem::Specification>]
+    def gemspecs
+      @gemspecs ||= required_gems_map.values.compact.flatten
+    end
+
     # @param out [IO, nil]
     # @return [void]
-    def load_serialized_gem_pins(out: $stderr)
+    def load_serialized_gem_pins out: $stderr
       @pins = []
       with_gemspecs, without_gemspecs = required_gems_map.partition { |_, v| v }
       # @sg-ignore Need support for RBS duck interfaces like _ToHash
@@ -128,7 +128,7 @@ module Solargraph
         # this will load from disk if needed; no need to manage
         # uncached_gemspecs to trigger that later
         stdlib_name_guess = path.split('/').first
-        # TODO: this results in pins being generated in real time, not in advance with solargrpah gems
+        # @todo this results in pins being generated in real time, not in advance with solargrpah gems
         rbs_pins = pin_cache.cache_stdlib_rbs_map stdlib_name_guess if stdlib_name_guess
         @pins.concat rbs_pins if rbs_pins
       end

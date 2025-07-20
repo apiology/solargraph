@@ -12,7 +12,7 @@ module Solargraph
 
       # @param directory [String]
       def initialize directory
-        @directory = directory
+        @directory = File.absolute_path(directory)
         # @todo implement preferences
         @preferences = []
       end
@@ -25,54 +25,72 @@ module Solargraph
       # @return [::Array<Gem::Specification>, nil]
       def resolve_require require
         return nil if require.empty?
+
+        # This is added in the parser when it sees 'Bundler.require' -
+        # see https://bundler.io/guides/bundler_setup.html '
+        #
+        # @todo handle different arguments to Bundler.require
         return auto_required_gemspecs_from_bundler if require == 'bundler/require'
 
-        gemspecs = all_gemspecs_from_bundle
-        # @type [Gem::Specification, nil]
-        gemspec = gemspecs.find { |gemspec| gemspec.name == require }
-        if gemspec.nil?
-          # TODO: this seems hinky
-          gem_name_guess = require.split('/').first
-          begin
-            # this can happen when the gem is included via a local path in
-            # a Gemfile; Gem doesn't try to index the paths in that case.
-            #
-            # See if we can make a good guess:
-            potential_gemspec = Gem::Specification.find_by_name(gem_name_guess)
-
-            return nil if potential_gemspec.nil?
-
-            file = "lib/#{require}.rb"
-            gemspec = potential_gemspec if potential_gemspec&.files&.any? { |gemspec_file| file == gemspec_file }
-          rescue Gem::MissingSpecError
-            logger.debug do
-              "Require path #{require} could not be resolved to a gem via find_by_path or guess of #{gem_name_guess}"
-            end
-            []
+        # Determine gem name based on the require path
+        file = "lib/#{require}.rb"
+        begin
+          spec_with_path = Gem::Specification.find_by_path(file)
+        rescue Gem::MissingSpecError
+          logger.debug do
+            "Require path #{require} could not be resolved to a gem via find_by_name or path of #{file}"
           end
+          []
         end
-        return nil if gemspec.nil?
-        [gemspec_or_preference(gemspec)]
+
+        all_gemspecs = all_gemspecs_from_bundle
+
+        gem_names_to_try = [
+          spec_with_path&.name,
+          require.tr('/', '-'),
+          require.split('/').first
+        ].compact.uniq
+        gem_names_to_try.each do |gem_name|
+          gemspec = all_gemspecs.find { |gemspec| gemspec.name == gem_name }
+          return [gemspec_or_preference(gemspec)] if gemspec
+
+          begin
+            gemspec = Gem::Specification.find_by_name(gem_name)
+            return [gemspec_or_preference(gemspec)] if gemspec
+          rescue Gem::MissingSpecError
+            logger.debug "Gem #{gem_name} not found in the current Ruby environment"
+          end
+
+          # look ourselves just in case this is hanging out somewhere
+          # that find_by_path doesn't index'
+          gemspec = all_gemspecs.find do |spec|
+            spec = to_gem_specification(spec) unless spec.respond_to?(:files)
+
+            spec&.files&.any? { |gemspec_file| file == gemspec_file }
+          end
+          return [gemspec_or_preference(gemspec)] if gemspec
+        end
+
+        nil
       end
 
-      # Returns all gemspecs directly depended on by this workspace's
-      # bundle (does not include transitive dependencies).
+      # @param name [String]
+      # @param version [String, nil]
       #
-      # @return [Array<Gem::Specification>]
-      def all_gemspecs_from_bundle
-        @all_gemspecs_from_bundle ||=
-          if in_this_bundle?
-            all_gemspecs_from_this_bundle
-          else
-            all_gemspecs_from_external_bundle
-          end
+      # @return [Gem::Specification, nil]
+      def find_gem name, version
+        gemspec = all_gemspecs_from_bundle.find { |gemspec| gemspec.name == name && gemspec.version == version }
+        return gemspec if gemspec
+
+        Gem::Specification.find_by_name(name, version)
+      rescue Gem::MissingSpecError
+        logger.warn "Please install the gem #{name}:#{version} in Solargraph's Ruby environment"
+        nil
       end
 
       # @param gemspec [Gem::Specification]
       # @return [Array<Gem::Specification>]
       def fetch_dependencies gemspec
-        raise ArgumentError, 'gemspec must be a Gem::Specification' unless gemspec.is_a?(Gem::Specification)
-
         gemspecs = all_gemspecs_from_bundle
 
         # @param runtime_dep [Gem::Dependency]
@@ -89,11 +107,66 @@ module Solargraph
         end.to_a.compact
       end
 
+      # Returns all gemspecs directly depended on by this workspace's
+      # bundle (does not include transitive dependencies).
+      #
+      # @return [Array<Gem::Specification, Bundler::LazySpecification, Bundler::StubSpecification>]
+      def all_gemspecs_from_bundle
+        @all_gemspecs_from_bundle ||=
+          if in_this_bundle?
+            all_gemspecs_from_this_bundle
+          else
+            all_gemspecs_from_external_bundle
+          end
+      end
+
+      # @return [Hash{Gem::Specification, Bundler::LazySpecification, Bundler::StubSpecification => Gem::Specification}]
+      def self.gem_specification_cache
+        @gem_specification_cache ||= {}
+      end
+
+      private
+
+      # @param specish [Gem::Specification, Bundler::LazySpecification, Bundler::StubSpecification]
+      # @sg-ignore
+      # @return [Gem::Specification, nil]
+      def to_gem_specification specish
+        # print time including milliseconds
+        self.class.gem_specification_cache[specish] ||= case specish
+                                                        when Gem::Specification
+                                                          # yay!
+                                                          specish
+                                                        when Bundler::LazySpecification
+                                                          # materializing didn't work.  Let's look in the local
+                                                          # rubygems without bundler's help
+                                                          resolve_gem_ignoring_local_bundle specish.name,
+                                                                                            specish.version
+                                                        when Bundler::StubSpecification
+                                                          # turns a Bundler::StubSpecification into a
+                                                          # Gem::StubSpecification into a Gem::Specification
+                                                          specish = specish.stub
+                                                          if specish.respond_to?(:spec)
+                                                            specish.spec
+                                                          else
+                                                            resolve_gem_ignoring_local_bundle specish.name,
+                                                                                              specish.version
+                                                          end
+                                                        else
+                                                          @@warned_on_gem_type ||= # rubocop:disable Style/ClassVars
+                                                            false
+                                                          unless @@warned_on_gem_type
+                                                            logger.warn 'Unexpected type while resolving gem: ' \
+                                                                        "#{specish.class}"
+                                                            @@warned_on_gem_type = true # rubocop:disable Style/ClassVars
+                                                          end
+                                                          nil
+                                                        end
+      end
+
       # @param command [String] The expression to evaluate in the external bundle
       # @sg-ignore Need a JSON type
-      # @yield [undefined]
-      def query_external_bundle command, &block
-        # TODO: probably combine with logic in require_paths.rb
+      # @yield [undefined, nil]
+      def query_external_bundle command
         Solargraph.with_clean_env do
           cmd = [
             'ruby', '-e',
@@ -103,8 +176,7 @@ module Solargraph
           o, e, s = Open3.capture3(*cmd)
           if s.success?
             Solargraph.logger.debug "External bundle: #{o}"
-            data = o && !o.empty? ? JSON.parse(o.split("\n").last) : {}
-            block.yield data
+            o && !o.empty? ? JSON.parse(o.split("\n").last) : nil
           else
             Solargraph.logger.warn e
             raise BundleNotFoundError, "Failed to load gems from bundle at #{directory}"
@@ -112,19 +184,11 @@ module Solargraph
         end
       end
 
-      # True if the workspace has a root Gemfile.
-      #
-      # @todo Handle projects with custom Bundler/Gemfile setups (see DocMap#gemspecs_required_from_bundler)
-      #
-      def gemfile?
-        directory && File.file?(File.join(directory, 'Gemfile'))
-      end
-
       def in_this_bundle?
         directory && Bundler.definition&.lockfile&.to_s&.start_with?(directory) # rubocop:disable Style/SafeNavigationChainLength
       end
 
-      # @return [Array<Gem::Specification>]
+      # @return [Array<Gem::Specification, Bundler::LazySpecification, Bundler::StubSpecification>]
       def all_gemspecs_from_this_bundle
         # Find only the gems bundler is now using
         specish_objects = Bundler.definition.locked_gems.specs
@@ -132,34 +196,16 @@ module Solargraph
           specish_objects = specish_objects.map(&:materialize_for_installation)
         end
         specish_objects.map do |specish|
-          case specish
-          when Gem::Specification
-            # yay!
+          if specish.respond_to?(:name) && specish.respond_to?(:version) && specish.respond_to?(:gem_dir)
+            # duck type is good enough for outside uses!
             specish
-          when Bundler::LazySpecification
-            # materializing didn't work.  Let's look in the local
-            # rubygems without bundler's help
-            resolve_gem_ignoring_local_bundle specish.name, specish.version
-          when Bundler::StubSpecification
-            # turns a Bundler::StubSpecification into a
-            # Gem::StubSpecification into a Gem::Specification
-            specish = specish.stub
-            if specish.respond_to?(:spec)
-              specish.spec
-            else
-              resolve_gem_ignoring_local_bundle specish.name, specish.version
-            end
           else
-            @@warned_on_gem_type ||= false # rubocop:disable Style/ClassVars
-            unless @@warned_on_gem_type
-              logger.warn "Unexpected type while resolving gem: #{specish.class}"
-              @@warned_on_gem_type = true # rubocop:disable Style/ClassVars
-            end
+            to_gem_specification(specish)
           end
-        end
+        end.compact
       end
 
-      # @return [Array<Gem::Specification>]
+      # @return [Array<Gem::Specification, Bundler::LazySpecification, Bundler::StubSpecification>]
       def auto_required_gemspecs_from_bundler
         logger.info 'Fetching gemspecs autorequired from Bundler (bundler/require)'
         @auto_required_gemspecs_from_bundler ||=
@@ -170,47 +216,42 @@ module Solargraph
           end
       end
 
-      # TODO: "Astute readers will notice that the correct way to
-      #   require the rack-cache gem is require 'rack/cache', not
-      #   require 'rack-cache'. To tell bundler to use require
-      #   'rack/cache', update your Gemfile:"
-      #
-      # gem 'rack-cache', require: 'rack/cache'
-
-      # @return [Array<Gem::Specification>]
+      # @return [Array<Gem::Specification, Bundler::LazySpecification, Bundler::StubSpecification>]
       def auto_required_gemspecs_from_this_bundle
-        deps = Bundler.definition.locked_gems.dependencies
+        # Adapted from require() in lib/bundler/runtime.rb
+        dep_names = Bundler.definition.dependencies.select do |dep|
+          dep.groups.include?(:default) && dep.should_include?
+        end.map(&:name)
 
-        all_gemspecs_from_bundle.select do |gemspec|
-          deps.key?(gemspec.name) &&
-            deps[gemspec.name].autorequire != []
-        end
+        all_gemspecs_from_bundle.select { |gemspec| dep_names.include?(gemspec.name) }
       end
 
-      # @return [Array<Gem::Specification>]
+      # @sg-ignore
+      #   Solargraph::Workspace::Gemspecs#auto_required_gemspecs_from_external_bundle
+      #   return type could not be inferred
+      # @return [Array<Gem::Specification, Bundler::LazySpecification, Bundler::StubSpecification>]
       def auto_required_gemspecs_from_external_bundle
         @auto_required_gemspecs_from_external_bundle ||=
           begin
             logger.info 'Fetching auto-required gemspecs from Bundler (bundler/require)'
             command =
-              'dependencies = Bundler.definition.dependencies; ' \
-              'all_specs = Bundler.definition.locked_gems.specs; ' \
-              'autorequired_specs = all_specs.' \
-              'select { |gemspec| dependencies.key?(gemspec.name) && dependencies[gemspec.name].autorequire != [] }; ' \
-              'autorequired_specs.map { |spec| [spec.name, spec.version] }'
-            query_external_bundle command do |dependencies|
-              dependencies.map do |name, requirement|
-                resolve_gem_ignoring_local_bundle name, requirement
-              end.compact
-            end
+              'Bundler.definition.dependencies' \
+              '.select { |dep| dep.groups.include?(:default) && dep.should_include? }' \
+              '.map { |dep| [dep.name, dep. version] }'
+            # @sg-ignore
+            # @type [Array<Array(String, String)>]
+            dep_details = query_external_bundle command
+
+            dep_details.map { |name, version| find_gem(name, version) }.compact
           end
       end
 
       # @param gemspec [Gem::Specification]
       # @return [Array<Gem::Dependency>]
       def only_runtime_dependencies gemspec
-        raise ArgumentError, 'gemspec must be a Gem::Specification' unless gemspec.is_a?(Gem::Specification)
-
+        unless gemspec.respond_to?(:dependencies) && gemspec.respond_to?(:development_dependencies)
+          gemspec = to_gem_specification(gemspec)
+        end
         gemspec.dependencies - gemspec.development_dependencies
       end
 
@@ -238,13 +279,11 @@ module Solargraph
           begin
             logger.info 'Fetching gemspecs required from external bundle'
 
-            command = 'Bundler.definition.locked_gems.specs.map { |spec| [spec.name, spec.version] }.to_h'
+            command = 'Bundler.definition.locked_gems&.specs&.map { |spec| [spec.name, spec.version] }.to_h'
 
-            query_external_bundle command do |names_and_versions|
-              names_and_versions.map do |name, version|
-                resolve_gem_ignoring_local_bundle(name, version)
-              end.compact
-            end
+            query_external_bundle(command).map do |name, version|
+              resolve_gem_ignoring_local_bundle(name, version)
+            end.compact
           end
       end
 

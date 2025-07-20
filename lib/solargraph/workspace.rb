@@ -23,7 +23,11 @@ module Solargraph
     # @param config [Config, nil]
     # @param server [Hash]
     def initialize directory = '', config = nil, server = {}
-      @directory = directory
+      @directory = if ['*', ''].include?(directory)
+                     directory
+                   else
+                     File.absolute_path(directory)
+                   end
       @config = config
       @server = server
       load_sources
@@ -45,7 +49,6 @@ module Solargraph
     # @param gemspec [Gem::Specification]
     # @return [Array<Gem::Specification>]
     def fetch_dependencies gemspec
-      raise ArgumentError, 'gemspec must be a Gem::Specification' unless gemspec.is_a?(Gem::Specification)
       gemspecs.fetch_dependencies(gemspec)
     end
 
@@ -64,7 +67,7 @@ module Solargraph
     def global_environ
       # empty docmap, since the result needs to work in any possible
       # context here
-      @environ ||= Convention.for_global(DocMap.new([], self))
+      @environ ||= Convention.for_global(DocMap.new([], self, out: nil))
     end
 
     # @param gemspec [Gem::Specification, Bundler::LazySpecification]
@@ -188,9 +191,7 @@ module Solargraph
     # @param rebuild [Boolean] whether to rebuild the pins even if they are cached
     # @return [void]
     def cache_all_for_workspace! out, rebuild: false
-      PinCache.cache_core(out: $stdout) unless PinCache.has_core?
-      # TODO: This should bring in dependencies as well
-      #
+      PinCache.cache_core(out: out) unless PinCache.core?
       # @type [Array<Gem::Specification>]
       specs = gemspecs.all_gemspecs_from_bundle
       specs.each do |spec|
@@ -214,12 +215,12 @@ module Solargraph
       server['commandPath'] || 'solargraph'
     end
 
-    private
-
     # @return [Solargraph::Workspace::Gemspecs]
     def gemspecs
       @gemspecs ||= Solargraph::Workspace::Gemspecs.new(directory)
     end
+
+    private
 
     # The language server configuration (or an empty hash if the workspace was
     # not initialized from a server).

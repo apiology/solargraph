@@ -503,7 +503,7 @@ module Solargraph
 
     # @return [PinCache]
     def pin_cache
-      api_map.pin_cache
+      workspace.pin_cache
     end
 
     # @return [Hash{String => Set<String>}]
@@ -591,7 +591,6 @@ module Solargraph
 
       pending = api_map.uncached_gemspecs.length - cache_errors.length - 1
 
-      # TODO: Make this 'cache_processing?' to api_map and make api_map.pin_cache private
       if pin_cache.yardoc_processing?(spec)
         # @sg-ignore Unresolved call to name
         logger.info "Enqueuing cache of #{spec.name} #{spec.version} (already being processed)"
