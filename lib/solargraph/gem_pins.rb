@@ -12,7 +12,7 @@ module Solargraph
     end
 
     # @param pins [Array<Pin::Base>]
-    # @return [Array<Pin::Base>]
+    # @return [Array<Pin::Method>]
     def self.combine_method_pins_by_path(pins)
       method_pins, alias_pins = pins.partition { |pin| pin.class == Pin::Method }
       by_path = method_pins.group_by(&:path)
