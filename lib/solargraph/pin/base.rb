@@ -62,7 +62,7 @@ module Solargraph
       end
 
       # @param other [self]
-      # @param attrs [Hash{Symbol => Object}]
+      # @param attrs [Hash{::Symbol => Object}]
       #
       # @return [self]
       def combine_with(other, attrs={})
@@ -187,7 +187,7 @@ module Solargraph
       end
 
       # @param other [self]
-      # @param attr [Symbol]
+      # @param attr [::Symbol]
       # @sg-ignore
       # @return [undefined]
       def choose_node(other, attr)
@@ -267,11 +267,11 @@ module Solargraph
       # @param other [self]
       # @param attr [::Symbol]
       #
+      # @sg-ignore
       # @return [undefined]
       def assert_same(other, attr)
         if other.nil?
-          Solargraph.assert_or_log("combine_with_#{attr}".to_sym,
-                                   "Inconsistent #{attr.inspect} values between \nself =#{inspect} and \nother=#{other.inspect}:\n\n self.#{attr} = #{val1.inspect}\nother.#{attr} = #{val2.inspect}")
+          Solargraph.assert_or_log("combine_with_#{attr}".to_sym, "Sent nil for comparison")
           return send(attr)
         end
         val1 = send(attr)
@@ -302,6 +302,8 @@ module Solargraph
 
       # @param other [self]
       # @param attr [::Symbol]
+      #
+      # @sg-ignore
       # @return [undefined]
       def choose_pin_attr(other, attr)
         # @type [Pin::Base, nil]
@@ -314,6 +316,7 @@ module Solargraph
           return val1
         end
         # arbitrary way of choosing a pin
+        # @sg-ignore Need _1 support
         [val1, val2].compact.min_by { _1.best_location.to_s }
       end
 
