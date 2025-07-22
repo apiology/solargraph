@@ -16,15 +16,16 @@ module Solargraph
     def self.combine_method_pins_by_path(pins)
       method_pins, alias_pins = pins.partition { |pin| pin.class == Pin::Method }
       by_path = method_pins.group_by(&:path)
-      by_path.transform_values! do |pins|
+      combined_by_path = by_path.transform_values do |pins|
         GemPins.combine_method_pins(*pins)
       end
-      by_path.values + alias_pins
+      combined_by_path.values + alias_pins
     end
 
     # @param pins [Pin::Method]
     # @return [Pin::Method, nil]
     def self.combine_method_pins(*pins)
+      # @type [Pin::Method, nil]
       out = pins.reduce(nil) do |memo, pin|
         next pin if memo.nil?
         if memo == pin && memo.source != :combined

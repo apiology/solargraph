@@ -117,7 +117,7 @@ module Solargraph
     def load_serialized_gem_pins out: $stderr
       @pins = []
       with_gemspecs, without_gemspecs = required_gems_map.partition { |_, v| v }
-      # @sg-ignore Need support for RBS duck interfaces like _ToHash
+      # @sg-ignore Need Hash[] support
       # @type [Array<String>]
       missing_paths = Hash[without_gemspecs].keys
       # @sg-ignore Need support for RBS duck interfaces like _ToHash
