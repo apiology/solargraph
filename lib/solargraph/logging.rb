@@ -18,7 +18,6 @@ module Solargraph
               warn "Invalid value for SOLARGRAPH_LOG: #{configured_level.inspect} - valid values are #{LOG_LEVELS.keys}" if configured_level
               DEFAULT_LOG_LEVEL
             end
-    # @sg-ignore Fix cvar issue
     @@logger = Logger.new(STDERR, level: level)
     # @sg-ignore Fix cvar issue
     @@logger.formatter = proc do |severity, datetime, progname, msg|
