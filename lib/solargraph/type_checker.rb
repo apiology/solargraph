@@ -447,6 +447,8 @@ module Solargraph
             # @todo Some level (strong, I guess) should require the param here
             else
               argtype = argchain.infer(api_map, closure_pin, locals)
+              argtype = argtype.self_to_type(closure_pin.context)
+
               if argtype.defined? && ptype.defined? && !arg_conforms_to?(argtype, ptype)
                 errors.push Problem.new(location, "Wrong argument type for #{pin.path}: #{par.name} expected #{ptype}, received #{argtype}")
                 return errors
@@ -488,6 +490,8 @@ module Solargraph
             ptype = data[:qualified]
             unless ptype.undefined?
               argtype = argchain.infer(api_map, closure_pin, locals)
+              argtype = argtype.self_to_type(closure_pin.context)
+
               if argtype.defined? && ptype && !arg_conforms_to?(argtype, ptype)
                 result.push Problem.new(location, "Wrong argument type for #{pin.path}: #{par.name} expected #{ptype}, received #{argtype}")
               end
