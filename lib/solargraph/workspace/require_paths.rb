@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'open3'
+
 module Solargraph
   # A workspace consists of the files in a project's directory and the
   # project's configuration. It provides a Source for each file to be used
@@ -60,13 +62,6 @@ module Solargraph
         config.require_paths.map { |p| File.join(directory, p) }
       end
 
-      # True if the workspace contains at least one gemspec file.
-      #
-      # @return [Boolean]
-      def gemspec?
-        !gemspec_file_paths.empty?
-      end
-
       # Generate require paths from gemspecs if they exist or assume the default
       # lib directory.
       #
@@ -83,7 +78,6 @@ module Solargraph
                "spec = eval(File.read('#{gemspec_file_path}'), TOPLEVEL_BINDING, '#{gemspec_file_path}'); " \
                'return unless Gem::Specification === spec; ' \
                'puts({name: spec.name, paths: spec.require_paths}.to_json)']
-        # @sg-ignore Unresolved call to capture3
         o, e, s = Open3.capture3(*cmd)
         if s.success?
           begin
