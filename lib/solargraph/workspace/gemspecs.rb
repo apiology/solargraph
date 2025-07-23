@@ -130,7 +130,6 @@ module Solargraph
 
       private
 
-      # @sg-ignore
       # @param specish [Gem::Specification, Bundler::LazySpecification, Bundler::StubSpecification]
       # @return [Gem::Specification, nil]
       def to_gem_specification specish
