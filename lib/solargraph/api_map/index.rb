@@ -39,7 +39,7 @@ module Solargraph
       def pins_by_class klass
         # @type [Set<generic<T>>]
         s = Set.new
-        # @sg-ignore need to support destructured args in blocks
+        # @sg-ignore Need to handle block parameter destructuring
         @pin_select_cache[klass] ||= pin_class_hash.each_with_object(s) { |(key, o), n| n.merge(o) if key <= klass }
       end
 
@@ -63,7 +63,7 @@ module Solargraph
         @superclass_references ||= Hash.new { |h, k| h[k] = [] }
       end
 
-      # @param pins [Enumerable<Pin::Base>]
+      # @param pins [Array<Pin::Base>]
       # @return [self]
       def merge pins
         deep_clone.catalog pins
@@ -89,7 +89,8 @@ module Solargraph
         end
       end
 
-      # @param new_pins [Enumerable<Pin::Base>]
+      # @param new_pins [Array<Pin::Base>]
+      #
       # @return [self]
       def catalog new_pins
         # @type [Hash{Class<generic<T>> => Set<generic<T>>}]
@@ -146,9 +147,7 @@ module Solargraph
           pins = path_pin_hash[ovr.name]
           logger.debug { "ApiMap::Index#map_overrides: pins for path=#{ovr.name}: #{pins}" }
           pins.each do |pin|
-            new_pin = if pin.path.end_with?('#initialize')
-                        path_pin_hash[pin.path.sub(/#initialize/, '.new')].first
-                      end
+            new_pin = (path_pin_hash[pin.path.sub(/#initialize/, '.new')].first if pin.path.end_with?('#initialize'))
             (ovr.tags.map(&:tag_name) + ovr.delete).uniq.each do |tag|
               pin.docstring.delete_tags tag
               new_pin.docstring.delete_tags tag if new_pin

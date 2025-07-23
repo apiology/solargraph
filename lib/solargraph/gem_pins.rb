@@ -55,7 +55,9 @@ module Solargraph
         in_yard.add yard_pin.path
 
         unless rbs_pin
-          logger.debug { "GemPins.combine: No rbs pin for #{yard_pin.path} - using YARD's '#{yard_pin.inspect} (return_type=#{yard_pin.return_type}; signatures=#{yard_pin.signatures})" }
+          logger.debug do
+            "GemPins.combine: No rbs pin for #{yard_pin.path} - using YARD's '#{yard_pin.inspect} (return_type=#{yard_pin.return_type}; signatures=#{yard_pin.signatures})"
+          end
           next yard_pin
         end
 
@@ -67,7 +69,9 @@ module Solargraph
 
         # both are method pins
         out = combine_method_pins(rbs_pin, yard_pin)
-        logger.debug { "GemPins.combine: Combining yard.path=#{yard_pin.path} - rbs=#{rbs_pin.inspect} with yard=#{yard_pin.inspect} into #{out}" }
+        logger.debug do
+          "GemPins.combine: Combining yard.path=#{yard_pin.path} - rbs=#{rbs_pin.inspect} with yard=#{yard_pin.inspect} into #{out}"
+        end
         out
       end
       in_rbs_only = rbs_pins.select do |pin|

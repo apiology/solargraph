@@ -194,9 +194,7 @@ module Solargraph
       # @type [Array<Gem::Specification>]
       specs = gemspecs.all_gemspecs_from_bundle
       specs.each do |spec|
-        unless pin_cache.cached?(spec)
-          pin_cache.cache_gem(gemspec: spec, rebuild: rebuild, out: out)
-        end
+        pin_cache.cache_gem(gemspec: spec, rebuild: rebuild, out: out) unless pin_cache.cached?(spec)
       end
       out.puts "Documentation cached for all #{specs.length} gems."
     end
@@ -237,7 +235,10 @@ module Solargraph
       source_hash.clear
       unless directory.empty? || directory == '*'
         size = config.calculated.length
-        raise WorkspaceTooLargeError, "The workspace is too large to index (#{size} files, #{config.max_files} max)" if config.max_files > 0 and size > config.max_files
+        if config.max_files > 0 and size > config.max_files
+          raise WorkspaceTooLargeError,
+                "The workspace is too large to index (#{size} files, #{config.max_files} max)"
+        end
         config.calculated.each do |filename|
           begin
             source_hash[filename] = Solargraph::Source.load(filename)
