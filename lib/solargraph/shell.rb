@@ -292,12 +292,14 @@ module Solargraph
     def method_pin path
       api_map = Solargraph::ApiMap.load_with_cache('.', STDERR)
 
+      # @type [Array<Pin::Base>]
       pins = if options[:stack]
                scope, ns, meth = if path.include? '#'
                                    [:instance, *path.split('#', 2)]
                                  else
                                    [:class, *path.split('.', 2)]
                                  end
+               # @sg-ignore need better splat destructuring support
                api_map.get_method_stack(ns, meth, scope: scope)
              else
                api_map.get_path_pins path
