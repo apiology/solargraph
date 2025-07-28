@@ -10,10 +10,18 @@ unless ENV['SIMPLECOV_DISABLED']
   SimpleCov.start do
     add_filter(%r{^/spec/})
     add_filter('/Rakefile')
-    enable_coverage(:branch)
+    # off by default - feel free to set if you'd like undercover to
+    # hold you to a thorough set of specs
+    enable_coverage(:branch) if ENV['SOLARGRAPH_BRANCH_COVERAGE']
   end
 end
+RSpec.configure do |c|
+  # Allow use of --only-failures with rspec, handy for local development
+  c.example_status_persistence_file_path = 'rspec-examples.txt'
+end
 require 'solargraph'
+# execute any logging blocks to make sure they don't blow up
+Solargraph::Logging.logger.sev_threshold = Logger::DEBUG
 # Suppress logger output in specs (if possible)
 Solargraph::Logging.logger.reopen(File::NULL) if Solargraph::Logging.logger.respond_to?(:reopen) && !ENV.key?('SOLARGRAPH_LOG')
 
@@ -28,4 +36,30 @@ def with_env_var(name, value)
   ensure
     ENV[name] = old_value  # Restore the old value
   end
+end
+
+def capture_stdout &block
+  original_stdout = $stdout
+  $stdout = StringIO.new
+  begin
+    block.call
+    $stdout.string
+  ensure
+    $stdout = original_stdout
+  end
+end
+
+def capture_both &block
+  original_stdout = $stdout
+  original_stderr = $stderr
+  stringio = StringIO.new
+  $stdout = stringio
+  $stderr = stringio
+  begin
+    block.call
+  ensure
+    $stdout = original_stdout
+    $stderr = original_stderr
+  end
+  stringio.string
 end

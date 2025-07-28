@@ -46,11 +46,6 @@ module Solargraph
       @pin_cache ||= workspace.fresh_pincache
     end
 
-    # @return [Array<String>]
-    def yard_plugins
-      global_environ.yard_plugins
-    end
-
     def any_uncached?
       uncached_gemspecs.any?
     end
@@ -65,7 +60,6 @@ module Solargraph
           "Caching pins for gems: #{gem_desc}"
         end
       end
-      PinCache.cache_core unless PinCache.core?
       load_serialized_gem_pins(out: out)
       time = Benchmark.measure do
         uncached_gemspecs.each do |gemspec|
@@ -93,13 +87,10 @@ module Solargraph
     #
     # @param gemspec [Gem::Specification]
     # @param rebuild [Boolean] whether to rebuild the pins even if they are cached
-    # @param only_if_used [Boolean]
     # @param out [IO, nil] output stream for logging
     #
     # @return [void]
-    def cache gemspec, rebuild: false, only_if_used: false, out: nil
-      return if only_if_used && !uncached_gemspecs.include?(gemspec)
-
+    def cache gemspec, rebuild: false, out: nil
       pin_cache.cache_gem(gemspec: gemspec,
                           rebuild: rebuild,
                           out: out)
@@ -127,12 +118,10 @@ module Solargraph
         # this will load from disk if needed; no need to manage
         # uncached_gemspecs to trigger that later
         stdlib_name_guess = path.split('/').first
-        # @todo this results in pins being generated in real time, not in advance with solargrpah gems
         rbs_pins = pin_cache.cache_stdlib_rbs_map stdlib_name_guess if stdlib_name_guess
         @pins.concat rbs_pins if rbs_pins
       end
 
-      logger.debug { "DocMap#load_serialized_gem_pins: Combining pins..." }
       existing_pin_count = pins.length
       time = Benchmark.measure do
         gemspecs.each do |gemspec|

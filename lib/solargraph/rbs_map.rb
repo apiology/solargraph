@@ -60,7 +60,6 @@ module Solargraph
       end
     end
 
-    # @sg-ignore
     # @return [String] representing the version of the RBS info fetched
     #   for the given library.  Must change when the RBS info is
     #   updated upstream for the same library and version.  May change
@@ -177,10 +176,10 @@ module Solargraph
       @conversions ||= Conversions.new(loader: loader)
     end
 
-    # @param gemspec [RBS::EnvironmentLoader::Library]
+    # @param lib [RBS::EnvironmentLoader::Library]
     # @param out [IO, nil] where to log messages
     # @return [void]
-    def log_caching gemspec, out:; end
+    def log_caching lib, out:; end
 
     # @param loader [RBS::EnvironmentLoader]
     # @param library [String]

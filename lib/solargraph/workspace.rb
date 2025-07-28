@@ -19,10 +19,12 @@ module Solargraph
     # @return [String]
     attr_reader :directory
 
-    # @param directory [String]
+    # @param directory [String] TODO: Document and test '' and '*' semantics
     # @param config [Config, nil]
     # @param server [Hash]
     def initialize directory = '', config = nil, server = {}
+      raise ArgumentError, 'directory must be a String' unless directory.is_a?(String)
+
       @directory = if ['*', ''].include?(directory)
                      directory
                    else
@@ -38,7 +40,8 @@ module Solargraph
     #
     # @return [Array<String>]
     def require_paths
-      @require_paths ||= RequirePaths.new(directory, config).generate
+      # @todo are the semantics of '*' the same as '', meaning 'don't send back any require paths'?
+      @require_paths ||= RequirePaths.new(directory_or_nil, config).generate
     end
 
     # @return [Solargraph::Workspace::Config]
@@ -191,12 +194,22 @@ module Solargraph
     # @return [void]
     def cache_all_for_workspace! out, rebuild: false
       PinCache.cache_core(out: out) unless PinCache.core?
+
       # @type [Array<Gem::Specification>]
-      specs = gemspecs.all_gemspecs_from_bundle
+      gem_specs = gemspecs.all_gemspecs_from_bundle
+      # try any possible standard libraries, but be quiet about it
+      stdlib_specs = pin_cache.possible_stdlibs.map { |stdlib| gemspecs.find_gem(stdlib, out: nil) }.compact
+      specs = (gem_specs + stdlib_specs)
       specs.each do |spec|
         pin_cache.cache_gem(gemspec: spec, rebuild: rebuild, out: out) unless pin_cache.cached?(spec)
       end
       out.puts "Documentation cached for all #{specs.length} gems."
+
+      # do this after so that we prefer stdlib requires from gems,
+      # which are likely to be newer and have more pins
+      pin_cache.cache_all_stdlibs(out: out)
+
+      out.puts "Documentation cached for core, standard library and gems."
     end
 
     # Synchronize the workspace from the provided updater.
@@ -212,9 +225,15 @@ module Solargraph
       server['commandPath'] || 'solargraph'
     end
 
+    # @return [String, nil]
+    def directory_or_nil
+      return nil if directory.empty? || directory == '*'
+      directory
+    end
+
     # @return [Solargraph::Workspace::Gemspecs]
     def gemspecs
-      @gemspecs ||= Solargraph::Workspace::Gemspecs.new(directory)
+      @gemspecs ||= Solargraph::Workspace::Gemspecs.new(directory_or_nil)
     end
 
     private
@@ -264,6 +283,7 @@ module Solargraph
     def read_rbs_collection_path
       return unless rbs_collection_config_path
 
+      # @sg-ignore
       path = YAML.load_file(rbs_collection_config_path)&.fetch('path')
       # make fully qualified
       File.expand_path(path, directory)

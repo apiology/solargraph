@@ -11,11 +11,21 @@ module Solargraph
 
       attr_reader :directory, :preferences
 
-      # @param directory [String]
-      def initialize directory
-        @directory = File.absolute_path(directory)
-        # @todo implement preferences
-        @preferences = []
+      # @param directory [String, nil] If nil, assume no bundle is present
+      # @param preferences [Array<Gem::Specification>]
+      def initialize directory, preferences: []
+        # @todo an issue with both external bundles and the potential
+        #   preferences feature is that bundler gives you a 'clean'
+        #   rubygems environment with only the specified versions
+        #   installed.  Possible alternatives:
+        #
+        #   *) prompt the user to run solargraph outside of bundler
+        #      and treat all bundles as external
+        #   *) reinstall the needed gems dynamically each time
+        #   *) manipulate the rubygems/bundler environment
+        @directory = directory && File.absolute_path(directory)
+        # @todo implement preferences as a config-exposed feature
+        @preferences = preferences
       end
 
       # Take the path given to a 'require' statement in a source file
@@ -39,7 +49,7 @@ module Solargraph
           spec_with_path = Gem::Specification.find_by_path(file)
         rescue Gem::MissingSpecError
           logger.debug do
-            "Require path #{require} could not be resolved to a gem via find_by_name or path of #{file}"
+            "Require #{require.inspect} could not be resolved to a gem via find_by_name or path of #{file}"
           end
           []
         end
@@ -77,13 +87,17 @@ module Solargraph
 
       # @param name [String]
       # @param version [String, nil]
+      # @param out [IO, nil] output stream for logging
       #
       # @return [Gem::Specification, nil]
-      def find_gem name, version
+      def find_gem name, version = nil, out: $stderr
         gemspec = all_gemspecs_from_bundle.find { |gemspec| gemspec.name == name && gemspec.version == version }
         return gemspec if gemspec
 
-        resolve_gem_ignoring_local_bundle name, version
+        gemspec = all_gemspecs_from_bundle.find { |gemspec| gemspec.name == name }
+        return gemspec if gemspec
+
+        resolve_gem_ignoring_local_bundle name, version, out: out
       end
 
       # @param gemspec [Gem::Specification]
@@ -98,6 +112,16 @@ module Solargraph
           dep = gemspecs.find { |dep| dep.name == runtime_dep.name }
           dep ||= Gem::Specification.find_by_name(runtime_dep.name, runtime_dep.requirement)
           deps.merge fetch_dependencies(dep) if deps.add?(dep)
+        rescue NoMethodError => e
+          raise unless e.message.include?('identifier') && e.message.include?('lib/ruby/gems')
+          # Can happen on system gems in Ruby 3.0, it seems:
+          #
+          # https://github.com/castwide/solargraph/actions/runs/16480452864/job/46593077954?pr=1006
+          log.debug do
+            "Skipping dependency #{runtime_dep.name} for #{gemspec.name} due to NoMethodError: #{e.message}"
+          end
+
+          nil
         rescue Gem::MissingSpecError
           Solargraph.logger.warn("Gem dependency #{runtime_dep.name} #{runtime_dep.requirement} " \
                                  "for #{gemspec.name} not found in bundle.")
@@ -115,6 +139,8 @@ module Solargraph
       #
       # @return [Array<Gem::Specification, Bundler::LazySpecification, Bundler::StubSpecification>]
       def all_gemspecs_from_bundle
+        return [] unless directory
+
         @all_gemspecs_from_bundle ||=
           if in_this_bundle?
             all_gemspecs_from_this_bundle
@@ -154,12 +180,12 @@ module Solargraph
                                                                                               specish.version
                                                           end
                                                         else
-                                                          @@warned_on_gem_type ||= # rubocop:disable Style/ClassVars
+                                                          @@warned_on_gem_type ||=
                                                             false
                                                           unless @@warned_on_gem_type
                                                             logger.warn 'Unexpected type while resolving gem: ' \
                                                                         "#{specish.class}"
-                                                            @@warned_on_gem_type = true # rubocop:disable Style/ClassVars
+                                                            @@warned_on_gem_type = true
                                                           end
                                                           nil
                                                         end
@@ -172,7 +198,7 @@ module Solargraph
         Solargraph.with_clean_env do
           cmd = [
             'ruby', '-e',
-            "require 'bundler'; require 'json'; Dir.chdir('#{directory}') { puts #{command}.to_json }"
+            "require 'bundler'; require 'json'; Dir.chdir('#{directory}') { puts begin; #{command}; end.to_json }"
           ]
           # @sg-ignore
           o, e, s = Open3.capture3(*cmd)
@@ -187,7 +213,7 @@ module Solargraph
       end
 
       def in_this_bundle?
-        directory && Bundler.definition&.lockfile&.to_s&.start_with?(directory) # rubocop:disable Style/SafeNavigationChainLength
+        Bundler.definition&.lockfile&.to_s&.start_with?(directory) # rubocop:disable Style/SafeNavigationChainLength
       end
 
       # @return [Array<Gem::Specification, Bundler::LazySpecification, Bundler::StubSpecification>]
@@ -209,6 +235,8 @@ module Solargraph
 
       # @return [Array<Gem::Specification, Bundler::LazySpecification, Bundler::StubSpecification>]
       def auto_required_gemspecs_from_bundler
+        return [] unless directory
+
         logger.info 'Fetching gemspecs autorequired from Bundler (bundler/require)'
         @auto_required_gemspecs_from_bundler ||=
           if in_this_bundle?
@@ -236,12 +264,12 @@ module Solargraph
             command =
               'Bundler.definition.dependencies' \
               '.select { |dep| dep.groups.include?(:default) && dep.should_include? }' \
-              '.map { |dep| [dep.name, dep. version] }'
+              '.map(&:name)'
             # @sg-ignore
-            # @type [Array<Array(String, String)>]
-            dep_details = query_external_bundle command
+            # @type [Array<String>]
+            dep_names = query_external_bundle command
 
-            dep_details.map { |name, version| find_gem(name, version) }.compact
+            all_gemspecs_from_bundle.select { |gemspec| dep_names.include?(gemspec.name) }
           end
       end
 
@@ -258,8 +286,10 @@ module Solargraph
       #
       # @param name [String]
       # @param version [String]
+      # @param out [IO, nil] output stream for logging
+      #
       # @return [Gem::Specification, nil]
-      def resolve_gem_ignoring_local_bundle name, version
+      def resolve_gem_ignoring_local_bundle name, version, out: $stderr
         Gem::Specification.find_by_name(name, version)
       rescue Gem::MissingSpecError
         begin
@@ -267,22 +297,26 @@ module Solargraph
         rescue Gem::MissingSpecError
           stdlibmap = RbsMap::StdlibMap.new(name)
           unless stdlibmap.resolved?
-            logger.warn "Please install the gem #{name}:#{version} in Solargraph's Ruby environment"
+            gem_desc = name
+            gem_desc += ":#{version}" if version
+            out&.puts "Please install the gem #{gem_desc} in Solargraph's Ruby environment"
           end
           nil # either not here or in stdlib
         end
       end
 
       # @return [Array<Gem::Specification>]
+      # @sg-ignore
       def all_gemspecs_from_external_bundle
-        return [] unless directory
-
         @all_gemspecs_from_external_bundle ||=
           begin
             logger.info 'Fetching gemspecs required from external bundle'
 
-            command = 'Bundler.definition.locked_gems&.specs&.map { |spec| [spec.name, spec.version] }.to_h'
-
+            command = 'specish_objects = Bundler.definition.locked_gems&.specs; ' \
+                      'if specish_objects.first.respond_to?(:materialize_for_installation);' \
+                      'specish_objects = specish_objects.map(&:materialize_for_installation);' \
+                      'end;' \
+                      'specish_objects.map { |specish| [specish.name, specish.version] }'
             query_external_bundle(command).map do |name, version|
               resolve_gem_ignoring_local_bundle(name, version)
             end.compact
@@ -310,7 +344,8 @@ module Solargraph
       def change_gemspec_version gemspec, version
         Gem::Specification.find_by_name(gemspec.name, "= #{version}")
       rescue Gem::MissingSpecError
-        Solargraph.logger.info "Gem #{gemspec.name} version #{version} not found. Using #{gemspec.version} instead"
+        Solargraph.logger.info "Gem #{gemspec.name} version #{version.inspect} not found. " \
+                               "Using #{gemspec.version} instead"
         gemspec
       end
     end

@@ -33,6 +33,12 @@ module Solargraph
       index pins
     end
 
+    # @param out [IO, nil] output stream for logging
+    # @return [void]
+    def self.reset_core out: nil
+      @@core_map = RbsMap::CoreMap.new
+    end
+
     #
     # This is a mutable object, which is cached in the Chain class -
     # if you add any fields which change the results of calls (not
@@ -171,6 +177,7 @@ module Solargraph
     # Create an ApiMap with a workspace in the specified directory.
     #
     # @param directory [String]
+    #
     # @return [ApiMap]
     def self.load directory
       api_map = new
@@ -192,12 +199,7 @@ module Solargraph
     # @param rebuild [Boolean]
     # @return [void]
     def cache_all_for_workspace! out, rebuild: false
-      workspace.cache_all_for_workspace!(out, rebuild: rebuild)
-    end
-
-    # @return [Workspace]
-    def workspace
-      @doc_map&.workspace
+      workspace&.cache_all_for_workspace!(out, rebuild: rebuild)
     end
 
     # @param name [String]
@@ -210,11 +212,10 @@ module Solargraph
 
     # @param gemspec [Gem::Specification]
     # @param rebuild [Boolean]
-    # @param only_if_used [Boolean]
     # @param out [IO, nil]
     # @return [void]
-    def cache_gem gemspec, rebuild: false, only_if_used: false, out: nil
-      @doc_map&.cache(gemspec, rebuild: rebuild, out: out, only_if_used: only_if_used)
+    def cache_gem gemspec, rebuild: false, out: nil
+      @doc_map&.cache(gemspec, rebuild: rebuild, out: out)
     end
 
     class << self
@@ -228,7 +229,7 @@ module Solargraph
     # @param directory [String] workspace directory
     # @param out [IO] The output stream for messages
     # @return [ApiMap]
-    def self.load_with_cache directory, out
+    def self.load_with_cache directory, out: $stderr
       api_map = load(directory)
       if api_map.uncached_gemspecs.empty?
         logger.info { "All gems cached for #{directory}" }
@@ -360,13 +361,13 @@ module Solargraph
 
     # @param fqns [String]
     # @return [Array<String>]
-    def get_extends(fqns)
+    def get_extends fqns
       store.get_extends(fqns)
     end
 
     # @param fqns [String]
     # @return [Array<String>]
-    def get_includes(fqns)
+    def get_includes fqns
       store.get_includes(fqns)
     end
 
@@ -732,7 +733,7 @@ module Solargraph
     # @param skip [Set<String>]
     # @param no_core [Boolean] Skip core classes if true
     # @return [Array<Pin::Base>]
-    def inner_get_methods_from_reference(fq_reference_tag, namespace_pin, type, scope, visibility, deep, skip, no_core)
+    def inner_get_methods_from_reference fq_reference_tag, namespace_pin, type, scope, visibility, deep, skip, no_core
       logger.debug { "ApiMap#add_methods_from_reference(type=#{type}) starting" }
 
       # Ensure the types returned by the methods in the referenced
@@ -754,6 +755,11 @@ module Solargraph
       end
       # logger.debug { "ApiMap#add_methods_from_reference(type=#{type}) - resolved_reference_type: #{resolved_reference_type} for type=#{type}: #{methods.map(&:name)}" }
       methods
+    end
+
+    # @return [Workspace, nil]
+    def workspace
+      @doc_map&.workspace
     end
 
     private
@@ -801,7 +807,9 @@ module Solargraph
       # namespaces; resolving the generics in the method pins is this
       # class' responsibility
       methods = store.get_methods(fqns, scope: scope, visibility: visibility).sort{ |a, b| a.name <=> b.name }
-      methods = methods.map(&:as_virtual_class_method) if store.get_includes(fqns).include?('ActiveSupport::Concern') && scope == :class
+      if store.get_includes(fqns).include?('ActiveSupport::Concern') && scope == :class
+        methods = methods.map(&:as_virtual_class_method)
+      end
       logger.info { "ApiMap#inner_get_methods(rooted_tag=#{rooted_tag.inspect}, scope=#{scope.inspect}, visibility=#{visibility.inspect}, deep=#{deep.inspect}, skip=#{skip.inspect}, fqns=#{fqns}) - added from store: #{methods}" }
       result.concat methods
       if deep
@@ -1003,8 +1011,6 @@ module Solargraph
     end
 
     include Logging
-
-    private
 
     # @param namespace_pin [Pin::Namespace]
     # @param rooted_type [ComplexType]

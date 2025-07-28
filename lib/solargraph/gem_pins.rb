@@ -55,9 +55,7 @@ module Solargraph
         in_yard.add yard_pin.path
 
         unless rbs_pin
-          logger.debug do
-            "GemPins.combine: No rbs pin for #{yard_pin.path} - using YARD's '#{yard_pin.inspect} (return_type=#{yard_pin.return_type}; signatures=#{yard_pin.signatures})"
-          end
+          logger.debug { "GemPins.combine: No rbs pin for #{yard_pin.path} - using YARD's '#{yard_pin.inspect} (return_type=#{yard_pin.return_type}; signatures=#{yard_pin.signatures})" }
           next yard_pin
         end
 

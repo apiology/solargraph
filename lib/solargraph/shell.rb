@@ -19,7 +19,7 @@ module Solargraph
 
     map %w[--version -v] => :version
 
-    desc "--version, -v", "Print the version"
+    desc '--version, -v', 'Print the version'
     # @return [void]
     def version
       puts Solargraph::VERSION
@@ -34,10 +34,10 @@ module Solargraph
       port = options[:port]
       port = available_port if port.zero?
       Backport.run do
-        Signal.trap("INT") do
+        Signal.trap('INT') do
           Backport.stop
         end
-        Signal.trap("TERM") do
+        Signal.trap('TERM') do
           Backport.stop
         end
         # @sg-ignore https://github.com/castwide/backport/pull/5
@@ -51,10 +51,10 @@ module Solargraph
     def stdio
       require 'backport'
       Backport.run do
-        Signal.trap("INT") do
+        Signal.trap('INT') do
           Backport.stop
         end
-        Signal.trap("TERM") do
+        Signal.trap('TERM') do
           Backport.stop
         end
         # @sg-ignore https://github.com/castwide/backport/pull/5
@@ -67,7 +67,7 @@ module Solargraph
     option :extensions, type: :boolean, aliases: :e, desc: 'Add installed extensions', default: true
     # @param directory [String]
     # @return [void]
-    def config(directory = '.')
+    def config directory = '.'
       matches = []
       if options[:extensions]
         Gem::Specification.each do |g|
@@ -86,7 +86,7 @@ module Solargraph
       File.open(File.join(directory, '.solargraph.yml'), 'w') do |file|
         file.puts conf.to_yaml
       end
-      STDOUT.puts "Configuration file initialized."
+      STDOUT.puts 'Configuration file initialized.'
     end
 
     desc 'clear', 'Delete all cached documentation'
@@ -95,7 +95,7 @@ module Solargraph
     )
     # @return [void]
     def clear
-      puts "Deleting all cached documentation (gems, core and stdlib)"
+      puts 'Deleting all cached documentation (gems, core and stdlib)'
       Solargraph::PinCache.clear
     end
     map 'clear-cache' => :clear
@@ -118,9 +118,9 @@ module Solargraph
     def gems *names
       api_map = ApiMap.load('.')
       if names.empty?
-        api_map.cache_all_for_workspace!($stdout, rebuild: options.rebuild)
+        api_map.cache_all_for_workspace!($stdout, rebuild: options[:rebuild])
       else
-        STDERR.puts("Caching these gems: #{names}")
+        $stderr.puts("Caching these gems: #{names}")
         names.each do |name|
           if name == 'core'
             PinCache.cache_core(out: $stdout)
@@ -128,15 +128,19 @@ module Solargraph
           end
 
           gemspec = api_map.find_gem(*name.split('='))
-          api_map.cache_gem(gemspec, rebuild: options.rebuild, out: $stdout)
+          if gemspec.nil?
+            warn "Gem '#{name}' not found"
+          else
+            api_map.cache_gem(gemspec, rebuild: options[:rebuild], out: $stdout)
+          end
         rescue Gem::MissingSpecError
           warn "Gem '#{name}' not found"
         end
-        STDERR.puts "Documentation cached for #{names.count} gems."
+        $stderr.puts "Documentation cached for #{names.count} gems."
       end
     end
 
-    desc 'uncache GEM [...GEM]', "Delete specific cached gem documentation"
+    desc 'uncache GEM [...GEM]', 'Delete specific cached gem documentation'
     long_desc %(
       Specify one or more gem names to clear. 'core' or 'stdlib' may
       also be specified to clear cached system documentation.
@@ -181,7 +185,7 @@ module Solargraph
     # @return [void]
     def typecheck *files
       directory = File.realpath(options[:directory])
-      api_map = Solargraph::ApiMap.load_with_cache(directory, $stdout)
+      api_map = Solargraph::ApiMap.load_with_cache(directory, out: $stdout)
       probcount = 0
       if files.empty?
         files = api_map.source_maps.map(&:filename)
@@ -225,7 +229,7 @@ module Solargraph
       # @type [Solargraph::ApiMap, nil]
       api_map = nil
       time = Benchmark.measure {
-        api_map = Solargraph::ApiMap.load_with_cache(directory, $stdout)
+        api_map = Solargraph::ApiMap.load_with_cache(directory, out: $stdout)
         api_map.pins.each do |pin|
           begin
             puts pin_description(pin) if options[:verbose]
@@ -292,7 +296,7 @@ module Solargraph
     # @param path [String] The path to the method pin, e.g. 'Class#method' or 'Class.method'
     # @return [void]
     def method_pin path
-      api_map = Solargraph::ApiMap.load_with_cache('.', STDERR)
+      api_map = Solargraph::ApiMap.load_with_cache('.', out: $stderr)
 
       # @type [Array<Pin::Base>]
       pins = if options[:stack]
@@ -307,7 +311,7 @@ module Solargraph
                api_map.get_path_pins path
              end
       if pins.empty?
-        STDERR.puts "Pin not found for path '#{path}'"
+        $stderr.puts "Pin not found for path '#{path}'"
         exit 1
       end
       pins.each do |pin|
@@ -347,7 +351,7 @@ module Solargraph
 
     # @param type [ComplexType]
     # @return [void]
-    def print_type(type)
+    def print_type type
       if options[:rbs]
         puts type.to_rbs
       else
@@ -357,27 +361,7 @@ module Solargraph
 
     # @param pin [Solargraph::Pin::Base]
     # @return [void]
-    def print_pin(pin)
-      if options[:rbs]
-        puts pin.to_rbs
-      else
-        puts pin.inspect
-      end
-    end
-
-    # @param type [ComplexType]
-    # @return [void]
-    def print_type(type)
-      if options[:rbs]
-        puts type.to_rbs
-      else
-        puts type.rooted_tag
-      end
-    end
-
-    # @param pin [Solargraph::Pin::Base]
-    # @return [void]
-    def print_pin(pin)
+    def print_pin pin
       if options[:rbs]
         puts pin.to_rbs
       else
