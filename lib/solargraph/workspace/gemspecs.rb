@@ -46,7 +46,7 @@ module Solargraph
         # Determine gem name based on the require path
         file = "lib/#{require}.rb"
         spec_with_path = Gem::Specification.find_by_path(file)
-x
+
         all_gemspecs = all_gemspecs_from_bundle
 
         gem_names_to_try = [
@@ -192,7 +192,6 @@ x
             'ruby', '-e',
             "require 'bundler'; require 'json'; Dir.chdir('#{directory}') { puts begin; #{command}; end.to_json }"
           ]
-          # @sg-ignore
           o, e, s = Open3.capture3(*cmd)
           if s.success?
             Solargraph.logger.debug "External bundle: #{o}"
