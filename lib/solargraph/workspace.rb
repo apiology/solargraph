@@ -49,10 +49,11 @@ module Solargraph
       @config ||= Solargraph::Workspace::Config.new(directory)
     end
 
+    # @param out [IO, nil] output stream for logging
     # @param gemspec [Gem::Specification]
     # @return [Array<Gem::Specification>]
-    def fetch_dependencies gemspec
-      gemspecs.fetch_dependencies(gemspec)
+    def fetch_dependencies gemspec, out: $stderr
+      gemspecs.fetch_dependencies(gemspec, out: out)
     end
 
     # @return [Solargraph::PinCache]
@@ -64,6 +65,13 @@ module Solargraph
     # @return [Array<Gem::Specification>]
     def resolve_require require
       gemspecs.resolve_require(require)
+    end
+
+    # @param stdlib_name [String]
+    #
+    # @return [Array<String>]
+    def stdlib_dependencies stdlib_name
+      gemspecs.stdlib_dependencies(stdlib_name)
     end
 
     # @return [Environ]

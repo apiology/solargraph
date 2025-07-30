@@ -107,17 +107,9 @@ module Solargraph
     # @param gemspec [Gem::Specification]
     # @return [Array<Pin::Base>]
     def deserialize_combined_pin_cache gemspec
-      unless combined_pins_in_memory[[gemspec.name, gemspec.version]].nil?
-        return combined_pins_in_memory[[gemspec.name, gemspec.version]]
-      end
-
       rbs_version_cache_key = lookup_rbs_version_cache_key(gemspec)
 
-      cached = load_combined_gem(gemspec, rbs_version_cache_key)
-      if cached
-        logger.info { "Loaded #{cached.length} cached YARD pins from #{gemspec.name}:#{gemspec.version}" }
-        combined_pins_in_memory[[gemspec.name, gemspec.version]] = cached
-      end
+      load_combined_gem(gemspec, rbs_version_cache_key)
     end
 
     # @param gemspec [Gem::Specification]
@@ -125,13 +117,8 @@ module Solargraph
     # @return [void]
     def uncache_gem gemspec, out: nil
       PinCache.uncache(yardoc_path(gemspec), out: out)
-      yard_pins_in_memory.delete([gemspec.name, gemspec.version])
       PinCache.uncache(yard_gem_path(gemspec), out: out)
-
-      rbs_version_cache_key = lookup_rbs_version_cache_key(gemspec)
       uncache_by_prefix(rbs_collection_pins_path_prefix(gemspec), out: out)
-      rbs_collection_pins_in_memory.delete([gemspec.name, gemspec.version, rbs_version_cache_key])
-
       uncache_by_prefix(combined_path_prefix(gemspec), out: out)
       combined_pins_in_memory.delete([gemspec.name, gemspec.version])
     end
@@ -247,16 +234,6 @@ module Solargraph
       pins
     end
 
-    # @return [Hash{Array(String, String) => Array<Pin::Base>}] gemspec name, version
-    def yard_pins_in_memory
-      PinCache.all_yard_pins_in_memory[yard_plugins] ||= {}
-    end
-
-    # @return [Hash{Array(String, String, String) => Array<Pin::Base>}] gemspec name, version and rbs version cache key
-    def rbs_collection_pins_in_memory
-      PinCache.all_rbs_collection_pins_in_memory ||= {}
-    end
-
     # @return [Hash{Array(String, String, String) => Array<Pin::Base>}]
     def combined_pins_in_memory
       PinCache.all_combined_pins_in_memory[yard_plugins] ||= {}
@@ -284,14 +261,8 @@ module Solargraph
     # @param gemspec [Gem::Specification]
     # @return [Array<Pin::Base>]
     def deserialize_yard_pin_cache gemspec
-      if yard_pins_in_memory.key?([gemspec.name, gemspec.version])
-        return yard_pins_in_memory[[gemspec.name, gemspec.version]]
-      end
-
       cached = load_yard_gem(gemspec)
       if cached
-        logger.info { "Loaded #{cached.length} cached YARD pins from #{gemspec.name}:#{gemspec.version}" }
-        yard_pins_in_memory[[gemspec.name, gemspec.version]] = cached
         cached
       else
         logger.debug "No YARD pin cache for #{gemspec.name}:#{gemspec.version}"
@@ -301,22 +272,14 @@ module Solargraph
 
     # @param gemspec [Gem::Specification, Bundler::LazySpecification]
     # @param rbs_version_cache_key [String]
-    # @return [Array<Pin::Base>, nil]
+    # @return [Array<Pin::Base>]
     def deserialize_rbs_collection_cache gemspec, rbs_version_cache_key
-      return if rbs_collection_pins_in_memory.key?([gemspec.name, gemspec.version, rbs_version_cache_key])
       cached = load_rbs_collection_pins(gemspec, rbs_version_cache_key)
-      if cached
-        unless cached.empty?
-          logger.info do
-            "Loaded #{cached.length} pins from RBS collection cache for #{gemspec.name}:#{gemspec.version}"
-          end
-        end
-        rbs_collection_pins_in_memory[[gemspec.name, gemspec.version, rbs_version_cache_key]] = cached
-        cached
-      else
-        logger.debug "No RBS collection pin cache for #{gemspec.name} #{gemspec.version}"
-        nil
+      Solargraph.assert_or_log(:pin_cache_rbs_collection, 'Asked for non-existent rbs collection') if cached.nil?
+      logger.info do
+        "Loaded #{cached&.length} pins from RBS collection cache for #{gemspec.name}:#{gemspec.version}"
       end
+      cached
     end
 
     # @return [Array<String>]
@@ -340,7 +303,7 @@ module Solargraph
     end
 
     # @param gemspec [Gem::Specification]
-    # @return [Array<Pin::Base>]
+    # @return [Array<Pin::Base>, nil]
     def load_yard_gem gemspec
       PinCache.load(yard_gem_path(gemspec))
     end
@@ -359,16 +322,10 @@ module Solargraph
     end
 
     # @param gemspec [Gem::Specification]
-    # @return [Boolean]
-    def yardoc? gemspec
-      exist?(yardoc_path(gemspec))
-    end
-
-    # @param gemspec [Gem::Specification]
     # @param hash [String, nil]
     # @return [String]
     def rbs_collection_pins_path gemspec, hash
-      rbs_collection_pins_path_prefix(gemspec) + "#{gemspec.name}-#{gemspec.version}-#{hash || 0}.ser"
+      rbs_collection_pins_path_prefix(gemspec) + "#{hash || 0}.ser"
     end
 
     # @param gemspec [Gem::Specification]
@@ -380,14 +337,14 @@ module Solargraph
     # @param gemspec [Gem::Specification, Bundler::LazySpecification]
     # @param hash [String]
     #
-    # @return [Array<Pin::Base>]
+    # @return [Array<Pin::Base>, nil]
     def load_rbs_collection_pins gemspec, hash
       PinCache.load(rbs_collection_pins_path(gemspec, hash))
     end
 
     # @param gemspec [Gem::Specification]
     # @param hash [String, nil]
-    # @param pins [Array<Pin::Base>]n
+    # @param pins [Array<Pin::Base>]
     # @return [void]
     def serialize_rbs_collection_pins gemspec, hash, pins
       PinCache.save(rbs_collection_pins_path(gemspec, hash), pins)
@@ -422,7 +379,7 @@ module Solargraph
 
     # @param gemspec [Gem::Specification]
     # @param hash [String, nil]
-    # @return [Array<Pin::Base>]
+    # @return [Array<Pin::Base>, nil]
     def load_combined_gem gemspec, hash
       PinCache.load(combined_path(gemspec, hash))
     end
@@ -455,19 +412,6 @@ module Solargraph
 
     class << self
       include Logging
-
-      # @return [Hash{Array<String> => Hash{Array(String, String) => Array<Pin::Base>}}] yard
-      #   plugins, then gemspec name and version
-      def all_yard_pins_in_memory
-        @all_yard_pins_in_memory ||= {}
-      end
-
-      # @return [Hash{Array(String, String, String) =>
-      #   Array<Pin::Base>}] gemspec name, version and rbs version
-      #   cache key
-      def all_rbs_collection_pins_in_memory
-        @all_rbs_collection_pins_in_memory ||= {}
-      end
 
       # @return [Hash{Array<String> => Hash{Array(String, String) =>
       #   Array<Pin::Base>}}] yard plugins, then gemspec name and
@@ -564,7 +508,7 @@ module Solargraph
         RbsMap::CoreMap.new.cache_core(out: out)
       end
 
-      # @return [Array<Pin::Base>]
+      # @return [Array<Pin::Base>, nil]
       def load_core
         load(core_path)
       end
@@ -587,7 +531,7 @@ module Solargraph
       end
 
       # @param require [String]
-      # @return [Array<Pin::Base>]
+      # @return [Array<Pin::Base>, nil]
       def load_stdlib_require require
         load(stdlib_require_path(require))
       end

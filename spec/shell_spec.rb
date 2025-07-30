@@ -66,6 +66,17 @@ describe Solargraph::Shell do
     end
   end
 
+  describe 'scan' do
+    it 'scans without erroring out' do
+      output = capture_stdout do
+        shell.options = { directory: 'spec/fixtures/workspace' }
+        shell.scan
+      end
+
+      expect(output).to include('Scanned ').and include(' seconds.')
+    end
+  end
+
   describe 'typecheck' do
     it 'typechecks without erroring out' do
       output = capture_stdout do
@@ -112,6 +123,14 @@ describe Solargraph::Shell do
   end
 
   describe 'gems' do
+    it 'complains when gem does not exist' do
+      output = capture_both do
+        shell.gems('nonexistentgem')
+      end
+
+      expect(output).to include("Gem 'nonexistentgem' not found")
+    end
+
     it 'caches core without erroring out' do
       capture_both do
         shell.uncache('core')
@@ -187,6 +206,15 @@ describe Solargraph::Shell do
   describe 'cache' do
     it 'caches a stdlib gem without erroring out' do
       expect { shell.cache('stringio') }.not_to raise_error
+    end
+
+    context 'when gem does not exist' do
+      subject(:call) { shell.cache('nonexistentgem8675309') }
+
+      it 'gives a good error message' do
+        # capture stderr output
+        expect { call }.to output(/not found/).to_stderr
+      end
     end
 
     it 'caches gem without erroring out' do

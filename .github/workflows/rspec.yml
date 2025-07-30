@@ -21,7 +21,13 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        ruby-version: ['3.0', '3.1', '3.2', '3.3', '3.4', 'head']
+        ruby-version:
+          - '3.0'
+          - '3.1'
+          - '3.2'
+          - '3.3'
+          - '3.4'
+          # - 'head' - see https://github.com/castwide/solargraph/issues/1022
         rbs-version: ['3.6.1', '3.9.4', '4.0.0.dev.4']
         # Ruby 3.0 doesn't work with RBS 3.9.4 or 4.0.0.dev.4
         exclude:
@@ -48,6 +54,8 @@ jobs:
       run: |
         bundle install
         bundle update rbs # use latest available for this Ruby version
+    - name: Install types
+      run: bundle exec rbs collection update
     - name: Run tests
       run: bundle exec rspec
   undercover:
@@ -65,6 +73,8 @@ jobs:
         bundler-cache: false
     - name: Install gems
       run: bundle install
+    - name: Install types
+      run: bundle exec rbs collection update
     - name: Run tests
       run: bundle exec rspec
     - name: Check PR coverage

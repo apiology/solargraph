@@ -1,5 +1,6 @@
 require 'tmpdir'
 require 'yard'
+require 'timeout'
 
 describe Solargraph::Library do
   it "does not open created files in the workspace" do
@@ -24,6 +25,34 @@ describe Solargraph::Library do
     completion = library.completions_at('file.rb', 2, 7)
     expect(completion).to be_a(Solargraph::SourceMap::Completion)
     expect(completion.pins.map(&:name)).to include('x')
+  end
+
+  context 'with a require from a not-yet-cached external gem' do
+    before do
+      Solargraph::Shell.new.uncache('backport')
+    end
+
+    it "returns a Completion" do
+      library = Solargraph::Library.new(Solargraph::Workspace.new(Dir.pwd,
+                                                                  Solargraph::Workspace::Config.new))
+      library.attach Solargraph::Source.load_string(%(
+        require 'backport'
+
+        # @param adapter [Backport::Adapter]
+        def foo(adapter)
+          adapter.remo
+        end
+      ), 'file.rb', 0)
+      completion = nil
+      Timeout.timeout(10) do
+        # give Solargraph time to cache the gem
+        while (completion = library.completions_at('file.rb', 5, 19)).pins.empty?
+          sleep 0.25
+        end
+      end
+      expect(completion).to be_a(Solargraph::SourceMap::Completion)
+      expect(completion.pins.map(&:name)).to include('remote')
+    end
   end
 
   it "gets definitions from a file" do

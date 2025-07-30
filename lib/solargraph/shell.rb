@@ -34,10 +34,10 @@ module Solargraph
       port = options[:port]
       port = available_port if port.zero?
       Backport.run do
-        Signal.trap('INT') do
+        Signal.trap("INT") do
           Backport.stop
         end
-        Signal.trap('TERM') do
+        Signal.trap("TERM") do
           Backport.stop
         end
         # @sg-ignore https://github.com/castwide/backport/pull/5
@@ -51,10 +51,10 @@ module Solargraph
     def stdio
       require 'backport'
       Backport.run do
-        Signal.trap('INT') do
+        Signal.trap("INT") do
           Backport.stop
         end
-        Signal.trap('TERM') do
+        Signal.trap("TERM") do
           Backport.stop
         end
         # @sg-ignore https://github.com/castwide/backport/pull/5
@@ -67,7 +67,7 @@ module Solargraph
     option :extensions, type: :boolean, aliases: :e, desc: 'Add installed extensions', default: true
     # @param directory [String]
     # @return [void]
-    def config directory = '.'
+    def config(directory = '.')
       matches = []
       if options[:extensions]
         Gem::Specification.each do |g|
@@ -86,7 +86,7 @@ module Solargraph
       File.open(File.join(directory, '.solargraph.yml'), 'w') do |file|
         file.puts conf.to_yaml
       end
-      STDOUT.puts 'Configuration file initialized.'
+      STDOUT.puts "Configuration file initialized."
     end
 
     desc 'clear', 'Delete all cached documentation'
@@ -95,7 +95,7 @@ module Solargraph
     )
     # @return [void]
     def clear
-      puts 'Deleting all cached documentation (gems, core and stdlib)'
+      puts "Deleting all cached documentation (gems, core and stdlib)"
       Solargraph::PinCache.clear
     end
     map 'clear-cache' => :clear
@@ -108,7 +108,7 @@ module Solargraph
     # @param version [String, nil]
     def cache gem, version = nil
       gems(gem + (version ? "=#{version}" : ''))
-      # "
+      # '
     end
 
     desc 'gems [GEM[=VERSION]]', 'Cache documentation for installed gems'
@@ -133,8 +133,6 @@ module Solargraph
           else
             api_map.cache_gem(gemspec, rebuild: options[:rebuild], out: $stdout)
           end
-        rescue Gem::MissingSpecError
-          warn "Gem '#{name}' not found"
         end
         $stderr.puts "Documentation cached for #{names.count} gems."
       end
@@ -200,13 +198,10 @@ module Solargraph
           problems = checker.problems
           next if problems.empty?
           problems.sort! { |a, b| a.location.range.start.line <=> b.location.range.start.line }
-          puts problems.map { |prob|
-            "#{prob.location.filename}:#{prob.location.range.start.line + 1} - #{prob.message}"
-          }.join("\n")
+          puts problems.map { |prob| "#{prob.location.filename}:#{prob.location.range.start.line + 1} - #{prob.message}" }.join("\n")
           filecount += 1
           probcount += problems.length
         end
-        # "
       }
       puts "Typecheck finished in #{time.real} seconds."
       puts "#{probcount} problem#{probcount != 1 ? 's' : ''} found#{files.length != 1 ? " in #{filecount} of #{files.length} files" : ''}."
@@ -337,36 +332,16 @@ module Solargraph
     # @return [String]
     def pin_description pin
       desc = if pin.path.nil? || pin.path.empty?
-               if pin.closure
-                 "#{pin.closure.path} | #{pin.name}"
-               else
-                 "#{pin.context.namespace} | #{pin.name}"
-               end
+        if pin.closure
+          "#{pin.closure.path} | #{pin.name}"
+        else
+          "#{pin.context.namespace} | #{pin.name}"
+        end
       else
         pin.path
       end
       desc += " (#{pin.location.filename} #{pin.location.range.start.line})" if pin.location
       desc
-    end
-
-    # @param type [ComplexType]
-    # @return [void]
-    def print_type type
-      if options[:rbs]
-        puts type.to_rbs
-      else
-        puts type.rooted_tag
-      end
-    end
-
-    # @param pin [Solargraph::Pin::Base]
-    # @return [void]
-    def print_pin pin
-      if options[:rbs]
-        puts pin.to_rbs
-      else
-        puts pin.inspect
-      end
     end
   end
 end

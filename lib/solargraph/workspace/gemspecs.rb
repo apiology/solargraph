@@ -45,15 +45,8 @@ module Solargraph
 
         # Determine gem name based on the require path
         file = "lib/#{require}.rb"
-        begin
-          spec_with_path = Gem::Specification.find_by_path(file)
-        rescue Gem::MissingSpecError
-          logger.debug do
-            "Require #{require.inspect} could not be resolved to a gem via find_by_name or path of #{file}"
-          end
-          []
-        end
-
+        spec_with_path = Gem::Specification.find_by_path(file)
+x
         all_gemspecs = all_gemspecs_from_bundle
 
         gem_names_to_try = [
@@ -85,6 +78,14 @@ module Solargraph
         nil
       end
 
+      # @param stdlib_name [String]
+      #
+      # @return [Array<String>]
+      def stdlib_dependencies stdlib_name
+        deps = RbsMap::StdlibMap.stdlib_dependencies(stdlib_name, nil) || []
+        deps.map { |dep| dep['name'] }.compact
+      end
+
       # @param name [String]
       # @param version [String, nil]
       # @param out [IO, nil] output stream for logging
@@ -101,8 +102,10 @@ module Solargraph
       end
 
       # @param gemspec [Gem::Specification]
+      # @param out[IO, nil] output stream for logging
+      #
       # @return [Array<Gem::Specification>]
-      def fetch_dependencies gemspec
+      def fetch_dependencies gemspec, out: $stderr
         gemspecs = all_gemspecs_from_bundle
 
         # @param runtime_dep [Gem::Dependency]
@@ -111,21 +114,10 @@ module Solargraph
           Solargraph.logger.info "Adding #{runtime_dep.name} dependency for #{gemspec.name}"
           dep = gemspecs.find { |dep| dep.name == runtime_dep.name }
           dep ||= Gem::Specification.find_by_name(runtime_dep.name, runtime_dep.requirement)
-          deps.merge fetch_dependencies(dep) if deps.add?(dep)
-        rescue NoMethodError => e
-          raise unless e.message.include?('identifier') && e.message.include?('lib/ruby/gems')
-          # Can happen on system gems in Ruby 3.0, it seems:
-          #
-          # https://github.com/castwide/solargraph/actions/runs/16480452864/job/46593077954?pr=1006
-          log.debug do
-            "Skipping dependency #{runtime_dep.name} for #{gemspec.name} due to NoMethodError: #{e.message}"
-          end
-
-          nil
         rescue Gem::MissingSpecError
-          Solargraph.logger.warn("Gem dependency #{runtime_dep.name} #{runtime_dep.requirement} " \
-                                 "for #{gemspec.name} not found in bundle.")
-          nil
+          dep = resolve_gem_ignoring_local_bundle runtime_dep.name, out: out
+        ensure
+          deps.merge fetch_dependencies(dep, out: out) if dep && deps.add?(dep)
         end.to_a.compact
         # RBS tracks implicit dependencies, like how the YAML standard
         # library implies pulling in the psych library.
@@ -176,8 +168,8 @@ module Solargraph
                                                           if specish.respond_to?(:spec)
                                                             specish.spec
                                                           else
-                                                            resolve_gem_ignoring_local_bundle specish.name,
-                                                                                              specish.version
+                                                            # turn the crank again
+                                                            to_gem_specification(specish)
                                                           end
                                                         else
                                                           @@warned_on_gem_type ||=
@@ -279,17 +271,19 @@ module Solargraph
         unless gemspec.respond_to?(:dependencies) && gemspec.respond_to?(:development_dependencies)
           gemspec = to_gem_specification(gemspec)
         end
+        return [] if gemspec.nil?
+
         gemspec.dependencies - gemspec.development_dependencies
       end
 
       # @todo Should this be using Gem::SpecFetcher and pull them automatically?
       #
       # @param name [String]
-      # @param version [String]
+      # @param version [String, nil]
       # @param out [IO, nil] output stream for logging
       #
       # @return [Gem::Specification, nil]
-      def resolve_gem_ignoring_local_bundle name, version, out: $stderr
+      def resolve_gem_ignoring_local_bundle name, version = nil, out: $stderr
         Gem::Specification.find_by_name(name, version)
       rescue Gem::MissingSpecError
         begin
