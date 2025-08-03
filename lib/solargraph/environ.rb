@@ -30,11 +30,6 @@ module Solargraph
       @yard_plugins = yard_plugins
     end
 
-    # @return [Array<String>]
-    def yard_plugins
-      @yard_plugins ||= []
-    end
-
     # @return [self]
     def clear
       domains.clear

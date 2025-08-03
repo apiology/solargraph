@@ -1,4 +1,3 @@
-require 'yard-activesupport-concern'
 require 'fileutils'
 require 'rbs'
 require 'rubygems'
