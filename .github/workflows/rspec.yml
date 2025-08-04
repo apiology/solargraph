@@ -57,7 +57,7 @@ jobs:
     - name: Install types
       run: bundle exec rbs collection update
     - name: Run tests
-      run: bundle exec rspec
+      run: bundle exec rake spec
   undercover:
     runs-on: ubuntu-latest
     steps:
@@ -76,6 +76,6 @@ jobs:
     - name: Install types
       run: bundle exec rbs collection update
     - name: Run tests
-      run: bundle exec rspec
+      run: bundle exec rake spec
     - name: Check PR coverage
       run: bundle exec rake undercover
