@@ -1021,6 +1021,5 @@ describe Solargraph::TypeChecker do
       ))
       expect(checker.problems.map(&:message)).to eq([])
     end
-
   end
 end
