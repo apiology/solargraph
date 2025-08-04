@@ -2534,6 +2534,8 @@ YARD/MismatchName:
 
 YARD/TagTypeSyntax:
   Exclude:
+    - 'lib/solargraph/complex_type.rb'
+    - 'lib/solargraph/complex_type/unique_type.rb'
     - 'lib/solargraph/language_server/host.rb'
     - 'lib/solargraph/parser/comment_ripper.rb'
     - 'lib/solargraph/type_checker.rb'
