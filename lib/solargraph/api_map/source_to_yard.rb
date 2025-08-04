@@ -50,9 +50,12 @@ module Solargraph
           end
           store.get_extends(pin.path).each do |ref|
             extend_object = code_object_at(pin.path, YARD::CodeObjects::ClassObject)
+            next unless extend_object
             code_object = code_object_map[ref]
-            extend_object.instance_mixins.push code_object_map[ref] if extend_object && code_object
-            extend_object.class_mixins.push code_object_map[ref] if extend_object && code_object
+            next unless code_object
+            extend_object.class_mixins.push code_object
+            # @todo add spec showing why this next line is necessary
+            extend_object.instance_mixins.push code_object
           end
         end
         store.method_pins.each do |pin|
