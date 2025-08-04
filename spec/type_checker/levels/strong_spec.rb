@@ -15,6 +15,19 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message)).to eq(['Unneeded @sg-ignore comment'])
     end
 
+    it 'does not complain on array dereference' do
+      checker = type_checker(%(
+        # @param idx [Integer, nil] an index
+        # @param arr [Array<Integer>] an array of integers
+        #
+        # @return [void]
+        def foo(idx, arr)
+          arr[idx]
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
     it 'reports missing return tags' do
       checker = type_checker(%(
         class Foo
