@@ -109,6 +109,10 @@ module Solargraph
         end
       end
 
+      def simplifyable_literal?
+        literal? && name != 'nil'
+      end
+
       def literal?
         non_literal_name != name
       end
