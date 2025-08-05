@@ -108,7 +108,7 @@ module Solargraph
       end
     end
 
-  private
+    private
 
     # @return [Array<Problem>]
     def method_tag_problems
@@ -810,5 +810,5 @@ module Solargraph
         ignored
       end
     end
-end
+  end
 end
