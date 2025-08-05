@@ -149,7 +149,6 @@ Layout/EndAlignment:
     - 'lib/solargraph/source/chain/call.rb'
     - 'lib/solargraph/source_map/clip.rb'
     - 'lib/solargraph/source_map/mapper.rb'
-    - 'lib/solargraph/type_checker.rb'
     - 'lib/solargraph/type_checker/rules.rb'
     - 'lib/solargraph/yard_map/mapper.rb'
 
