@@ -19,10 +19,12 @@ module Solargraph
       # @type [Array<UniqueType>]
       items = types.flat_map(&:items).uniq(&:to_s)
 
+      # Canonicalize 'true, false' to the non-runtime-type 'Boolean'
       if items.any? { |i| i.name == 'false' } && items.any? { |i| i.name == 'true' }
         items.delete_if { |i| i.name == 'false' || i.name == 'true' }
         items.unshift(UniqueType::BOOLEAN)
       end
+
       items = [UniqueType::UNDEFINED] if items.any?(&:undefined?)
       @items = items
     end

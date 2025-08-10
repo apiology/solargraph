@@ -35,21 +35,22 @@ module Solargraph
       def conforms_to_unique_type?
         unless expected.is_a?(UniqueType)
           # :nocov:
-          raise "Expected type must be a UniqueType, got #{expected.class} in #{expected.inspect}"
+          raise "Expected type must be a UniqueType, got #{expected.class} in #{expected}"
           # :nocov:
         end
 
-        if use_simplified_inferred_type?
+        downcast_inferred = inferred.downcast_to_literal_if_possible
+        # First see if we need to turn e.g. NilClass into nil to match expectations
+        if expected.literal? && (downcast_inferred.name != inferred.name)
+          return with_new_types(downcast_inferred, expected).conforms_to_unique_type?
+        elsif use_simplified_inferred_type?
+          # ...if not, see if we need to do the reverse, or turn a
+          # more specific literal type (1, 2, 3) into a more general
+          # one (Integer)
           return with_new_types(inferred.simplify_literals, expected).conforms_to_unique_type?
         end
         return true if ignore_interface?
         return true if conforms_via_reverse_match?
-
-        downcast_inferred = inferred.downcast_to_literal_if_possible
-        downcast_expected = expected.downcast_to_literal_if_possible
-        if (downcast_inferred.name != inferred.name) || (downcast_expected.name != expected.name)
-          return with_new_types(downcast_inferred, downcast_expected).conforms_to_unique_type?
-        end
 
         if rules.include?(:allow_subtype_skew) && !expected.all_params.empty?
           # parameters are not considered in this case
@@ -80,7 +81,7 @@ module Solargraph
       private
 
       def use_simplified_inferred_type?
-        inferred.simplifyable_literal? && !expected.literal?
+        inferred.literal? && !expected.literal?
       end
 
       def only_inferred_parameters?
