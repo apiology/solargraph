@@ -134,5 +134,5 @@ end
 desc "Show quality checks on this development branch so far, including any staged files"
 task :overcommit do
   # OVERCOMMIT_DEBUG=1 will show more detail
-  sh 'SOLARGRAPH_ASSERTS=on bundle exec overcommit --run --diff origin/master'
+  sh 'SOLARGRAPH_ASSERTS=on bundle exec overcommit --run --diff origin/2025-07-02'
 end
