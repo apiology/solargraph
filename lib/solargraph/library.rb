@@ -249,7 +249,7 @@ module Solargraph
       return [] unless pin
       result = []
       files = if only
-                [api_map.source_map(filename)]
+        [api_map.source_map(filename)]
       else
         (workspace.sources + (@current ? [@current] : []))
       end
@@ -601,7 +601,10 @@ module Solargraph
         logger.info "Caching #{spec.name} #{spec.version}"
         Thread.new do
           report_cache_progress spec.name, pending
-          _o, e, s = Open3.capture3(workspace.command_path, 'cache', spec.name, spec.version.to_s)
+          kwargs = {}
+          kwargs[:chdir] = workspace.directory.to_s if workspace.directory && !workspace.directory.empty?
+          _o, e, s = Open3.capture3(workspace.command_path, 'cache', spec.name, spec.version.to_s,
+                                    **kwargs)
           if s.success?
             logger.info "Cached #{spec.name} #{spec.version}"
           else

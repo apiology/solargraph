@@ -39,7 +39,19 @@ describe Solargraph::DocMap do
     end
 
     it 'tracks unresolved requires' do
-      expect(doc_map.unresolved_requires).to eq(['not_a_gem'])
+      # These are auto-required by solargraph-rspec in case the bundle
+      # includes these gems.  In our case, it doesn't!
+      unprovided_solargraph_rspec_requires = [
+        'rspec-rails',
+        'actionmailer',
+        'activerecord',
+        'shoulda-matchers',
+        'rspec-sidekiq',
+        'airborne',
+        'activesupport'
+      ]
+      expect(doc_map.unresolved_requires - unprovided_solargraph_rspec_requires)
+        .to eq(['not_a_gem'])
     end
   end
 
@@ -56,7 +68,8 @@ describe Solargraph::DocMap do
     end
 
     it 'logs timing' do
-      doc_map
+      # force lazy evaluation
+      _pins = doc_map.pins
       expect(out.string).to include('Deserialized ').and include(' gem pins ').and include(' ms')
     end
   end
@@ -69,11 +82,11 @@ describe Solargraph::DocMap do
     it 'tracks uncached_gemspecs' do
       pincache = instance_double(Solargraph::PinCache)
       uncached_gemspec = Gem::Specification.new('uncached_gem', '1.0.0')
+      allow(workspace).to receive_messages(resolve_require: [], fresh_pincache: pincache)
+      allow(workspace).to receive(:global_environ).and_return(Solargraph::Environ.new)
       allow(workspace).to receive(:resolve_require).with('uncached_gem').and_return([uncached_gemspec])
       allow(workspace).to receive(:fetch_dependencies).with(uncached_gemspec, out: out).and_return([])
-      allow(workspace).to receive(:fresh_pincache).and_return(pincache)
       allow(pincache).to receive(:deserialize_combined_pin_cache).with(uncached_gemspec).and_return(nil)
-
       expect(doc_map.uncached_gemspecs).to eq([uncached_gemspec])
     end
   end
@@ -119,6 +132,29 @@ describe Solargraph::DocMap do
 
     it 'collects dependencies' do
       expect(doc_map.dependencies.map(&:name)).to include('rspec-core')
+    end
+  end
+
+  context 'with convention' do
+    let(:pre_cache) { false }
+
+    it 'includes convention requires from environ' do
+      dummy_convention = Class.new(Solargraph::Convention::Base) do
+        def global(doc_map)
+          Solargraph::Environ.new(
+            requires: ['convention_gem1', 'convention_gem2']
+          )
+        end
+      end
+
+      Solargraph::Convention.register dummy_convention
+
+      doc_map = Solargraph::DocMap.new(['original_gem'], workspace)
+
+      expect(doc_map.requires).to include('original_gem', 'convention_gem1', 'convention_gem2')
+    ensure
+      # Clean up the registered convention
+      Solargraph::Convention.deregister dummy_convention
     end
   end
 end

@@ -8,13 +8,13 @@ describe Solargraph::PinCache do
     described_class.new(rbs_collection_path: '.gem_rbs_collection',
                         rbs_collection_config_path: 'rbs_collection.yaml',
                         directory: Dir.pwd,
-                        yard_plugins: [])
+                        yard_plugins: ['activesupport-concern'])
   end
 
   describe '#cached?' do
     it 'returns true for a gem that is cached' do
       allow(File).to receive(:file?).with(%r{.*stdlib/backport.ser$}).and_return(false)
-      allow(File).to receive(:file?).with(%r{.*combined/backport-.*.ser$}).and_return(true)
+      allow(File).to receive(:file?).with(%r{.*combined/.*/backport-.*.ser$}).and_return(true)
 
       gemspec = Gem::Specification.find_by_name('backport')
       expect(pin_cache.cached?(gemspec)).to be true
@@ -88,7 +88,20 @@ describe Solargraph::PinCache do
         parser_gemspec = Gem::Specification.find_by_name('parser')
         pin_cache.cache_gem(gemspec: parser_gemspec, out: nil)
         # if this fails, you may not have run `bundle exec rbs collection update`
-        expect(Solargraph::Yardoc).not_to have_received(:build_docs)
+        expect(Solargraph::Yardoc).not_to have_received(:build_docs).with(any_args)
+      end
+    end
+
+    context 'with an installed gem' do
+      before do
+        Solargraph::Shell.new.gems('kramdown')
+      end
+
+      it 'uncaches when asked' do
+        gemspec = Gem::Specification.find_by_name('kramdown')
+        expect do
+          pin_cache.uncache_gem(gemspec, out: nil)
+        end.not_to raise_error
       end
     end
 
@@ -101,7 +114,7 @@ describe Solargraph::PinCache do
         parser_gemspec = Gem::Specification.find_by_name('parser')
         pin_cache.cache_gem(gemspec: parser_gemspec, rebuild: true, out: nil)
         # if this fails, you may not have run `bundle exec rbs collection update`
-        expect(Solargraph::Yardoc).not_to have_received(:build_docs)
+        expect(Solargraph::Yardoc).not_to have_received(:build_docs).with(any_args)
       end
     end
 
@@ -119,7 +132,7 @@ describe Solargraph::PinCache do
         pin_cache.cache_gem(gemspec: yaml_gemspec, out: nil)
 
         # match arguments with regexp using rspec-matchers syntax
-        expect(File).to have_received(:write).with(%r{combined/logger-.*-stdlib.ser$}, any_args).once
+        expect(File).to have_received(:write).with(%r{combined/.*/logger-.*-stdlib.ser$}, any_args).once
       end
     end
 
@@ -137,7 +150,7 @@ describe Solargraph::PinCache do
         pin_cache.cache_gem(gemspec: yaml_gemspec, out: nil)
 
         # match arguments with regexp using rspec-matchers syntax
-        expect(File).to have_received(:write).with(%r{combined/base64-.*-export.ser$}, any_args).once
+        expect(File).to have_received(:write).with(%r{combined/.*/base64-.*-export.ser$}, any_args, mode: 'wb').once
       end
     end
   end

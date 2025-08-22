@@ -195,6 +195,14 @@ module Solargraph
       @doc_map.cache_doc_map_gems!(out)
     end
 
+    # @param gemspec [Gem::Specification]
+    # @param rebuild [Boolean]
+    # @param out [IO, nil]
+    # @return [void]
+    def cache_gem(gemspec, rebuild: false, out: nil)
+      @doc_map.cache(gemspec, rebuild: rebuild, out: out)
+    end
+
     class << self
       include Logging
     end

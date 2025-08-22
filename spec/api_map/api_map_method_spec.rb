@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'tmpdir'
+
 describe Solargraph::ApiMap do
   let(:api_map) { described_class.new }
   let(:bench) do
@@ -12,11 +14,13 @@ describe Solargraph::ApiMap do
   end
 
   describe '.load_with_cache' do
-    it 'loads the API map with cache' do
+    it 'loads the API map with cache', time_limit_seconds: 120 do
       Solargraph::PinCache.uncache_core
 
-      output = capture_both do
-        described_class.load_with_cache(Dir.pwd)
+      output = Dir.mktmpdir do |dir|
+        capture_both do
+          described_class.load_with_cache(dir)
+        end
       end
 
       expect(output).to include('aching RBS pins for Ruby core')
@@ -141,7 +145,7 @@ describe Solargraph::ApiMap do
     end
   end
 
-  describe '#get_method_stack' do
+  describe '#get_method_stack', time_limit_seconds: 240 do
     let(:out) { StringIO.new }
     let(:api_map) { described_class.load_with_cache(Dir.pwd, out) }
 

@@ -113,7 +113,6 @@ Layout/EmptyLines:
   Exclude:
     - 'lib/solargraph/bench.rb'
     - 'lib/solargraph/complex_type/unique_type.rb'
-    - 'lib/solargraph/convention.rb'
     - 'lib/solargraph/language_server/message/extended/check_gem_version.rb'
     - 'lib/solargraph/language_server/message/initialize.rb'
     - 'lib/solargraph/pin/delegated_method.rb'
@@ -247,6 +246,7 @@ Layout/IndentationWidth:
     - 'lib/solargraph/type_checker/rules.rb'
     - 'lib/solargraph/yard_map/mapper.rb'
     - 'spec/api_map/config_spec.rb'
+    - 'spec/shell_spec.rb'
     - 'spec/source_map/mapper_spec.rb'
 
 # This cop supports safe autocorrection (--autocorrect).
@@ -500,6 +500,7 @@ Lint/DuplicateMethods:
     - 'lib/solargraph/location.rb'
     - 'lib/solargraph/pin/base.rb'
     - 'lib/solargraph/pin/signature.rb'
+    - 'lib/solargraph/rbs_map.rb'
     - 'lib/solargraph/source/chain/link.rb'
 
 # Configuration parameters: AllowComments, AllowEmptyLambdas.
@@ -635,6 +636,7 @@ Lint/UnusedMethodArgument:
     - 'lib/solargraph/source/chain/literal.rb'
     - 'lib/solargraph/source/chain/variable.rb'
     - 'lib/solargraph/source/chain/z_super.rb'
+    - 'spec/doc_map_spec.rb'
 
 # This cop supports safe autocorrection (--autocorrect).
 # Configuration parameters: AutoCorrect.
@@ -700,6 +702,7 @@ Metrics/BlockLength:
     - 'lib/solargraph/api_map.rb'
     - 'lib/solargraph/api_map/source_to_yard.rb'
     - 'lib/solargraph/complex_type.rb'
+    - 'lib/solargraph/convention/struct_definition.rb'
     - 'lib/solargraph/parser/parser_gem/node_processors/send_node.rb'
     - 'lib/solargraph/source/chain/call.rb'
     - 'lib/solargraph/type_checker.rb'
@@ -835,6 +838,7 @@ Naming/PredicatePrefix:
     - 'lib/solargraph/api_map.rb'
     - 'lib/solargraph/language_server/host.rb'
     - 'lib/solargraph/parser/parser_gem/class_methods.rb'
+    - 'lib/solargraph/pin_cache.rb'
     - 'lib/solargraph/workspace.rb'
 
 # Configuration parameters: EnforcedStyle, AllowedIdentifiers, AllowedPatterns, ForbiddenIdentifiers, ForbiddenPatterns.
@@ -867,6 +871,7 @@ RSpec/BeforeAfterAll:
     - '**/spec/spec_helper.rb'
     - '**/spec/rails_helper.rb'
     - '**/spec/support/**/*.rb'
+    - 'spec/api_map_spec.rb'
     - 'spec/language_server/host/dispatch_spec.rb'
     - 'spec/language_server/protocol_spec.rb'
 
@@ -906,6 +911,7 @@ RSpec/DescribedClass:
     - 'spec/diagnostics/type_check_spec.rb'
     - 'spec/diagnostics/update_errors_spec.rb'
     - 'spec/diagnostics_spec.rb'
+    - 'spec/doc_map_spec.rb'
     - 'spec/language_server/host/diagnoser_spec.rb'
     - 'spec/language_server/host/dispatch_spec.rb'
     - 'spec/language_server/host/message_worker_spec.rb'
@@ -1838,6 +1844,7 @@ Style/MapToSet:
 Style/MethodDefParentheses:
   Exclude:
     - 'lib/solargraph.rb'
+    - 'lib/solargraph/api_map.rb'
     - 'lib/solargraph/api_map/index.rb'
     - 'lib/solargraph/api_map/store.rb'
     - 'lib/solargraph/complex_type.rb'
@@ -1874,6 +1881,7 @@ Style/MethodDefParentheses:
     - 'lib/solargraph/pin/local_variable.rb'
     - 'lib/solargraph/pin/method.rb'
     - 'lib/solargraph/pin/parameter.rb'
+    - 'lib/solargraph/pin_cache.rb'
     - 'lib/solargraph/position.rb'
     - 'lib/solargraph/range.rb'
     - 'lib/solargraph/rbs_map/conversions.rb'
@@ -1885,6 +1893,7 @@ Style/MethodDefParentheses:
     - 'lib/solargraph/source_map/mapper.rb'
     - 'lib/solargraph/type_checker.rb'
     - 'lib/solargraph/yard_map/helpers.rb'
+    - 'spec/doc_map_spec.rb'
     - 'spec/fixtures/rdoc-lib/lib/example.rb'
     - 'spec/source_map_spec.rb'
     - 'spec/spec_helper.rb'
@@ -2269,6 +2278,7 @@ Style/StringLiterals:
     - 'spec/rbs_map/conversions_spec.rb'
     - 'spec/rbs_map/core_map_spec.rb'
     - 'spec/rbs_map/stdlib_map_spec.rb'
+    - 'spec/shell_spec.rb'
     - 'spec/source/chain/array_spec.rb'
     - 'spec/source/chain/call_spec.rb'
     - 'spec/source/chain/class_variable_spec.rb'
@@ -2373,7 +2383,6 @@ Style/TrailingCommaInArrayLiteral:
 # SupportedStylesForMultiline: comma, consistent_comma, diff_comma, no_comma
 Style/TrailingCommaInHashLiteral:
   Exclude:
-    - 'lib/solargraph/pin/base.rb'
     - 'lib/solargraph/pin/base_variable.rb'
     - 'lib/solargraph/pin/callable.rb'
     - 'lib/solargraph/pin/closure.rb'
@@ -2403,11 +2412,11 @@ Style/WordArray:
     - 'lib/solargraph/complex_type/unique_type.rb'
     - 'lib/solargraph/diagnostics/type_check.rb'
     - 'lib/solargraph/language_server/message/text_document/formatting.rb'
+    - 'spec/doc_map_spec.rb'
     - 'spec/parser/node_chainer_spec.rb'
     - 'spec/pin/method_spec.rb'
     - 'spec/source/cursor_spec.rb'
     - 'spec/source/source_chainer_spec.rb'
-    - 'spec/source_map/clip_spec.rb'
     - 'spec/source_map/mapper_spec.rb'
     - 'spec/source_map_spec.rb'
     - 'spec/source_spec.rb'

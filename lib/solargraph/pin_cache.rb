@@ -412,6 +412,11 @@ module Solargraph
     class << self
       include Logging
 
+      # @param path [String]
+      def exist? *path
+        File.file? File.join(*path)
+      end
+
       # @return [Hash{Array<String> => Hash{Array(String, String) =>
       #   Array<Pin::Base>}}] yard plugins, then gemspec name and
       #   version
@@ -456,11 +461,6 @@ module Solargraph
         uncache(stdlib_path, out: out)
       end
 
-      # @return [void]
-      def clear
-        FileUtils.rm_rf base_dir, secure: true
-      end
-
       # The working directory for the current Ruby, RBS, and Solargraph versions.
       #
       # @return [String]
@@ -471,8 +471,136 @@ module Solargraph
       end
 
       # @return [String]
+      def stdlib_path
+        File.join(work_dir, 'stdlib')
+      end
+
+      # @param require [String]
+      # @return [String]
+      def stdlib_require_path require
+        File.join(stdlib_path, "#{require}.ser")
+      end
+
+      # @param require [String]
+      # @return [Array<Pin::Base>]
+      def deserialize_stdlib_require require
+        load(stdlib_require_path(require))
+      end
+
+      # @param require [String]
+      # @param pins [Array<Pin::Base>]
+      # @return [void]
+      def serialize_stdlib_require require, pins
+        save(stdlib_require_path(require), pins)
+      end
+
+      # @return [String]
       def core_path
         File.join(work_dir, 'core.ser')
+      end
+
+      # @return [Array<Pin::Base>]
+      def deserialize_core
+        load(core_path)
+      end
+
+      # @param pins [Array<Pin::Base>]
+      # @return [void]
+      def serialize_core pins
+        save(core_path, pins)
+      end
+
+      # @param gemspec [Gem::Specification]
+      # @return [String]
+      def yard_gem_path gemspec
+        File.join(work_dir, 'yard', "#{gemspec.name}-#{gemspec.version}.ser")
+      end
+
+      # @param gemspec [Gem::Specification]
+      # @return [Array<Pin::Base>]
+      def deserialize_yard_gem(gemspec)
+        load(yard_gem_path(gemspec))
+      end
+
+      # @param gemspec [Gem::Specification]
+      # @param pins [Array<Pin::Base>]
+      # @return [void]
+      def serialize_yard_gem(gemspec, pins)
+        save(yard_gem_path(gemspec), pins)
+      end
+
+      # @param gemspec [Gem::Specification]
+      # @return [Boolean]
+      def has_yard?(gemspec)
+        exist?(yard_gem_path(gemspec))
+      end
+
+      # @param gemspec [Gem::Specification]
+      # @param hash [String, nil]
+      # @return [String]
+      def rbs_collection_path(gemspec, hash)
+        File.join(work_dir, 'rbs', "#{gemspec.name}-#{gemspec.version}-#{hash || 0}.ser")
+      end
+
+      # @param gemspec [Gem::Specification]
+      # @return [String]
+      def rbs_collection_path_prefix(gemspec)
+        File.join(work_dir, 'rbs', "#{gemspec.name}-#{gemspec.version}-")
+      end
+
+      # @param gemspec [Gem::Specification]
+      # @param hash [String, nil]
+      # @return [Array<Pin::Base>]
+      def deserialize_rbs_collection_gem(gemspec, hash)
+        load(rbs_collection_path(gemspec, hash))
+      end
+
+      # @param gemspec [Gem::Specification]
+      # @param hash [String, nil]
+      # @param pins [Array<Pin::Base>]n
+      # @return [void]
+      def serialize_rbs_collection_gem(gemspec, hash, pins)
+        save(rbs_collection_path(gemspec, hash), pins)
+      end
+
+      # @param gemspec [Gem::Specification]
+      # @param hash [String, nil]
+      # @return [String]
+      def combined_path(gemspec, hash)
+        File.join(work_dir, 'combined', "#{gemspec.name}-#{gemspec.version}-#{hash || 0}.ser")
+      end
+
+      # @param gemspec [Gem::Specification]
+      # @return [String]
+      def combined_path_prefix(gemspec)
+        File.join(work_dir, 'combined', "#{gemspec.name}-#{gemspec.version}-")
+      end
+
+      # @param gemspec [Gem::Specification]
+      # @param hash [String, nil]
+      # @param pins [Array<Pin::Base>]
+      # @return [void]
+      def serialize_combined_gem(gemspec, hash, pins)
+        save(combined_path(gemspec, hash), pins)
+      end
+
+      # @param gemspec [Gem::Specification]
+      # @param hash [String, nil]
+      # @return [Array<Pin::Base>]
+      def deserialize_combined_gem gemspec, hash
+        load(combined_path(gemspec, hash))
+      end
+
+      # @param gemspec [Gem::Specification]
+      # @param hash [String, nil]
+      # @return [Boolean]
+      def has_rbs_collection?(gemspec, hash)
+        exist?(rbs_collection_path(gemspec, hash))
+      end
+
+      # @return [void]
+      def clear
+        FileUtils.rm_rf base_dir, secure: true
       end
 
       # @param file [String]
@@ -505,41 +633,6 @@ module Solargraph
       # @return [Array<Pin::Base>]
       def cache_core out: $stderr
         RbsMap::CoreMap.new.cache_core(out: out)
-      end
-
-      # @return [Array<Pin::Base>, nil]
-      def load_core
-        load(core_path)
-      end
-
-      # @param pins [Array<Pin::Base>]
-      # @return [void]
-      def serialize_core pins
-        save(core_path, pins)
-      end
-
-      # @return [String]
-      def stdlib_path
-        File.join(work_dir, 'stdlib')
-      end
-
-      # @param require [String]
-      # @return [String]
-      def stdlib_require_path require
-        File.join(stdlib_path, "#{require}.ser")
-      end
-
-      # @param require [String]
-      # @return [Array<Pin::Base>, nil]
-      def load_stdlib_require require
-        load(stdlib_require_path(require))
-      end
-
-      # @param require [String]
-      # @param pins [Array<Pin::Base>]
-      # @return [void]
-      def serialize_stdlib_require require, pins
-        save(stdlib_require_path(require), pins)
       end
     end
   end

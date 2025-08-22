@@ -27,6 +27,7 @@ module Solargraph
       end
 
       # @param text [String]
+      # @sg-ignore
       # @return [String]
       def htmlify text
         # @type [String]
