@@ -187,7 +187,7 @@ module Solargraph
       frag.strip.gsub(/,$/, '')
     end
 
-    # @param node [Parser::AST::Node]
+    # @param node [AST::Node]
     # @return [String, nil]
     def comments_for node
       rng = Range.from_node(node)
@@ -318,7 +318,7 @@ module Solargraph
       @string_nodes ||= string_nodes_in(node)
     end
 
-    # @return [Array<Range>]
+    # @return [Array<Solargraph::Range>]
     def comment_ranges
       @comment_ranges ||= comments.values.map(&:range)
     end
@@ -387,6 +387,7 @@ module Solargraph
     # @return [Integer]
     attr_writer :version
 
+    # @return [void]
     def finalize
       return if @finalized && changes.empty?
 
@@ -441,6 +442,7 @@ module Solargraph
     # @return [String]
     attr_writer :repaired
 
+    # @return [String]
     def repaired
       finalize
       @repaired

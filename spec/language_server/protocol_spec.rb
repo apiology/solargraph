@@ -34,7 +34,7 @@ class Protocol
   end
 end
 
-describe Protocol do
+describe Protocol, order: :defined do
   before :all do
     @protocol = Protocol.new(Solargraph::LanguageServer::Host.new)
   end
@@ -82,7 +82,7 @@ describe Protocol do
   it "handles initialized" do
     @protocol.request 'initialized', nil
     response = @protocol.response
-    expect(response['error']).to be_nil
+    expect(response['error']).to be_nil, ->{ "Received response #{response.inspect} wtih unexpected error" }
   end
 
   it "configured default dynamic registration capabilities from initialized" do
@@ -163,7 +163,7 @@ describe Protocol do
       }
     }
     response = @protocol.response
-    expect(response['error']).to be_nil
+    expect(response['error']).to be_nil, ->{ "Received response #{response.inspect} wtih unexpected error" }
     expect(response['result']['items'].length > 0).to be(true)
   end
 
@@ -173,6 +173,9 @@ describe Protocol do
     item = response['result']['items'].select{|h| h['label'] == 'bar'}.first
     @protocol.request 'completionItem/resolve', item
     response = @protocol.response
+    expect(response).not_to be_nil
+    expect(response['error']).to be_nil
+    expect(response['result']).to be_a(Hash)
     expect(response['result']['documentation']['value']).to include('bar method')
   end
 
@@ -186,7 +189,7 @@ describe Protocol do
         'character' => 1
       }
     }
-    expect(@protocol.response['error']).to be_nil
+    expect(@protocol.response['error']).to be_nil, ->{ "Received response #{@protocol.response.inspect} wtih unexpected error" }
   end
 
   it "documents YARD pins" do
@@ -212,7 +215,7 @@ describe Protocol do
       'query' => 'test'
     }
     response = @protocol.response
-    expect(response['error']).to be_nil
+    expect(response['error']).to be_nil, ->{ "Received response #{response.inspect} wtih unexpected error" }
   end
 
   it "handles textDocument/definition" do
@@ -227,7 +230,7 @@ describe Protocol do
       }
     }
     response = @protocol.response
-    expect(response['error']).to be_nil
+    expect(response['error']).to be_nil, ->{ "Received response #{response.inspect} wtih unexpected error" }
     expect(response['result']).not_to be_empty
   end
 
@@ -242,7 +245,7 @@ describe Protocol do
       }
     }
     response = @protocol.response
-    expect(response['error']).to be_nil
+    expect(response['error']).to be_nil, ->{ "Received response #{response.inspect} wtih unexpected error" }
     expect(response['result']).to be_empty
   end
 
@@ -253,7 +256,7 @@ describe Protocol do
       }
     }
     response = @protocol.response
-    expect(response['error']).to be_nil
+    expect(response['error']).to be_nil, ->{ "Received response #{response.inspect} wtih unexpected error" }
   end
 
   it "handles textDocument/hover" do
@@ -267,7 +270,7 @@ describe Protocol do
       }
     }
     response = @protocol.response
-    expect(response['error']).to be_nil
+    expect(response['error']).to be_nil, ->{ "Received response #{response.inspect} wtih unexpected error" }
     # Given this request hovers over `Foo`, the result should not be empty
     expect(response['result']['contents']).not_to be_empty
   end
@@ -282,7 +285,7 @@ describe Protocol do
         'character' => 17
       }
     }
-    expect(@protocol.response['error']).to be_nil
+    expect(@protocol.response['error']).to be_nil, ->{ "Received response #{@protocol.response.inspect} wtih unexpected error" }
   end
 
   it "handles textDocument/signatureHelp" do
@@ -296,7 +299,7 @@ describe Protocol do
       }
     }
     response = @protocol.response
-    expect(response['error']).to be_nil
+    expect(response['error']).to be_nil, ->{ "Received response #{response.inspect} wtih unexpected error" }
     expect(response['result']['signatures']).not_to be_empty
   end
 
@@ -305,7 +308,7 @@ describe Protocol do
       'query' => 'Foo'
     }
     response = @protocol.response
-    expect(response['error']).to be_nil
+    expect(response['error']).to be_nil, ->{ "Received response #{response.inspect} wtih unexpected error" }
     expect(response['result']).not_to be_empty
   end
 
@@ -320,7 +323,7 @@ describe Protocol do
       }
     }
     response = @protocol.response
-    expect(response['error']).to be_nil
+    expect(response['error']).to be_nil, ->{ "Received response #{response.inspect} wtih unexpected error" }
     expect(response['result']).not_to be_empty
   end
 
@@ -335,7 +338,7 @@ describe Protocol do
       }
     }
     response = @protocol.response
-    expect(response['error']).to be_nil
+    expect(response['error']).to be_nil, ->{ "Received response #{response.inspect} wtih unexpected error" }
     expect(response['result']).not_to be_empty
   end
 
@@ -351,7 +354,7 @@ describe Protocol do
       'newName' => 'new_name'
     }
     response = @protocol.response
-    expect(response['error']).to be_nil
+    expect(response['error']).to be_nil, ->{ "Received response #{response.inspect} wtih unexpected error" }
     expect(response['result']['changes']['file:///file.rb']).to be_a(Array)
   end
 
@@ -367,7 +370,7 @@ describe Protocol do
       'newName' => 'new_name'
     }
     response = @protocol.response
-    expect(response['error']).to be_nil
+    expect(response['error']).to be_nil, ->{ "Received response #{response.inspect} wtih unexpected error" }
     expect(response['result']).to be_a(Hash)
   end
 
@@ -378,7 +381,7 @@ describe Protocol do
       }
     }
     response = @protocol.response
-    expect(response['error']).to be_nil
+    expect(response['error']).to be_nil, ->{ "Received response #{response.inspect} wtih unexpected error" }
     expect(response['result'].length).not_to be_zero
   end
 
@@ -397,7 +400,7 @@ describe Protocol do
       'query' => 'Foo#bar'
     }
     response = @protocol.response
-    expect(response['error']).to be_nil
+    expect(response['error']).to be_nil, ->{ "Received response #{response.inspect} wtih unexpected error" }
     expect(response['result']['content']).not_to be_empty
   end
 
@@ -406,7 +409,7 @@ describe Protocol do
       'query' => 'String'
     }
     response = @protocol.response
-    expect(response['error']).to be_nil
+    expect(response['error']).to be_nil, ->{ "Received response #{response.inspect} wtih unexpected error" }
     expect(response['result']['content']).not_to be_empty
   end
 
@@ -426,7 +429,7 @@ describe Protocol do
   it "handles $/solargraph/checkGemVersion" do
     @protocol.request '$/solargraph/checkGemVersion', { verbose: false }
     response = @protocol.response
-    expect(response['error']).to be_nil
+    expect(response['error']).to be_nil, ->{ "Received response #{response.inspect} wtih unexpected error" }
     expect(response['result']['installed']).to be_a(String)
     expect(response['result']['available']).to be_a(String)
   end
@@ -434,7 +437,7 @@ describe Protocol do
   it "handles $/solargraph/documentGems" do
     @protocol.request '$/solargraph/documentGems', {}
     response = @protocol.response
-    expect(response['error']).to be_nil
+    expect(response['error']).to be_nil, ->{ "Received response #{response.inspect} wtih unexpected error" }
   end
 
   it "handles textDocument/formatting" do
@@ -451,7 +454,7 @@ describe Protocol do
       }
     }
     response = @protocol.response
-    expect(response['error']).to be_nil
+    expect(response['error']).to be_nil, ->{ "Received response #{response.inspect} wtih unexpected error" }
     expect(response['result'].first['newText']).to be_a(String)
   end
 
@@ -469,7 +472,7 @@ describe Protocol do
       }
     }
     response = @protocol.response
-    expect(response['error']).to be_nil
+    expect(response['error']).to be_nil, ->{ "Received response #{response.inspect} wtih unexpected error" }
     # @todo Rules for parenthesized parameters have apparently changed in RuboCop 0.89
     # expect(response['result'].first['newText']).to include('def barbaz(parameter); end')
   end
@@ -490,7 +493,7 @@ describe Protocol do
       ]
     }
     response = @protocol.response
-    expect(response['error']).to be_nil
+    expect(response['error']).to be_nil, ->{ "Received response #{response.inspect} wtih unexpected error" }
   end
 
   it "handles didChangeWatchedFiles for changed files" do
@@ -503,7 +506,7 @@ describe Protocol do
       ]
     }
     response = @protocol.response
-    expect(response['error']).to be_nil
+    expect(response['error']).to be_nil, ->{ "Received response #{response.inspect} wtih unexpected error" }
   end
 
   it "handles didChangeWatchedFiles for deleted files" do
@@ -516,7 +519,7 @@ describe Protocol do
       ]
     }
     response = @protocol.response
-    expect(response['error']).to be_nil
+    expect(response['error']).to be_nil, ->{ "Received response #{response.inspect} wtih unexpected error" }
   end
 
   it "handles didChangeWatchedFiles for invalid change types" do
@@ -529,7 +532,7 @@ describe Protocol do
       ]
     }
     response = @protocol.response
-    expect(response['error']).not_to be_nil
+    expect(response['error']).not_to be_nil, ->{ "Received response #{response.inspect} wtih unexpected error" }
   end
 
   it "adds folders to the workspace" do
@@ -583,13 +586,13 @@ describe Protocol do
   it "handles shutdown" do
     @protocol.request 'shutdown', {}
     response = @protocol.response
-    expect(response['error']).to be_nil
+    expect(response['error']).to be_nil, ->{ "Received response #{response.inspect} wtih unexpected error" }
   end
 
   it "handles exit" do
     @protocol.request 'exit', {}
     response = @protocol.response
-    expect(response['error']).to be_nil
+    expect(response['error']).to be_nil, ->{ "Received response #{response.inspect} wtih unexpected error" }
     expect(@protocol.host.stopped?).to be(true)
   end
 end

@@ -1,5 +1,5 @@
 describe Solargraph::TypeChecker do
-  context 'strict level' do
+  context 'when checking at strict level' do
     # @return [Solargraph::TypeChecker]
     def type_checker(code)
       Solargraph::TypeChecker.load_string(code, 'test.rb', :strict)
@@ -59,7 +59,7 @@ describe Solargraph::TypeChecker do
         require 'kramdown-parser-gfm'
         Kramdown::Parser::GFM.undefined_call
       ), 'test.rb')
-      api_map = Solargraph::ApiMap.load_with_cache('.', $stdout)
+      api_map = Solargraph::ApiMap.load '.'
       api_map.catalog Solargraph::Bench.new(source_maps: [source_map], external_requires: ['kramdown-parser-gfm'])
       checker = Solargraph::TypeChecker.new('test.rb', api_map: api_map, level: :strict)
       expect(checker.problems).to be_empty
@@ -115,6 +115,39 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.first.message).to include('Wrong argument type')
     end
 
+    it 'reports mismatched argument types in chained calls' do
+      checker = type_checker(%(
+        # @param baz [Integer]
+        # @return [String]
+        def bar(baz); "foo"; end
+        bar('string').upcase
+      ))
+      expect(checker.problems).to be_one
+      expect(checker.problems.first.message).to include('Wrong argument type')
+    end
+
+    it 'reports mismatched argument types in calls inside array literals' do
+      checker = type_checker(%(
+        # @param baz [Integer]
+        # @return [String]
+        def bar(baz); "foo"; end
+        [ bar('string') ]
+      ))
+      expect(checker.problems).to be_one
+      expect(checker.problems.first.message).to include('Wrong argument type')
+    end
+
+    it 'reports mismatched argument types in calls inside array literals used in a chain' do
+      checker = type_checker(%(
+        # @param baz [Integer]
+        # @return [String]
+        def bar(baz); "foo"; end
+        [ bar('string') ].compact
+      ))
+      expect(checker.problems).to be_one
+      expect(checker.problems.first.message).to include('Wrong argument type')
+    end
+
     xit 'complains about calling a private method from an illegal place'
 
     xit 'complains about calling a non-existent method'
@@ -126,7 +159,7 @@ describe Solargraph::TypeChecker do
           a[0] = :something
         end
       ))
-      expect(checker.problems.map(&:problems)).to eq(['Wrong argument type'])
+      expect(checker.problems.map(&:message)).to eq(['Wrong argument type'])
     end
 
     it 'complains about dereferencing a non-existent tuple slot'
@@ -666,6 +699,19 @@ describe Solargraph::TypeChecker do
       expect(checker.problems).to be_empty
     end
 
+
+    it 'validates parameters in function calls' do
+      checker = type_checker(%(
+        # @param bar [String]
+        def foo(bar); end
+
+        def baz
+          foo(123)
+        end
+        ))
+      expect(checker.problems.map(&:message)).to eq(['Wrong argument type for #foo: bar expected String, received 123'])
+    end
+
     it 'validates inferred return types with complex tags' do
       checker = type_checker(%(
         # @param foo [Numeric, nil] a foo
@@ -814,6 +860,23 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message)).to eq([])
     end
 
+    it "understands enough of define_method not to think the block is in class scope" do
+      checker = type_checker(%(
+        class Foo
+          def initialize
+            @resolved_method = nil
+          end
+
+          def bar
+          end
+
+          define_method('a') do
+            bar
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq([])
+    end
 
     it 'understands tuple superclass' do
       checker = type_checker(%(
@@ -937,6 +1000,23 @@ describe Solargraph::TypeChecker do
         # @param a [TrueClass]
         def bar(a)
           foo(a)
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq([])
+    end
+
+    it 'does not complain on defaulted reader with detailed expression' do
+      checker = type_checker(%(
+        class Foo
+          # @return [Integer, nil]
+          def bar
+            @bar ||=
+              if rand
+                 123
+               elsif rand
+                 456
+               end
+          end
         end
       ))
       expect(checker.problems.map(&:message)).to eq([])

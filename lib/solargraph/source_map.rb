@@ -32,11 +32,13 @@ module Solargraph
 
       environ.merge Convention.for_local(self) unless filename.nil?
       self.convention_pins = environ.pins
+      # @type [Hash{Class<generic<T>> => Array<generic<T>>}]
       @pin_select_cache = {}
     end
 
-    # @param klass [Class]
-    # @return [Array<Pin::Base>]
+    # @generic T
+    # @param klass [Class<generic<T>>]
+    # @return [Array<generic<T>>]
     def pins_by_class klass
       @pin_select_cache[klass] ||= pin_class_hash.select { |key, _| key <= klass }.values.flatten
     end
@@ -114,9 +116,12 @@ module Solargraph
     # @param line [Integer]
     # @param character [Integer]
     # @return [Pin::Namespace,Pin::Method,Pin::Block]
-    def locate_block_pin line, character
-      _locate_pin line, character, Pin::Namespace, Pin::Method, Pin::Block
+    def locate_closure_pin line, character
+      _locate_pin line, character, Pin::Closure
     end
+
+    # @deprecated Please use locate_closure_pin instead
+    alias locate_block_pin locate_closure_pin
 
     # @param name [String]
     # @return [Array<Location>]
@@ -158,10 +163,12 @@ module Solargraph
 
     private
 
+    # @return [Hash{Class => Array<Pin::Base>}]
     def pin_class_hash
       @pin_class_hash ||= pins.to_set.classify(&:class).transform_values(&:to_a)
     end
 
+    # @return [Data]
     def data
       @data ||= Data.new(source)
     end

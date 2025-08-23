@@ -45,7 +45,8 @@ module Solargraph
           code_object_map[pin.path].docstring = pin.docstring
           store.get_includes(pin.path).each do |ref|
             include_object = code_object_at(pin.path, YARD::CodeObjects::ClassObject)
-            include_object.instance_mixins.push code_object_map[ref] unless include_object.nil? or include_object.nil?
+            code_object = code_object_map[ref]
+            include_object.instance_mixins.push code_object_map[ref] if include_object && code_object
           end
           store.get_extends(pin.path).each do |ref|
             extend_object = code_object_at(pin.path, YARD::CodeObjects::ClassObject)

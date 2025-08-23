@@ -9,7 +9,8 @@ task :console do
 end
 
 desc "Run the type checker"
-task typecheck: [:typecheck_typed]
+
+task typecheck: [:typecheck_strong]
 
 desc "Run the type checker at typed level - return code issues provable without annotations being correct"
 task :typecheck_typed do
@@ -133,5 +134,5 @@ end
 desc "Show quality checks on this development branch so far, including any staged files"
 task :overcommit do
   # OVERCOMMIT_DEBUG=1 will show more detail
-  sh 'SOLARGRAPH_ASSERTS=on bundle exec overcommit --run --diff origin/master'
+  sh 'SOLARGRAPH_ASSERTS=on bundle exec overcommit --run --diff origin/2025-07-02'
 end

@@ -17,6 +17,10 @@ module Solargraph
       include Equality
       include Logging
 
+      #
+      # A chain of constants, variables, and method calls for inferring types of
+      # values.
+      #
       autoload :Link,             'solargraph/source/chain/link'
       autoload :Call,             'solargraph/source/chain/call'
       autoload :QCall,            'solargraph/source/chain/q_call'
@@ -269,7 +273,10 @@ module Solargraph
                else
                  ComplexType.new(types)
                end
-        return type if context.nil? || context.return_type.undefined?
+        if context.nil? || context.return_type.undefined?
+          # up to downstream to resolve self type
+          return type
+        end
 
         type.self_to_type(context.return_type)
       end

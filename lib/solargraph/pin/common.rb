@@ -3,12 +3,22 @@
 module Solargraph
   module Pin
     module Common
+      # @!method closure
+      #   @abstract
+      #   @return [Pin::Closure, nil]
+      # @!method source
+      #   @abstract
+      #   @return [String, nil]
+
       # @return [Location]
       attr_reader :location
 
+      # @sg-ignore Solargraph::Pin::Common#closure return type could not be inferred
       # @return [Pin::Closure, nil]
       def closure
-        Solargraph.assert_or_log(:closure, "Closure not set on #{self.class} #{name.inspect} from #{source.inspect}") unless @closure
+        unless @closure
+          Solargraph.assert_or_log(:closure, "Closure not set on #{self.class} #{name.inspect} from #{source.inspect}")
+        end
         @closure
       end
 

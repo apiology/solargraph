@@ -95,7 +95,7 @@ module Solargraph
         type = build_type(decl.name, decl.args)
         generic_values = type.all_params.map(&:to_s)
         include_pin = Solargraph::Pin::Reference::Include.new(
-          name: decl.name.relative!.to_s,
+          name: type.rooted_name,
           type_location: location_decl_to_pin_location(decl.location),
           generic_values: generic_values,
           closure: closure,
@@ -184,7 +184,7 @@ module Solargraph
             type_location: location_decl_to_pin_location(decl.super_class.location),
             closure: class_pin,
             generic_values: generic_values,
-            name: decl.super_class.name.relative!.to_s,
+            name: type.rooted_name,
             source: :rbs
           )
         end
@@ -229,6 +229,8 @@ module Solargraph
         convert_self_types_to_pins decl, module_pin
         convert_members_to_pins decl, module_pin
 
+        raise "Invalid type for module declaration: #{module_pin.class}" unless module_pin.is_a?(Pin::Namespace)
+
         add_mixins decl, module_pin.closure
       end
 
@@ -240,6 +242,7 @@ module Solargraph
       #
       # @return [Solargraph::Pin::Constant]
       def create_constant(name, tag, comments, decl, base = nil)
+        tag = "#{base}<#{tag}>" if base
         parts = name.split('::')
         if parts.length > 1
           name = parts.last
@@ -255,7 +258,6 @@ module Solargraph
           comments: comments,
           source: :rbs
         )
-        tag = "#{base}<#{tag}>" if base
         rooted_tag = ComplexType.parse(tag).force_rooted.rooted_tags
         constant_pin.docstring.add_tag(YARD::Tags::Tag.new(:return, '', rooted_tag))
         constant_pin
@@ -345,7 +347,7 @@ module Solargraph
       }
 
       # @param decl [RBS::AST::Members::MethodDefinition, RBS::AST::Members::AttrReader, RBS::AST::Members::AttrAccessor]
-      # @param closure [Pin::Namespace]
+      # @param closure [Pin::Closure]
       # @param context [Context]
       # @param scope [Symbol] :instance or :class
       # @param name [String] The name of the method
@@ -476,7 +478,15 @@ module Solargraph
         end
         if type.type.rest_positionals
           name = type.type.rest_positionals.name ? type.type.rest_positionals.name.to_s : "arg_#{arg_num += 1}"
-          parameters.push Solargraph::Pin::Parameter.new(decl: :restarg, name: name, closure: pin, source: :rbs, type_location: type_location)
+          inner_rest_positional_type =
+            ComplexType.try_parse(other_type_to_tag(type.type.rest_positionals.type))
+          rest_positional_type = ComplexType::UniqueType.new('Array',
+                                                             [],
+                                                             [inner_rest_positional_type],
+                                                             rooted: true, parameters_type: :list)
+          parameters.push Solargraph::Pin::Parameter.new(decl: :restarg, name: name, closure: pin,
+                                                         source: :rbs, type_location: type_location,
+                                                         return_type: rest_positional_type,)
         end
         type.type.trailing_positionals.each do |param|
           name = param.name ? param.name.to_s : "arg_#{arg_num += 1}"
@@ -699,13 +709,13 @@ module Solargraph
       # @return [ComplexType::UniqueType]
       def build_type(type_name, type_args = [])
         base = RBS_TO_YARD_TYPE[type_name.relative!.to_s] || type_name.relative!.to_s
-        params = type_args.map { |a| other_type_to_tag(a) }.reject { |t| t == 'undefined' }.map do |t|
+        params = type_args.map { |a| other_type_to_tag(a) }.map do |t|
           ComplexType.try_parse(t).force_rooted
         end
         if base == 'Hash' && params.length == 2
           ComplexType::UniqueType.new(base, [params.first], [params.last], rooted: true, parameters_type: :hash)
         else
-          ComplexType::UniqueType.new(base, [], params, rooted: true, parameters_type: :list)
+          ComplexType::UniqueType.new(base, [], params.reject(&:undefined?), rooted: true, parameters_type: :list)
         end
       end
 

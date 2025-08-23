@@ -69,8 +69,15 @@ module Solargraph
         Solargraph.assert_or_log(:best_location, "Neither location nor type_location provided - #{path} #{source} #{self.class}")
       end
 
+      # @return [Pin::Closure, nil]
+      def closure
+        Solargraph.assert_or_log(:closure, "Closure not set on #{self.class} #{name.inspect} from #{source.inspect}") unless @closure
+        # @type [Pin::Closure, nil]
+        @closure
+      end
+
       # @param other [self]
-      # @param attrs [Hash{Symbol => Object}]
+      # @param attrs [Hash{::Symbol => Object}]
       #
       # @return [self]
       def combine_with(other, attrs={})
@@ -182,15 +189,19 @@ module Solargraph
           other.return_type
         elsif other.return_type.undefined?
           return_type
+        elsif return_type.erased_version_of?(other.return_type)
+          other.return_type
+        elsif other.return_type.erased_version_of?(return_type)
+          return_type
         elsif dodgy_return_type_source? && !other.dodgy_return_type_source?
           other.return_type
         elsif other.dodgy_return_type_source? && !dodgy_return_type_source?
           return_type
         else
           all_items = return_type.items + other.return_type.items
-          if all_items.any? { |item| item.selfy? } && all_items.any? { |item| item.rooted_tag == context.rooted_tag }
+          if all_items.any? { |item| item.selfy? } && all_items.any? { |item| item.rooted_namespace == context.rooted_namespace }
             # assume this was a declaration that should have said 'self'
-            all_items.delete_if { |item| item.rooted_tag == context.rooted_tag }
+            all_items.delete_if { |item| item.rooted_namespace == context.rooted_namespace }
           end
           ComplexType.new(all_items)
         end
@@ -218,7 +229,7 @@ module Solargraph
       end
 
       # @param other [self]
-      # @param attr [Symbol]
+      # @param attr [::Symbol]
       # @sg-ignore
       # @return [undefined]
       def choose_node(other, attr)
@@ -298,9 +309,15 @@ module Solargraph
       # @param other [self]
       # @param attr [::Symbol]
       #
-      # @return [Object, nil]
+      # @sg-ignore
+      # @return [undefined]
       def assert_same(other, attr)
-        return false if other.nil?
+        # :nocov:
+        if other.nil?
+          Solargraph.assert_or_log("combine_with_#{attr}".to_sym, "Sent nil for comparison")
+          return send(attr)
+        end
+        # :nocov:
         val1 = send(attr)
         val2 = other.send(attr)
         return val1 if val1 == val2
@@ -329,6 +346,8 @@ module Solargraph
 
       # @param other [self]
       # @param attr [::Symbol]
+      #
+      # @sg-ignore Missing @return tag for Solargraph::Pin::Base#choose_pin_attr
       # @return [undefined]
       def choose_pin_attr(other, attr)
         # @type [Pin::Base, nil]
@@ -336,11 +355,14 @@ module Solargraph
         # @type [Pin::Base, nil]
         val2 = other.send(attr)
         if val1.class != val2.class
+          # :nocov:
           Solargraph.assert_or_log("combine_with_#{attr}_class".to_sym,
                                    "Inconsistent #{attr.inspect} class values between \nself =#{inspect} and \nother=#{other.inspect}:\n\n self.#{attr} = #{val1.inspect}\nother.#{attr} = #{val2.inspect}")
           return val1
+          # :nocov:
         end
         # arbitrary way of choosing a pin
+        # @sg-ignore Need _1 support
         [val1, val2].compact.min_by { _1.best_location.to_s }
       end
 

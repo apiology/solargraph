@@ -9,7 +9,7 @@ module Solargraph
       autoload :Base, 'solargraph/parser/node_processor/base'
 
       class << self
-        # @type [Hash<Symbol, Array<Class<NodeProcessor::Base>>>]
+        # @type [Hash{Symbol => Array<Class<NodeProcessor::Base>>}]
         @@processors ||= {}
 
         # Register a processor for a node type. You can register multiple processors for the same type.
@@ -17,12 +17,15 @@ module Solargraph
         #
         # @param type [Symbol]
         # @param cls [Class<NodeProcessor::Base>]
-        # @return [Class<NodeProcessor::Base>]
+        # @return [Array<Class<NodeProcessor::Base>>]
         def register type, cls
           @@processors[type] ||= []
           @@processors[type] << cls
         end
 
+        # @param type [Symbol]
+        # @param cls [Class<NodeProcessor::Base>]
+        # @return [void]
         def deregister type, cls
           @@processors[type].delete(cls)
         end
@@ -31,7 +34,7 @@ module Solargraph
       # @param node [Parser::AST::Node]
       # @param region [Region]
       # @param pins [Array<Pin::Base>]
-      # @param locals [Array<Pin::BaseVariable>]
+      # @param locals [Array<Pin::LocalVariable>]
       # @return [Array(Array<Pin::Base>, Array<Pin::Base>)]
       def self.process node, region = Region.new, pins = [], locals = []
         if pins.empty?
