@@ -57,7 +57,7 @@ jobs:
       - name: Overcommit
         run: |
           bundle exec overcommit --sign
-          SOLARGRAPH_ASSERTS=on bundle exec overcommit --run --diff origin/master
+          SOLARGRAPH_ASSERTS=on bundle exec overcommit --run --diff origin/2025-08-28
   rubocop:
     name: rubocop
     runs-on: ubuntu-latest
