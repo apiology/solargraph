@@ -11,7 +11,10 @@ Gem::Specification.new do |s|
   s.authors     = ["Fred Snyder"]
   s.email       = 'admin@castwide.com'
   s.files       = Dir.chdir(File.expand_path('..', __FILE__)) do
-    `git ls-files -z`.split("\x0").reject { |f| f.match(%r{^(test|spec|features)/}) }
+    # @sg-ignore Need backtick support
+    # @type [String]
+    all_files = `git ls-files -z`
+    all_files.split("\x0").reject { |f| f.match(%r{^(test|spec|features)/}) }
   end
   s.homepage    = 'https://solargraph.org'
   s.license     = 'MIT'
@@ -23,6 +26,7 @@ Gem::Specification.new do |s|
 
   s.required_ruby_version = '>= 3.0'
 
+  s.add_runtime_dependency 'ast', '~> 2.4.3'
   s.add_runtime_dependency 'backport', '~> 1.2'
   s.add_runtime_dependency 'benchmark', '~> 0.4'
   s.add_runtime_dependency 'bundler', '~> 2.0'
@@ -33,6 +37,7 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency 'logger', '~> 1.6'
   s.add_runtime_dependency 'observer', '~> 0.1'
   s.add_runtime_dependency 'ostruct', '~> 0.6'
+  s.add_runtime_dependency 'open3', '~> 0.2.1'
   s.add_runtime_dependency 'parser', '~> 3.0'
   s.add_runtime_dependency 'prism', '~> 1.4'
   s.add_runtime_dependency 'rbs', ['>= 3.6.1', '<= 4.0.0.dev.4']

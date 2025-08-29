@@ -27,7 +27,8 @@ module Solargraph
       end
 
       # @param other [self]
-      # @return [Solargraph::Pin::Signature, nil]
+      #
+      # @return [Pin::Block, nil]
       def combine_blocks(other)
         if block.nil?
           other.block
