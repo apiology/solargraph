@@ -51,6 +51,9 @@ jobs:
           path: |
             /home/runner/.cache/solargraph
 
+      - name: Debug
+        run: bundle info rbs
+
       - name: Install gem types
         run: bundle exec rbs collection install
 
