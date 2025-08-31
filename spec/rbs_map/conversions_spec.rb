@@ -46,7 +46,6 @@ describe Solargraph::RbsMap::Conversions do
       end
     end
 
-
     # https://github.com/castwide/solargraph/issues/1042
     context 'with Hash superclass with untyped value and alias' do
       let(:rbs) do
