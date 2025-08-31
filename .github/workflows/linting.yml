@@ -39,17 +39,17 @@ jobs:
         run: |
           bundle update rbs # use latest available for this Ruby version
 
-      - name: Restore cache of gem annotations
-        id: dot-cache-restore
-        uses: actions/cache/restore@v4
-        with:
-          key: |
-            2025-08-${{ runner.os }}-dot-cache-${{ hashFiles('Gemfile.lock') }}
-          restore-keys: |
-            2025-08-${{ runner.os }}-dot-cache
-            2025-08-${{ runner.os }}-dot-cache-
-          path: |
-            /home/runner/.cache/solargraph
+      # - name: Restore cache of gem annotations
+      #   id: dot-cache-restore
+      #   uses: actions/cache/restore@v4
+      #   with:
+      #     key: |
+      #       2025-08-${{ runner.os }}-dot-cache-${{ hashFiles('Gemfile.lock') }}
+      #     restore-keys: |
+      #       2025-08-${{ runner.os }}-dot-cache
+      #       2025-08-${{ runner.os }}-dot-cache-
+      #     path: |
+      #       /home/runner/.cache/solargraph
 
       - name: Debug
         run: bundle info rbs
