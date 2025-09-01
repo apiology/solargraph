@@ -26,7 +26,7 @@ module Solargraph
       stdout_and_stderr_str, status = Open3.capture2e(cmd, chdir: gemspec.gem_dir)
       unless status.success?
         Solargraph.logger.warn { "YARD failed running #{cmd.inspect} in #{gemspec.gem_dir}" }
-        Solargraph.logger.info stdout_and_stderr_str
+        Solargraph.logger.warn stdout_and_stderr_str
       end
       path
     end
