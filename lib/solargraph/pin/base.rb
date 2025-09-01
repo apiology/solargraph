@@ -342,6 +342,7 @@ module Solargraph
 
       # @param other [self]
       # @param attr [::Symbol]
+      #
       # @sg-ignore Missing @return tag for Solargraph::Pin::Base#choose_pin_attr
       # @return [undefined]
       def choose_pin_attr(other, attr)
