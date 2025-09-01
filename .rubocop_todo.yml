@@ -2112,12 +2112,6 @@ Style/RedundantFreeze:
     - 'lib/solargraph/source_map/mapper.rb'
 
 # This cop supports unsafe autocorrection (--autocorrect-all).
-# Configuration parameters: AllowComments.
-Style/RedundantInitialize:
-  Exclude:
-    - 'lib/solargraph/rbs_map/core_map.rb'
-
-# This cop supports unsafe autocorrection (--autocorrect-all).
 Style/RedundantInterpolation:
   Exclude:
     - 'lib/solargraph/api_map/store.rb'
