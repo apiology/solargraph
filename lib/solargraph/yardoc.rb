@@ -27,12 +27,6 @@ module Solargraph
         Solargraph.logger.info { "Bad info from gemspec - #{gemspec.gem_dir} does not exist" }
         return
       end
-      stdout_and_stderr_str, status = Open3.capture2e(cmd, chdir: gemspec.gem_dir)
-      unless status.success?
-        Solargraph.logger.warn { "YARD failed running #{cmd.inspect} in #{gemspec.gem_dir}" }
-        Solargraph.logger.info stdout_and_stderr_str
-      end
-
       stdout_and_stderr_str, status = Open3.capture2e(current_bundle_env_tweaks, cmd, chdir: gemspec.gem_dir)
       return if status.success?
       Solargraph.logger.warn { "YARD failed running #{cmd.inspect} in #{gemspec.gem_dir}" }
