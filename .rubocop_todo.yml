@@ -1246,10 +1246,6 @@ RSpec/ScatteredLet:
   Exclude:
     - 'spec/complex_type_spec.rb'
 
-RSpec/StubbedMock:
-  Exclude:
-    - 'spec/language_server/host/message_worker_spec.rb'
-
 # Configuration parameters: IgnoreNameless, IgnoreSymbolicNames.
 RSpec/VerifiedDoubles:
   Exclude:
