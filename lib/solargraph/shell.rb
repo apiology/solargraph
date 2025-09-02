@@ -259,7 +259,6 @@ module Solargraph
         $stderr.puts "Pin not found for path '#{path}'"
         exit 1
       when Pin::Method
-        # @sg-ignore Unresolved call to options
         if options[:stack]
           scope, ns, meth = if path.include? '#'
                               [:instance, *path.split('#', 2)]
@@ -273,7 +272,6 @@ module Solargraph
           pins = api_map.get_method_stack(ns, meth, scope: scope)
         end
       when Pin::Namespace
-        # @sg-ignore Unresolved call to options
         if options[:references]
           superclass_tag = api_map.qualify_superclass(pin.return_type.tag)
           superclass_pin = api_map.get_path_pins(superclass_tag).first if superclass_tag
