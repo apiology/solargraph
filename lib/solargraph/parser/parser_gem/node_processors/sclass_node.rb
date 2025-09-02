@@ -19,7 +19,6 @@ module Solargraph
             if sclass.is_a?(::Parser::AST::Node) && sclass.type == :self
               closure = region.closure
             elsif sclass.is_a?(::Parser::AST::Node) && sclass.type == :casgn
-
               names = [region.closure.namespace, region.closure.name]
               if sclass.children[0].nil? && names.last != sclass.children[1].to_s
                 names << sclass.children[1].to_s
