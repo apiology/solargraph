@@ -15,9 +15,12 @@ describe Solargraph::RbsMap::Conversions do
       Solargraph::RbsMap::Conversions.new(loader: loader)
     end
 
+    let(:api_map) { Solargraph::ApiMap.new }
+
     before do
       rbs_file = File.join(temp_dir, 'foo.rbs')
       File.write(rbs_file, rbs)
+      api_map.index conversions.pins
     end
 
     attr_reader :temp_dir
@@ -52,15 +55,9 @@ describe Solargraph::RbsMap::Conversions do
         RBS
       end
 
-      let(:api_map) { Solargraph::ApiMap.new }
-
       let(:sup_method_stack) { api_map.get_method_stack('Hash{Symbol => undefined}', '[]', scope: :instance) }
 
       let(:sub_alias_stack) { api_map.get_method_stack('Sub', 'meth_alias', scope: :instance) }
-
-      before do
-        api_map.index conversions.pins
-      end
 
       it 'does not crash looking at superclass method' do
         expect { sup_method_stack }.not_to raise_error
@@ -78,6 +75,28 @@ describe Solargraph::RbsMap::Conversions do
         expect(sup_method_stack.flat_map(&:signatures).flat_map(&:parameters).map(&:return_type).map(&:rooted_tags)
                  .uniq).to eq(['Symbol'])
       end
+    end
+
+    context 'with overlapping module hierarchies and inheritance' do
+      let(:rbs) do
+        <<~RBS
+          module B
+            class C
+              def foo: () -> String
+            end
+          end
+          module A
+            module B
+              class C < ::B::C
+              end
+            end
+          end
+        RBS
+      end
+
+      subject(:method_pin) { api_map.get_method_stack('A::B::C', 'foo').first }
+
+      it { should be_a(Solargraph::Pin::Method) }
     end
   end
 
