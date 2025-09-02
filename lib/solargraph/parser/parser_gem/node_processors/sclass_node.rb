@@ -7,9 +7,9 @@ module Solargraph
         class SclassNode < Parser::NodeProcessor::Base
           def process
             sclass = node.children[0]
-            if sclass.is_a?(::AST::Node) && sclass.type == :self
+            if sclass.is_a?(AST::Node) && sclass.type == :self
               closure = region.closure
-            elsif sclass.is_a?(::AST::Node) && sclass.type == :casgn
+            elsif sclass.is_a?(AST::Node) && sclass.type == :casgn
               names = [region.closure.namespace, region.closure.name]
               if sclass.children[0].nil? && names.last != sclass.children[1].to_s
                 names << sclass.children[1].to_s
@@ -18,7 +18,7 @@ module Solargraph
               end
               name = names.reject(&:empty?).join('::')
               closure = Solargraph::Pin::Namespace.new(name: name, location: region.closure.location, source: :parser)
-            elsif sclass.is_a?(::AST::Node) && sclass.type == :const
+            elsif sclass.is_a?(AST::Node) && sclass.type == :const
               names = [region.closure.namespace, region.closure.name]
               also = NodeMethods.unpack_name(sclass)
               if also != region.closure.name
