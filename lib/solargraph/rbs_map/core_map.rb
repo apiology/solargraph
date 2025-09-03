@@ -50,10 +50,6 @@ module Solargraph
         pins out: out
       end
 
-      def loader
-        @loader ||= RBS::EnvironmentLoader.new(repository: RBS::Repository.new(no_stdlib: false))
-      end
-
       private
 
       # @return [RBS::EnvironmentLoader]
