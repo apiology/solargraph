@@ -15,10 +15,10 @@ module Solargraph
 
       def initialize; end
 
+      # @param out [IO, nil] output stream for logging
       # @return [Enumerable<Pin::Base>]
-      def pins
+      def pins out: $stderr
         return @pins if @pins
-
         @pins = []
         cache = PinCache.deserialize_core
         if cache
@@ -32,14 +32,24 @@ module Solargraph
           fill_conversions = Conversions.new(loader: fill_loader)
           @pins.concat fill_conversions.pins
 
-          @pins.concat RbsMap::CoreFills::ALL
+          out&.puts 'Caching RBS pins for Ruby core'
 
-          processed = ApiMap::Store.new(pins).pins.reject { |p| p.is_a?(Solargraph::Pin::Reference::Override) }
+          processed = ApiMap::Store.new(@pins).pins.reject { |p| p.is_a?(Solargraph::Pin::Reference::Override) }
           @pins.replace processed
 
           PinCache.serialize_core @pins
         end
         @pins
+      end
+
+      # @param out [IO, nil] output stream for logging
+      # @return [Enumerable<Pin::Base>]
+      def cache_core out: $stderr
+        pins out: out
+      end
+
+      def loader
+        @loader ||= RBS::EnvironmentLoader.new(repository: RBS::Repository.new(no_stdlib: false))
       end
 
       private
