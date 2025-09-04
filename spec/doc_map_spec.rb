@@ -5,7 +5,7 @@ require 'benchmark'
 
 describe Solargraph::DocMap do
   subject(:doc_map) do
-    described_class.new(requires, [], workspace, out: out)
+    described_class.new(requires, workspace, out: out)
   end
 
   let(:out) { StringIO.new }
@@ -16,7 +16,7 @@ describe Solargraph::DocMap do
     Solargraph::Workspace.new(Dir.pwd)
   end
 
-  let(:plain_doc_map) { described_class.new([], [], workspace, out: nil) }
+  let(:plain_doc_map) { described_class.new([], workspace, out: nil) }
 
   before do
     doc_map.cache_doc_map_gems!(nil) if pre_cache
@@ -30,6 +30,28 @@ describe Solargraph::DocMap do
     it 'generates pins from gems' do
       node_pin = doc_map.pins.find { |pin| pin.path == 'AST::Node' }
       expect(node_pin).to be_a(Solargraph::Pin::Namespace)
+    end
+  end
+
+  context 'with an invalid require' do
+    let(:requires) do
+      ['not_a_gem']
+    end
+
+    it 'tracks unresolved requires' do
+      # These are auto-required by solargraph-rspec in case the bundle
+      # includes these gems.  In our case, it doesn't!
+      unprovided_solargraph_rspec_requires = [
+        'rspec-rails',
+        'actionmailer',
+        'activerecord',
+        'shoulda-matchers',
+        'rspec-sidekiq',
+        'airborne',
+        'activesupport'
+      ]
+      expect(doc_map.unresolved_requires - unprovided_solargraph_rspec_requires)
+        .to eq(['not_a_gem'])
     end
   end
 
@@ -60,9 +82,10 @@ describe Solargraph::DocMap do
     it 'tracks uncached_gemspecs' do
       pincache = instance_double(Solargraph::PinCache)
       uncached_gemspec = Gem::Specification.new('uncached_gem', '1.0.0')
-      allow(workspace).to receive_messages(fresh_pincache: pincache)
-      allow(Gem::Specification).to receive(:find_by_path).with('uncached_gem').and_return(uncached_gemspec)
+      allow(workspace).to receive_messages(resolve_require: [], fresh_pincache: pincache)
       allow(workspace).to receive(:global_environ).and_return(Solargraph::Environ.new)
+      allow(workspace).to receive(:resolve_require).with('uncached_gem').and_return([uncached_gemspec])
+      allow(workspace).to receive(:fetch_dependencies).with(uncached_gemspec, out: out).and_return([])
       allow(pincache).to receive(:deserialize_combined_pin_cache).with(uncached_gemspec).and_return(nil)
       expect(doc_map.uncached_gemspecs).to eq([uncached_gemspec])
     end
@@ -70,7 +93,7 @@ describe Solargraph::DocMap do
 
   context 'with require as bundle/require' do
     it 'imports all gems when bundler/require used' do
-      doc_map_with_bundler_require = described_class.new(['bundler/require'], [], workspace, out: nil)
+      doc_map_with_bundler_require = described_class.new(['bundler/require'], workspace, out: nil)
       doc_map_with_bundler_require.cache_doc_map_gems!(nil)
       expect(doc_map_with_bundler_require.pins.length - plain_doc_map.pins.length).to be_positive
     end
@@ -104,6 +127,14 @@ describe Solargraph::DocMap do
     end
   end
 
+  context 'with a require that has dependencies' do
+    let(:requires) { ['rspec'] }
+
+    it 'collects dependencies' do
+      expect(doc_map.dependencies.map(&:name)).to include('rspec-core')
+    end
+  end
+
   context 'with convention' do
     let(:pre_cache) { false }
 
@@ -118,7 +149,7 @@ describe Solargraph::DocMap do
 
       Solargraph::Convention.register dummy_convention
 
-      doc_map = Solargraph::DocMap.new(['original_gem'], [], workspace)
+      doc_map = Solargraph::DocMap.new(['original_gem'], workspace)
 
       expect(doc_map.requires).to include('original_gem', 'convention_gem1', 'convention_gem2')
     ensure

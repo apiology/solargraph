@@ -2,7 +2,7 @@
 
 describe Solargraph::GemPins do
   let(:workspace) { Solargraph::Workspace.new(Dir.pwd) }
-  let(:doc_map) { Solargraph::DocMap.new(requires, [], workspace, out: nil) }
+  let(:doc_map) { Solargraph::DocMap.new(requires, workspace, out: nil) }
   let(:pin) { doc_map.pins.find { |pin| pin.path == path } }
 
   before do
