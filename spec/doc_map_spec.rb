@@ -33,6 +33,28 @@ describe Solargraph::DocMap do
     end
   end
 
+  context 'with an invalid require' do
+    let(:requires) do
+      ['not_a_gem']
+    end
+
+    it 'tracks unresolved requires' do
+      # These are auto-required by solargraph-rspec in case the bundle
+      # includes these gems.  In our case, it doesn't!
+      unprovided_solargraph_rspec_requires = [
+        'rspec-rails',
+        'actionmailer',
+        'activerecord',
+        'shoulda-matchers',
+        'rspec-sidekiq',
+        'airborne',
+        'activesupport'
+      ]
+      expect(doc_map.unresolved_requires - unprovided_solargraph_rspec_requires)
+        .to eq(['not_a_gem'])
+    end
+  end
+
   it 'does not warn for redundant requires' do
     # Requiring 'set' is unnecessary because it's already included in core. It
     # might make sense to log redundant requires, but a warning is overkill.
