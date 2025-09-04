@@ -22,6 +22,9 @@ module Solargraph
     # @return [Array<String>]
     attr_reader :missing_docs
 
+    # @return [Solargraph::Workspace::Gemspecs]
+    attr_reader :gemspecs
+
     # @param pins [Array<Solargraph::Pin::Base>]
     def initialize pins: []
       @source_map_hash = {}
@@ -106,7 +109,7 @@ module Solargraph
                         @doc_map.any_uncached?
 
       if recreate_docmap
-        @doc_map = DocMap.new(unresolved_requires, [], bench.workspace, out: nil) # @todo Implement gem preferences
+        @doc_map = DocMap.new(unresolved_requires, bench.workspace, out: nil) # @todo Implement gem preferences
         @gemspecs = @doc_map.workspace.gemspecs
         @unresolved_requires = @doc_map.unresolved_requires
       end
@@ -122,8 +125,10 @@ module Solargraph
       [self.class, @source_map_hash, implicit, @doc_map, @unresolved_requires]
     end
 
-    # @return [DocMap, nil]
-    attr_reader :doc_map
+    # @return [DocMap]
+    def doc_map
+      @doc_map ||= DocMap.new([], Workspace.new('.'))
+    end
 
     # @return [::Array<Gem::Specification>]
     def uncached_gemspecs
