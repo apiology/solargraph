@@ -43,6 +43,23 @@ module Solargraph
     CACHE_KEY_STDLIB = 'stdlib'
     CACHE_KEY_LOCAL = 'local'
 
+    # @param cache_key [String]
+    # @return [String, nil] a description of the source of the RBS info
+    def self.rbs_source_desc cache_key
+      case cache_key
+      when CACHE_KEY_GEM_EXPORT
+        'RBS gem export'
+      when CACHE_KEY_UNRESOLVED
+        nil
+      when CACHE_KEY_STDLIB
+        'RBS standard library'
+      when CACHE_KEY_LOCAL
+        'local RBS shims'
+      else
+        'RBS collection'
+      end
+    end
+
     # @return [RBS::EnvironmentLoader]
     def loader
       @loader ||= RBS::EnvironmentLoader.new(core_root: nil, repository: repository)
@@ -98,9 +115,13 @@ module Solargraph
       return rbs_map if rbs_map.resolved?
 
       # try any version of the gem in the collection
-      RbsMap.new(gemspec.name, nil,
-                 rbs_collection_paths: [rbs_collection_path].compact,
-                 rbs_collection_config_path: rbs_collection_config_path)
+      rbs_map = RbsMap.new(gemspec.name, nil,
+                           rbs_collection_paths: [rbs_collection_path].compact,
+                           rbs_collection_config_path: rbs_collection_config_path)
+
+      return rbs_map if rbs_map.resolved?
+
+      StdlibMap.new(gemspec.name)
     end
 
     # @param out [IO, nil] where to log messages
@@ -173,9 +194,10 @@ module Solargraph
     # @return [Boolean] true if adding the library succeeded
     def add_library loader, library, version, out: $stderr
       @resolved = if loader.has_library?(library: library, version: version)
-        loader.add library: library, version: version
-        logger.debug { "#{short_name} successfully loaded library #{library}:#{version}" }
-        true
+                    # we find our own dependencies from gemfile.lock
+                    loader.add library: library, version: version, resolve_dependencies: false
+                    logger.debug { "#{short_name} successfully loaded library #{library}:#{version}" }
+                    true
       else
         logger.info { "#{short_name} did not find data for library #{library}:#{version}" }
         false
