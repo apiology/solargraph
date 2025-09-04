@@ -38,7 +38,6 @@ module Solargraph
         return nil if require.empty?
         return gemspecs_required_from_bundler if require == 'bundler/require'
 
-        # @sg-ignore Variable type could not be inferred for gemspec
         # @type [Gem::Specification, nil]
         gemspec = Gem::Specification.find_by_path(require)
         if gemspec.nil?
@@ -50,7 +49,6 @@ module Solargraph
             # See if we can make a good guess:
             potential_gemspec = Gem::Specification.find_by_name(gem_name_guess)
             file = "lib/#{require}.rb"
-            # @sg-ignore Unresolved call to files
             gemspec = potential_gemspec if potential_gemspec.files.any? { |gemspec_file| file == gemspec_file }
           rescue Gem::MissingSpecError
             logger.debug do
