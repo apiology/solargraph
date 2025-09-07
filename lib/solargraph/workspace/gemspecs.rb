@@ -36,7 +36,12 @@ module Solargraph
       # @return [::Array<Gem::Specification>, nil]
       def resolve_require require
         return nil if require.empty?
-        return gemspecs_required_from_bundler if require == 'bundler/require'
+
+        # This is added in the parser when it sees 'Bundler.require' -
+        # see https://bundler.io/guides/bundler_setup.html '
+        #
+        # @todo handle different arguments to Bundler.require
+        return auto_required_gemspecs_from_bundler if require == 'bundler/require'
 
         # @type [Gem::Specification, nil]
         gemspec = Gem::Specification.find_by_path(require)
@@ -83,7 +88,7 @@ module Solargraph
 
       # True if the workspace has a root Gemfile.
       #
-      # @todo Handle projects with custom Bundler/Gemfile setups (see DocMap#gemspecs_required_from_bundler)
+      # @todo Handle projects with custom Bundler/Gemfile setups (see #auto_required_gemspecs_from_bundler)
       #
       def gemfile?
         directory && File.file?(File.join(directory, 'Gemfile'))
@@ -122,7 +127,7 @@ module Solargraph
       end
 
       # @return [Array<Gem::Specification>]
-      def gemspecs_required_from_bundler
+      def auto_required_gemspecs_from_bundler
         # @todo Handle projects with custom Bundler/Gemfile setups
         return unless gemfile?
 

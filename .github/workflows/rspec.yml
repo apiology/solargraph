@@ -11,7 +11,8 @@ on:
   push:
     branches: [ master ]
   pull_request:
-    branches: [ master ]
+    branches:
+      - '*'
 
 permissions:
   contents: read
@@ -83,4 +84,4 @@ jobs:
       run: bundle exec rake spec
     - name: Check PR coverage
       run: bundle exec rake undercover
-      continue-on-error: true
+      # continue-on-error: true TODO: Restore before merging
