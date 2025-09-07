@@ -5,12 +5,6 @@ require 'pathname'
 require 'observer'
 require 'open3'
 
-# @!parse
-#   class ::Gem::Specification
-#     # @return [String]
-#     def name; end
-#   end
-
 module Solargraph
   # A Library handles coordination between a Workspace and an ApiMap.
   #
