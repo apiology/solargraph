@@ -52,6 +52,27 @@ describe Solargraph::DocMap do
     end
   end
 
+  it 'does not warn for redundant requires' do
+    # Requiring 'set' is unnecessary because it's already included in core. It
+    # might make sense to log redundant requires, but a warning is overkill.
+    allow(Solargraph.logger).to receive(:warn)
+    Solargraph::DocMap.new(['set'], workspace)
+    expect(Solargraph.logger).not_to have_received(:warn).with(/path set/)
+  end
+
+  it 'ignores nil requires' do
+    expect { Solargraph::DocMap.new([nil], workspace) }.not_to raise_error
+  end
+
+  it 'ignores empty requires' do
+    expect { Solargraph::DocMap.new([''], workspace) }.not_to raise_error
+  end
+
+  it 'collects dependencies' do
+    doc_map = Solargraph::DocMap.new(['rspec'], workspace)
+    expect(doc_map.dependencies.map(&:name)).to include('rspec-core')
+  end
+
   context 'with an uncached but valid gemspec' do
     let(:requires) { ['uncached_gem'] }
     let(:pre_cache) { false }

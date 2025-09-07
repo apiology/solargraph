@@ -13,7 +13,7 @@ describe Solargraph::Yardoc do
   end
 
   let(:gem_yardoc_path) do
-    File.join(@tmpdir, 'solargraph', 'yardoc', 'test_gem')
+    Solargraph::PinCache.yardoc_path gemspec
   end
 
   before do
@@ -37,9 +37,10 @@ describe Solargraph::Yardoc do
     end
   end
 
-  describe '#build_docs' do
+  describe '#cache' do
     let(:workspace) { Solargraph::Workspace.new(Dir.pwd) }
     let(:gemspec) { workspace.find_gem('rubocop') }
+
     let(:output) { '' }
 
     before do
@@ -102,7 +103,7 @@ describe Solargraph::Yardoc do
           ['output', instance_double(Process::Status, success?: true)]
         end
 
-        described_class.build_docs(gem_yardoc_path, [], gemspec)
+        described_class.cache([], gemspec)
 
         expect(called_with[0]['BUNDLE_GEMFILE']).to start_with('/')
       end
