@@ -29,7 +29,6 @@ module Solargraph
       @config = config
       @server = server
       load_sources
-      @gemnames = []
       require_plugins
     end
 
