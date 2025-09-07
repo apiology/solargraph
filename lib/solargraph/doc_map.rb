@@ -31,12 +31,6 @@ module Solargraph
       @uncached_gemspecs
     end
 
-    # @return [Workspace, nil]
-    attr_reader :workspace
-
-    # @return [Environ]
-    attr_reader :environ
-
     # @param requires [Array<String>]
     # @param workspace [Workspace, nil]
     # @param out [IO, nil] output stream for logging
