@@ -130,7 +130,7 @@ module Solargraph
 
     # @return [::Array<Gem::Specification>]
     def uncached_gemspecs
-      @doc_map&.uncached_gemspecs || []
+      doc_map.uncached_gemspecs || []
     end
 
     # @return [Enumerable<Pin::Base>]
@@ -199,7 +199,7 @@ module Solargraph
     # @param out [IO, nil]
     # @return [void]
     def cache_gem(gemspec, rebuild: false, out: nil)
-      @doc_map.cache(gemspec, rebuild: rebuild, out: out)
+      doc_map.cache(gemspec, rebuild: rebuild, out: out)
     end
 
     class << self
@@ -697,9 +697,9 @@ module Solargraph
       GemPins.combine_method_pins_by_path(with_resolved_aliases)
     end
 
-    # @return [Workspace, nil]
+    # @return [Workspace]
     def workspace
-      @doc_map&.workspace
+      doc_map.workspace
     end
 
     # @param fq_reference_tag [String] A fully qualified whose method should be pulled in

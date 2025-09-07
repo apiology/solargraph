@@ -35,6 +35,7 @@ RspecTimeGuard.configure do |config|
 end
 
 require 'solargraph'
+# Suppress logger output in specs (if possible)
 # execute any logging blocks to make sure they don't blow up
 Solargraph::Logging.logger.sev_threshold = Logger::DEBUG
 # ...but still suppress logger output in specs (if possible)
