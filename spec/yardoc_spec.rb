@@ -21,8 +21,6 @@ describe Solargraph::Yardoc do
   end
 
   describe '#processing?' do
-    let(:gemspec) { Gem::Specification.find_by_path('rubocop') }
-
     it 'returns true if the yardoc is being processed' do
       FileUtils.touch(File.join(gem_yardoc_path, 'processing'))
       expect(described_class.processing?(gem_yardoc_path)).to be(true)
