@@ -138,7 +138,7 @@ module Solargraph
 
       api_map = Solargraph::ApiMap.load(Dir.pwd)
       if names.empty?
-        api_map.cache_all($stdout)
+        api_map.cache_all!($stdout)
       else
         names.each do |name|
           if name == 'core'

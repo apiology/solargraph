@@ -44,7 +44,7 @@ module Solargraph
     # @param rebuild [Boolean] whether to rebuild the pins even if they are cached
     #
     # @return [void]
-    def cache_all out, rebuild: false
+    def cache_all! out, rebuild: false
       load_serialized_gem_pins
       PinCache.cache_core(out: out) unless PinCache.core?
       gem_specs = uncached_gemspecs

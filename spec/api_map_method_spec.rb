@@ -133,13 +133,13 @@ describe 'Solargraph::ApiMap methods' do
     end
   end
 
-  describe '#cache_all' do
+  describe '#cache_all!' do
     it 'can cache gems without a bench' do
       api_map = Solargraph::ApiMap.new
-      doc_map = instance_double(Solargraph::DocMap, cache_all: true)
+      doc_map = instance_double(Solargraph::DocMap, cache_all!: true)
       allow(Solargraph::DocMap).to receive(:new).and_return(doc_map)
       api_map.cache_all($stderr)
-      expect(doc_map).to have_received(:cache_all).with($stderr)
+      expect(doc_map).to have_received(:cache_all!).with($stderr)
     end
   end
 
