@@ -193,8 +193,8 @@ module Solargraph
 
     # @param out [IO, nil]
     # @return [void]
-    def cache_all_for_doc_map! out
-      @doc_map.cache_doc_map_gems!(out)
+    def cache_all out
+      doc_map.cache_all(out)
     end
 
     # @param gemspec [Gem::Specification]
