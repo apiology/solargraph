@@ -13,7 +13,7 @@ describe Solargraph::Yardoc do
   end
 
   let(:gem_yardoc_path) do
-    Solargraph::PinCache.yardoc_path gemspec
+    File.join(@tmpdir, 'solargraph', 'yardoc', 'test_gem')
   end
 
   before do
@@ -21,6 +21,8 @@ describe Solargraph::Yardoc do
   end
 
   describe '#processing?' do
+    let(:gemspec) { Gem::Specification.find_by_path('rubocop') }
+
     it 'returns true if the yardoc is being processed' do
       FileUtils.touch(File.join(gem_yardoc_path, 'processing'))
       expect(described_class.processing?(gem_yardoc_path)).to be(true)
@@ -103,7 +105,7 @@ describe Solargraph::Yardoc do
           ['output', instance_double(Process::Status, success?: true)]
         end
 
-        described_class.cache([], gemspec)
+        described_class.build_docs(gem_yardoc_path, [], gemspec)
 
         expect(called_with[0]['BUNDLE_GEMFILE']).to start_with('/')
       end
