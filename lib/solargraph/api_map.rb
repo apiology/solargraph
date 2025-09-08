@@ -193,8 +193,8 @@ module Solargraph
 
     # @param out [IO, nil]
     # @return [void]
-    def cache_all! out
-      doc_map.cache_all!(out)
+    def cache_all_for_doc_map! out
+      @doc_map.cache_doc_map_gems!(out)
     end
 
     # @param gemspec [Gem::Specification]
@@ -224,7 +224,7 @@ module Solargraph
         return api_map
       end
 
-      api_map.cache_all!(out)
+      api_map.cache_all_for_doc_map!(out)
       load(directory)
     end
 

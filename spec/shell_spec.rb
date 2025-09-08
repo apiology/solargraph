@@ -143,11 +143,11 @@ describe Solargraph::Shell do
       end
 
       it 'caches all without erroring out' do
-        allow(api_map).to receive(:cache_all!)
+        allow(api_map).to receive(:cache_all_for_doc_map!)
 
         _output = capture_both { shell.gems }
 
-        expect(api_map).to have_received(:cache_all!)
+        expect(api_map).to have_received(:cache_all_for_doc_map!)
       end
 
       it 'caches single gem without erroring out' do
