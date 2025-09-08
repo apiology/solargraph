@@ -593,44 +593,9 @@ module Solargraph
         exist?(rbs_collection_path(gemspec, hash))
       end
 
-      # @param out [IO, nil]
       # @return [void]
       def clear
         FileUtils.rm_rf base_dir, secure: true
-      end
-
-      def core?
-        File.file?(core_path)
-      end
-
-      # @param out [IO, nil]
-      # @return [Enumerable<Pin::Base>]
-      def cache_core out: nil
-        RbsMap::CoreMap.new.cache_core(out: out)
-      end
-
-      # @param out [IO, nil] output stream for logging
-      #
-      # @return [void]
-      def cache_all_stdlibs out: $stderr
-        possible_stdlibs.each do |stdlib|
-          RbsMap::StdlibMap.new(stdlib, out: out)
-        end
-      end
-
-      # @return [Array<String>] a list of possible standard library names
-      def possible_stdlibs
-        # all dirs and .rb files in Gem::RUBYGEMS_DIR
-        Dir.glob(File.join(Gem::RUBYGEMS_DIR, '*')).map do |file_or_dir|
-          basename = File.basename(file_or_dir)
-          # remove .rb
-          basename = basename[0..-4] if basename.end_with?('.rb')
-          basename
-        end.sort.uniq
-      rescue StandardError => e
-        logger.info { "Failed to get possible stdlibs: #{e.message}" }
-        logger.debug { e.backtrace.join("\n") }
-        []
       end
 
       # @param file [String]
@@ -653,6 +618,16 @@ module Solargraph
         ser = Marshal.dump(pins)
         File.write file, ser, mode: 'wb'
         logger.debug { "Cache#save: Saved #{pins.length} pins to #{file}" }
+      end
+
+      def core?
+        File.file?(core_path)
+      end
+
+      # @param out [IO, nil]
+      # @return [Array<Pin::Base>]
+      def cache_core out: $stderr
+        RbsMap::CoreMap.new.cache_core(out: out)
       end
 
       # @param path [String]
