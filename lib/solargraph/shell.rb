@@ -328,6 +328,113 @@ module Solargraph
       end
     end
 
+    desc 'profile [FILE]', 'Profile go-to-definition performance using vernier'
+    option :directory, type: :string, aliases: :d, desc: 'The workspace directory', default: '.'
+    option :output_dir, type: :string, aliases: :o, desc: 'The output directory for profiles', default: './tmp/profiles'
+    option :line, type: :numeric, aliases: :l, desc: 'Line number (0-based)', default: 4
+    option :column, type: :numeric, aliases: :c, desc: 'Column number', default: 10
+    option :memory, type: :boolean, aliases: :m, desc: 'Include memory usage counter', default: true
+    # @param file [String, nil]
+    # @return [void]
+    def profile(file = nil)
+      begin
+        require 'vernier'
+      rescue LoadError
+        STDERR.puts "vernier gem not found. Install with: gem install vernier"
+        return
+      end
+
+      hooks = []
+      hooks << :memory_usage if options[:memory]
+
+      directory = File.realpath(options[:directory])
+
+      # @sg-ignore Unresolved call to strip
+      branch_name = `git rev-parse --abbrev-ref HEAD`.strip
+      output_dir = File.join(options[:output_dir], branch_name)
+      FileUtils.mkdir_p(output_dir)
+
+      host = Solargraph::LanguageServer::Host.new
+      host.client_capabilities.merge!({ 'window' => { 'workDoneProgress' => true } })
+
+      # @return [void]
+      #
+      # @param method [Symbol]
+      # @param params [Array<undefined>]
+      def host.send_notification method, params
+        puts "Notification: #{method} - #{params}"
+      end
+
+      puts "Parsing and mapping source files..."
+      prepare_start = Time.now
+      Vernier.profile(out: "#{output_dir}/parse_benchmark.json.gz", hooks: hooks) do
+        puts "Mapping libraries"
+        host.prepare(directory)
+        sleep 0.2 until host.libraries.all?(&:mapped?)
+      end
+      prepare_time = Time.now - prepare_start
+
+      puts "Building the catalog..."
+      catalog_start = Time.now
+      Vernier.profile(out: "#{output_dir}/catalog_benchmark.json.gz", hooks: hooks) do
+        host.catalog
+      end
+      catalog_time = Time.now - catalog_start
+
+      # Determine test file
+      if file
+        test_file = File.join(directory, file)
+      else
+        test_file = File.join(directory, 'lib', 'other.rb')
+        unless File.exist?(test_file)
+          # Fallback to any Ruby file in the workspace
+          workspace = Solargraph::Workspace.new(directory)
+          test_file = workspace.filenames.find { |f| f.end_with?('.rb') }
+          unless test_file
+            STDERR.puts "No Ruby files found in workspace"
+            return
+          end
+        end
+      end
+
+      file_uri = Solargraph::LanguageServer::UriHelpers.file_to_uri(File.absolute_path(test_file))
+
+      puts "Profiling go-to-definition for #{test_file}"
+      puts "Position: line #{options[:line]}, column #{options[:column]}"
+
+      definition_start = Time.now
+      Vernier.profile(out: "#{output_dir}/definition_benchmark.json.gz", hooks: hooks) do
+        message = Solargraph::LanguageServer::Message::TextDocument::Definition.new(
+          host, {
+            'params' => {
+              'textDocument' => { 'uri' => file_uri },
+              'position' => { 'line' => options[:line], 'character' => options[:column] }
+            }
+          }
+        )
+        puts "Processing go-to-definition request..."
+        result = message.process
+
+        puts "Result: #{result.inspect}"
+      end
+      definition_time = Time.now - definition_start
+
+      puts "\n=== Timing Results ==="
+      puts "Parsing & mapping: #{(prepare_time * 1000).round(2)}ms"
+      puts "Catalog building: #{(catalog_time * 1000).round(2)}ms"
+      puts "Go-to-definition: #{(definition_time * 1000).round(2)}ms"
+      total_time = prepare_time + catalog_time + definition_time
+      puts "Total time: #{(total_time * 1000).round(2)}ms"
+
+      puts "\nProfiles saved to:"
+      puts "  - #{File.expand_path('parse_benchmark.json.gz', output_dir)}"
+      puts "  - #{File.expand_path('catalog_benchmark.json.gz', output_dir)}"
+      puts "  - #{File.expand_path('definition_benchmark.json.gz', output_dir)}"
+
+      puts "\nUpload the JSON files to https://vernier.prof/ to view the profiles."
+      puts "Or use https://rubygems.org/gems/profile-viewer to view them locally."
+    end
+
     private
 
     # @param pin [Solargraph::Pin::Base]

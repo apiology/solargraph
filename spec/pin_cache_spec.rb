@@ -43,19 +43,19 @@ describe Solargraph::PinCache do
     end
   end
 
-  describe '#possible_stdlibs' do
+  describe '.possible_stdlibs' do
     it 'is tolerant of less usual Ruby installations' do
       stub_const('Gem::RUBYGEMS_DIR', nil)
 
-      expect(pin_cache.possible_stdlibs).to eq([])
+      expect(Solargraph::PinCache.possible_stdlibs).to eq([])
     end
   end
 
-  describe '#cache_all_stdlibs' do
+  describe '.cache_all_stdlibs' do
     it 'creates stdlibmaps' do
       allow(Solargraph::RbsMap::StdlibMap).to receive(:new).and_return(instance_double(Solargraph::RbsMap::StdlibMap))
 
-      pin_cache.cache_all_stdlibs
+      Solargraph::PinCache.cache_all_stdlibs
 
       expect(Solargraph::RbsMap::StdlibMap).to have_received(:new).at_least(:once)
     end

@@ -59,15 +59,6 @@ module Solargraph
       false
     end
 
-    # @param out [IO, nil] output stream for logging
-    #
-    # @return [void]
-    def cache_all_stdlibs out: $stderr
-      possible_stdlibs.each do |stdlib|
-        RbsMap::StdlibMap.new(stdlib, out: out)
-      end
-    end
-
     # @param path [String] require path that might be in the RBS stdlib collection
     # @return [void]
     def cache_stdlib_rbs_map path
@@ -119,27 +110,13 @@ module Solargraph
       PinCache.uncache(yard_gem_path(gemspec), out: out)
       uncache_by_prefix(rbs_collection_pins_path_prefix(gemspec), out: out)
       uncache_by_prefix(combined_path_prefix(gemspec), out: out)
-      combined_pins_in_memory.delete([gemspec.name, gemspec.version])
+      rbs_version_cache_key = lookup_rbs_version_cache_key(gemspec)
+      combined_pins_in_memory.delete([gemspec.name, gemspec.version, rbs_version_cache_key])
     end
 
     # @param gemspec [Gem::Specification, Bundler::LazySpecification]
     def yardoc_processing? gemspec
       Yardoc.processing?(yardoc_path(gemspec))
-    end
-
-    # @return [Array<String>] a list of possible standard library names
-    def possible_stdlibs
-      # all dirs and .rb files in Gem::RUBYGEMS_DIR
-      Dir.glob(File.join(Gem::RUBYGEMS_DIR, '*')).map do |file_or_dir|
-        basename = File.basename(file_or_dir)
-        # remove .rb
-        basename = basename[0..-4] if basename.end_with?('.rb')
-        basename
-      end.sort.uniq
-    rescue StandardError => e
-      logger.info { "Failed to get possible stdlibs: #{e.message}" }
-      logger.debug { e.backtrace.join("\n") }
-      []
     end
 
     private
@@ -380,7 +357,11 @@ module Solargraph
     # @param hash [String, nil]
     # @return [Array<Pin::Base>, nil]
     def load_combined_gem gemspec, hash
-      PinCache.load(combined_path(gemspec, hash))
+      cached = combined_pins_in_memory[[gemspec.name, gemspec.version, hash]]
+      return cached if cached
+      loaded = PinCache.load(combined_path(gemspec, hash))
+      combined_pins_in_memory[[gemspec.name, gemspec.version, hash]] = loaded if loaded
+      loaded
     end
 
     # @param gemspec [Gem::Specification]
@@ -411,6 +392,30 @@ module Solargraph
 
     class << self
       include Logging
+
+      # @param out [IO, nil] output stream for logging
+      #
+      # @return [void]
+      def cache_all_stdlibs out: $stderr
+        possible_stdlibs.each do |stdlib|
+          RbsMap::StdlibMap.new(stdlib, out: out)
+        end
+      end
+
+      # @return [Array<String>] a list of possible standard library names
+      def possible_stdlibs
+        # all dirs and .rb files in Gem::RUBYGEMS_DIR
+        Dir.glob(File.join(Gem::RUBYGEMS_DIR, '*')).map do |file_or_dir|
+          basename = File.basename(file_or_dir)
+          # remove .rb
+          basename = basename[0..-4] if basename.end_with?('.rb')
+          basename
+        end.sort.uniq
+      rescue StandardError => e
+        logger.info { "Failed to get possible stdlibs: #{e.message}" }
+        logger.debug { e.backtrace.join("\n") }
+        []
+      end
 
       # @return [Hash{Array<String> => Hash{Array(String, String) =>
       #   Array<Pin::Base>}}] yard plugins, then gemspec name and
