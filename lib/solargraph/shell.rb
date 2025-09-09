@@ -334,7 +334,7 @@ module Solargraph
     option :memory, type: :boolean, aliases: :m, desc: 'Include memory usage counter', default: true
     # @param file [String, nil]
     # @return [void]
-    def profile(file = nil) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+    def profile(file = nil)
       begin
         require 'vernier'
       rescue LoadError
@@ -347,12 +347,18 @@ module Solargraph
 
       directory = File.realpath(options[:directory])
 
+      # @sg-ignore Unresolved call to strip
       branch_name = `git rev-parse --abbrev-ref HEAD`.strip
       output_dir = File.join(options[:output_dir], branch_name)
       FileUtils.mkdir_p(output_dir)
 
       host = Solargraph::LanguageServer::Host.new
       host.client_capabilities.merge!({ 'window' => { 'workDoneProgress' => true } })
+
+      # @return [void]
+      #
+      # @param method [Symbol]
+      # @param params [Array<undefined>]
       def host.send_notification method, params
         puts "Notification: #{method} - #{params}"
       end
