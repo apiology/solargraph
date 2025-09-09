@@ -330,7 +330,6 @@ Lint/EmptyClass:
 # Configuration parameters: AllowComments.
 Lint/EmptyFile:
   Exclude:
-    - 'lib/solargraph/foo.rb'
     - 'spec/fixtures/vendored/vendor/do_not_use.gemspec'
 
 # This cop supports unsafe autocorrection (--autocorrect-all).
