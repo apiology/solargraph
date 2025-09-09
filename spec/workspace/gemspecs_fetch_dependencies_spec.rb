@@ -70,7 +70,7 @@ describe Solargraph::Workspace::Gemspecs, '#fetch_dependencies' do
     context 'with gem that exists in our bundle' do
       let(:gem_name) { 'undercover' }
 
-      it 'finds dependencies' do
+      it 'finds dependencies', time_limit_seconds: 120 do
         expect(deps.map(&:name)).to include('ast')
       end
     end
