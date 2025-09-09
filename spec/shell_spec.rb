@@ -20,11 +20,9 @@ describe Solargraph::Shell do
   # @return [String]
   def bundle_exec(*cmd)
     # run the command in the temporary directory with bundle exec
-    Bundler.with_unbundled_env do
-      output, status = Open3.capture2e("bundle exec #{cmd.join(' ')}")
-      expect(status.success?).to be(true), "Command failed: #{output}"
-      output
-    end
+    output, status = Open3.capture2e("bundle exec #{cmd.join(' ')}")
+    expect(status.success?).to be(true), "Command failed: #{output}"
+    output
   end
 
   after do
@@ -175,17 +173,6 @@ describe Solargraph::Shell do
         # capture stderr output
         expect { call }.to output(/not found/).to_stderr
       end
-    end
-  end
-
-  # @type cmd [Array<String>]
-  # @return [String]
-  def bundle_exec(*cmd)
-    # run the command in the temporary directory with bundle exec
-    Bundler.with_unbundled_env do
-      output, status = Open3.capture2e("bundle exec #{cmd.join(' ')}")
-      expect(status.success?).to be(true), "Command failed: #{output}"
-      output
     end
   end
 
