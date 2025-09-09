@@ -63,7 +63,7 @@ jobs:
       - name: Overcommit
         run: |
           bundle exec overcommit --sign
-          OVERCOMMIT_DEBUG=1 SOLARGRAPH_ASSERTS=on bundle exec overcommit --run --diff origin/master
+          SOLARGRAPH_ASSERTS=on bundle exec overcommit --run --diff origin/master
   rubocop:
     name: rubocop
     runs-on: ubuntu-latest
