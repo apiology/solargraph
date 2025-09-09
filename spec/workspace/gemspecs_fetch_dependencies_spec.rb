@@ -76,7 +76,6 @@ describe Solargraph::Workspace::Gemspecs, '#fetch_dependencies' do
       let(:gem_name) { 'activerecord' }
 
       it 'gives a useful message', time_limit_seconds: 120 do
-        pending('https://github.com/castwide/solargraph/pull/1006')
         dep_names = nil
         output = capture_both { dep_names = deps.map(&:name) }
         expect(output).to include('Please install the gem activerecord')
