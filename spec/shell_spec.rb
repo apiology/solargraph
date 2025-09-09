@@ -174,17 +174,6 @@ describe Solargraph::Shell do
     end
   end
 
-  # @type cmd [Array<String>]
-  # @return [String]
-  def bundle_exec(*cmd)
-    # run the command in the temporary directory with bundle exec
-    Bundler.with_unbundled_env do
-      output, status = Open3.capture2e("bundle exec #{cmd.join(' ')}")
-      expect(status.success?).to be(true), "Command failed: #{output}"
-      output
-    end
-  end
-
   describe 'pin' do
     let(:api_map) { instance_double(Solargraph::ApiMap) }
     let(:to_s_pin) { instance_double(Solargraph::Pin::Method, return_type: Solargraph::ComplexType.parse('String')) }
