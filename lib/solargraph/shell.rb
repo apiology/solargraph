@@ -346,7 +346,10 @@ module Solargraph
       hooks << :memory_usage if options[:memory]
 
       directory = File.realpath(options[:directory])
-      FileUtils.mkdir_p(options[:output_dir])
+
+      branch_name = `git rev-parse --abbrev-ref HEAD`.strip
+      output_dir = File.join(options[:output_dir], branch_name)
+      FileUtils.mkdir_p(output_dir)
 
       host = Solargraph::LanguageServer::Host.new
       host.client_capabilities.merge!({ 'window' => { 'workDoneProgress' => true } })
@@ -356,7 +359,7 @@ module Solargraph
 
       puts "Parsing and mapping source files..."
       prepare_start = Time.now
-      Vernier.profile(out: "#{options[:output_dir]}/parse_benchmark.json.gz", hooks: hooks) do
+      Vernier.profile(out: "#{output_dir}/parse_benchmark.json.gz", hooks: hooks) do
         puts "Mapping libraries"
         host.prepare(directory)
         sleep 0.2 until host.libraries.all?(&:mapped?)
@@ -365,7 +368,7 @@ module Solargraph
 
       puts "Building the catalog..."
       catalog_start = Time.now
-      Vernier.profile(out: "#{options[:output_dir]}/catalog_benchmark.json.gz", hooks: hooks) do
+      Vernier.profile(out: "#{output_dir}/catalog_benchmark.json.gz", hooks: hooks) do
         host.catalog
       end
       catalog_time = Time.now - catalog_start
@@ -392,7 +395,7 @@ module Solargraph
       puts "Position: line #{options[:line]}, column #{options[:column]}"
 
       definition_start = Time.now
-      Vernier.profile(out: "#{options[:output_dir]}/definition_benchmark.json.gz", hooks: hooks) do
+      Vernier.profile(out: "#{output_dir}/definition_benchmark.json.gz", hooks: hooks) do
         message = Solargraph::LanguageServer::Message::TextDocument::Definition.new(
           host, {
             'params' => {
@@ -416,9 +419,9 @@ module Solargraph
       puts "Total time: #{(total_time * 1000).round(2)}ms"
 
       puts "\nProfiles saved to:"
-      puts "  - #{File.expand_path('parse_benchmark.json.gz', options[:output_dir])}"
-      puts "  - #{File.expand_path('catalog_benchmark.json.gz', options[:output_dir])}"
-      puts "  - #{File.expand_path('definition_benchmark.json.gz', options[:output_dir])}"
+      puts "  - #{File.expand_path('parse_benchmark.json.gz', output_dir)}"
+      puts "  - #{File.expand_path('catalog_benchmark.json.gz', output_dir)}"
+      puts "  - #{File.expand_path('definition_benchmark.json.gz', output_dir)}"
 
       puts "\nUpload the JSON files to https://vernier.prof/ to view the profiles."
       puts "Or use https://rubygems.org/gems/profile-viewer to view them locally."
