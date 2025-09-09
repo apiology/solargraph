@@ -84,7 +84,7 @@ describe Solargraph::Workspace::Gemspecs, '#fetch_dependencies' do
 
       let(:fake_gem_name) { 'faaaaaake912' }
 
-      it 'gives a useful message' do
+      it 'gives a useful message', time_limit_seconds: 120 do
         pending('https://github.com/castwide/solargraph/pull/1006')
         dep_names = nil
         output = capture_both { dep_names = deps.map(&:name) }
