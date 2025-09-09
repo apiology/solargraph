@@ -9,9 +9,10 @@ name: RSpec
 
 on:
   push:
-    branches: [ master, 2025-08-28 ]
+    branches: [ master ]
   pull_request:
-    branches: [ master, 2025-08-28 ]
+    branches:
+      - '*'
 
 permissions:
   contents: read
