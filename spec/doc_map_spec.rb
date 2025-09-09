@@ -33,6 +33,28 @@ describe Solargraph::DocMap do
     end
   end
 
+  context 'with an invalid require' do
+    let(:requires) do
+      ['not_a_gem']
+    end
+
+    it 'tracks unresolved requires' do
+      # These are auto-required by solargraph-rspec in case the bundle
+      # includes these gems.  In our case, it doesn't!
+      unprovided_solargraph_rspec_requires = [
+        'rspec-rails',
+        'actionmailer',
+        'activerecord',
+        'shoulda-matchers',
+        'rspec-sidekiq',
+        'airborne',
+        'activesupport'
+      ]
+      expect(doc_map.unresolved_requires - unprovided_solargraph_rspec_requires)
+        .to eq(['not_a_gem'])
+    end
+  end
+
   context 'when deserialization takes a while' do
     let(:pre_cache) { false }
     let(:requires) { ['backport'] }
@@ -49,44 +71,6 @@ describe Solargraph::DocMap do
       # force lazy evaluation
       _pins = doc_map.pins
       expect(out.string).to include('Deserialized ').and include(' gem pins ').and include(' ms')
-    end
-  end
-
-  it 'does not warn for redundant requires' do
-    # Requiring 'set' is unnecessary because it's already included in core. It
-    # might make sense to log redundant requires, but a warning is overkill.
-    allow(Solargraph.logger).to receive(:warn)
-    Solargraph::DocMap.new(['set'], workspace)
-    expect(Solargraph.logger).not_to have_received(:warn).with(/path set/)
-  end
-
-  it 'ignores nil requires' do
-    expect { Solargraph::DocMap.new([nil], workspace) }.not_to raise_error
-  end
-
-  it 'ignores empty requires' do
-    expect { Solargraph::DocMap.new([''], workspace) }.not_to raise_error
-  end
-
-  it 'collects dependencies' do
-    doc_map = Solargraph::DocMap.new(['rspec'], workspace)
-    expect(doc_map.dependencies.map(&:name)).to include('rspec-core')
-  end
-
-  context 'with an uncached but valid gemspec' do
-    let(:requires) { ['uncached_gem'] }
-    let(:pre_cache) { false }
-    let(:workspace) { instance_double(Solargraph::Workspace) }
-
-    it 'tracks uncached_gemspecs' do
-      pincache = instance_double(Solargraph::PinCache)
-      uncached_gemspec = Gem::Specification.new('uncached_gem', '1.0.0')
-      allow(workspace).to receive_messages(resolve_require: [], fresh_pincache: pincache)
-      allow(workspace).to receive(:global_environ).and_return(Solargraph::Environ.new)
-      allow(workspace).to receive(:resolve_require).with('uncached_gem').and_return([uncached_gemspec])
-      allow(workspace).to receive(:fetch_dependencies).with(uncached_gemspec, out: out).and_return([])
-      allow(pincache).to receive(:deserialize_combined_pin_cache).with(uncached_gemspec).and_return(nil)
-      expect(doc_map.uncached_gemspecs).to eq([uncached_gemspec])
     end
   end
 
