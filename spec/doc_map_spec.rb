@@ -39,6 +39,8 @@ describe Solargraph::DocMap do
     end
 
     it 'tracks unresolved requires' do
+      pending("rspec-mocks being able to be resolved when solargraph-rspec is in the bundle")
+
       # These are auto-required by solargraph-rspec in case the bundle
       # includes these gems.  In our case, it doesn't!
       unprovided_solargraph_rspec_requires = [
