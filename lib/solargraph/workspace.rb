@@ -221,6 +221,14 @@ module Solargraph
       nil
     end
 
+    # @param name [String]
+    # @param version [String, nil]
+    #
+    # @return [Gem::Specification, nil]
+    def find_gem name, version = nil
+      gemspecs.find_gem(name, version)
+    end
+
     # Synchronize the workspace from the provided updater.
     #
     # @param updater [Source::Updater]
