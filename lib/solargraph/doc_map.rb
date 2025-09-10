@@ -32,7 +32,7 @@ module Solargraph
     end
 
     # @param requires [Array<String>]
-    # @param workspace [Workspace]
+    # @param workspace [Workspace, nil]
     # @param out [IO, nil] output stream for logging
     def initialize requires, workspace, out: $stderr
       @provided_requires = requires.compact
