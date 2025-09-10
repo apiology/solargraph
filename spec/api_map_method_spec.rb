@@ -133,7 +133,7 @@ describe 'Solargraph::ApiMap methods' do
     end
   end
 
-  describe '#cache_doc_map_gems!' do
+  describe '#cache_all_for_doc_map!' do
     it 'can cache gems without a bench' do
       api_map = Solargraph::ApiMap.new
       doc_map = instance_double(Solargraph::DocMap, cache_doc_map_gems!: true)
