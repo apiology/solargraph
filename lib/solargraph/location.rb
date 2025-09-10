@@ -16,7 +16,6 @@ module Solargraph
     # @param filename [String]
     # @param range [Solargraph::Range]
     def initialize filename, range
-      Solargraph.assert_or_log :no_filename, "Provided nil filename" if filename.nil?
       @filename = filename
       @range = range
     end
