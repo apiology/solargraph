@@ -13,9 +13,10 @@ module Solargraph
     # @return [Solargraph::Range]
     attr_reader :range
 
-    # @param filename [String, nil]
+    # @param filename [String]
     # @param range [Solargraph::Range]
     def initialize filename, range
+      Solargraph.assert_or_log :no_filename, "Provided nil filename" if filename.nil?
       @filename = filename
       @range = range
     end
