@@ -40,32 +40,6 @@ module Solargraph
       @out = out
     end
 
-    # @param out [IO]
-    # @param rebuild [Boolean] whether to rebuild the pins even if they are cached
-    #
-    # @return [void]
-    def cache_all! out, rebuild: false
-      load_serialized_gem_pins
-      PinCache.cache_core(out: out) unless PinCache.core?
-      gem_specs = uncached_gemspecs
-      # try any possible standard libraries, but be quiet about it
-      stdlib_specs = PinCache.possible_stdlibs.map { |stdlib| workspace.find_gem(stdlib, out: nil) }.compact
-      specs = (gem_specs + stdlib_specs)
-      specs.each do |gemspec|
-        cache(gemspec, out: out)
-      end
-      out&.puts "Documentation cached for all #{specs.length} gems."
-
-      # do this after so that we prefer stdlib requires from gems,
-      # which are likely to be newer and have more pins
-      PinCache.cache_all_stdlibs(out: out)
-
-      out&.puts 'Documentation cached for core, standard library and gems.'
-
-      load_serialized_gem_pins
-      @uncached_gemspecs = []
-    end
-
     # @return [Array<Pin::Base>]
     def pins
       @pins ||= load_serialized_gem_pins + (workspace.global_environ&.pins || [])
