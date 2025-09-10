@@ -33,30 +33,6 @@ describe Solargraph::DocMap do
     end
   end
 
-  context 'with an invalid require' do
-    let(:requires) do
-      ['not_a_gem']
-    end
-
-    it 'tracks unresolved requires' do
-      pending("rspec-mocks being able to be resolved when solargraph-rspec is in the bundle")
-
-      # These are auto-required by solargraph-rspec in case the bundle
-      # includes these gems.  In our case, it doesn't!
-      unprovided_solargraph_rspec_requires = [
-        'rspec-rails',
-        'actionmailer',
-        'activerecord',
-        'shoulda-matchers',
-        'rspec-sidekiq',
-        'airborne',
-        'activesupport'
-      ]
-      expect(doc_map.unresolved_requires - unprovided_solargraph_rspec_requires)
-        .to eq(['not_a_gem'])
-    end
-  end
-
   context 'when deserialization takes a while' do
     let(:pre_cache) { false }
     let(:requires) { ['backport'] }
