@@ -6,6 +6,7 @@ unless ENV['SIMPLECOV_DISABLED']
   # set up lcov reporting for undercover
   require 'simplecov'
   require 'undercover/simplecov_formatter'
+
   SimpleCov.start do
     cname = ENV.fetch('TEST_COVERAGE_COMMAND_NAME', 'ad-hoc')
     command_name cname
