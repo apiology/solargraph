@@ -203,16 +203,6 @@ module Solargraph
     #
     # @return [Gem::Specification, nil]
     def find_gem name, version = nil
-      Gem::Specification.find_by_name(name, version)
-    rescue Gem::MissingSpecError
-      nil
-    end
-
-    # @param name [String]
-    # @param version [String, nil]
-    #
-    # @return [Gem::Specification, nil]
-    def find_gem name, version = nil
       gemspecs.find_gem(name, version)
     end
 
