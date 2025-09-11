@@ -141,7 +141,7 @@ module Solargraph
 
       api_map = Solargraph::ApiMap.load(Dir.pwd)
       if names.empty?
-        api_map.cache_all_for_doc_map!($stdout, rebuild: options[:rebuild]))
+        api_map.cache_all_for_doc_map!($stdout, rebuild: options[:rebuild])
       else
         $stderr.puts("Caching these gems: #{names}")
         names.each do |name|
