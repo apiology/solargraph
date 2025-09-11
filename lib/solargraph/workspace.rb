@@ -19,7 +19,7 @@ module Solargraph
     # @return [String]
     attr_reader :directory
 
-    # @param directory [String] TODO: Document and test '' and '*' semantics
+    # @param directory [String] TODO: Remove '' and '*' special cases
     # @param config [Config, nil]
     # @param server [Hash]
     def initialize directory = '', config = nil, server = {}
