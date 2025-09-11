@@ -138,6 +138,7 @@ describe Solargraph::Shell do
         allow(Solargraph::Workspace).to receive(:new).and_return(workspace)
         allow(Solargraph::ApiMap).to receive(:load).with(Dir.pwd).and_return(api_map)
         allow(api_map).to receive(:cache_gem)
+        allow(api_map).to receive(:workspace).and_return(workspace)
       end
 
       it 'caches all without erroring out' do
