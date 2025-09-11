@@ -180,7 +180,7 @@ module Solargraph
           next
         end
 
-        spec = Gem::Specification.find_by_name(gem)
+        spec = workspace.find_gem(gem)
         workspace.uncache_gem(spec, out: $stdout)
       end
     end
