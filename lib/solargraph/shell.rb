@@ -145,7 +145,7 @@ module Solargraph
         $stderr.puts("Caching these gems: #{names}")
         names.each do |name|
           if name == 'core'
-            PinCache.cache_core(out: $stdout)
+            PinCache.cache_core(out: $stdout) if !PinCache.core? || options[:rebuild]
             next
           end
 
