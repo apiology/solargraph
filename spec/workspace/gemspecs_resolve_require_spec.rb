@@ -210,7 +210,7 @@ describe Solargraph::Workspace::Gemspecs, '#resolve_require' do
       end
     end
 
-    context 'with Gemfile and deep require into a gem' do
+    context 'with Gemfile and deep require into a possibly-core gem' do
       before { add_bundle }
 
       let(:require) { 'bundler/gem_tasks' }
@@ -219,6 +219,16 @@ describe Solargraph::Workspace::Gemspecs, '#resolve_require' do
         pending('improved logic for require lookups')
 
         expect(specs&.map(&:name)).to include('bundler')
+      end
+    end
+
+    context 'with Gemfile and deep require into a gem' do
+      before { add_bundle }
+
+      let(:require) { 'rspec/mocks' }
+
+      it 'returns gems' do
+        expect(specs&.map(&:name)).to include('rspec-mocks')
       end
     end
 
