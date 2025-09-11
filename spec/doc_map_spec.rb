@@ -39,8 +39,6 @@ describe Solargraph::DocMap do
     end
 
     it 'generates pins from gems' do
-      pending('handling dependencies from conventions as gem names, not requires')
-
       ns_pin = doc_map.pins.find { |pin| pin.path == 'RSpec::Mocks' }
       expect(ns_pin).to be_a(Solargraph::Pin::Namespace)
     end
