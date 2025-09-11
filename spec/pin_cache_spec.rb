@@ -78,6 +78,15 @@ describe Solargraph::PinCache do
       end
     end
 
+    context 'with an incorrect gemspec' do
+      let(:requires) { [] }
+
+      it "does not error out when handed incorrect gemspec" do
+        gemspec = instance_double(Gem::Specification, name: 'foo', version: '1.0', gem_dir: "/not-there")
+        expect { pin_cache.cache_gem(gemspec: gemspec) }.not_to raise_error
+      end
+    end
+
     context 'with the parser gem' do
       before do
         Solargraph::Shell.new.uncache('parser')
