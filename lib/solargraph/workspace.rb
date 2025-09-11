@@ -182,23 +182,6 @@ module Solargraph
       false
     end
 
-    # True if the workspace contains at least one gemspec file.
-    #
-    # @return [Boolean]
-    def gemspec?
-      !gemspec_files.empty?
-    end
-
-    # Get an array of all gemspec files in the workspace.
-    #
-    # @return [Array<String>]
-    def gemspec_files
-      return [] if directory.empty? || directory == '*'
-      @gemspec_files ||= Dir[File.join(directory, '**/*.gemspec')].select do |gs|
-        config.allow? gs
-      end
-    end
-
     # @return [String, nil]
     def rbs_collection_path
       @gem_rbs_collection ||= read_rbs_collection_path
