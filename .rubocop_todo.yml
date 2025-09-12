@@ -1115,11 +1115,6 @@ Style/RescueStandardError:
 Style/SafeNavigation:
   Enabled: false
 
-# Configuration parameters: Max.
-Style/SafeNavigationChainLength:
-  Exclude:
-    - 'lib/solargraph/workspace/gemspecs.rb'
-
 # This cop supports unsafe autocorrection (--autocorrect-all).
 Style/SlicingWithRange:
   Enabled: false
