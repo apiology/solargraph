@@ -3,20 +3,6 @@
 require 'parser'
 require 'ast'
 
-# Teach AST::Node#children about its generic type
-#
-# @todo contribute back to https://github.com/ruby/gem_rbs_collection/blob/main/gems/ast/2.4/ast.rbs
-#
-# @!parse
-#   module ::AST
-#     class Node
-#       # New children
-#
-#       # @return [Array<self, Integer, String, Symbol, nil>]
-#       attr_reader :children
-#     end
-#   end
-
 # https://github.com/whitequark/parser
 module Solargraph
   module Parser
@@ -347,7 +333,7 @@ module Solargraph
             # Look at known control statements and use them to find
             # more specific return nodes.
             #
-            # @param node [Parser::AST::Node] Statement which is in
+            # @param node [AST::Node] Statement which is in
             #    value position for a method body
             # @param include_explicit_returns [Boolean] If true,
             #    include the value nodes of the parameter of the

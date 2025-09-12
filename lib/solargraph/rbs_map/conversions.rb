@@ -95,7 +95,7 @@ module Solargraph
         type = build_type(decl.name, decl.args)
         generic_values = type.all_params.map(&:to_s)
         include_pin = Solargraph::Pin::Reference::Include.new(
-          name: decl.name.relative!.to_s,
+          name: type.rooted_name,
           type_location: location_decl_to_pin_location(decl.location),
           generic_values: generic_values,
           closure: closure,
@@ -230,6 +230,8 @@ module Solargraph
         pins.push module_pin
         convert_self_types_to_pins decl, module_pin
         convert_members_to_pins decl, module_pin
+
+        raise "Invalid type for module declaration: #{module_pin.class}" unless module_pin.is_a?(Pin::Namespace)
 
         add_mixins decl, module_pin.closure
       end
@@ -478,7 +480,15 @@ module Solargraph
         end
         if type.type.rest_positionals
           name = type.type.rest_positionals.name ? type.type.rest_positionals.name.to_s : "arg_#{arg_num += 1}"
-          parameters.push Solargraph::Pin::Parameter.new(decl: :restarg, name: name, closure: pin, source: :rbs, type_location: type_location)
+          inner_rest_positional_type =
+            ComplexType.try_parse(other_type_to_tag(type.type.rest_positionals.type))
+          rest_positional_type = ComplexType::UniqueType.new('Array',
+                                                             [],
+                                                             [inner_rest_positional_type],
+                                                             rooted: true, parameters_type: :list)
+          parameters.push Solargraph::Pin::Parameter.new(decl: :restarg, name: name, closure: pin,
+                                                         source: :rbs, type_location: type_location,
+                                                         return_type: rest_positional_type,)
         end
         type.type.trailing_positionals.each do |param|
           name = param.name ? param.name.to_s : "arg_#{arg_num += 1}"

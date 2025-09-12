@@ -5,11 +5,8 @@ module Solargraph
   #
   class TypeChecker
     autoload :Problem,  'solargraph/type_checker/problem'
-    autoload :ParamDef, 'solargraph/type_checker/param_def'
     autoload :Rules,    'solargraph/type_checker/rules'
-    autoload :Checks,   'solargraph/type_checker/checks'
 
-    include Checks
     include Parser::NodeMethods
 
     # @return [String]
@@ -43,6 +40,39 @@ module Solargraph
       @source_map.source
     end
 
+    # @param inferred [ComplexType]
+    # @param expected [ComplexType]
+    def return_type_conforms_to?(inferred, expected)
+      conforms_to?(inferred, expected, :return_type)
+    end
+
+    # @param inferred [ComplexType]
+    # @param expected [ComplexType]
+    def arg_conforms_to?(inferred, expected)
+      conforms_to?(inferred, expected, :method_call)
+    end
+
+    # @param inferred [ComplexType]
+    # @param expected [ComplexType]
+    def assignment_conforms_to?(inferred, expected)
+      conforms_to?(inferred, expected, :assignment)
+    end
+
+    # @param inferred [ComplexType]
+    # @param expected [ComplexType]
+    # @param scenario [Symbol]
+    def conforms_to?(inferred, expected, scenario)
+      rules_arr = []
+      rules_arr << :allow_empty_params unless rules.require_inferred_type_params?
+      rules_arr << :allow_any_match unless rules.require_all_unique_types_match_declared?
+      rules_arr << :allow_undefined unless rules.require_no_undefined_args?
+      rules_arr << :allow_unresolved_generic unless rules.require_generics_resolved?
+      rules_arr << :allow_unmatched_interface unless rules.require_interfaces_resolved?
+      rules_arr << :allow_reverse_match unless rules.require_downcasts?
+      inferred.conforms_to?(api_map, expected, scenario,
+                            rules_arr)
+    end
+
     # @return [Array<Problem>]
     def problems
       @problems ||= begin
@@ -69,10 +99,10 @@ module Solargraph
       # @param code [String]
       # @param filename [String, nil]
       # @param level [Symbol]
+      # @param api_map [Solargraph::ApiMap]
       # @return [self]
-      def load_string code, filename = nil, level = :normal
+      def load_string code, filename = nil, level = :normal, api_map: Solargraph::ApiMap.new
         source = Solargraph::Source.load_string(code, filename)
-        api_map = Solargraph::ApiMap.new
         api_map.map(source)
         new(filename, api_map: api_map, level: level)
       end
@@ -118,7 +148,7 @@ module Solargraph
               result.push Problem.new(pin.location, "#{pin.path} return type could not be inferred", pin: pin)
             end
           else
-            unless (rules.require_all_return_types_match_inferred? ? all_types_match?(api_map, inferred, declared) : any_types_match?(api_map, declared, inferred))
+            unless return_type_conforms_to?(inferred, declared)
               result.push Problem.new(pin.location, "Declared return type #{declared.rooted_tags} does not match inferred type #{inferred.rooted_tags} for #{pin.path}", pin: pin)
             end
           end
@@ -152,33 +182,33 @@ module Solargraph
     # @return [Array<Problem>]
     def method_param_type_problems_for pin
       stack = api_map.get_method_stack(pin.namespace, pin.name, scope: pin.scope)
-      params = first_param_hash(stack)
       result = []
-      if rules.require_type_tags?
-        pin.signatures.each do |sig|
-          sig.parameters.each do |par|
-            break if par.decl == :restarg || par.decl == :kwrestarg || par.decl == :blockarg
-            unless params[par.name]
-              if pin.attribute?
-                inferred = pin.probe(api_map).self_to_type(pin.full_context)
-                if inferred.undefined?
+      pin.signatures.each do |sig|
+        params = param_details_from_stack(sig, stack)
+        if rules.require_type_tags?
+            sig.parameters.each do |par|
+              break if par.decl == :restarg || par.decl == :kwrestarg || par.decl == :blockarg
+              unless params[par.name]
+                if pin.attribute?
+                  inferred = pin.probe(api_map).self_to_type(pin.full_context)
+                  if inferred.undefined?
+                    result.push Problem.new(pin.location, "Missing @param tag for #{par.name} on #{pin.path}", pin: pin)
+                  end
+                else
                   result.push Problem.new(pin.location, "Missing @param tag for #{par.name} on #{pin.path}", pin: pin)
                 end
-              else
-                result.push Problem.new(pin.location, "Missing @param tag for #{par.name} on #{pin.path}", pin: pin)
               end
             end
-          end
         end
-      end
-      # @todo Should be able to probe type of name and data here
-      # @param name [String]
-      # @param data [Hash{Symbol => BasicObject}]
-      params.each_pair do |name, data|
-        # @type [ComplexType]
-        type = data[:qualified]
-        if type.undefined?
-          result.push Problem.new(pin.location, "Unresolved type #{data[:tagged]} for #{name} param on #{pin.path}", pin: pin)
+        # @todo Should be able to probe type of name and data here
+        # @param name [String]
+        # @param data [Hash{Symbol => BasicObject}]
+        params.each_pair do |name, data|
+          # @type [ComplexType]
+          type = data[:qualified]
+          if type.undefined?
+            result.push Problem.new(pin.location, "Unresolved type #{data[:tagged]} for #{name} param on #{pin.path}", pin: pin)
+          end
         end
       end
       result
@@ -207,7 +237,7 @@ module Solargraph
                   result.push Problem.new(pin.location, "Variable type could not be inferred for #{pin.name}", pin: pin)
                 end
               else
-                unless any_types_match?(api_map, declared, inferred)
+                unless assignment_conforms_to?(inferred, declared)
                   result.push Problem.new(pin.location, "Declared type #{declared} does not match inferred type #{inferred} for variable #{pin.name}", pin: pin)
                 end
               end
@@ -294,7 +324,7 @@ module Solargraph
     # @param chain [Solargraph::Source::Chain]
     # @param api_map [Solargraph::ApiMap]
     # @param closure_pin [Solargraph::Pin::Closure]
-    # @param locals [Array<Solargraph::Pin::Base>]
+    # @param locals [Array<Solargraph::Pin::LocalVariable>]
     # @param location [Solargraph::Location]
     # @return [Array<Problem>]
     def argument_problems_for chain, api_map, closure_pin, locals, location
@@ -330,10 +360,10 @@ module Solargraph
         return ap unless ap.empty?
         return [] if !rules.validate_calls? || base.links.first.is_a?(Solargraph::Source::Chain::ZSuper)
 
-        params = first_param_hash(pins)
-
         all_errors = []
         pin.signatures.sort { |sig| sig.parameters.length }.each do |sig|
+          params = param_details_from_stack(sig, pins)
+
           signature_errors = signature_argument_problems_for location, locals, closure_pin, params, arguments, sig, pin
           if signature_errors.empty?
             # we found a signature that works - meaning errors from
@@ -411,7 +441,8 @@ module Solargraph
             # @todo Some level (strong, I guess) should require the param here
             else
               argtype = argchain.infer(api_map, closure_pin, locals)
-              if argtype.defined? && ptype.defined? && !any_types_match?(api_map, ptype, argtype)
+              argtype = argtype.self_to_type(closure_pin.context)
+              if argtype.defined? && ptype.defined? && !arg_conforms_to?(argtype, ptype)
                 errors.push Problem.new(location, "Wrong argument type for #{pin.path}: #{par.name} expected #{ptype}, received #{argtype}")
                 return errors
               end
@@ -450,9 +481,11 @@ module Solargraph
             # @todo Some level (strong, I guess) should require the param here
           else
             ptype = data[:qualified]
+            ptype = ptype.self_to_type(pin.context)
             unless ptype.undefined?
-              argtype = argchain.infer(api_map, block_pin, locals)
-              if argtype.defined? && ptype && !any_types_match?(api_map, ptype, argtype)
+              # @type [ComplexType]
+              argtype = argchain.infer(api_map, block_pin, locals).self_to_type(block_pin.context)
+              if argtype.defined? && ptype && !arg_conforms_to?(argtype, ptype)
                 result.push Problem.new(location, "Wrong argument type for #{pin.path}: #{par.name} expected #{ptype}, received #{argtype}")
               end
             end
@@ -477,17 +510,36 @@ module Solargraph
       kwargs.each_pair do |pname, argchain|
         next unless params.key?(pname.to_s)
         ptype = params[pname.to_s][:qualified]
+        ptype = ptype.self_to_type(pin.context)
         argtype = argchain.infer(api_map, block_pin, locals)
-        if argtype.defined? && ptype && !any_types_match?(api_map, ptype, argtype)
+        argtype = argtype.self_to_type(block_pin.context)
+        if argtype.defined? && ptype && !arg_conforms_to?(argtype, ptype)
           result.push Problem.new(location, "Wrong argument type for #{pin.path}: #{pname} expected #{ptype}, received #{argtype}")
         end
       end
       result
     end
 
-    # @param pin [Pin::Method]
+    # @param param_details [Hash{String => Hash{Symbol => String, ComplexType}}]
+    # @param pin [Pin::Method, Pin::Signature]
+    # @return [void]
+    def add_restkwarg_param_tag_details(param_details, pin)
+      # see if we have additional tags to pay attention to from YARD -
+      # e.g., kwargs in a **restkwargs splat
+      tags = pin.docstring.tags(:param)
+      tags.each do |tag|
+        next if param_details.key? tag.name.to_s
+        next if tag.types.nil?
+        param_details[tag.name.to_s] = {
+          tagged: tag.types.join(', '),
+          qualified: Solargraph::ComplexType.try_parse(*tag.types).qualify(api_map, pin.full_context.namespace)
+        }
+      end
+    end
+
+    # @param pin [Pin::Signature]
     # @return [Hash{String => Hash{Symbol => String, ComplexType}}]
-    def param_hash(pin)
+    def signature_param_details(pin)
       # @type [Hash{String => Hash{Symbol => String, ComplexType}}]
       result = {}
       pin.parameters.each do |param|
@@ -498,44 +550,48 @@ module Solargraph
           qualified: type
         }
       end
-      # see if we have additional tags to pay attention to from YARD -
-      # e.g., kwargs in a **restkwargs splat
-      tags = pin.docstring.tags(:param)
-      tags.each do |tag|
-        next if result.key? tag.name.to_s
-        next if tag.types.nil?
-        result[tag.name.to_s] = {
-          tagged: tag.types.join(', '),
-          qualified: Solargraph::ComplexType.try_parse(*tag.types).qualify(api_map, pin.full_context.namespace)
-        }
-      end
       result
     end
 
-    # @param pins [Array<Pin::Method>]
+    # The original signature defines the parameters, but other
+    # signatures and method pins can help by adding type information
+    #
+    # @param param_details [Hash{String => Hash{Symbol => String, ComplexType}}]
+    # @param param_names [Array<String>]
+    # @param new_param_details [Hash{String => Hash{Symbol => String, ComplexType}}]
+    #
+    # @return [void]
+    def add_to_param_details(param_details, param_names, new_param_details)
+      new_param_details.each do |param_name, details|
+        next unless param_names.include?(param_name)
+
+        param_details[param_name] ||= {}
+        param_details[param_name][:tagged] ||= details[:tagged]
+        param_details[param_name][:qualified] ||= details[:qualified]
+      end
+    end
+
+    # @param signature [Pin::Signature]
+    # @param method_pin_stack [Array<Pin::Method>]
+    #
     # @return [Hash{String => Hash{Symbol => String, ComplexType}}]
-    def first_param_hash(pins)
-      return {} if pins.empty?
-      first_pin_type = pins.first.typify(api_map)
-      first_pin = pins.first.proxy first_pin_type
-      param_names = first_pin.parameter_names
-      results = param_hash(first_pin)
-      pins[1..].each do |pin|
-        # @todo this assignment from parametric use of Hash should not lose its generic
-        # @type [Hash{String => Hash{Symbol => BasicObject}}]
+    def param_details_from_stack(signature, method_pin_stack)
+      signature_type = signature.typify(api_map)
+      signature = signature.proxy signature_type
+      param_details = signature_param_details(signature)
+      param_names = signature.parameter_names
+
+      method_pin_stack.each do |method_pin|
+        add_restkwarg_param_tag_details(param_details, method_pin)
 
         # documentation of types in superclasses should fail back to
         # subclasses if the subclass hasn't documented something
-        superclass_results = param_hash(pin)
-        superclass_results.each do |param_name, details|
-          next unless param_names.include?(param_name)
-
-          results[param_name] ||= {}
-          results[param_name][:tagged] ||= details[:tagged]
-          results[param_name][:qualified] ||= details[:qualified]
+        method_pin.signatures.each do |sig|
+          add_restkwarg_param_tag_details(param_details, sig)
+          add_to_param_details param_details, param_names, signature_param_details(sig)
         end
       end
-      results
+      param_details
     end
 
     # @param pin [Pin::Base]

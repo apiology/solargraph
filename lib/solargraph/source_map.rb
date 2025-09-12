@@ -44,6 +44,7 @@ module Solargraph
       @pin_select_cache = {}
     end
 
+    # @sg-ignore Solargraph::SourceMap#pins_by_class return type could not be inferreda
     # @generic T
     # @param klass [Class<generic<T>>]
     # @return [Array<generic<T>>]
@@ -172,6 +173,7 @@ module Solargraph
     # @return [Array<Pin::Base>]
     attr_writer :convention_pins
 
+    # @return [Hash{Class => Array<Pin::Base>}]
     def pin_class_hash
       @pin_class_hash ||= pins.to_set.classify(&:class).transform_values(&:to_a)
     end
