@@ -121,8 +121,6 @@ module Solargraph
         return gemspec unless preference_map.key?(gemspec.name)
         return gemspec if gemspec.version == preference_map[gemspec.name].version
 
-        # @todo this code is unused but broken
-        # @sg-ignore Unresolved call to by_path
         change_gemspec_version gemspec, preference_map[gemspec.name].version
       end
 
