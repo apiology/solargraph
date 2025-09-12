@@ -215,9 +215,7 @@ describe Solargraph::Workspace::Gemspecs, '#resolve_require' do
 
       let(:require) { 'bundler/gem_tasks' }
 
-      xit 'returns gems' do
-        pending('improved logic for require lookups')
-
+      it 'returns gems' do
         expect(specs&.map(&:name)).to include('bundler')
       end
     end

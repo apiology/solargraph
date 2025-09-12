@@ -62,7 +62,9 @@ module Solargraph
             gemspec = Gem::Specification.find_by_name(gem_name)
             return [gemspec_or_preference(gemspec)] if gemspec
           rescue Gem::MissingSpecError
-            logger.debug "Gem #{gem_name} not found in the current Ruby environment"
+            logger.debug do
+              "Require path #{require} could not be resolved to a gem via find_by_path or guess of #{gem_name}"
+            end
           end
 
           # look ourselves just in case this is hanging out somewhere

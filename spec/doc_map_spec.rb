@@ -103,20 +103,8 @@ describe Solargraph::DocMap do
   end
 
   context 'with require as bundle/require' do
-    # @todo need to debug this failure in CI:
-    #
-    #      Errno::ENOENT:
-    #    No such file or directory - /opt/hostedtoolcache/Ruby/3.3.9/x64/lib/ruby/3.3.0/gems/bundler-2.5.22
-    #  # ./lib/solargraph/yardoc.rb:29:in `cache'
-    #  # ./lib/solargraph/gem_pins.rb:48:in `build_yard_pins'
-    #  # ./lib/solargraph/doc_map.rb:86:in `cache_yard_pins'
-    #  # ./lib/solargraph/doc_map.rb:117:in `cache'
-    #  # ./lib/solargraph/doc_map.rb:75:in `block in cache_all!'
-    #  # ./lib/solargraph/doc_map.rb:74:in `each'
-    #  # ./lib/solargraph/doc_map.rb:74:in `cache_all!'
-    #  # ./spec/doc_map_spec.rb:99:in `block (3 levels) in <top (required)>'
-    xit 'imports all gems when bundler/require used' do
-      doc_map_with_bundler_require = described_class.new(['bundler/require'], [], workspace, out: nil)
+    it 'imports all gems when bundler/require used' do
+      doc_map_with_bundler_require = described_class.new(['bundler/require'], workspace, out: nil)
       doc_map_with_bundler_require.cache_doc_map_gems!(nil)
       expect(doc_map_with_bundler_require.pins.length - plain_doc_map.pins.length).to be_positive
     end
@@ -174,6 +162,9 @@ describe Solargraph::DocMap do
 
       doc_map = Solargraph::DocMap.new(['original_gem'], workspace)
 
+      # @todo this should probably not be in requires, which is a
+      #   path, and instead be in a new gem_names property on the
+      #   Environ
       expect(doc_map.requires).to include('original_gem', 'convention_gem1', 'convention_gem2')
     ensure
       # Clean up the registered convention
