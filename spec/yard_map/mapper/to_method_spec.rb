@@ -76,6 +76,7 @@ describe Solargraph::YardMap::Mapper::ToMethod do
 EOF
     pin = Solargraph::YardMap::Mapper::ToMethod.make(code_object)
     param = pin.parameters.first
+    expect(param).not_to be_nil
     expect(param.decl).to be(:blockarg)
     expect(param.name).to eq('')
     expect(param.full).to eq("&")

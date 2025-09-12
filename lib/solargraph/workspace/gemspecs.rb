@@ -123,7 +123,7 @@ module Solargraph
 
         # @todo this code is unused but broken
         # @sg-ignore Unresolved call to by_path
-        change_gemspec_version gemspec, preference_map[by_path.name].version
+        change_gemspec_version gemspec, preference_map[gemspec.name].version
       end
 
       # @param gemspec [Gem::Specification]
