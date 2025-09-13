@@ -426,6 +426,7 @@ module Solargraph
           end.compact
         else
           Solargraph.logger.warn "Failed to load gems from bundle at #{workspace&.directory}: #{e}"
+          nil
         end
       end
     end
