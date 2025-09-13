@@ -4,7 +4,7 @@ describe Solargraph::TypeChecker do
       Solargraph::TypeChecker.load_string(code, 'test.rb', :strong)
     end
 
-    it 'does not complain on array dereference' do
+    it 'does gives correct complaint on array dereference with nilable type' do
       checker = type_checker(%(
         # @param idx [Integer, nil] an index
         # @param arr [Array<Integer>] an array of integers
@@ -14,7 +14,9 @@ describe Solargraph::TypeChecker do
           arr[idx]
         end
       ))
-      expect(checker.problems.map(&:message)).to be_empty
+      # may also give errors about other arities; not really too
+      # worried about that
+      expect(checker.problems.map(&:message)).to include("Wrong argument type for Array#[]: index expected Integer, received Integer, nil")
     end
 
     it 'complains on bad @type assignment' do
@@ -67,21 +69,6 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.first.message).to include('Missing @return tag')
     end
 
-    it 'ignores nilable type issues' do
-      checker = type_checker(%(
-        # @param a [String]
-        # @return [void]
-        def foo(a); end
-
-        # @param b [String, nil]
-        # @return [void]
-        def bar(b)
-         foo(b)
-        end
-      ))
-      expect(checker.problems.map(&:message)).to eq([])
-    end
-
     it 'calls out keyword issues even when required arg count matches' do
       checker = type_checker(%(
         # @param a [String]
@@ -95,6 +82,29 @@ describe Solargraph::TypeChecker do
         end
       ))
       expect(checker.problems.map(&:message)).to include('Call to #foo is missing keyword argument b')
+    end
+
+    it 'understands complex use of other' do
+      checker = type_checker(%(
+        class A
+          # @param other [self]
+          #
+          # @return [void]
+          def foo other; end
+
+          # @param other [self]
+          #
+          # @return [void]
+          def bar(other); end
+        end
+
+        class B < A
+          def bar(other)
+            foo(other)
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
     end
 
     it 'calls out type issues even when keyword issues are there' do
@@ -399,6 +409,20 @@ describe Solargraph::TypeChecker do
         end
       ))
       expect(checker.problems).to be_empty
+    end
+
+    it 'understands Open3 methods' do
+      checker = type_checker(%(
+        require 'open3'
+
+        # @return [void]
+        def run_command
+          # @type [Hash{String => String}]
+          foo = {'foo' => 'bar'}
+          Open3.capture2e(foo, 'ls', chdir: '/tmp')
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
     end
   end
 end

@@ -120,6 +120,7 @@ module Solargraph
       @doc_map ||= DocMap.new([], [])
     end
 
+    # @sg-ignore flow sensitive typing needs to handle || on nil types
     # @return [::Array<Gem::Specification>]
     def uncached_gemspecs
       @doc_map&.uncached_gemspecs || []
@@ -178,6 +179,7 @@ module Solargraph
     # Create an ApiMap with a workspace in the specified directory.
     #
     # @param directory [String]
+    #
     # @return [ApiMap]
     def self.load directory
       api_map = new
@@ -211,8 +213,10 @@ module Solargraph
     # any missing gems.
     #
     #
+    # @sg-ignore Declared type IO does not match inferred type IO, StringIO for variable out
     # @param directory [String]
     # @param out [IO] The output stream for messages
+    #
     # @return [ApiMap]
     def self.load_with_cache directory, out = $stdout
       api_map = load(directory)
@@ -258,7 +262,7 @@ module Solargraph
     #
     # @param namespace [String] The namespace
     # @param contexts [Array<String>] The contexts
-    # @return [Array<Solargraph::Pin::Base>]
+    # @return [Array<Solargraph::Pin::Constant, Solargraph::Pin::Namespace>]
     def get_constants namespace, *contexts
       namespace ||= ''
       contexts.push '' if contexts.empty?
@@ -534,7 +538,8 @@ module Solargraph
     # @param name [String] Method name to look up
     # @param scope [Symbol] :instance or :class
     # @param visibility [Array<Symbol>] :public, :protected, and/or :private
-    # @param preserve_generics [Boolean]
+    # @param preserve_generics [Boolean] True to preserve any
+    #   unresolved generic parameters, false to erase them
     # @return [Array<Solargraph::Pin::Method>]
     def get_method_stack rooted_tag, name, scope: :instance, visibility: [:private, :protected, :public], preserve_generics: false
       rooted_type = ComplexType.parse(rooted_tag)
@@ -788,6 +793,9 @@ module Solargraph
 
         if scope == :instance
           store.get_include_pins(fqns).reverse.each do |ref|
+            # @sg-ignore Declared type Solargraph::Pin::Constant does
+            #   not match inferred type Solargraph::Pin::Constant,
+            #   Solargraph::Pin::Namespace, nil for variable const
             const = get_constants('', *ref.closure.gates).find { |pin| pin.path.end_with? ref.name }
             if const.is_a?(Pin::Namespace)
               result.concat inner_get_methods(const.path, scope, visibility, deep, skip, true)
