@@ -33,28 +33,23 @@ jobs:
           ruby-version: 3.4
           bundler: latest
           bundler-cache: true
-          cache-version: 2025-08
+          cache-version: 2025-06-06
 
       - name: Update to best available RBS
         run: |
           bundle update rbs # use latest available for this Ruby version
 
-      # - name: Restore cache of gem annotations
-      #   id: dot-cache-restore
-      #   uses: actions/cache/restore@v4
-      #   with:
-      #     key: |
-      #       2025-08-${{ runner.os }}-dot-cache-${{ hashFiles('Gemfile.lock') }}
-      #     restore-keys: |
-      #       2025-08-${{ runner.os }}-dot-cache
-      #       2025-08-${{ runner.os }}-dot-cache-
-      #     path: |
-      #       /home/runner/.cache/solargraph
-
-      - name: Debug
-        run: |
-          bundle info rbs
-          bundle info thor
+      - name: Restore cache of gem annotations
+        id: dot-cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          key: |
+            2025-06-26-09-${{ runner.os }}-dot-cache-${{ hashFiles('Gemfile.lock') }}
+          restore-keys: |
+            2025-06-26-09-${{ runner.os }}-dot-cache
+            2025-06-26-09-${{ runner.os }}-dot-cache-
+          path: |
+            /home/runner/.cache/solargraph
 
       - name: Install gem types
         run: bundle exec rbs collection install
