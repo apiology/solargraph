@@ -254,6 +254,7 @@ module Solargraph
         rooted_tags
       end
 
+      # @sg-ignore flow sensitive typing needs to handle || on nil types
       # @return [String]
       def to_rbs
         if duck_type?
@@ -263,7 +264,7 @@ module Solargraph
         elsif name.downcase == 'nil'
           'nil'
         elsif name == GENERIC_TAG_NAME
-          all_params.first&.name
+          all_params.first&.name || 'untyped'
         elsif ['Class', 'Module'].include?(name)
           rbs_name
         elsif ['Tuple', 'Array'].include?(name) && fixed_parameters?
@@ -347,7 +348,7 @@ module Solargraph
       end
 
       # @param generics_to_resolve [Enumerable<String>]
-      # @param context_type [UniqueType]
+      # @param context_type [UniqueType, nil]
       # @param resolved_generic_values [Hash{String => ComplexType}]
       # @yieldreturn [Array<ComplexType>]
       # @return [Array<ComplexType>]
@@ -476,12 +477,12 @@ module Solargraph
       # @param api_map [ApiMap] The ApiMap that performs qualification
       # @param context [String] The namespace from which to resolve names
       # @return [self, ComplexType, UniqueType] The generated ComplexType
-      def qualify api_map, context = ''
+      def qualify api_map, *gates
         transform do |t|
           next t if t.name == GENERIC_TAG_NAME
-          next t if t.duck_type? || t.void? || t.undefined?
-          recon = (t.rooted? ? '' : context)
-          fqns = api_map.qualify(t.name, recon)
+          next t if t.duck_type? || t.void? || t.undefined? || t.literal?
+          open = t.rooted? ? [''] : gates
+          fqns = api_map.qualify(t.non_literal_name, *open)
           if fqns.nil?
             next UniqueType::BOOLEAN if t.tag == 'Boolean'
             next UniqueType::UNDEFINED
@@ -518,6 +519,7 @@ module Solargraph
         !can_root_name? || @rooted
       end
 
+      # @param name_to_check [String]
       def can_root_name?(name_to_check = name)
         self.class.can_root_name?(name_to_check)
       end

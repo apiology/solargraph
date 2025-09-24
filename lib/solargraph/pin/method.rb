@@ -17,7 +17,7 @@ module Solargraph
 
       # @param visibility [::Symbol] :public, :protected, or :private
       # @param explicit [Boolean]
-      # @param block [Pin::Signature, nil, ::Symbol]
+      # @param block [Pin::Signature, nil, :undefined]
       # @param node [Parser::AST::Node, nil]
       # @param attribute [Boolean]
       # @param signatures [::Array<Signature>, nil]
@@ -76,6 +76,7 @@ module Solargraph
         end
       end
 
+      # @sg-ignore flow sensitive typing needs to handle "unless foo.nil?"
       def combine_with(other, attrs = {})
         priority_choice = choose_priority(other)
         return priority_choice unless priority_choice.nil?
@@ -155,6 +156,8 @@ module Solargraph
         !block.nil?
       end
 
+      # @sg-ignore flow-sensitive typing needs to remove literal with
+      #   this unless block
       # @return [Pin::Signature, nil]
       def block
         return @block unless @block == :undefined
@@ -212,6 +215,7 @@ module Solargraph
         signature
       end
 
+      # @sg-ignore Need to understand @foo ||= 123 will never be nil
       # @return [::Array<Signature>]
       def signatures
         @signatures ||= begin
@@ -298,7 +302,7 @@ module Solargraph
         type = see_reference(api_map) || typify_from_super(api_map)
         logger.debug { "Method#typify(self=#{self}) - type=#{type&.rooted_tags.inspect}" }
         unless type.nil?
-          qualified = type.qualify(api_map, namespace)
+          qualified = type.qualify(api_map, *closure.gates)
           logger.debug { "Method#typify(self=#{self}) => #{qualified.rooted_tags.inspect}" }
           return qualified
         end
@@ -556,7 +560,7 @@ module Solargraph
         if parts.first.empty? || parts.one?
           path = "#{namespace}#{ref}"
         else
-          fqns = api_map.qualify(parts.first, namespace)
+          fqns = api_map.qualify(parts.first, *gates)
           return ComplexType::UNDEFINED if fqns.nil?
           path = fqns + ref[parts.first.length] + parts.last
         end
@@ -568,6 +572,7 @@ module Solargraph
         nil
       end
 
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1005
       # @return [Parser::AST::Node, nil]
       def method_body_node
         return nil if node.nil?

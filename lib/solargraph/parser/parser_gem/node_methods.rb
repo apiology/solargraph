@@ -119,6 +119,7 @@ module Solargraph
           result
         end
 
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1005
         NIL_NODE = ::Parser::AST::Node.new(:nil)
 
         # @param node [Parser::AST::Node]

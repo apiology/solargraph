@@ -33,12 +33,12 @@ module Solargraph
     # @param api_map [ApiMap]
     # @param context [String]
     # @return [ComplexType]
-    def qualify api_map, context = ''
+    def qualify api_map, *gates
       red = reduce_object
       types = red.items.map do |t|
         next t if ['nil', 'void', 'undefined'].include?(t.name)
         next t if ['::Boolean'].include?(t.rooted_name)
-        t.qualify api_map, context
+        t.qualify api_map, *gates
       end
       ComplexType.new(types).reduce_object
     end
@@ -362,7 +362,7 @@ module Solargraph
       # #  @todo Need ability to use a literal true as a type below
       # #  @param partial [Boolean] True if the string is part of a another type
       # #  @return [Array<UniqueType>]
-      # @todo To be able to select the right signature above,
+      # @sg-ignore To be able to select the right signature above,
       #   Chain::Call needs to know the decl type (:arg, :optarg,
       #   :kwarg, etc) of the arguments given, instead of just having
       #   an array of Chains as the arguments.

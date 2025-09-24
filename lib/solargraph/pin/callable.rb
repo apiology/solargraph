@@ -35,6 +35,7 @@ module Solargraph
         elsif other.block.nil?
           block
         else
+          # @type [Pin::Signature, nil]
           choose_pin_attr(other, :block)
         end
       end
@@ -77,6 +78,7 @@ module Solargraph
         end
       end
 
+      # @sg-ignore Need to figure if Array#[n..m] can return nil
       # @return [Array<Pin::Parameter>]
       def blockless_parameters
         if parameters.last&.block?
@@ -217,7 +219,6 @@ module Solargraph
         parameters.count(&:arg?)
       end
 
-      # @return [String]
       def to_rbs
         rbs_generics + '(' + parameters.map { |param| param.to_rbs }.join(', ') + ') ' + (block.nil? ? '' : '{ ' + block.to_rbs + ' } ') + '-> ' + return_type.to_rbs
       end
