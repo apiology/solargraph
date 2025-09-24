@@ -487,6 +487,7 @@ module Solargraph
             ptype = data[:qualified]
             ptype = ptype.self_to_type(pin.context)
             unless ptype.undefined?
+              # @sg-ignore reassigned variable
               # @type [ComplexType]
               argtype = argchain.infer(api_map, block_pin, locals).self_to_type(block_pin.context)
               if argtype.defined? && ptype && !arg_conforms_to?(argtype, ptype)
