@@ -14,8 +14,8 @@ module Solargraph
       # @return [String]
       attr_reader :directory
 
-      # @todo To make this strongly typed we'll need a record syntax
-      # @return [Hash{String => Array, Hash, Integer, nil}]
+      # @todo To make JSON strongly typed we'll need a record syntax
+      # @return [Hash{String => undefined, nil}]
       attr_reader :raw_data
 
       # @param directory [String]
@@ -63,6 +63,7 @@ module Solargraph
       # namespace. It's typically used to identify available DSLs.
       #
       # @return [Array<String>]
+      # @sg-ignore Need to validate config
       def domains
         raw_data['domains']
       end
@@ -70,12 +71,14 @@ module Solargraph
       # An array of required paths to add to the workspace.
       #
       # @return [Array<String>]
+      # @sg-ignore Need to validate config
       def required
         raw_data['require']
       end
 
       # An array of load paths for required paths.
       #
+      # @sg-ignore Need to validate config
       # @return [Array<String>]
       def require_paths
         raw_data['require_paths'] || []
@@ -83,6 +86,7 @@ module Solargraph
 
       # An array of reporters to use for diagnostics.
       #
+      # @sg-ignore Need to validate config
       # @return [Array<String>]
       def reporters
         raw_data['reporters']
@@ -90,6 +94,7 @@ module Solargraph
 
       # A hash of options supported by the formatter
       #
+      # @sg-ignore Need to validate config
       # @return [Hash]
       def formatter
         raw_data['formatter']
@@ -97,6 +102,7 @@ module Solargraph
 
       # An array of plugins to require.
       #
+      # @sg-ignore Need to validate config
       # @return [Array<String>]
       def plugins
         raw_data['plugins']
@@ -104,6 +110,7 @@ module Solargraph
 
       # The maximum number of files to parse from the workspace.
       #
+      # @sg-ignore Need to validate config
       # @return [Integer]
       def max_files
         raw_data['max_files']
@@ -113,8 +120,9 @@ module Solargraph
 
       # @return [String]
       def global_config_path
-        ENV['SOLARGRAPH_GLOBAL_CONFIG'] ||
-          File.join(Dir.home, '.config', 'solargraph', 'config.yml')
+        out = ENV['SOLARGRAPH_GLOBAL_CONFIG'] ||
+              File.join(Dir.home, '.config', 'solargraph', 'config.yml')
+        out
       end
 
       # @return [String]
@@ -123,7 +131,7 @@ module Solargraph
         File.join(@directory, '.solargraph.yml')
       end
 
-      # @return [Hash{String => Array<undefined>, Hash{String => undefined}, Integer}]
+      # @return [Hash{String => undefined}]
       def config_data
         workspace_config = read_config(workspace_config_path)
         global_config = read_config(global_config_path)

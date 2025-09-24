@@ -7,6 +7,8 @@ module Solargraph
     autoload :Problem,  'solargraph/type_checker/problem'
     autoload :Rules,    'solargraph/type_checker/rules'
 
+    # @!parse
+    #  include Solargraph::Parser::ParserGem::NodeMethods
     include Parser::NodeMethods
 
     # @return [String]
@@ -18,14 +20,17 @@ module Solargraph
     # @return [ApiMap]
     attr_reader :api_map
 
-    # @param filename [String]
+    # @param filename [String, nil]
     # @param api_map [ApiMap, nil]
+    # @param rules [Rules]
     # @param level [Symbol]
-    def initialize filename, api_map: nil, level: :normal
+    def initialize filename, api_map: nil, level: :normal, rules: Rules.new(level)
       @filename = filename
       # @todo Smarter directory resolution
-      @api_map = api_map || Solargraph::ApiMap.load(File.dirname(filename))
-      @rules = Rules.new(level)
+      @rules = rules
+      @api_map = api_map || Solargraph::ApiMap.load(File.dirname(filename),
+                                                    loose_unions: !rules.require_all_unique_types_match_expected_on_lhs?)
+
       # @type [Array<Range>]
       @marked_ranges = []
     end
@@ -37,34 +42,34 @@ module Solargraph
 
     # @return [Source]
     def source
-      @source_map.source
+      source_map.source
     end
 
-    # @param inferred [ComplexType]
-    # @param expected [ComplexType]
+    # @param inferred [ComplexType, ComplexType::UniqueType]
+    # @param expected [ComplexType, ComplexType::UniqueType]
     def return_type_conforms_to?(inferred, expected)
       conforms_to?(inferred, expected, :return_type)
     end
 
-    # @param inferred [ComplexType]
-    # @param expected [ComplexType]
+    # @param inferred [ComplexType, ComplexType::UniqueType]
+    # @param expected [ComplexType, ComplexType::UniqueType]
     def arg_conforms_to?(inferred, expected)
       conforms_to?(inferred, expected, :method_call)
     end
 
-    # @param inferred [ComplexType]
-    # @param expected [ComplexType]
+    # @param inferred [ComplexType, ComplexType::UniqueType]
+    # @param expected [ComplexType, ComplexType::UniqueType]
     def assignment_conforms_to?(inferred, expected)
       conforms_to?(inferred, expected, :assignment)
     end
 
-    # @param inferred [ComplexType]
-    # @param expected [ComplexType]
+    # @param inferred [ComplexType, ComplexType::UniqueType]
+    # @param expected [ComplexType, ComplexType::UniqueType]
     # @param scenario [Symbol]
     def conforms_to?(inferred, expected, scenario)
       rules_arr = []
       rules_arr << :allow_empty_params unless rules.require_inferred_type_params?
-      rules_arr << :allow_any_match unless rules.require_all_unique_types_match_declared?
+      rules_arr << :allow_any_match unless rules.require_all_unique_types_match_expected?
       rules_arr << :allow_undefined unless rules.require_no_undefined_args?
       rules_arr << :allow_unresolved_generic unless rules.require_generics_resolved?
       rules_arr << :allow_unmatched_interface unless rules.require_interfaces_resolved?
@@ -91,20 +96,24 @@ module Solargraph
       # @return [self]
       def load filename, level = :normal
         source = Solargraph::Source.load(filename)
-        api_map = Solargraph::ApiMap.new
+        rules = Rules.new(level)
+        api_map = Solargraph::ApiMap.new(loose_unions: !rules.require_all_unique_types_match_expected?)
         api_map.map(source)
-        new(filename, api_map: api_map, level: level)
+        new(filename, api_map: api_map, level: level, rules: rules)
       end
 
       # @param code [String]
       # @param filename [String, nil]
       # @param level [Symbol]
-      # @param api_map [Solargraph::ApiMap]
+      # @param api_map [Solargraph::ApiMap, nil]
       # @return [self]
-      def load_string code, filename = nil, level = :normal, api_map: Solargraph::ApiMap.new
+      def load_string code, filename = nil, level = :normal, api_map: nil
         source = Solargraph::Source.load_string(code, filename)
+        rules = Rules.new(level)
+        api_map ||= Solargraph::ApiMap.new(loose_unions: !rules.require_all_unique_types_match_expected?)
+        # @sg-ignore flow sensitive typing needs better handling of ||= on lvars
         api_map.map(source)
-        new(filename, api_map: api_map, level: level)
+        new(filename, api_map: api_map, level: level, rules: rules)
       end
     end
 
@@ -128,6 +137,7 @@ module Solargraph
       result = []
       declared = pin.typify(api_map).self_to_type(pin.full_context).qualify(api_map, *pin.gates)
       if declared.undefined?
+        # @sg-ignore Need to add nil check here
         if pin.return_type.undefined? && rules.require_type_tags?
           if pin.attribute?
             inferred = pin.probe(api_map).self_to_type(pin.full_context)
@@ -135,6 +145,7 @@ module Solargraph
           else
             result.push Problem.new(pin.location, "Missing @return tag for #{pin.path}", pin: pin)
           end
+          # @sg-ignore Need to add nil check here
         elsif pin.return_type.defined? && !resolved_constant?(pin)
           result.push Problem.new(pin.location, "Unresolved return type #{pin.return_type} for #{pin.path}", pin: pin)
         elsif rules.must_tag_or_infer? && pin.probe(api_map).undefined?
@@ -175,6 +186,7 @@ module Solargraph
 
     # @param pin [Pin::Base]
     def virtual_pin? pin
+      # @sg-ignore Need to add nil check here
       pin.location && source.comment_at?(pin.location.range.ending)
     end
 
@@ -269,7 +281,9 @@ module Solargraph
       Solargraph::Parser::NodeMethods.const_nodes_from(source.node).each do |const|
         rng = Solargraph::Range.from_node(const)
         chain = Solargraph::Parser.chain(const, filename)
+        # @sg-ignore Need to add nil check here
         block_pin = source_map.locate_block_pin(rng.start.line, rng.start.column)
+        # @sg-ignore Need to add nil check here
         location = Location.new(filename, rng)
         locals = source_map.locals_at(location)
         pins = chain.define(api_map, block_pin, locals)
@@ -286,9 +300,12 @@ module Solargraph
       result = []
       Solargraph::Parser::NodeMethods.call_nodes_from(source.node).each do |call|
         rng = Solargraph::Range.from_node(call)
+        # @sg-ignore Need to add nil check here
         next if @marked_ranges.any? { |d| d.contain?(rng.start) }
         chain = Solargraph::Parser.chain(call, filename)
+        # @sg-ignore Need to add nil check here
         block_pin = source_map.locate_block_pin(rng.start.line, rng.start.column)
+        # @sg-ignore Need to add nil check here
         location = Location.new(filename, rng)
         locals = source_map.locals_at(location)
         type = chain.infer(api_map, block_pin, locals)
@@ -310,10 +327,11 @@ module Solargraph
           all_closest = all_found.map { |pin| pin.typify(api_map) }
           closest = ComplexType.new(all_closest.flat_map(&:items).uniq)
           # @todo remove the internal_or_core? check at a higher-than-strict level
+          # @sg-ignore Need to support nested flow sensitive types
           if !found || found.is_a?(Pin::BaseVariable) || (closest.defined? && internal_or_core?(found))
             unless closest.generic? || ignored_pins.include?(found)
               if closest.defined?
-                result.push Problem.new(location, "Unresolved call to #{missing.links.last.word} on #{closest}")
+                result.push Problem.new(location, "Unresolved call to #{missing.links.last.word} on #{closest.rooted_tags}")
               else
                 result.push Problem.new(location, "Unresolved call to #{missing.links.last.word}")
               end
@@ -358,6 +376,7 @@ module Solargraph
                       end
                init = api_map.get_method_stack(fqns, 'initialize').first
 
+               # @type [::Array<Solargraph::TypeChecker::Problem>]
                init ? arity_problems_for(init, arguments, location) : []
              else
                arity_problems_for(pin, arguments, location)
@@ -385,7 +404,9 @@ module Solargraph
     # @param location [Location]
     # @param locals [Array<Pin::LocalVariable>]
     # @param closure_pin [Pin::Closure]
-    # @param params [Hash{String => Hash{Symbol => String, Solargraph::ComplexType}}]
+    # @sg-ignore Unresolved type Hash{String => undefined] for params
+    #   param on Solargraph::TypeChecker#signature_argument_problems_for
+    # @param params [Hash{String => undefined]
     # @param arguments [Array<Source::Chain>]
     # @param sig [Pin::Signature]
     # @param pin [Pin::Method]
@@ -446,6 +467,7 @@ module Solargraph
             # @todo Some level (strong, I guess) should require the param here
             else
               argtype = argchain.infer(api_map, closure_pin, locals)
+              argtype = argtype.self_to_type(closure_pin.context)
               if argtype.defined? && ptype.defined? && !arg_conforms_to?(argtype, ptype)
                 errors.push Problem.new(location, "Wrong argument type for #{pin.path}: #{par.name} expected #{ptype}, received #{argtype}")
                 return errors
@@ -461,13 +483,13 @@ module Solargraph
     end
 
     # @param sig [Pin::Signature]
-    # @param argchain [Source::Chain]
+    # @param argchain [Solargraph::Source::Chain]
     # @param api_map [ApiMap]
     # @param block_pin [Pin::Block]
     # @param locals [Array<Pin::LocalVariable>]
     # @param location [Location]
     # @param pin [Pin::Method]
-    # @param params [Hash{String => Hash{Symbol => String, Solargraph::ComplexType}}]
+    # @param params [Hash{String => Hash{Symbol => undefined}}]
     # @param idx [Integer]
     #
     # @return [Array<Problem>]
@@ -475,6 +497,7 @@ module Solargraph
       result = []
       kwargs = convert_hash(argchain.node)
       par = sig.parameters[idx]
+      # @type [Solargraph::Source::Chain]
       argchain = kwargs[par.name.to_sym]
       if par.decl == :kwrestarg || (par.decl == :optarg && idx == pin.parameters.length - 1 && par.asgn_code == '{}')
         result.concat kwrestarg_problems_for(api_map, block_pin, locals, location, pin, params, kwargs)
@@ -484,10 +507,11 @@ module Solargraph
           if data.nil?
             # @todo Some level (strong, I guess) should require the param here
           else
+            # @type [ComplexType, ComplexType::UniqueType]
             ptype = data[:qualified]
+            ptype = ptype.self_to_type(pin.context)
             unless ptype.undefined?
-              # @type [ComplexType]
-              argtype = argchain.infer(api_map, block_pin, locals)
+              argtype = argchain.infer(api_map, block_pin, locals).self_to_type(block_pin.context)
               if argtype.defined? && ptype && !arg_conforms_to?(argtype, ptype)
                 result.push Problem.new(location, "Wrong argument type for #{pin.path}: #{par.name} expected #{ptype}, received #{argtype}")
               end
@@ -560,6 +584,7 @@ module Solargraph
       first_pin = pins.first.proxy first_pin_type
       param_names = first_pin.parameter_names
       results = param_hash(first_pin)
+      # @sg-ignore Need to add nil check here
       pins[1..].each do |pin|
         # @todo this assignment from parametric use of Hash should not lose its generic
         # @type [Hash{String => Hash{Symbol => BasicObject}}]
@@ -581,6 +606,7 @@ module Solargraph
     # @param pin [Pin::Base]
     def internal? pin
       return false if pin.nil?
+      # @sg-ignore Translate to something flow sensitive typing understands
       pin.location && api_map.bundled?(pin.location.filename)
     end
 
@@ -601,7 +627,9 @@ module Solargraph
       return true if pin.assignment.nil?
       chain = Solargraph::Parser.chain(pin.assignment, filename)
       rng = Solargraph::Range.from_node(pin.assignment)
+      # @sg-ignore Need to add nil check here
       block_pin = source_map.locate_block_pin(rng.start.line, rng.start.column)
+      # @sg-ignore flow sensitive typing needs to handle "if foo.nil?"
       location = Location.new(filename, Range.from_node(pin.assignment))
       locals = source_map.locals_at(location)
       type = chain.infer(api_map, block_pin, locals)
@@ -622,6 +650,7 @@ module Solargraph
         end
         all_closest = all_found.map { |pin| pin.typify(api_map) }
         closest = ComplexType.new(all_closest.flat_map(&:items).uniq)
+        # @sg-ignore Need to support nested flow sensitive types
         if !found || closest.defined? || internal?(found)
           return false
         end
@@ -722,8 +751,10 @@ module Solargraph
     end
 
     # @param pin [Pin::Method]
+    # @sg-ignore need boolish support for ? methods
     def abstract? pin
       pin.docstring.has_tag?('abstract') ||
+        # @sg-ignore of low sensitive typing needs to handle ivars
         (pin.closure && pin.closure.docstring.has_tag?('abstract'))
     end
 
@@ -784,6 +815,7 @@ module Solargraph
       problems.reject do |problem|
         node = source.node_at(problem.location.range.start.line, problem.location.range.start.column)
         ignored = node && source.comments_for(node)&.include?('@sg-ignore')
+        # @sg-ignore Unresolved call to !
         unless !ignored || all_sg_ignore_lines.include?(problem.location.range.start.line)
           # :nocov:
           Solargraph.assert_or_log(:sg_ignore) { "@sg-ignore accounting issue - node is #{node}" }

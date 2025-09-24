@@ -66,10 +66,12 @@ module Solargraph
             rng = Range.from_node(node)
             next if rng.nil?
             pos = rng.ending
+            # @sg-ignore Need to add nil check here
             clip = api_map.clip_at(location.filename, pos)
             # Use the return node for inference. The clip might infer from the
             # first node in a method call instead of the entire call.
             chain = Parser.chain(node, nil, nil)
+            # @sg-ignore Need to add nil check here
             result = chain.infer(api_map, closure, clip.locals).self_to_type(closure.context)
             types.push result unless result.undefined?
           end
@@ -77,12 +79,24 @@ module Solargraph
         types
       end
 
+      # @return [ComplexType, nil]
+      def exclude_return_type
+        nil
+      end
+
       # @param api_map [ApiMap]
       # @return [ComplexType]
       def probe api_map
+        if presence_certain? && return_type.defined?
+          # flow sensitive typing has already figured out this type
+          return return_type.qualify(api_map, *gates)
+        end
+
         unless @assignment.nil?
+          # @sg-ignore sensitive typing needs to handle "unless foo.nil?"
           types = return_types_from_node(@assignment, api_map)
-          return ComplexType.new(types.uniq) unless types.empty?
+          exclude_items = exclude_return_type&.items&.uniq
+          return ComplexType.new(types.flat_map(&:items).uniq - (exclude_items || [])) unless types.empty?
         end
 
         unless @mass_assignment.nil?
@@ -108,6 +122,7 @@ module Solargraph
       end
 
       def type_desc
+        # @sg-ignore should understand meaning of &.
         "#{super} = #{assignment&.type.inspect}"
       end
 

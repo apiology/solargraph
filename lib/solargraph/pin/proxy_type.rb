@@ -3,7 +3,7 @@
 module Solargraph
   module Pin
     class ProxyType < Base
-      # @param return_type [ComplexType]
+      # @param return_type [ComplexType, ComplexType::UniqueType]
       # @param binder [ComplexType, ComplexType::UniqueType, nil]
       def initialize return_type: ComplexType::UNDEFINED, binder: nil, **splat
         super(**splat)
@@ -22,6 +22,7 @@ module Solargraph
       def self.anonymous context, closure: nil, binder: nil, **kwargs
         unless closure
           parts = context.namespace.split('::')
+          # @sg-ignore Need to add nil check here
           namespace = parts[0..-2].join('::').to_s
           closure = Solargraph::Pin::Namespace.new(name: namespace, source: :proxy_type)
         end

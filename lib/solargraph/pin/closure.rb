@@ -33,10 +33,12 @@ module Solargraph
         super(other, new_attrs)
       end
 
+      # @sg-ignore Need support for reduce_class_type in UniqueType
       def context
         @context ||= begin
           result = super
           if scope == :instance
+            # @sg-ignore Need support for reduce_class_type in UniqueType
             result.reduce_class_type
           else
             result
@@ -53,7 +55,6 @@ module Solargraph
         @generics ||= docstring.tags(:generic).map(&:name)
       end
 
-      # @return [String]
       def to_rbs
         rbs_generics + return_type.to_rbs
       end

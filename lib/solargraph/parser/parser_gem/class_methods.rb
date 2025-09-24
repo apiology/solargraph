@@ -2,15 +2,6 @@
 
 require 'prism'
 
-# Awaiting ability to use a version containing https://github.com/whitequark/parser/pull/1076
-#
-# @!parse
-#   class ::Parser::Base < ::Parser::Builder
-#     # @return [Integer]
-#     def version; end
-#   end
-#   class ::Parser::CurrentRuby < ::Parser::Base; end
-
 module Solargraph
   module Parser
     module ParserGem
@@ -27,6 +18,7 @@ module Solargraph
         # @param code [String]
         # @param filename [String, nil]
         # @param line [Integer]
+        # @sg-ignore need to understand that raise does not return
         # @return [Parser::AST::Node]
         def parse code, filename = nil, line = 0
           buffer = ::Parser::Source::Buffer.new(filename, line)
@@ -47,6 +39,7 @@ module Solargraph
         # @param source [Source]
         # @return [Array(Array<Pin::Base>, Array<Pin::Base>)]
         def map source
+          # @sg-ignore Need to add nil check here
           NodeProcessor.process(source.node, Region.new(source: source))
         end
 
@@ -59,15 +52,18 @@ module Solargraph
             # @param code [String]
             # @param offset [Integer]
             # @return [Array(Integer, Integer), Array(nil, nil)]
+            # @sg-ignore Need to add nil check here
             extract_offset = ->(code, offset) { reg.match(code, offset).offset(0) }
           else
             # @param code [String]
             # @param offset [Integer]
             # @return [Array(Integer, Integer), Array(nil, nil)]
+            # @sg-ignore Need to add nil check here
             extract_offset = ->(code, offset) { [soff = code.index(name, offset), soff + name.length] }
           end
           inner_node_references(name, source.node).map do |n|
             rng = Range.from_node(n)
+            # @sg-ignore Need to add nil check here
             offset = Position.to_offset(source.code, rng.start)
             soff, eoff = extract_offset[source.code, offset]
             Location.new(
@@ -84,6 +80,7 @@ module Solargraph
         # @param top [AST::Node]
         # @return [Array<AST::Node>]
         def inner_node_references name, top
+          # @type [Array<AST::Node>]
           result = []
           if top.is_a?(AST::Node) && top.to_s.include?(":#{name}")
             result.push top if top.children.any? { |c| c.to_s == name }
@@ -107,7 +104,7 @@ module Solargraph
           Solargraph::Parser::NodeProcessor.process *args
         end
 
-        # @param node [Parser::AST::Node]
+        # @param node [Parser::AST::Node, nil]
         # @return [String, nil]
         def infer_literal_node_type node
           NodeMethods.infer_literal_node_type node
@@ -118,7 +115,7 @@ module Solargraph
           parser.version
         end
 
-        # @param node [BasicObject]
+        # @param node [BasicObject, nil]
         # @return [Boolean]
         def is_ast_node? node
           node.is_a?(::Parser::AST::Node)
@@ -132,21 +129,21 @@ module Solargraph
           Range.new(st, en)
         end
 
-        # @param node [Parser::AST::Node]
+        # @param node [Parser::AST::Node, nil]
         # @return [Array<Range>]
         def string_ranges node
           return [] unless is_ast_node?(node)
           result = []
-          if node.type == :str
-            result.push Range.from_node(node)
-          end
+          result.push Range.from_node(node) if node.type == :str
           node.children.each do |child|
             result.concat string_ranges(child)
           end
           if node.type == :dstr && node.children.last.nil?
             last = node.children[-2]
+            # @sg-ignore Need to add nil check here
             unless last.nil?
               rng = Range.from_node(last)
+              # @sg-ignore Need to add nil check here
               pos = Position.new(rng.ending.line, rng.ending.column - 1)
               result.push Range.new(pos, pos)
             end

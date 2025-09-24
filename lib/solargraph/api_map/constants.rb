@@ -21,6 +21,7 @@ module Solargraph
       # @param gates [Array<Array<String>, String>]
       # @return [String, nil]
       def resolve(name, *gates)
+        # @sg-ignore Need to add nil check here
         return store.get_path_pins(name[2..]).first&.path if name.start_with?('::')
 
         flat = gates.flatten
@@ -169,13 +170,14 @@ module Solargraph
       # will start the search in the specified context until it finds a
       # match for the namespace.
       #
-      # @param namespace [String, nil] The namespace to
+      # @param namespace [String] The namespace to
       #   match
       # @param context_namespace [String] The context namespace in which the
       #   tag was referenced; start from here to resolve the name
       # @return [String, nil] fully qualified namespace
       def qualify_namespace namespace, context_namespace = ''
         if namespace.start_with?('::')
+          # @sg-ignore Need to add nil check here
           inner_qualify(namespace[2..], '', Set.new)
         else
           inner_qualify(namespace, context_namespace, Set.new)
@@ -221,7 +223,7 @@ module Solargraph
         end
       end
 
-      # @param fqns [String]
+      # @param fqns [String, nil]
       # @param visibility [Array<Symbol>]
       # @param skip [Set<String>]
       # @return [Array<Pin::Base>]
@@ -231,11 +233,13 @@ module Solargraph
         result = []
 
         store.get_prepends(fqns).each do |pre|
+          # @sg-ignore Need to add nil check here
           pre_fqns = resolve(pre.name, pre.closure.gates - skip.to_a)
           result.concat inner_get_constants(pre_fqns, [:public], skip)
         end
         result.concat(store.get_constants(fqns, visibility).sort { |a, b| a.name <=> b.name })
         store.get_includes(fqns).each do |pin|
+          # @sg-ignore Need to add nil check here
           inc_fqns = resolve(pin.name, pin.closure.gates - skip.to_a)
           result.concat inner_get_constants(inc_fqns, [:public], skip)
         end

@@ -4,6 +4,109 @@ describe Solargraph::TypeChecker do
       Solargraph::TypeChecker.load_string(code, 'test.rb', :strong)
     end
 
+    it 'does not misunderstand types during flow-sensitive typing' do
+      checker = type_checker(%(
+        class A
+          # @param b [Hash{String => String}]
+          # @return [void]
+          def a b
+            c = b["123"]
+            return if c.nil?
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
+    it 'respects pin visibility in if/nil? pattern' do
+      checker = type_checker(%(
+        class Foo
+          # Get the namespace's type (Class or Module).
+          #
+          # @param bar [Symbol, nil]
+          # @return [Symbol, Integer]
+          def foo bar
+            return 123 if bar.nil?
+            bar
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
+    it 'respects || overriding nilable types' do
+      checker = type_checker(%(
+        # @return [String]
+        def global_config_path
+          ENV['SOLARGRAPH_GLOBAL_CONFIG'] ||
+              File.join(Dir.home, '.config', 'solargraph', 'config.yml')
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
+    it 'is able to probe type over an assignment' do
+      checker = type_checker(%(
+        # @return [String]
+        def global_config_path
+          out = 'foo'
+          out
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
+    it 'respects pin visibility in if/foo pattern' do
+      checker = type_checker(%(
+        class Foo
+          # Get the namespace's type (Class or Module).
+          #
+          # @param bar [Symbol, nil]
+          # @return [Symbol, Integer]
+          def foo bar
+            baz = bar
+            return baz if baz
+            123
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
+    it 'handles a flow sensitive typing if correctly' do
+      checker = type_checker(%(
+        # @param a [String, nil]
+        # @return [void]
+        def foo a = nil
+          b = a
+          if b
+            b.upcase
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
+    it 'handles another flow sensitive typing if correctly' do
+      checker = type_checker(%(
+        class A
+          # @param e [String]
+          # @param f [String]
+          # @return [void]
+          def d(e, f:); end
+
+          # @return [void]
+          def a
+            c = rand ? nil : "foo"
+            if c
+              d(c, f: c)
+            end
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
     it 'does not complain on array dereference' do
       checker = type_checker(%(
         # @param idx [Integer, nil] an index
@@ -15,6 +118,23 @@ describe Solargraph::TypeChecker do
         end
       ))
       expect(checker.problems.map(&:message)).to be_empty
+    end
+
+    it 'understands local evaluation with ||= removes nil from lhs type' do
+      checker = type_checker(%(
+        class Foo
+          def initialize
+            @bar = nil
+          end
+
+          # @return [Integer]
+          def bar
+            @bar ||= 123
+          end
+        end
+      ))
+
+      expect(checker.problems.map(&:message)).to eq([])
     end
 
     it 'complains on bad @type assignment' do
@@ -67,21 +187,6 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.first.message).to include('Missing @return tag')
     end
 
-    it 'ignores nilable type issues' do
-      checker = type_checker(%(
-        # @param a [String]
-        # @return [void]
-        def foo(a); end
-
-        # @param b [String, nil]
-        # @return [void]
-        def bar(b)
-         foo(b)
-        end
-      ))
-      expect(checker.problems.map(&:message)).to eq([])
-    end
-
     it 'calls out keyword issues even when required arg count matches' do
       checker = type_checker(%(
         # @param a [String]
@@ -95,6 +200,29 @@ describe Solargraph::TypeChecker do
         end
       ))
       expect(checker.problems.map(&:message)).to include('Call to #foo is missing keyword argument b')
+    end
+
+    it 'understands complex use of other' do
+      checker = type_checker(%(
+        class A
+          # @param other [self]
+          #
+          # @return [void]
+          def foo other; end
+
+          # @param other [self]
+          #
+          # @return [void]
+          def bar(other); end
+        end
+
+        class B < A
+          def bar(other)
+            foo(other)
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
     end
 
     it 'calls out type issues even when keyword issues are there' do
@@ -399,6 +527,20 @@ describe Solargraph::TypeChecker do
         end
       ))
       expect(checker.problems).to be_empty
+    end
+
+    it 'understands Open3 methods' do
+      checker = type_checker(%(
+        require 'open3'
+
+        # @return [void]
+        def run_command
+          # @type [Hash{String => String}]
+          foo = {'foo' => 'bar'}
+          Open3.capture2e(foo, 'ls', chdir: '/tmp')
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
     end
   end
 end

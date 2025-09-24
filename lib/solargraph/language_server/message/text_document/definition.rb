@@ -10,10 +10,12 @@ module Solargraph::LanguageServer::Message::TextDocument
 
     private
 
-    # @return [Array<Hash>]
+    # @return [Array<Hash>, nil]
     def code_location
       suggestions = host.definitions_at(params['textDocument']['uri'], @line, @column)
+      # @sg-ignore Need to add nil check here
       return nil if suggestions.empty?
+      # @sg-ignore Need to add nil check here
       suggestions.reject { |pin| pin.best_location.nil? || pin.best_location.filename.nil? }.map do |pin|
         {
           uri: file_to_uri(pin.best_location.filename),
@@ -22,7 +24,7 @@ module Solargraph::LanguageServer::Message::TextDocument
       end
     end
 
-    # @return [Array<Hash>]
+    # @return [Array<Hash>, nil]
     def require_location
       # @todo Terrible hack
       lib = host.library_for(params['textDocument']['uri'])

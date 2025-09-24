@@ -59,6 +59,7 @@ module Solargraph
     # True if the range contains the specified position and the position does not precede it.
     #
     # @param position [Position, Array(Integer, Integer)]
+    # @sg-ignore Should handle redefinition of types in simple contexts
     # @return [Boolean]
     def include? position
       position = Position.normalize(position)
@@ -78,7 +79,7 @@ module Solargraph
 
     # Get a range from a node.
     #
-    # @param node [AST::Node]
+    # @param node [AST::Node, nil]
     # @return [Range, nil]
     def self.from_node node
       if node&.loc && node.loc.expression

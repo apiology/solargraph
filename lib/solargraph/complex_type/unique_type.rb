@@ -31,6 +31,8 @@ module Solargraph
         if name.start_with?('::')
           name = name[2..-1]
           rooted = true
+        # @sg-ignore out of scope of the above [2..-1], which is what
+        #   is making solargraph think 'name' is nilable
         elsif !can_root_name?(name)
           rooted = true
         else
@@ -61,6 +63,7 @@ module Solargraph
             subtypes.concat subs
           end
         end
+        # @sg-ignore Need to add nil check here
         new(name, key_types, subtypes, rooted: rooted, parameters_type: parameters_type)
       end
 
@@ -163,7 +166,7 @@ module Solargraph
       #
       # "[Expected] types where neither is possible are INVARIANT"
       #
-      # @param _situation [:method_call]
+      # @param _situation [:method_call, :return_type]
       # @param default [Symbol] The default variance to return if the type is not one of the special cases
       #
       # @return [:invariant, :covariant, :contravariant]
@@ -200,7 +203,7 @@ module Solargraph
 
       # @param api_map [ApiMap]
       # @param expected [ComplexType::UniqueType, ComplexType]
-      # @param situation [:method_call, :assignment, :return]
+      # @param situation [:method_call, :assignment, :return_type]
       # @param rules [Array<:allow_subtype_skew, :allow_empty_params, :allow_reverse_match, :allow_any_match, :allow_undefined, :allow_unresolved_generic>]
       # @param variance [:invariant, :covariant, :contravariant]
       def conforms_to?(api_map, expected, situation, rules = [],
@@ -254,6 +257,7 @@ module Solargraph
         rooted_tags
       end
 
+      # @sg-ignore Need better if/elseanalysis
       # @return [String]
       def to_rbs
         if duck_type?
@@ -263,7 +267,7 @@ module Solargraph
         elsif name.downcase == 'nil'
           'nil'
         elsif name == GENERIC_TAG_NAME
-          all_params.first&.name
+          all_params.first&.name || 'untyped'
         elsif ['Class', 'Module'].include?(name)
           rbs_name
         elsif ['Tuple', 'Array'].include?(name) && fixed_parameters?
@@ -315,19 +319,23 @@ module Solargraph
         name == GENERIC_TAG_NAME || all_params.any?(&:generic?)
       end
 
+      def nullable?
+        nil_type?
+      end
+
       # @return [UniqueType]
       def downcast_to_literal_if_possible
         SINGLE_SUBTYPE.fetch(rooted_tag, self)
       end
 
       # @param generics_to_resolve [Enumerable<String>]
-      # @param context_type [UniqueType, nil]
+      # @param context_type [ComplexType, UniqueType, nil]
       # @param resolved_generic_values [Hash{String => ComplexType, ComplexType::UniqueType}] Added to as types are encountered or resolved
       # @return [UniqueType, ComplexType]
       def resolve_generics_from_context generics_to_resolve, context_type, resolved_generic_values: {}
         if name == ComplexType::GENERIC_TAG_NAME
           type_param = subtypes.first&.name
-          return self unless generics_to_resolve.include? type_param
+          return self unless type_param && generics_to_resolve.include?(type_param)
           unless context_type.nil? || !resolved_generic_values[type_param].nil?
             new_binding = true
             resolved_generic_values[type_param] = context_type
@@ -347,7 +355,7 @@ module Solargraph
       end
 
       # @param generics_to_resolve [Enumerable<String>]
-      # @param context_type [UniqueType]
+      # @param context_type [UniqueType, ComplexType, nil]
       # @param resolved_generic_values [Hash{String => ComplexType}]
       # @yieldreturn [Array<ComplexType>]
       # @return [Array<ComplexType>]
@@ -431,6 +439,7 @@ module Solargraph
         new_key_types ||= @key_types
         new_subtypes ||= @subtypes
         make_rooted = @rooted if make_rooted.nil?
+        # @sg-ignore flow sensitive typing needs better handling of ||= on lvars
         UniqueType.new(new_name, new_key_types, new_subtypes, rooted: make_rooted, parameters_type: parameters_type)
       end
 
@@ -518,6 +527,7 @@ module Solargraph
         !can_root_name? || @rooted
       end
 
+      # @param name_to_check [String]
       def can_root_name?(name_to_check = name)
         self.class.can_root_name?(name_to_check)
       end

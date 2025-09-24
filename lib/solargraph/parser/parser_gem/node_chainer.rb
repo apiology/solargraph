@@ -61,6 +61,7 @@ module Solargraph
               result.push Chain::Call.new(n.children[1].to_s, Location.from_node(n), node_args(n), passed_block(n))
             elsif n.children[0].nil?
               args = []
+              # @sg-ignore Need to add nil check here
               n.children[2..-1].each do |c|
                 args.push NodeChainer.chain(c, @filename, n)
               end
@@ -93,14 +94,22 @@ module Solargraph
           elsif [:lvar, :lvasgn].include?(n.type)
             result.push Chain::Call.new(n.children[0].to_s, Location.from_node(n))
           elsif [:ivar, :ivasgn].include?(n.type)
-            result.push Chain::InstanceVariable.new(n.children[0].to_s)
+            result.push Chain::InstanceVariable.new(n.children[0].to_s, n)
           elsif [:cvar, :cvasgn].include?(n.type)
             result.push Chain::ClassVariable.new(n.children[0].to_s)
           elsif [:gvar, :gvasgn].include?(n.type)
             result.push Chain::GlobalVariable.new(n.children[0].to_s)
           elsif n.type == :or_asgn
-            new_node = n.updated(n.children[0].type, n.children[0].children + [n.children[1]])
-            result.concat generate_links new_node
+            # @bar ||= 123 translates to:
+            #
+            # s(:or_asgn,
+            #   s(:ivasgn, :@bar),
+            #   s(:int, 123))
+            lhs_chain = NodeChainer.chain n.children[0] # s(:ivasgn, :@bar)
+            rhs_chain = NodeChainer.chain n.children[1] # s(:int, 123)
+            or_link = Chain::Or.new([lhs_chain, rhs_chain])
+            # this is just for a call chain, so we don't need to record the assignment
+            result.push(or_link)
           elsif [:class, :module, :def, :defs].include?(n.type)
             # @todo Undefined or what?
             result.push Chain::UNDEFINED_CALL
@@ -148,14 +157,18 @@ module Solargraph
         # @param node [Parser::AST::Node]
         # @return [Source::Chain, nil]
         def passed_block node
+          # @sg-ignore Should better support meaning of '&' in RBS
           return unless node == @node && @parent&.type == :block
 
+          # @sg-ignore Need to add nil check here
           NodeChainer.chain(@parent.children[2], @filename)
         end
 
         # @param node [Parser::AST::Node]
+        # @sg-ignore Need to add nil check here
         # @return [Array<Source::Chain>]
         def node_args node
+          # @sg-ignore Need to add nil check here
           node.children[2..-1].map do |child|
             NodeChainer.chain(child, @filename, node)
           end

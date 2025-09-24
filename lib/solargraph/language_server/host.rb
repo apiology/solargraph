@@ -94,7 +94,8 @@ module Solargraph
       # processed, caller is responsible for sending the response.
       #
       # @param request [Hash{String => unspecified}] The contents of the message.
-      # @return [Solargraph::LanguageServer::Message::Base, nil] The message handler.
+      #
+      # @return [Solargraph::LanguageServer::Message::Base, Solargraph::LanguageServer::Request, nil] The message handler.
       def receive request
         if request['method']
           logger.info "Host received ##{request['id']} #{request['method']}"
@@ -104,6 +105,7 @@ module Solargraph
             message.process unless cancel?(request['id'])
           rescue StandardError => e
             logger.warn "Error processing request: [#{e.class}] #{e.message}"
+            # @sg-ignore Need to add nil check here
             logger.warn e.backtrace.join("\n")
             message.set_error Solargraph::LanguageServer::ErrorCodes::INTERNAL_ERROR, "[#{e.class}] #{e.message}"
           end
@@ -299,8 +301,10 @@ module Solargraph
         end
       end
 
+      # @sg-ignore Need to validate config
       # @return [String]
       def command_path
+        # @type [String]
         options['commandPath'] || 'solargraph'
       end
 
@@ -534,7 +538,7 @@ module Solargraph
       # @param uri [String]
       # @param line [Integer]
       # @param column [Integer]
-      # @return [Solargraph::SourceMap::Completion]
+      # @return [Solargraph::SourceMap::Completion, nil]
       def completions_at uri, line, column
         library = library_for(uri)
         library.completions_at uri_to_file(uri), line, column
@@ -548,7 +552,7 @@ module Solargraph
       # @param uri [String]
       # @param line [Integer]
       # @param column [Integer]
-      # @return [Array<Solargraph::Pin::Base>]
+      # @return [Array<Solargraph::Pin::Base>, nil]
       def definitions_at uri, line, column
         library = library_for(uri)
         library.definitions_at(uri_to_file(uri), line, column)
@@ -557,7 +561,7 @@ module Solargraph
       # @param uri [String]
       # @param line [Integer]
       # @param column [Integer]
-      # @return [Array<Solargraph::Pin::Base>]
+      # @return [Array<Solargraph::Pin::Base>, nil]
       def type_definitions_at uri, line, column
         library = library_for(uri)
         library.type_definitions_at(uri_to_file(uri), line, column)
@@ -723,6 +727,7 @@ module Solargraph
       end
 
       # @param path [String]
+      # @sg-ignore Need to be able to choose signature on String#gsub
       # @return [String]
       def normalize_separators path
         return path if File::ALT_SEPARATOR.nil?
