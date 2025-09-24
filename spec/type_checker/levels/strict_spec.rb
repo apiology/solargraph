@@ -6,8 +6,6 @@ describe Solargraph::TypeChecker do
     end
 
     it 'ignores nilable type issues' do
-      pending("moving nilable handling back to strong")
-
       checker = type_checker(%(
         # @param a [String]
         # @return [void]
@@ -557,6 +555,8 @@ describe Solargraph::TypeChecker do
     end
 
     it 'requires strict return tags' do
+      pending 'nil? support in flow sensitive typing'
+
       checker = type_checker(%(
         class Foo
           # The tag is [String] but the inference is [String, nil]
@@ -572,6 +572,8 @@ describe Solargraph::TypeChecker do
     end
 
     it 'requires strict return tags' do
+      pending 'nil? support in flow sensitive typing'
+
       checker = type_checker(%(
         class Foo
           # The tag is [String] but the inference is [String, nil]
