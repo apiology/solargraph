@@ -49,14 +49,6 @@ module Solargraph
       end
 
       # @return [::Array<String>]
-      def gates
-        # @todo This check might not be necessary. There should always be a
-        #   root pin
-        closure ? closure.gates : ['']
-      end
-
-      # @sg-ignore Need to understand @foo ||= 123 will never be nil
-      # @return [::Array<String>]
       def generics
         @generics ||= docstring.tags(:generic).map(&:name)
       end
