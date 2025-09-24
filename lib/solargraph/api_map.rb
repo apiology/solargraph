@@ -132,7 +132,6 @@ module Solargraph
       @doc_map ||= DocMap.new([], Workspace.new('.'))
     end
 
-    # @sg-ignore flow sensitive typing needs to handle || on nil types
     # @return [::Array<Gem::Specification>]
     def uncached_gemspecs
       doc_map.uncached_gemspecs || []
@@ -216,7 +215,6 @@ module Solargraph
     # any missing gems.
     #
     #
-    # @sg-ignore Declared type IO does not match inferred type IO, StringIO for variable out
     # @param directory [String]
     # @param out [IO] The output stream for messages
     #

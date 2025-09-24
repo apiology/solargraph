@@ -69,19 +69,16 @@ module Solargraph
         Solargraph.assert_or_log(:best_location, "Neither location nor type_location provided - #{path} #{source} #{self.class}")
       end
 
-      # @sg-ignore Won't be nil based on testing with assert above
-      # @return [Pin::Closure]
+      # @return [Pin::Closure, nil]
       def closure
         Solargraph.assert_or_log(:closure, "Closure not set on #{self.class} #{name.inspect} from #{source.inspect}") unless @closure
-        # @sg-ignore Won't be nil based on testing with assert above
-        # @type [Pin::Closure]
+        # @type [Pin::Closure, nil]
         @closure
       end
 
       # @param other [self]
       # @param attrs [Hash{::Symbol => Object}]
       #
-      # @sg-ignore flow sensitive typing needs to handle "unless foo.nil?"
       # @return [self]
       def combine_with(other, attrs={})
         raise "tried to combine #{other.class} with #{self.class}" unless other.class == self.class
@@ -143,7 +140,6 @@ module Solargraph
       end
 
       # @param other [self]
-      #
       # @return [::Array<YARD::Tags::Directive>, nil]
       def combine_directives(other)
         return self.directives if other.directives.empty?
@@ -152,8 +148,6 @@ module Solargraph
       end
 
       # @param other [self]
-      # @sg-ignore explicitly marked undefined return types should
-      #   disable trying to infer return types
       # @return [String]
       def combine_name(other)
         if needs_consistent_name? || other.needs_consistent_name?
@@ -213,7 +207,6 @@ module Solargraph
         end
       end
 
-      # @sg-ignore need boolish support for ? methods
       def dodgy_return_type_source?
         # uses a lot of 'Object' instead of 'self'
         location&.filename&.include?('core_ext/object/')
@@ -224,8 +217,7 @@ module Solargraph
       # @param other [Pin::Base]
       # @param attr [::Symbol]
       #
-      # @sg-ignore
-      # @return [undefined, nil]
+      # @return [Object, nil]
       def choose(other, attr)
         results = [self, other].map(&attr).compact
         # true and false are different classes and can't be sorted
@@ -262,7 +254,6 @@ module Solargraph
         end
       end
 
-      # @sg-ignore need boolish support for ? methods
       def rbs_location?
         type_location&.rbs?
       end
@@ -488,14 +479,12 @@ module Solargraph
         @return_type ||= ComplexType::UNDEFINED
       end
 
-      # @sg-ignore Need to understand @foo ||= 123 will never be nil
       # @return [YARD::Docstring]
       def docstring
         parse_comments unless @docstring
         @docstring ||= Solargraph::Source.parse_docstring('').to_docstring
       end
 
-      # @sg-ignore parse_comments will always set @directives
       # @return [::Array<YARD::Tags::Directive>]
       def directives
         parse_comments unless @directives
@@ -520,7 +509,6 @@ module Solargraph
         @maybe_directives ||= comments.include?('@!')
       end
 
-      # @sg-ignore Need to understand @foo ||= 123 will never be nil
       # @return [Boolean]
       def deprecated?
         @deprecated ||= docstring.has_tag?('deprecated')
@@ -590,7 +578,6 @@ module Solargraph
         result
       end
 
-      # @sg-ignore to understand @foo ||= 123 will never be nil
       # @deprecated
       # @return [String]
       def identity

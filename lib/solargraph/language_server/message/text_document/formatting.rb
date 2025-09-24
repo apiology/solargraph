@@ -96,9 +96,8 @@ module Solargraph
           end
 
           # @param value [Array, String]
-          # @return [String, nil]
+          # @return [String]
           def cop_list(value)
-            # @type [String]
             value = value.join(',') if value.respond_to?(:join)
             return nil if value == '' || !value.is_a?(String)
             value

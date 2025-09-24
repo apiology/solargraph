@@ -78,7 +78,6 @@ module Solargraph
         end
       end
 
-      # @sg-ignore Need to figure if Array#[n..m] can return nil
       # @return [Array<Pin::Parameter>]
       def blockless_parameters
         if parameters.last&.block?
