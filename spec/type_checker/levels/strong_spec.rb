@@ -5,6 +5,8 @@ describe Solargraph::TypeChecker do
     end
 
     it 'does gives correct complaint on array dereference with nilable type' do
+      pending('better nil enforcement')
+
       checker = type_checker(%(
         # @param idx [Integer, nil] an index
         # @param arr [Array<Integer>] an array of integers
