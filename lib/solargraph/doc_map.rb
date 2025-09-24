@@ -373,7 +373,6 @@ module Solargraph
       gemspec.dependencies - gemspec.development_dependencies
     end
 
-
     def inspect
       self.class.inspect
     end
