@@ -723,21 +723,6 @@ module Solargraph
       methods
     end
 
-    # @param fq_sub_tag [String]
-    # @return [String, nil]
-    def qualify_superclass fq_sub_tag
-      fq_sub_type = ComplexType.try_parse(fq_sub_tag)
-      fq_sub_ns = fq_sub_type.name
-      sup_tag = store.get_superclass(fq_sub_tag)
-      sup_type = ComplexType.try_parse(sup_tag)
-      sup_ns = sup_type.name
-      return nil if sup_tag.nil?
-      parts = fq_sub_ns.split('::')
-      last = parts.pop
-      parts.pop if last == sup_ns
-      qualify(sup_tag, parts.join('::'))
-    end
-
     private
 
     # A hash of source maps with filename keys.
@@ -805,16 +790,14 @@ module Solargraph
               type = const.infer(self)
               result.concat inner_get_methods(type.namespace, scope, visibility, deep, skip, true) if type.defined?
             else
-              referenced_type = ref.parametrized_tag
-              next unless referenced_type.defined?
-              rooted_include_tag = qualify(referenced_type.rooted_tag, rooted_tag)
-              result.concat inner_get_methods_from_reference(rooted_include_tag, namespace_pin, rooted_type, scope, visibility, deep, skip, true)
+              referenced_tag = ref.parametrized_tag
+              next unless referenced_tag.defined?
+              result.concat inner_get_methods_from_reference(referenced_tag.to_s, namespace_pin, rooted_type, scope, visibility, deep, skip, true)
             end
           end
           rooted_sc_tag = qualify_superclass(rooted_tag)
           unless rooted_sc_tag.nil?
-            result.concat inner_get_methods_from_reference(rooted_sc_tag, namespace_pin, rooted_type, scope,
-                                                           visibility, true, skip, no_core)
+            result.concat inner_get_methods_from_reference(rooted_sc_tag, namespace_pin, rooted_type, scope, visibility, true, skip, no_core)
           end
         else
           logger.info { "ApiMap#inner_get_methods(#{fqns}, #{scope}, #{visibility}, #{deep}, #{skip}) - looking for get_extends() from #{fqns}" }
@@ -824,8 +807,7 @@ module Solargraph
           end
           rooted_sc_tag = qualify_superclass(rooted_tag)
           unless rooted_sc_tag.nil?
-            result.concat inner_get_methods_from_reference(rooted_sc_tag, namespace_pin, rooted_type, scope,
-                                                           visibility, true, skip, true)
+            result.concat inner_get_methods_from_reference(rooted_sc_tag, namespace_pin, rooted_type, scope, visibility, true, skip, true)
           end
           unless no_core || fqns.empty?
             type = get_namespace_type(fqns)
