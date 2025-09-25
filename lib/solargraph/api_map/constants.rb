@@ -25,7 +25,13 @@ module Solargraph
 
         flat = gates.flatten
         flat.push '' if flat.empty?
-        cached_resolve[[name, flat]] || resolve_and_cache(name, flat)
+        if cached_resolve.include? [name, flat]
+          cached_result = cached_resolve[[name, flat]]
+          # don't recurse
+          return nil if cached_result == :in_process
+          return cached_result
+        end
+        resolve_and_cache(name, flat)
       end
 
       # Get a fully qualified namespace from a reference pin.
@@ -82,6 +88,7 @@ module Solargraph
       # @param gates [Array<String>]
       # @return [String, nil]
       def resolve_and_cache name, gates
+        cached_resolve[[name, gates]] = :in_process
         cached_resolve[[name, gates]] = resolve_uncached(name, gates)
       end
 
@@ -121,9 +128,6 @@ module Solargraph
           store.get_ancestor_references(gate).each do |ref|
             return ref.name.sub(/^::/, '') if ref.name.end_with?("::#{name}")
 
-            # avoid infinite loops resolving mixin pin
-            next if ref.name == name && gates.to_set == ref.reference_gates.to_set
-
             mixin = resolve(ref.name, ref.reference_gates)
             next unless mixin
 
@@ -159,7 +163,7 @@ module Solargraph
         end
       end
 
-      # @return [Hash{Array(Name, Array<String>) => String, nil}]
+      # @return [Hash{Array(String, Array<String>) => String, :in_process, nil}]
       def cached_resolve
         @cached_resolve ||= {}
       end
