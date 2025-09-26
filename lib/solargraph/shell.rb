@@ -287,7 +287,6 @@ module Solargraph
     def pin path
       api_map = Solargraph::ApiMap.load_with_cache('.', $stderr)
       is_method = path.include?('#') || path.include?('.')
-      # @sg-ignore Unresolved call to options
       if is_method && options[:stack]
         scope, ns, meth = if path.include? '#'
                             [:instance, *path.split('#', 2)]
