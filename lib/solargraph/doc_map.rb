@@ -125,6 +125,7 @@ module Solargraph
     def load_serialized_gem_pins out: @out
       serialized_pins = []
       with_gemspecs, without_gemspecs = required_gems_map.partition { |_, v| v }
+      # @sg-ignore need to teach solargraph about Hash[]
       # @type [Array<String>]
       missing_paths = Hash[without_gemspecs].keys
       # @type [Array<Gem::Specification>]
