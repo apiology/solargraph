@@ -58,15 +58,14 @@ module Solargraph
     #
     # @return [Array<String>]
     def stdlib_dependencies stdlib_name
-      deps = RbsMap::StdlibMap.stdlib_dependencies(stdlib_name, nil) || []
-      deps.map { |dep| dep['name'] }.compact
+      gemspecs.stdlib_dependencies(stdlib_name)
     end
 
     # @return [Environ]
     def global_environ
       # empty docmap, since the result needs to work in any possible
       # context here
-      @global_environ ||= Convention.for_global(DocMap.new([], self))
+      @global_environ ||= Convention.for_global(DocMap.new([], self, out: nil))
     end
 
     # @param gemspec [Gem::Specification, Bundler::LazySpecification]
@@ -206,6 +205,29 @@ module Solargraph
       gemspecs.find_gem(name, version)
     end
 
+    # @param out [IO, nil] output stream for logging
+    # @param rebuild [Boolean] whether to rebuild the pins even if they are cached
+    # @return [void]
+    def cache_all_for_workspace! out, rebuild: false
+      PinCache.cache_core(out: out) unless PinCache.core?
+
+      # @type [Array<Gem::Specification>]
+      gem_specs = gemspecs.all_gemspecs_from_bundle
+      # try any possible standard libraries, but be quiet about it
+      stdlib_specs = PinCache.possible_stdlibs.map { |stdlib| gemspecs.find_gem(stdlib, out: nil) }.compact
+      specs = (gem_specs + stdlib_specs)
+      specs.each do |spec|
+        pin_cache.cache_gem(gemspec: spec, rebuild: rebuild, out: out) unless pin_cache.cached?(spec)
+      end
+      out&.puts "Documentation cached for all #{specs.length} gems."
+
+      # do this after so that we prefer stdlib requires from gems,
+      # which are likely to be newer and have more pins
+      PinCache.cache_all_stdlibs(out: out)
+
+      out&.puts "Documentation cached for core, standard library and gems."
+    end
+
     # Synchronize the workspace from the provided updater.
     #
     # @param updater [Source::Updater]
@@ -277,7 +299,6 @@ module Solargraph
     def read_rbs_collection_path
       return unless rbs_collection_config_path
 
-      # @sg-ignore Unresolved call to load_file on Module
       path = YAML.load_file(rbs_collection_config_path)&.fetch('path')
       # make fully qualified
       File.expand_path(path, directory)
