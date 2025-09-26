@@ -61,8 +61,6 @@ describe Solargraph::ApiMap::Constants do
         module A
           module Parser
             module C
-              module_function
-
               # @return [String]
               def baz; "abc"; end
             end
