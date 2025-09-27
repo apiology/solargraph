@@ -38,6 +38,7 @@ jobs:
       run: |
         bundle install
         bundle update rbs # use latest available for this Ruby version
+        bundle list
     - name: Install gem types
       run: bundle exec rbs collection install
     - name: Debug
