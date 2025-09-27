@@ -14,8 +14,8 @@ module Solargraph
       # @return [String]
       attr_reader :directory
 
-      # @todo To make this strongly typed we'll need a record syntax
-      # @return [Hash{String => Array, Hash, Integer, nil}]
+      # @todo To make JSON strongly typed we'll need a record syntax
+      # @return [Hash{String => undefined, nil}]
       attr_reader :raw_data
 
       # @param directory [String]
@@ -62,6 +62,7 @@ module Solargraph
       # A domain is a namespace that the ApiMap should include in the global
       # namespace. It's typically used to identify available DSLs.
       #
+      # @sg-ignore need validated config
       # @return [Array<String>]
       def domains
         raw_data['domains']
@@ -69,6 +70,7 @@ module Solargraph
 
       # An array of required paths to add to the workspace.
       #
+      # @sg-ignore need validated config
       # @return [Array<String>]
       def required
         raw_data['require']
@@ -83,6 +85,7 @@ module Solargraph
 
       # An array of reporters to use for diagnostics.
       #
+      # @sg-ignore need validated config
       # @return [Array<String>]
       def reporters
         raw_data['reporters']
@@ -90,6 +93,7 @@ module Solargraph
 
       # A hash of options supported by the formatter
       #
+      # @sg-ignore need validated config
       # @return [Hash]
       def formatter
         raw_data['formatter']
@@ -97,6 +101,7 @@ module Solargraph
 
       # An array of plugins to require.
       #
+      # @sg-ignore need validated config
       # @return [Array<String>]
       def plugins
         raw_data['plugins']
@@ -104,6 +109,7 @@ module Solargraph
 
       # The maximum number of files to parse from the workspace.
       #
+      # @sg-ignore need validated config
       # @return [Integer]
       def max_files
         raw_data['max_files']
@@ -123,7 +129,7 @@ module Solargraph
         File.join(@directory, '.solargraph.yml')
       end
 
-      # @return [Hash{String => Array<undefined>, Hash{String => undefined}, Integer}]
+      # @return [Hash{String => undefined}]
       def config_data
         workspace_config = read_config(workspace_config_path)
         global_config = read_config(global_config_path)
@@ -143,6 +149,7 @@ module Solargraph
       def read_config config_path = ''
         return nil if config_path.empty?
         return nil unless File.file?(config_path)
+        # @sg-ignore Unresolved call to safe_load on Module
         YAML.safe_load(File.read(config_path))
       end
 

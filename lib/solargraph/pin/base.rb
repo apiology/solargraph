@@ -144,7 +144,7 @@ module Solargraph
       def combine_directives(other)
         return self.directives if other.directives.empty?
         return other.directives if directives.empty?
-        [directives + other.directives].uniq
+        (directives + other.directives).uniq
       end
 
       # @param other [self]
@@ -189,15 +189,19 @@ module Solargraph
           other.return_type
         elsif other.return_type.undefined?
           return_type
+        elsif return_type.erased_version_of?(other.return_type)
+          other.return_type
+        elsif other.return_type.erased_version_of?(return_type)
+          return_type
         elsif dodgy_return_type_source? && !other.dodgy_return_type_source?
           other.return_type
         elsif other.dodgy_return_type_source? && !dodgy_return_type_source?
           return_type
         else
           all_items = return_type.items + other.return_type.items
-          if all_items.any? { |item| item.selfy? } && all_items.any? { |item| item.rooted_tag == context.rooted_tag }
+          if all_items.any? { |item| item.selfy? } && all_items.any? { |item| item.rooted_tag == context.reduce_class_type.rooted_tag }
             # assume this was a declaration that should have said 'self'
-            all_items.delete_if { |item| item.rooted_tag == context.rooted_tag }
+            all_items.delete_if { |item| item.rooted_tag == context.reduce_class_type.rooted_tag }
           end
           ComplexType.new(all_items)
         end
@@ -305,10 +309,16 @@ module Solargraph
       # @param other [self]
       # @param attr [::Symbol]
       #
-      # @sg-ignore
+      # @sg-ignore Missing @return tag for Solargraph::Pin::Base#assert_same
       # @return [undefined]
       def assert_same(other, attr)
-        return false if other.nil?
+        # :nocov:
+        if other.nil?
+          Solargraph.assert_or_log("combine_with_#{attr}_nil".to_sym,
+                                   "Other was passed in nil in assert_same on #{self}")
+          return send(attr)
+        end
+        # :nocov:
         val1 = send(attr)
         val2 = other.send(attr)
         return val1 if val1 == val2
@@ -338,7 +348,7 @@ module Solargraph
       # @param other [self]
       # @param attr [::Symbol]
       #
-      # @sg-ignore
+      # @sg-ignore Missing @return tag for Solargraph::Pin::Base#choose_pin_attr
       # @return [undefined]
       def choose_pin_attr(other, attr)
         # @type [Pin::Base, nil]
@@ -354,7 +364,7 @@ module Solargraph
         end
         # arbitrary way of choosing a pin
         # @sg-ignore Need _1 support
-        [val1, val2].compact.min_by { _1.best_location.to_s }
+        [val1, val2].compact.max_by { File.basename(_1.best_location.to_s) }
       end
 
       # @return [void]
@@ -456,7 +466,7 @@ module Solargraph
       # Pin equality is determined using the #nearly? method and also
       # requiring both pins to have the same location.
       #
-      # @param other [self]
+      # @param other [Object]
       def == other
         return false unless nearly? other
         comments == other.comments && location == other.location
@@ -528,7 +538,7 @@ module Solargraph
       # @param api_map [ApiMap]
       # @return [ComplexType]
       def infer api_map
-        Solargraph::Logging.logger.warn "WARNING: Pin #infer methods are deprecated. Use #typify or #probe instead."
+        Solargraph.assert_or_log(:pin_infer, 'WARNING: Pin #infer methods are deprecated. Use #typify or #probe instead.')
         type = typify(api_map)
         return type unless type.undefined?
         probe api_map
@@ -591,7 +601,7 @@ module Solargraph
         return_type.to_rbs
       end
 
-      # @return [String]
+      # @return [String, nil]
       def type_desc
         rbs = to_rbs
         # RBS doesn't have a way to represent a Class<x> type

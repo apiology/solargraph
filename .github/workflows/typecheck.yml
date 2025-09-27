@@ -11,16 +11,19 @@ on:
   push:
     branches: [ master ]
   pull_request:
-    branches: [ master ]
+    branches: ['*']
 
 permissions:
   contents: read
 
 jobs:
-  solargraph_typed:
-    name: Solargraph / typed
+  solargraph_strong:
+    name: Solargraph / strong
 
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rbs-version: ['4.0.0.dev.4']
 
     steps:
     - uses: actions/checkout@v3
@@ -29,11 +32,21 @@ jobs:
       with:
         ruby-version: 3.4
         bundler-cache: false
+    - name: Set rbs version
+      run: echo "gem 'rbs', '${{ matrix.rbs-version }}'" >> .Gemfile
     - name: Install gems
       run: |
         bundle install
         bundle update rbs # use latest available for this Ruby version
+        bundle list
     - name: Install gem types
       run: bundle exec rbs collection install
+    - name: Debug
+      run: |
+        bundle info rbs
+        bundle info thor
+        bundle exec solargraph pin 'YARD::DocstringParser#to_docstring'
+        bundle exec solargraph pin --stack 'YARD::DocstringParser#to_docstring'
+        bundle exec solargraph pin --typify 'YARD::DocstringParser#to_docstring'
     - name: Typecheck self
-      run: SOLARGRAPH_ASSERTS=on bundle exec solargraph typecheck --level typed
+      run: SOLARGRAPH_ASSERTS=on bundle exec solargraph typecheck --level strong
