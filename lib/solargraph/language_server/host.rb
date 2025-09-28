@@ -724,7 +724,6 @@ module Solargraph
       end
 
       # @param path [String]
-      # @sg-ignore Need to be able to choose signature on String#gsub
       # @return [String]
       def normalize_separators path
         return path if File::ALT_SEPARATOR.nil?

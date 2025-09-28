@@ -66,8 +66,7 @@ module Solargraph
           end.compact
         end
 
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1005
-        # @return [Parser::AST::Node, nil]
+        # @return [Parser::AST::Node]
         def body_node
           node.children[2]
         end
@@ -82,7 +81,6 @@ module Solargraph
           node.children[1]
         end
 
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1005
         # @return [Array<Parser::AST::Node>]
         def data_attribute_nodes
           data_node.children[2..-1]

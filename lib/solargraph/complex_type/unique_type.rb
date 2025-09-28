@@ -254,7 +254,6 @@ module Solargraph
         rooted_tags
       end
 
-      # @sg-ignore flow sensitive typing needs to handle || on nil types
       # @return [String]
       def to_rbs
         if duck_type?
@@ -264,7 +263,7 @@ module Solargraph
         elsif name.downcase == 'nil'
           'nil'
         elsif name == GENERIC_TAG_NAME
-          all_params.first&.name || 'untyped'
+          all_params.first&.name
         elsif ['Class', 'Module'].include?(name)
           rbs_name
         elsif ['Tuple', 'Array'].include?(name) && fixed_parameters?

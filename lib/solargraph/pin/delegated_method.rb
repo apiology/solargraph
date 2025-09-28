@@ -11,10 +11,9 @@ module Solargraph
       # given closure/scope, and the delegated method will then be resolved
       # to a method pin on that type.
       #
-      # @param method [Method, nil] an already resolved method pin.
+      # @param method [Pin::Method, nil] an already resolved method pin.
       # @param receiver [Source::Chain, nil] the source code used to resolve the receiver for this delegated method.
-      # @sg-ignore flow sensitive typing needs to handle || on nil types
-      # @param name [String]
+      # @param name [String, nil]
       # @param receiver_method_name [String] the method name that will be called on the receiver (defaults to :name).
       def initialize(method: nil, receiver: nil, name: method&.name, receiver_method_name: name, **splat)
         raise ArgumentError, 'either :method or :receiver is required' if (method && receiver) || (!method && !receiver)

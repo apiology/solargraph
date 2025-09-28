@@ -97,7 +97,7 @@ module Solargraph
         return unless ref
         res = constants.dereference(ref)
         return unless res
-        res + type.substring
+        res
       end
 
       # @param fqns [String]
@@ -240,7 +240,7 @@ module Solargraph
           # Add includes, prepends, and extends
           [get_includes(current), get_prepends(current), get_extends(current)].each do |refs|
             next if refs.nil?
-            refs.map(&:parametrized_tag).map(&:to_s).each do |ref|
+            refs.map(&:type).map(&:to_s).each do |ref|
               next if ref.nil? || ref.empty? || visited.include?(ref)
               ancestors << ref
               queue << ref
@@ -251,6 +251,9 @@ module Solargraph
         ancestors.compact.uniq
       end
 
+      # @param fqns [String]
+      #
+      # @return [Array<Solargraph::Pin::Reference::Base>]
       def get_ancestor_references(fqns)
         (get_prepends(fqns) + get_includes(fqns) + [get_superclass(fqns)]).compact
       end
@@ -286,7 +289,6 @@ module Solargraph
         true
       end
 
-      # @sg-ignore Need to understand @foo ||= 123 will never be nil
       # @return [Hash{::Array(String, String) => ::Array<Pin::Namespace>}]
       def fqns_pins_map
         @fqns_pins_map ||= Hash.new do |h, (base, name)|
@@ -295,10 +297,6 @@ module Solargraph
         end
       end
 
-      # @sg-ignore Rooted type issue here - "Declared return type
-      #   ::Enumerable<::Solargraph::Pin::Symbol> does not match
-      #   inferred type ::Set<::Symbol> for
-      #   Solargraph::ApiMap::Store#symbols"
       # @return [Enumerable<Solargraph::Pin::Symbol>]
       def symbols
         index.pins_by_class(Pin::Symbol)

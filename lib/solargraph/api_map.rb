@@ -132,7 +132,6 @@ module Solargraph
       @doc_map ||= DocMap.new([], Workspace.new('.'))
     end
 
-    # @sg-ignore flow sensitive typing needs to handle || on nil types
     # @return [::Array<Gem::Specification>]
     def uncached_gemspecs
       doc_map.uncached_gemspecs || []
@@ -216,7 +215,6 @@ module Solargraph
     # any missing gems.
     #
     #
-    # @sg-ignore Declared type IO does not match inferred type IO, StringIO for variable out
     # @param directory [String]
     # @param out [IO] The output stream for messages
     #
@@ -517,7 +515,8 @@ module Solargraph
       fqns = rooted_type.namespace
       namespace_pin = store.get_path_pins(fqns).first
       methods = if namespace_pin.is_a?(Pin::Constant)
-                  type = namespace_pin.infer(self)
+                  type = namespace_pin.typify(self)
+                  type = namespace_pin.probe(self) unless type.defined?
                   if type.defined?
                     namespace_pin = store.get_path_pins(type.namespace).first
                     get_methods(type.namespace, scope: scope, visibility: visibility).select { |p| p.name == name }
@@ -664,7 +663,7 @@ module Solargraph
     #
     # @return [Boolean]
     def type_include?(host_ns, module_ns)
-      store.get_includes(host_ns).map { |inc_tag| inc_tag.parametrized_tag.name }.include?(module_ns)
+      store.get_includes(host_ns).map { |inc_tag| inc_tag.type.name }.include?(module_ns)
     end
 
     # @param pins [Enumerable<Pin::Base>]
@@ -721,21 +720,6 @@ module Solargraph
       end
       # logger.debug { "ApiMap#add_methods_from_reference(type=#{type}) - resolved_reference_type: #{resolved_reference_type} for type=#{type}: #{methods.map(&:name)}" }
       methods
-    end
-
-    # @param fq_sub_tag [String]
-    # @return [String, nil]
-    def qualify_superclass fq_sub_tag
-      fq_sub_type = ComplexType.try_parse(fq_sub_tag)
-      fq_sub_ns = fq_sub_type.name
-      sup_tag = store.get_superclass(fq_sub_tag)
-      sup_type = ComplexType.try_parse(sup_tag)
-      sup_ns = sup_type.name
-      return nil if sup_tag.nil?
-      parts = fq_sub_ns.split('::')
-      last = parts.pop
-      parts.pop if last == sup_ns
-      qualify(sup_tag, parts.join('::'))
     end
 
     private
@@ -795,37 +779,22 @@ module Solargraph
 
         if scope == :instance
           store.get_includes(fqns).reverse.each do |ref|
-            # @sg-ignore Declared type Solargraph::Pin::Constant does
-            #   not match inferred type Solargraph::Pin::Constant,
-            #   Solargraph::Pin::Namespace, nil for variable const
-            const = get_constants('', *ref.closure.gates).find { |pin| pin.path.end_with? ref.name }
-            if const.is_a?(Pin::Namespace)
-              result.concat inner_get_methods(const.path, scope, visibility, deep, skip, true)
-            elsif const.is_a?(Pin::Constant)
-              type = const.infer(self)
-              result.concat inner_get_methods(type.namespace, scope, visibility, deep, skip, true) if type.defined?
-            else
-              referenced_type = ref.parametrized_tag
-              next unless referenced_type.defined?
-              rooted_include_tag = qualify(referenced_type.rooted_tag, rooted_tag)
-              result.concat inner_get_methods_from_reference(rooted_include_tag, namespace_pin, rooted_type, scope, visibility, deep, skip, true)
-            end
+            in_tag = dereference(ref)
+            result.concat inner_get_methods_from_reference(in_tag, namespace_pin, rooted_type, scope, visibility, deep, skip, true)
           end
           rooted_sc_tag = qualify_superclass(rooted_tag)
           unless rooted_sc_tag.nil?
-            result.concat inner_get_methods_from_reference(rooted_sc_tag, namespace_pin, rooted_type, scope,
-                                                           visibility, true, skip, no_core)
+            result.concat inner_get_methods_from_reference(rooted_sc_tag, namespace_pin, rooted_type, scope, visibility, true, skip, no_core)
           end
         else
           logger.info { "ApiMap#inner_get_methods(#{fqns}, #{scope}, #{visibility}, #{deep}, #{skip}) - looking for get_extends() from #{fqns}" }
           store.get_extends(fqns).reverse.each do |em|
-            fqem = store.constants.dereference(em)
+            fqem = dereference(em)
             result.concat inner_get_methods(fqem, :instance, visibility, deep, skip, true) unless fqem.nil?
           end
           rooted_sc_tag = qualify_superclass(rooted_tag)
           unless rooted_sc_tag.nil?
-            result.concat inner_get_methods_from_reference(rooted_sc_tag, namespace_pin, rooted_type, scope,
-                                                           visibility, true, skip, true)
+            result.concat inner_get_methods_from_reference(rooted_sc_tag, namespace_pin, rooted_type, scope, visibility, true, skip, true)
           end
           unless no_core || fqns.empty?
             type = get_namespace_type(fqns)
@@ -886,7 +855,7 @@ module Solargraph
     # @param alias_pin [Pin::MethodAlias]
     # @return [Pin::Method, nil]
     def resolve_method_alias(alias_pin)
-      ancestors = store.get_ancestors(alias_pin.full_context.tag)
+      ancestors = store.get_ancestors(alias_pin.full_context.reduce_class_type.tag)
       original = nil
 
       # Search each ancestor for the original method

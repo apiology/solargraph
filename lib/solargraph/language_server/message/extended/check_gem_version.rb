@@ -71,7 +71,6 @@ module Solargraph
           # @return [Gem::Version]
           attr_reader :current
 
-          # @sg-ignore Need to understand @foo ||= 123 will never be nil
           # @return [Gem::Version]
           def available
             if !@available && !@fetched

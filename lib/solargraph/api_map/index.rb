@@ -115,7 +115,7 @@ module Solargraph
       end
 
       # @param klass [Class<Pin::Reference>]
-      # @param hash [Hash{String => Array<String>}]
+      # @param hash [Hash{String => Array<Pin::Reference>}]
       # @return [void]
       def map_references klass, hash
         pins_by_class(klass).each do |pin|

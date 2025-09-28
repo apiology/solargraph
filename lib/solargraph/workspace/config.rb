@@ -62,6 +62,7 @@ module Solargraph
       # A domain is a namespace that the ApiMap should include in the global
       # namespace. It's typically used to identify available DSLs.
       #
+      # @sg-ignore need validated config
       # @return [Array<String>]
       def domains
         raw_data['domains']
@@ -69,6 +70,7 @@ module Solargraph
 
       # An array of required paths to add to the workspace.
       #
+      # @sg-ignore need validated config
       # @return [Array<String>]
       def required
         raw_data['require']
@@ -83,6 +85,7 @@ module Solargraph
 
       # An array of reporters to use for diagnostics.
       #
+      # @sg-ignore need validated config
       # @return [Array<String>]
       def reporters
         raw_data['reporters']
@@ -90,6 +93,7 @@ module Solargraph
 
       # A hash of options supported by the formatter
       #
+      # @sg-ignore need validated config
       # @return [Hash]
       def formatter
         raw_data['formatter']
@@ -97,6 +101,7 @@ module Solargraph
 
       # An array of plugins to require.
       #
+      # @sg-ignore need validated config
       # @return [Array<String>]
       def plugins
         raw_data['plugins']
@@ -104,6 +109,7 @@ module Solargraph
 
       # The maximum number of files to parse from the workspace.
       #
+      # @sg-ignore need validated config
       # @return [Integer]
       def max_files
         raw_data['max_files']
@@ -111,7 +117,6 @@ module Solargraph
 
       private
 
-      # @sg-ignore flow sensitive typing needs to handle || on nil types
       # @return [String]
       def global_config_path
         ENV['SOLARGRAPH_GLOBAL_CONFIG'] ||

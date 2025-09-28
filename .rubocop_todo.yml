@@ -445,7 +445,7 @@ Metrics/AbcSize:
 # Configuration parameters: CountComments, CountAsOne, AllowedMethods, AllowedPatterns, inherit_mode.
 # AllowedMethods: refine
 Metrics/BlockLength:
-  Max: 54
+  Max: 56
 
 # Configuration parameters: CountBlocks, CountModifierForms.
 Metrics/BlockNesting:
@@ -1087,7 +1087,6 @@ Style/RedundantRegexpEscape:
 Style/RedundantReturn:
   Exclude:
     - 'lib/solargraph/complex_type/type_methods.rb'
-    - 'lib/solargraph/doc_map.rb'
     - 'lib/solargraph/parser/parser_gem/node_methods.rb'
     - 'lib/solargraph/source/chain/z_super.rb'
 
@@ -1119,7 +1118,7 @@ Style/SafeNavigation:
 # Configuration parameters: Max.
 Style/SafeNavigationChainLength:
   Exclude:
-    - 'lib/solargraph/doc_map.rb'
+    - 'lib/solargraph/workspace/gemspecs.rb'
 
 # This cop supports unsafe autocorrection (--autocorrect-all).
 Style/SlicingWithRange:
