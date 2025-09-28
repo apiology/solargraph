@@ -224,7 +224,7 @@ module Solargraph
       end
 
       def in_this_bundle?
-        Bundler.definition&.lockfile&.to_s&.start_with?(directory) # rubocop:disable Style/SafeNavigationChainLength
+        Bundler.definition&.lockfile&.to_s&.start_with?(directory)
       end
 
       # @return [Array<Gem::Specification, Bundler::LazySpecification, Bundler::StubSpecification>]
