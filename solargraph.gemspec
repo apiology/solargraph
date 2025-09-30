@@ -54,6 +54,7 @@ Gem::Specification.new do |s|
   s.add_development_dependency 'public_suffix', '~> 3.1'
   s.add_development_dependency 'rake', '~> 13.2'
   s.add_development_dependency 'rspec', '~> 3.5'
+  s.add_development_dependency 'rspec-time-guard', '~> 0.2.0'
   #
   # very specific development-time RuboCop version patterns for CI
   # stability - feel free to update in an isolated PR
@@ -69,6 +70,7 @@ Gem::Specification.new do |s|
   s.add_development_dependency 'undercover', '~> 0.7'
   s.add_development_dependency 'overcommit', '~> 0.68.0'
   s.add_development_dependency 'webmock', '~> 3.6'
+  s.add_development_dependency 'vernier'
   # work around missing yard dependency needed as of Ruby 3.5
   s.add_development_dependency 'irb', '~> 1.15'
 end

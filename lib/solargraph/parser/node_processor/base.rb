@@ -4,7 +4,7 @@ module Solargraph
   module Parser
     module NodeProcessor
       class Base
-        # @return [Parser::AST::Node]
+        # @return [AST::Node]
         attr_reader :node
 
         # @return [Region]
