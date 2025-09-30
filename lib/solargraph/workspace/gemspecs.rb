@@ -36,7 +36,12 @@ module Solargraph
       # @return [::Array<Gem::Specification>, nil]
       def resolve_require require
         return nil if require.empty?
-        return gemspecs_required_from_bundler if require == 'bundler/require'
+
+        # This is added in the parser when it sees 'Bundler.require' -
+        # see https://bundler.io/guides/bundler_setup.html '
+        #
+        # @todo handle different arguments to Bundler.require
+        return auto_required_gemspecs_from_bundler if require == 'bundler/require'
 
         # @type [Gem::Specification, nil]
         gemspec = Gem::Specification.find_by_path(require)
@@ -54,11 +59,27 @@ module Solargraph
             logger.debug do
               "Require path #{require} could not be resolved to a gem via find_by_path or guess of #{gem_name_guess}"
             end
-            []
           end
         end
+        # @todo the 'requires' provided in Environ is being used
+        #   by plugins to pass gem names instead of require paths
+        #   - need to expand Environ to provide a place to put gem
+        #   names and get new plugins out before retiring this.
+        gemspec ||= find_gem(gem_name_guess)
         return nil if gemspec.nil?
+
         [gemspec_or_preference(gemspec)]
+      end
+
+      # @param name [String]
+      # @param version [String, nil]
+      # @param out [IO, nil] output stream for logging
+      #
+      # @return [Gem::Specification, nil]
+      def find_gem name, version = nil, out = nil
+        Gem::Specification.find_by_name(name, version)
+      rescue Gem::MissingSpecError
+        nil
       end
 
       # @param gemspec [Gem::Specification]
@@ -83,7 +104,7 @@ module Solargraph
 
       # True if the workspace has a root Gemfile.
       #
-      # @todo Handle projects with custom Bundler/Gemfile setups (see DocMap#gemspecs_required_from_bundler)
+      # @todo Handle projects with custom Bundler/Gemfile setups (see #auto_required_gemspecs_from_bundler)
       #
       def gemfile?
         directory && File.file?(File.join(directory, 'Gemfile'))
@@ -122,7 +143,7 @@ module Solargraph
       end
 
       # @return [Array<Gem::Specification>]
-      def gemspecs_required_from_bundler
+      def auto_required_gemspecs_from_bundler
         # @todo Handle projects with custom Bundler/Gemfile setups
         return unless gemfile?
 
@@ -135,6 +156,7 @@ module Solargraph
             logger.info("Could not find #{lazy_spec.name}:#{lazy_spec.version} with " \
                         'find_by_name, falling back to guess')
             # can happen in local filesystem references
+            # TODO: should this be resolve_require or find_gem?
             specs = resolve_require lazy_spec.name
             logger.warn "Gem #{lazy_spec.name} #{lazy_spec.version} from bundle not found: #{e}" if specs.nil?
             next specs
@@ -168,6 +190,7 @@ module Solargraph
             rescue Gem::MissingSpecError => e
               logger.info("Could not find #{name}:#{version} with find_by_name, falling back to guess")
               # can happen in local filesystem references
+              # TODO: should this be resolve_require or find_gem?
               specs = resolve_require name
               logger.warn "Gem #{name} #{version} from bundle not found: #{e}" if specs.nil?
               next specs
