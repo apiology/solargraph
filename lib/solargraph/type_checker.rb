@@ -309,7 +309,7 @@ module Solargraph
           all_found = []
           closest = ComplexType::UNDEFINED
           until base.links.first.undefined?
-            all_found = base.define(api_map, block_pin, locals)
+            all_found = base.define(api_map, closure_pin, locals)
             found = all_found.first
             break if found
             missing = base
