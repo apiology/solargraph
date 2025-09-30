@@ -497,7 +497,7 @@ module Solargraph
             ptype = data[:qualified]
             ptype = ptype.self_to_type(pin.context)
             unless ptype.undefined?
-              argtype = argchain.infer(api_map, closure_pin, locals).self_to_type(block_pin.context)
+              argtype = argchain.infer(api_map, closure_pin, locals).self_to_type(closure_pin.context)
               if argtype.defined? && ptype && !arg_conforms_to?(argtype, ptype)
                 result.push Problem.new(location, "Wrong argument type for #{pin.path}: #{par.name} expected #{ptype}, received #{argtype}")
               end
@@ -525,7 +525,7 @@ module Solargraph
         ptype = params[pname.to_s][:qualified]
         ptype = ptype.self_to_type(pin.context)
         argtype = argchain.infer(api_map, closure_pin, locals)
-        argtype = argtype.self_to_type(block_pin.context)
+        argtype = argtype.self_to_type(closure_pin.context)
         if argtype.defined? && ptype && !arg_conforms_to?(argtype, ptype)
           result.push Problem.new(location, "Wrong argument type for #{pin.path}: #{pname} expected #{ptype}, received #{argtype}")
         end
@@ -660,7 +660,7 @@ module Solargraph
         all_found = []
         closest = ComplexType::UNDEFINED
         until base.links.first.undefined?
-          all_found = base.define(api_map, block_pin, locals)
+          all_found = base.define(api_map, closure_pin, locals)
           found = all_found.first
           break if found
           missing = base
