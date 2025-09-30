@@ -81,7 +81,6 @@ module Solargraph
         end
       end
       File.open(File.join(directory, '.solargraph.yml'), 'w') do |file|
-        # @sg-ignore Unresolved call to to_yaml
         file.puts conf.to_yaml
       end
       STDOUT.puts "Configuration file initialized."
@@ -140,9 +139,8 @@ module Solargraph
       # print time with ms
       workspace = Solargraph::Workspace.new('.')
 
-      api_map = Solargraph::ApiMap.load(Dir.pwd)
       if names.empty?
-        api_map.cache_all_for_doc_map!($stdout, rebuild: options[:rebuild])
+        workspace.cache_all_for_workspace!($stdout, rebuild: options[:rebuild])
       else
         $stderr.puts("Caching these gems: #{names}")
         names.each do |name|
@@ -155,7 +153,7 @@ module Solargraph
           if gemspec.nil?
             warn "Gem '#{name}' not found"
           else
-            api_map.cache_gem(gemspec, rebuild: options[:rebuild], out: $stdout)
+            workspace.cache_gem(gemspec, rebuild: options[:rebuild], out: $stdout)
           end
         end
         $stderr.puts "Documentation cached for #{names.count} gems."
