@@ -128,7 +128,6 @@ module Solargraph
       # @sg-ignore need to teach solargraph about Hash[]
       # @type [Array<String>]
       missing_paths = Hash[without_gemspecs].keys
-      # @sg-ignore Need support for RBS duck interfaces like _ToHash
       # @type [Array<Gem::Specification>]
       gemspecs = Hash[with_gemspecs].values.flatten.compact + dependencies(out: out).to_a
 
