@@ -19,7 +19,12 @@ module Solargraph
       # @return [Enumerable<Pin::Base>]
       def pins out: $stderr
         return @pins if @pins
+        @pins = cache_core(out: out)
+      end
 
+      # @param out [IO, nil] output stream for logging
+      # @return [Array<Pin::Base>]
+      def cache_core out: $stderr
         @pins = []
         cache = PinCache.deserialize_core
         if cache

@@ -17,7 +17,7 @@ module Solargraph
       # @param visibility [Array<Symbol>] :public, :protected, and/or :private
       # @param deep [Boolean] whether to include methods from included modules
       # @param skip [Set<String>]
-      # @param _no_core [Boolean]n whether to skip core methods
+      # @param _no_core [Boolean] whether to skip core methods
       def object api_map, rooted_tag, scope, visibility, deep, skip, _no_core
         moo = ObjectProcessor.new(api_map, rooted_tag, scope, visibility, deep, skip)
         moo.environ
