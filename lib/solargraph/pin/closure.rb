@@ -7,7 +7,7 @@ module Solargraph
       attr_reader :scope
 
       # @param scope [::Symbol] :class or :instance
-      # @param generics [::Array<Pin::Parameter>, nil]
+      # @param generics [::Array<Pin::String>, nil]
       # @param generic_defaults [Hash{String => ComplexType}]
       def initialize scope: :class, generics: nil, generic_defaults: {},  **splat
         super(**splat)
@@ -33,10 +33,12 @@ module Solargraph
         super(other, new_attrs)
       end
 
+      # @sg-ignore Need support for reduce_class_type in UniqueType
       def context
         @context ||= begin
           result = super
           if scope == :instance
+            # @sg-ignore Need support for reduce_class_type in UniqueType
             result.reduce_class_type
           else
             result

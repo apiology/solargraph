@@ -41,7 +41,7 @@ module Solargraph
       # @param type_location [Solargraph::Location, nil]
       # @param closure [Solargraph::Pin::Closure, nil]
       # @param name [String]
-      # @param comments [String]
+      # @param comments [String, nil]
       # @param source [Symbol, nil]
       # @param docstring [YARD::Docstring, nil]
       # @param directives [::Array<YARD::Tags::Directive>, nil]
@@ -57,6 +57,9 @@ module Solargraph
         @docstring = docstring
         @directives = directives
         @combine_priority = combine_priority
+        # @type [ComplexType, ComplexType::UniqueType, nil]
+        @binder = nil
+
 
         assert_source_provided
         assert_location_provided
@@ -72,7 +75,6 @@ module Solargraph
       # @return [Pin::Closure, nil]
       def closure
         Solargraph.assert_or_log(:closure, "Closure not set on #{self.class} #{name.inspect} from #{source.inspect}") unless @closure
-        # @type [Pin::Closure, nil]
         @closure
       end
 
@@ -140,14 +142,17 @@ module Solargraph
       end
 
       # @param other [self]
+      #
       # @return [::Array<YARD::Tags::Directive>, nil]
       def combine_directives(other)
         return self.directives if other.directives.empty?
         return other.directives if directives.empty?
-        [directives + other.directives].uniq
+        (directives + other.directives).uniq
       end
 
       # @param other [self]
+      # @sg-ignore explicitly marked undefined return types should
+      #   disable trying to infer return types
       # @return [String]
       def combine_name(other)
         if needs_consistent_name? || other.needs_consistent_name?
@@ -199,14 +204,17 @@ module Solargraph
           return_type
         else
           all_items = return_type.items + other.return_type.items
+          # @sg-ignore Need support for reduce_class_type in UniqueType
           if all_items.any? { |item| item.selfy? } && all_items.any? { |item| item.rooted_tag == context.reduce_class_type.rooted_tag }
             # assume this was a declaration that should have said 'self'
+            # @sg-ignore Need support for reduce_class_type in UniqueType
             all_items.delete_if { |item| item.rooted_tag == context.reduce_class_type.rooted_tag }
           end
           ComplexType.new(all_items)
         end
       end
 
+      # @sg-ignore need boolish support for ? methods
       def dodgy_return_type_source?
         # uses a lot of 'Object' instead of 'self'
         location&.filename&.include?('core_ext/object/')
@@ -217,7 +225,8 @@ module Solargraph
       # @param other [Pin::Base]
       # @param attr [::Symbol]
       #
-      # @return [Object, nil]
+      # @sg-ignore
+      # @return [undefined, nil]
       def choose(other, attr)
         results = [self, other].map(&attr).compact
         # true and false are different classes and can't be sorted
@@ -254,6 +263,7 @@ module Solargraph
         end
       end
 
+      # @sg-ignore need boolish support for ? methods
       def rbs_location?
         type_location&.rbs?
       end
@@ -309,6 +319,7 @@ module Solargraph
       # @param other [self]
       # @param attr [::Symbol]
       #
+      # @sg-ignore Untyped method Solargraph::Pin::Base#assert_same could not be inferred
       # @return [undefined]
       def assert_same(other, attr)
         if other.nil?
@@ -382,7 +393,7 @@ module Solargraph
       end
 
       # @param generics_to_resolve [Enumerable<String>]
-      # @param return_type_context [ComplexType, nil]
+      # @param return_type_context [ComplexType, ComplexType::UniqueType, nil]
       # @param context [ComplexType]
       # @param resolved_generic_values [Hash{String => ComplexType}]
       # @return [self]
@@ -424,6 +435,7 @@ module Solargraph
       # @return [String, nil]
       def filename
         return nil if location.nil?
+        # @sg-ignore flow sensitive typing needs to handle ivars
         location.filename
       end
 
@@ -460,6 +472,7 @@ module Solargraph
       def nearly? other
         self.class == other.class &&
           name == other.name &&
+          # @sg-ignore flow sensitive typing needs to handle ivars
           (closure == other.closure || (closure && closure.nearly?(other.closure))) &&
           (comments == other.comments ||
             (((maybe_directives? == false && other.maybe_directives? == false) || compare_directives(directives, other.directives)) &&
@@ -489,6 +502,7 @@ module Solargraph
         @docstring ||= Solargraph::Source.parse_docstring('').to_docstring
       end
 
+      # @sg-ignore parse_comments will always set @directives
       # @return [::Array<YARD::Tags::Directive>]
       def directives
         parse_comments unless @directives
@@ -509,6 +523,7 @@ module Solargraph
       #
       # @return [Boolean]
       def maybe_directives?
+        # @sg-ignore flow sensitive typing needs to handle && on both sides
         return !@directives.empty? if defined?(@directives) && @directives
         @maybe_directives ||= comments.include?('@!')
       end
@@ -573,12 +588,13 @@ module Solargraph
       # the return type and the #proxied? setting, the proxy should be a clone
       # of the original.
       #
-      # @param return_type [ComplexType]
+      # @param return_type [ComplexType, nil]
       # @return [self]
       def proxy return_type
         result = dup
         result.return_type = return_type
         result.proxied = true
+        result.reset_generated!
         result
       end
 
@@ -595,6 +611,7 @@ module Solargraph
       # Example: Given the name 'Bar' and the gates ['Foo', ''],
       # the fully qualified namespace should be 'Foo::Bar' or 'Bar'.
       #
+      # @sg-ignore Need to look at infer handling of recursive methods
       # @return [Array<String>]
       def gates
         @gates ||= closure&.gates || ['']
@@ -663,7 +680,7 @@ module Solargraph
       # @return [Boolean]
       attr_writer :proxied
 
-      # @return [ComplexType]
+      # @return [ComplexType, nil]
       attr_writer :return_type
 
       attr_writer :docstring

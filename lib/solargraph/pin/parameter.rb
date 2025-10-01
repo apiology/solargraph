@@ -21,10 +21,12 @@ module Solargraph
         @decl = decl
       end
 
+      # @sg-ignore need to improve nil-removal of ||
       def type_location
         super || closure&.type_location
       end
 
+      # @sg-ignore need to improve nil-removal of ||
       def location
         super || closure&.type_location
       end
@@ -43,6 +45,7 @@ module Solargraph
       end
 
       def kwrestarg?
+        # @sg-ignore flow sensitive typing needs to handle ivars
         decl == :kwrestarg || (assignment && [:HASH, :hash].include?(assignment.type))
       end
 
@@ -78,6 +81,14 @@ module Solargraph
 
       def restarg?
         decl == :restarg
+      end
+
+      def mandatory_positional?
+        decl == :arg
+      end
+
+      def positional?
+        !keyword?
       end
 
       def rest?
@@ -135,12 +146,15 @@ module Solargraph
                     end
       end
 
+      # @sg-ignore super always sets @return_type to something
       # @return [ComplexType]
       def return_type
         if @return_type.nil?
           @return_type = ComplexType::UNDEFINED
           found = param_tag
+          # @sg-ignore flow sensitive typing needs to handle ivars
           @return_type = ComplexType.try_parse(*found.types) unless found.nil? or found.types.nil?
+          # @sg-ignore Need to add nil check here
           if @return_type.undefined?
             if decl == :restarg
               @return_type = ComplexType.try_parse('::Array')
@@ -151,21 +165,23 @@ module Solargraph
             end
           end
         end
-        super
+        super # always sets @return_type
         @return_type
       end
 
       # The parameter's zero-based location in the block's signature.
       #
+      # @sg-ignore Need to add nil check here
       # @return [Integer]
       def index
-        # @type [Method, Block]
         method_pin = closure
+        # @sg-ignore Need to add nil check here
         method_pin.parameter_names.index(name)
       end
 
       # @param api_map [ApiMap]
       def typify api_map
+        # @sg-ignore Need to add nil check here
         return return_type.qualify(api_map, *closure.gates) unless return_type.undefined?
         closure.is_a?(Pin::Block) ? typify_block_param(api_map) : typify_method_param(api_map)
       end
@@ -188,6 +204,7 @@ module Solargraph
       def documentation
         tag = param_tag
         return '' if tag.nil? || tag.text.nil?
+        # @sg-ignore flow sensitive typing needs to handle ivars
         tag.text
       end
 
@@ -195,10 +212,13 @@ module Solargraph
 
       # @return [YARD::Tags::Tag, nil]
       def param_tag
+        # @sg-ignore Need to add nil check here
         params = closure.docstring.tags(:param)
+        # @sg-ignore Need to add nil check here
         params.each do |p|
           return p if p.name == name
         end
+        # @sg-ignore Need to add nil check here
         params[index] if index && params[index] && (params[index].name.nil? || params[index].name.empty?)
       end
 
@@ -215,6 +235,7 @@ module Solargraph
       # @param api_map [ApiMap]
       # @return [ComplexType]
       def typify_method_param api_map
+        # @sg-ignore Need to add nil check here
         meths = api_map.get_method_stack(closure.full_context.tag, closure.name, scope: closure.scope)
         # meths.shift # Ignore the first one
         meths.each do |meth|
@@ -228,6 +249,7 @@ module Solargraph
           if found.nil? and !index.nil?
             found = params[index] if params[index] && (params[index].name.nil? || params[index].name.empty?)
           end
+          # @sg-ignore Need to add nil check here
           return ComplexType.try_parse(*found.types).qualify(api_map, *meth.closure.gates) unless found.nil? || found.types.nil?
         end
         ComplexType::UNDEFINED
@@ -236,6 +258,7 @@ module Solargraph
       # @param heredoc [YARD::Docstring]
       # @param api_map [ApiMap]
       # @param skip [::Array]
+      #
       # @return [::Array<YARD::Tags::Tag>]
       def see_reference heredoc, api_map, skip = []
         heredoc.ref_tags.each do |ref|
@@ -259,6 +282,7 @@ module Solargraph
         else
           fqns = api_map.qualify(parts.first, namespace)
           return nil if fqns.nil?
+          # @sg-ignore Need to add nil check here
           path = fqns + ref[parts.first.length] + parts.last
         end
         pins = api_map.get_path_pins(path)

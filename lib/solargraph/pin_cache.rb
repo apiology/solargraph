@@ -175,7 +175,7 @@ module Solargraph
       end
 
       # @param gemspec [Gem::Specification]
-      # @param out [IO, nil]
+      # @param out [StringIO, IO, nil]
       # @return [void]
       def uncache_gem(gemspec, out: nil)
         uncache(yardoc_path(gemspec), out: out)
@@ -192,6 +192,7 @@ module Solargraph
       private
 
       # @param file [String]
+      # @sg-ignore Marshal.load evaluates to boolean here which is wrong
       # @return [Array<Solargraph::Pin::Base>, nil]
       def load file
         return nil unless File.file?(file)
@@ -224,12 +225,15 @@ module Solargraph
         path = File.join(*path_segments)
         if File.exist?(path)
           FileUtils.rm_rf path, secure: true
+          # @sg-ignore Need to add nil check here
           out.puts "Clearing pin cache in #{path}" unless out.nil?
         end
       end
 
       # @return [void]
       # @param path_segments [Array<String>]
+      # @param out [StringIO, IO, nil]
+      # @todo need to warn when no @param exists for 'out'
       def uncache_by_prefix *path_segments, out: nil
         path = File.join(*path_segments)
         glob = "#{path}*"

@@ -7,6 +7,7 @@ module Solargraph
       #   @abstract
       #   @return [Source, nil]
       # @type @closure [Pin::Closure, nil]
+      # @type @binder [ComplexType, ComplexType::UniqueType, nil]
 
       # @return [Location]
       attr_reader :location
@@ -23,12 +24,13 @@ module Solargraph
         @name ||= ''
       end
 
+      # @todo redundant with Base#return_type?
       # @return [ComplexType]
       def return_type
         @return_type ||= ComplexType::UNDEFINED
       end
 
-      # @return [ComplexType]
+      # @return [ComplexType, ComplexType::UniqueType]
       def context
         # Get the static context from the nearest namespace
         @context ||= find_context
@@ -40,7 +42,8 @@ module Solargraph
         context.namespace.to_s
       end
 
-      # @return [ComplexType]
+      # @sg-ignore Need to be able to do @type with a variable name
+      # @return [ComplexType, ComplexType::UniqueType]
       def binder
         @binder || context
       end
@@ -70,6 +73,7 @@ module Solargraph
           elsif here.is_a?(Pin::Method)
             return here.context
           end
+          # @sg-ignore Need to add nil check here
           here = here.closure
         end
         ComplexType::ROOT

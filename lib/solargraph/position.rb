@@ -57,7 +57,6 @@ module Solargraph
     # @return [Integer]
     def self.to_offset text, position
       return 0 if text.empty?
-      # @sg-ignore Unresolved call to + on Integer
       text.lines[0...position.line].sum(&:length) + position.character
     end
 
@@ -80,6 +79,7 @@ module Solargraph
     def self.from_offset text, offset
       cursor = 0
       line = 0
+      # @type [Integer, nil]
       character = nil
       text.lines.each do |l|
         line_length = l.length
@@ -93,6 +93,7 @@ module Solargraph
       end
       character = 0 if character.nil? and (cursor - offset).between?(0, 1)
       raise InvalidOffsetError if character.nil?
+      # @sg-ignore flow sensitive typing needs to handle 'raise if'
       Position.new(line, character)
     end
 

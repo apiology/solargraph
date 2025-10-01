@@ -24,9 +24,17 @@ module Solargraph
     attr_reader :missing_docs
 
     # @param pins [Array<Solargraph::Pin::Base>]
-    def initialize pins: []
+    # @param loose_unions [Boolean] if true, a potential type can be
+    #   inferred if ANY of the UniqueTypes in the base chain's
+    #   ComplexType match it. If false, every single UniqueTypes in
+    #   the base must be ALL able to independently provide this
+    #   type.  The former is useful during completion, but the
+    #   latter is best for typechecking at higher levels.
+    #
+    def initialize pins: [], loose_unions: true
       @source_map_hash = {}
       @cache = Cache.new
+      @loose_unions = loose_unions
       index pins
     end
 
@@ -50,6 +58,8 @@ module Solargraph
     def hash
       equality_fields.hash
     end
+
+    attr_reader :loose_unions
 
     def to_s
       self.class.to_s
@@ -113,7 +123,7 @@ module Solargraph
     #   that this overload of 'protected' will typecheck @sg-ignore
     # @sg-ignore
     protected def equality_fields
-      [self.class, @source_map_hash, conventions_environ, @doc_map, @unresolved_requires]
+      [self.class, @source_map_hash, conventions_environ, @doc_map, @unresolved_requires, @missing_docs, @loose_unions]
     end
 
     # @return [DocMap]
@@ -141,9 +151,10 @@ module Solargraph
       @@core_map.pins
     end
 
-    # @param name [String]
+    # @param name [String, nil]
     # @return [YARD::Tags::MacroDirective, nil]
     def named_macro name
+      # @sg-ignore Need to add nil check here
       store.named_macros[name]
     end
 
@@ -179,10 +190,11 @@ module Solargraph
     # Create an ApiMap with a workspace in the specified directory.
     #
     # @param directory [String]
+    # @param loose_unions [Boolean] See #initialize
     #
     # @return [ApiMap]
-    def self.load directory
-      api_map = new
+    def self.load directory, loose_unions: true
+      api_map = new(loose_unions: loose_unions)
       workspace = Solargraph::Workspace.new(directory)
       # api_map.catalog Bench.new(workspace: workspace)
       library = Library.new(workspace)
@@ -191,7 +203,7 @@ module Solargraph
       api_map
     end
 
-    # @param out [IO, nil]
+    # @param out [StringIO, IO, nil]
     # @return [void]
     def cache_all!(out)
       @doc_map.cache_all!(out)
@@ -199,7 +211,7 @@ module Solargraph
 
     # @param gemspec [Gem::Specification]
     # @param rebuild [Boolean]
-    # @param out [IO, nil]
+    # @param out [StringIO, IO, nil]
     # @return [void]
     def cache_gem(gemspec, rebuild: false, out: nil)
       @doc_map.cache(gemspec, rebuild: rebuild, out: out)
@@ -214,18 +226,19 @@ module Solargraph
     #
     #
     # @param directory [String]
-    # @param out [IO] The output stream for messages
+    # @param out [IO, StringIO, nil] The output stream for messages
+    # @param loose_unions [Boolean] See #initialize
     #
     # @return [ApiMap]
-    def self.load_with_cache directory, out = $stdout
-      api_map = load(directory)
+    def self.load_with_cache directory, out = $stdout, loose_unions: true
+      api_map = load(directory, loose_unions: loose_unions)
       if api_map.uncached_gemspecs.empty?
         logger.info { "All gems cached for #{directory}" }
         return api_map
       end
 
       api_map.cache_all!(out)
-      load(directory)
+      load(directory, loose_unions: loose_unions)
     end
 
     # @return [Array<Solargraph::Pin::Base>]
@@ -238,13 +251,6 @@ module Solargraph
     # @return [Enumerable<Solargraph::Pin::Keyword>]
     def keyword_pins
       store.pins_by_class(Pin::Keyword)
-    end
-
-    # An array of namespace names defined in the ApiMap.
-    #
-    # @return [Set<String>]
-    def namespaces
-      store.namespaces
     end
 
     # True if the namespace exists.
@@ -340,6 +346,7 @@ module Solargraph
       result.concat store.get_instance_variables(namespace, scope)
       sc_fqns = namespace
       while (sc = store.get_superclass(sc_fqns))
+        # @sg-ignore flow sensitive typing needs to handle "if foo = bar"
         sc_fqns = store.constants.dereference(sc)
         result.concat store.get_instance_variables(sc_fqns, scope)
       end
@@ -648,10 +655,12 @@ module Solargraph
       return true if sup == sub
       sc_fqns = sub
       while (sc = store.get_superclass(sc_fqns))
+        # @sg-ignore flow sensitive typing needs to handle "if foo = bar"
         sc_new = store.constants.dereference(sc)
         # Cyclical inheritance is invalid
         return false if sc_new == sc_fqns
         sc_fqns = sc_new
+        # @sg-ignore Should handle redefinition of types in simple contexts
         return true if sc_fqns == sup
       end
       false
@@ -675,6 +684,7 @@ module Solargraph
       with_resolved_aliases = pins.map do |pin|
         next pin unless pin.is_a?(Pin::MethodAlias)
         resolved = resolve_method_alias(pin)
+        # @sg-ignore Need to add nil check here
         next nil if resolved.respond_to?(:visibility) && !visibility.include?(resolved.visibility)
         resolved
       end.compact
@@ -774,9 +784,6 @@ module Solargraph
 
         if scope == :instance
           store.get_includes(fqns).reverse.each do |ref|
-            # @sg-ignore Declared type Solargraph::Pin::Constant does
-            #   not match inferred type Solargraph::Pin::Constant,
-            #   Solargraph::Pin::Namespace, nil for variable const
             const = get_constants('', *ref.closure.gates).find { |pin| pin.path.end_with? ref.name }
             if const.is_a?(Pin::Namespace)
               result.concat inner_get_methods(const.path, scope, visibility, deep, skip, true)
@@ -864,7 +871,9 @@ module Solargraph
     # @param alias_pin [Pin::MethodAlias]
     # @return [Pin::Method, nil]
     def resolve_method_alias(alias_pin)
+      # @sg-ignore Need support for reduce_class_type in UniqueType
       ancestors = store.get_ancestors(alias_pin.full_context.reduce_class_type.tag)
+      # @type [Pin::Method, nil]
       original = nil
 
       # Search each ancestor for the original method
@@ -888,7 +897,6 @@ module Solargraph
         break if original
       end
 
-      # @sg-ignore ignore `received nil` for original
       create_resolved_alias_pin(alias_pin, original) if original
     end
 
