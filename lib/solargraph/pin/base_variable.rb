@@ -23,7 +23,7 @@ module Solargraph
 
       def combine_with(other, attrs={})
         attrs.merge({
-          assignment: assert_same(other, :assignment),
+          assignment: choose(other, :assignment),
           mass_assignment: assert_same(other, :mass_assignment),
           return_type: combine_return_type(other),
         })
