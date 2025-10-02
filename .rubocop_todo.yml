@@ -631,6 +631,13 @@ RSpec/ExpectActual:
 RSpec/HookArgument:
   Enabled: false
 
+# This cop supports safe autocorrection (--autocorrect).
+# Configuration parameters: EnforcedStyle.
+# SupportedStyles: is_expected, should
+RSpec/ImplicitExpect:
+  Exclude:
+    - 'spec/convention/activesupport_concern_spec.rb'
+
 # Configuration parameters: AssignmentOnly.
 RSpec/InstanceVariable:
   Enabled: false
