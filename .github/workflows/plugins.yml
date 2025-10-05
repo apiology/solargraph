@@ -116,7 +116,7 @@ jobs:
     - name: clone https://github.com/lekemula/solargraph-rspec/
       run: |
        cd ..
-       git clone https://github.com/lekemula/solargraph-rspec.git
+       git clone --branch less_limited_requires https://github.com/apiology/solargraph-rspec.git
        cd solargraph-rspec
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
