@@ -12,14 +12,19 @@ describe Solargraph::DocMap do
   let(:pre_cache) { true }
   let(:requires) { [] }
 
-  let(:workspace) do
-    Solargraph::Workspace.new(Dir.pwd)
-  end
+  let(:workspace) { Solargraph::Workspace.new(Dir.pwd) }
 
   let(:plain_doc_map) { described_class.new([], [], workspace) }
 
   before do
     doc_map.cache_all!(nil) if pre_cache
+  end
+
+  it 'generates pins from gems' do
+    doc_map = Solargraph::DocMap.new(['ast'], [], workspace)
+    doc_map.cache_all!($stderr)
+    node_pin = doc_map.pins.find { |pin| pin.path == 'AST::Node' }
+    expect(node_pin).to be_a(Solargraph::Pin::Namespace)
   end
 
   context 'with a require in solargraph test bundle' do
