@@ -68,8 +68,17 @@ describe Solargraph::Workspace do
     }.not_to raise_error
   end
 
+  it "detects gemspecs in workspaces" do
+    gemspec_file = File.join(dir_path, 'test.gemspec')
+    File.write(gemspec_file, '')
+    expect(workspace.gemspec?).to be(true)
+    expect(workspace.gemspec_files).to eq([gemspec_file])
+  end
+
   it "generates default require path" do
-    expect(workspace.require_paths).to eq([File.join(dir_path, 'lib')])
+    relative = File.join(dir_path, 'lib')
+    absolute = File.absolute_path(relative)
+    expect(workspace.require_paths).to eq([absolute])
   end
 
   it "generates require paths from gemspecs" do
@@ -117,13 +126,16 @@ describe Solargraph::Workspace do
 
   it "uses configured require paths" do
     workspace = Solargraph::Workspace.new('spec/fixtures/workspace')
-    expect(workspace.require_paths).to eq(['spec/fixtures/workspace/lib', 'spec/fixtures/workspace/ext'])
+    expect(workspace.require_paths).to eq([File.absolute_path('spec/fixtures/workspace/lib'),
+                                           File.absolute_path('spec/fixtures/workspace/ext')])
   end
 
   it 'ignores gemspecs in excluded directories' do
     # vendor/**/* is excluded by default
-    workspace = Solargraph::Workspace.new('spec/fixtures/vendored')
-    expect(workspace.require_paths).to eq(['spec/fixtures/vendored/lib'])
+    relative = 'spec/fixtures/vendored'
+    absolute = File.absolute_path(relative)
+    workspace = Solargraph::Workspace.new(relative)
+    expect(workspace.require_paths).to eq([absolute + '/lib'])
   end
 
   it 'rescues errors loading files into sources' do

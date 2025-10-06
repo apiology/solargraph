@@ -2,6 +2,7 @@
 
 require 'open3'
 require 'json'
+require 'yaml'
 
 module Solargraph
   # A workspace consists of the files in a project's directory and the
@@ -9,7 +10,10 @@ module Solargraph
   # in an associated Library or ApiMap.
   #
   class Workspace
+    include Logging
+
     autoload :Config, 'solargraph/workspace/config'
+    autoload :Gemspecs, 'solargraph/workspace/gemspecs'
     autoload :RequirePaths, 'solargraph/workspace/require_paths'
 
     # @return [String]
@@ -19,11 +23,17 @@ module Solargraph
     attr_reader :gemnames
     alias source_gems gemnames
 
-    # @param directory [String]
+    # @param directory [String] TODO: Remove '' and '*' special cases
     # @param config [Config, nil]
     # @param server [Hash]
     def initialize directory = '', config = nil, server = {}
-      @directory = directory
+      raise ArgumentError, 'directory must be a String' unless directory.is_a?(String)
+
+      @directory = if ['*', ''].include?(directory)
+                     directory
+                   else
+                     File.absolute_path(directory)
+                   end
       @config = config
       @server = server
       load_sources
@@ -42,6 +52,56 @@ module Solargraph
     # @return [Solargraph::Workspace::Config]
     def config
       @config ||= Solargraph::Workspace::Config.new(directory)
+    end
+
+    # @return [Solargraph::PinCache]
+    def pin_cache
+      @pin_cache ||= fresh_pincache
+    end
+
+    # @param stdlib_name [String]
+    #
+    # @return [Array<String>]
+    def stdlib_dependencies stdlib_name
+      deps = RbsMap::StdlibMap.stdlib_dependencies(stdlib_name, nil) || []
+      deps.map { |dep| dep['name'] }.compact
+    end
+
+    # @return [Environ]
+    def global_environ
+      # empty docmap, since the result needs to work in any possible
+      # context here
+      @global_environ ||= Convention.for_global(DocMap.new([], self))
+    end
+
+    # @param gemspec [Gem::Specification, Bundler::LazySpecification]
+    # @param out [IO, nil] output stream for logging
+    # @param rebuild [Boolean] whether to rebuild the pins even if they are cached
+    #
+    # @return [void]
+    def cache_gem gemspec, out: nil, rebuild: false
+      pin_cache.cache_gem(gemspec: gemspec, out: out, rebuild: rebuild)
+    end
+
+    # @param gemspec [Gem::Specification, Bundler::LazySpecification]
+    # @param out [IO, nil] output stream for logging
+    #
+    # @return [void]
+    def uncache_gem gemspec, out: nil
+      pin_cache.uncache_gem(gemspec, out: out)
+    end
+
+    # @return [Solargraph::PinCache]
+    def fresh_pincache
+      PinCache.new(rbs_collection_path: rbs_collection_path,
+                   rbs_collection_config_path: rbs_collection_config_path,
+                   yard_plugins: yard_plugins,
+                   directory: directory)
+    end
+
+    # @return [Array<String>]
+    def yard_plugins
+      @yard_plugins ||= global_environ.yard_plugins.sort.uniq
     end
 
     # Merge the source. A merge will update the existing source for the file
@@ -114,6 +174,23 @@ module Solargraph
       false
     end
 
+    # True if the workspace contains at least one gemspec file.
+    #
+    # @return [Boolean]
+    def gemspec?
+      !gemspec_files.empty?
+    end
+
+    # Get an array of all gemspec files in the workspace.
+    #
+    # @return [Array<String>]
+    def gemspec_files
+      return [] if directory.empty? || directory == '*'
+      @gemspec_files ||= Dir[File.join(directory, '**/*.gemspec')].select do |gs|
+        config.allow? gs
+      end
+    end
+
     # @return [String, nil]
     def rbs_collection_path
       @gem_rbs_collection ||= read_rbs_collection_path
@@ -121,12 +198,23 @@ module Solargraph
 
     # @return [String, nil]
     def rbs_collection_config_path
-      @rbs_collection_config_path ||= begin
-        unless directory.empty? || directory == '*'
-          yaml_file = File.join(directory, 'rbs_collection.yaml')
-          yaml_file if File.file?(yaml_file)
+      @rbs_collection_config_path ||=
+        begin
+          unless directory.empty? || directory == '*'
+            yaml_file = File.join(directory, 'rbs_collection.yaml')
+            yaml_file if File.file?(yaml_file)
+          end
         end
-      end
+    end
+
+    # @param name [String]
+    # @param version [String, nil]
+    #
+    # @return [Gem::Specification, nil]
+    def find_gem name, version = nil
+      Gem::Specification.find_by_name(name, version)
+    rescue Gem::MissingSpecError
+      nil
     end
 
     # Synchronize the workspace from the provided updater.
@@ -148,12 +236,9 @@ module Solargraph
       directory
     end
 
-    # True if the workspace has a root Gemfile.
-    #
-    # @todo Handle projects with custom Bundler/Gemfile setups (see DocMap#gemspecs_required_from_bundler)
-    #
-    def gemfile?
-      directory && File.file?(File.join(directory, 'Gemfile'))
+    # @return [Solargraph::Workspace::Gemspecs]
+    def gemspecs
+      @gemspecs ||= Solargraph::Workspace::Gemspecs.new(directory_or_nil)
     end
 
     private
@@ -174,7 +259,10 @@ module Solargraph
       source_hash.clear
       unless directory.empty? || directory == '*'
         size = config.calculated.length
-        raise WorkspaceTooLargeError, "The workspace is too large to index (#{size} files, #{config.max_files} max)" if config.max_files > 0 and size > config.max_files
+        if config.max_files > 0 and size > config.max_files
+          raise WorkspaceTooLargeError,
+                "The workspace is too large to index (#{size} files, #{config.max_files} max)"
+        end
         config.calculated.each do |filename|
           begin
             source_hash[filename] = Solargraph::Source.load(filename)
