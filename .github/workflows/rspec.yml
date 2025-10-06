@@ -38,7 +38,7 @@ jobs:
           # only include the 3.4 variants we include later
           - ruby-version: '3.4'
           # Missing require in 'rbs collection update' - hopefully
-          # fixed in next RBS release
+          # fixed in next RBS dev release
           - ruby-version: 'head'
             rbs-version: '4.0.0.dev.4'
           - ruby-version: 'head'
@@ -73,9 +73,8 @@ jobs:
       run: |
         bundle install
         bundle update rbs # use latest available for this Ruby version
-    - name: Update types
-      run: |
-        bundle exec rbs collection update
+    - name: Install types
+      run: bundle exec rbs collection update
     - name: Run tests
       run: bundle exec rake spec
   undercover:
@@ -92,7 +91,11 @@ jobs:
         ruby-version: '3.4'
         bundler-cache: false
     - name: Install gems
-      run: bundle install
+      run: |
+        bundle install
+        bundle update rbs # use latest available for this Ruby version
+    - name: Install types
+      run: bundle exec rbs collection update
     - name: Run tests
       run: bundle exec rake spec
     - name: Check PR coverage

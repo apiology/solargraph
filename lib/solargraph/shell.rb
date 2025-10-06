@@ -3,6 +3,7 @@
 require 'benchmark'
 require 'thor'
 require 'yard'
+require 'yaml'
 
 module Solargraph
   class Shell < Thor
@@ -140,7 +141,7 @@ module Solargraph
 
       api_map = Solargraph::ApiMap.load(Dir.pwd)
       if names.empty?
-        api_map.cache_all!($stdout, rebuild: options[:rebuild])
+        api_map.cache_all_for_doc_map!($stdout, rebuild: options[:rebuild])
       else
         $stderr.puts("Caching these gems: #{names}")
         names.each do |name|
@@ -170,6 +171,8 @@ module Solargraph
     # @return [void]
     def uncache *gems
       raise ArgumentError, 'No gems specified.' if gems.empty?
+      workspace = Solargraph::Workspace.new(Dir.pwd)
+
       gems.each do |gem|
         if gem == 'core'
           PinCache.uncache_core(out: $stdout)
@@ -182,7 +185,7 @@ module Solargraph
         end
 
         spec = Gem::Specification.find_by_name(gem)
-        PinCache.uncache_gem(spec, out: $stdout)
+        workspace.uncache_gem(spec, out: $stdout)
       end
     end
 

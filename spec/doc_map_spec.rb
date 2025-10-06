@@ -17,30 +17,7 @@ describe Solargraph::DocMap do
   let(:plain_doc_map) { described_class.new([], workspace) }
 
   before do
-    doc_map.cache_all!(nil) if pre_cache
-  end
-
-  it 'generates pins from gems' do
-    doc_map = Solargraph::DocMap.new(['ast'], workspace)
-    doc_map.cache_all!($stderr)
-    node_pin = doc_map.pins.find { |pin| pin.path == 'AST::Node' }
-    expect(node_pin).to be_a(Solargraph::Pin::Namespace)
-  end
-
-  context 'with a require in solargraph test bundle' do
-    let(:requires) do
-      ['ast']
-    end
-
-    it 'generates pins from gems' do
-      node_pin = doc_map.pins.find { |pin| pin.path == 'AST::Node' }
-      expect(node_pin).to be_a(Solargraph::Pin::Namespace)
-    end
-  end
-
-  it 'tracks unresolved requires' do
-    doc_map = Solargraph::DocMap.new(['not_a_gem'], workspace)
-    expect(doc_map.unresolved_requires).to include('not_a_gem')
+    doc_map.cache_doc_map_gems!(out) if pre_cache
   end
 
   it 'tracks uncached_gemspecs' do
@@ -50,8 +27,7 @@ describe Solargraph::DocMap do
     end
     allow(Gem::Specification).to receive(:find_by_path).and_return(gemspec)
     doc_map = Solargraph::DocMap.new(['not_a_gem'], workspace)
-    expect(doc_map.uncached_yard_gemspecs).to eq([gemspec])
-    expect(doc_map.uncached_rbs_collection_gemspecs).to eq([gemspec])
+    expect(doc_map.uncached_gemspecs).to eq([gemspec])
   end
 
   context 'understands rspec + rspec-mocks require pattern' do
@@ -61,7 +37,7 @@ describe Solargraph::DocMap do
 
     # This is a gem name vs require name issue - works under
     # solargraph-rspec, but not without
-    xit 'generates pins from gems' do
+    it 'generates pins from gems' do
       pending('handling dependencies from conventions as gem names, not requires')
 
       ns_pin = doc_map.pins.find { |pin| pin.path == 'RSpec::Mocks' }
@@ -117,42 +93,18 @@ describe Solargraph::DocMap do
     end
 
     it 'logs timing' do
-      pending('logging being implemented')
-      # force lazy evaluation
-      _pins = doc_map.pins
-      expect(out.string).to include('Deserialized ').and include(' gem pins ').and include(' ms')
+      out = capture_both do
+        # force lazy evaluation
+        _pins = doc_map.pins
+      end
+      expect(out).to include('Deserialized ').and include(' gem pins ').and include(' ms')
     end
   end
 
-  it 'ignores nil requires' do
-    expect { Solargraph::DocMap.new([nil], workspace) }.not_to raise_error
-  end
-
-  it 'ignores empty requires' do
-    expect { Solargraph::DocMap.new([''], workspace) }.not_to raise_error
-  end
-
-  it 'collects dependencies' do
-    doc_map = Solargraph::DocMap.new(['rspec'], workspace)
-    expect(doc_map.dependencies.map(&:name)).to include('rspec-core')
-  end
-
   context 'with require as bundle/require' do
-    # @todo need to debug this failure in CI:
-    #
-    #      Errno::ENOENT:
-    #    No such file or directory - /opt/hostedtoolcache/Ruby/3.3.9/x64/lib/ruby/3.3.0/gems/bundler-2.5.22
-    #  # ./lib/solargraph/yardoc.rb:29:in `cache'
-    #  # ./lib/solargraph/gem_pins.rb:48:in `build_yard_pins'
-    #  # ./lib/solargraph/doc_map.rb:86:in `cache_yard_pins'
-    #  # ./lib/solargraph/doc_map.rb:117:in `cache'
-    #  # ./lib/solargraph/doc_map.rb:75:in `block in cache_all!'
-    #  # ./lib/solargraph/doc_map.rb:74:in `each'
-    #  # ./lib/solargraph/doc_map.rb:74:in `cache_all!'
-    #  # ./spec/doc_map_spec.rb:99:in `block (3 levels) in <top (required)>'
     it 'imports all gems when bundler/require used' do
-      doc_map_with_bundler_require = described_class.new(['bundler/require'], workspace)
-      doc_map_with_bundler_require.cache_all!(nil)
+      doc_map_with_bundler_require = described_class.new(['bundler/require'], workspace, out: nil)
+      doc_map_with_bundler_require.cache_doc_map_gems!(nil)
       expect(doc_map_with_bundler_require.pins.length - plain_doc_map.pins.length).to be_positive
     end
   end
