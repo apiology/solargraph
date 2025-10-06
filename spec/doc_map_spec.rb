@@ -5,7 +5,7 @@ require 'benchmark'
 
 describe Solargraph::DocMap do
   subject(:doc_map) do
-    described_class.new(requires, [], workspace)
+    described_class.new(requires, workspace)
   end
 
   let(:out) { StringIO.new }
@@ -14,14 +14,14 @@ describe Solargraph::DocMap do
 
   let(:workspace) { Solargraph::Workspace.new(Dir.pwd) }
 
-  let(:plain_doc_map) { described_class.new([], [], workspace) }
+  let(:plain_doc_map) { described_class.new([], workspace) }
 
   before do
     doc_map.cache_all!(nil) if pre_cache
   end
 
   it 'generates pins from gems' do
-    doc_map = Solargraph::DocMap.new(['ast'], [], workspace)
+    doc_map = Solargraph::DocMap.new(['ast'], workspace)
     doc_map.cache_all!($stderr)
     node_pin = doc_map.pins.find { |pin| pin.path == 'AST::Node' }
     expect(node_pin).to be_a(Solargraph::Pin::Namespace)
@@ -36,6 +36,22 @@ describe Solargraph::DocMap do
       node_pin = doc_map.pins.find { |pin| pin.path == 'AST::Node' }
       expect(node_pin).to be_a(Solargraph::Pin::Namespace)
     end
+  end
+
+  it 'tracks unresolved requires' do
+    doc_map = Solargraph::DocMap.new(['not_a_gem'], workspace)
+    expect(doc_map.unresolved_requires).to include('not_a_gem')
+  end
+
+  it 'tracks uncached_gemspecs' do
+    gemspec = Gem::Specification.new do |spec|
+      spec.name = 'not_a_gem'
+      spec.version = '1.0.0'
+    end
+    allow(Gem::Specification).to receive(:find_by_path).and_return(gemspec)
+    doc_map = Solargraph::DocMap.new(['not_a_gem'], workspace)
+    expect(doc_map.uncached_yard_gemspecs).to eq([gemspec])
+    expect(doc_map.uncached_rbs_collection_gemspecs).to eq([gemspec])
   end
 
   context 'understands rspec + rspec-mocks require pattern' do
@@ -84,7 +100,7 @@ describe Solargraph::DocMap do
     # Requiring 'set' is unnecessary because it's already included in core. It
     # might make sense to log redundant requires, but a warning is overkill.
     allow(Solargraph.logger).to receive(:warn).and_call_original
-    Solargraph::DocMap.new(['set'], [])
+    Solargraph::DocMap.new(['set'], workspace)
     expect(Solargraph.logger).not_to have_received(:warn).with(/path set/)
   end
 
@@ -108,6 +124,19 @@ describe Solargraph::DocMap do
     end
   end
 
+  it 'ignores nil requires' do
+    expect { Solargraph::DocMap.new([nil], workspace) }.not_to raise_error
+  end
+
+  it 'ignores empty requires' do
+    expect { Solargraph::DocMap.new([''], workspace) }.not_to raise_error
+  end
+
+  it 'collects dependencies' do
+    doc_map = Solargraph::DocMap.new(['rspec'], workspace)
+    expect(doc_map.dependencies.map(&:name)).to include('rspec-core')
+  end
+
   context 'with require as bundle/require' do
     # @todo need to debug this failure in CI:
     #
@@ -121,8 +150,8 @@ describe Solargraph::DocMap do
     #  # ./lib/solargraph/doc_map.rb:74:in `each'
     #  # ./lib/solargraph/doc_map.rb:74:in `cache_all!'
     #  # ./spec/doc_map_spec.rb:99:in `block (3 levels) in <top (required)>'
-    xit 'imports all gems when bundler/require used' do
-      doc_map_with_bundler_require = described_class.new(['bundler/require'], [], workspace)
+    it 'imports all gems when bundler/require used' do
+      doc_map_with_bundler_require = described_class.new(['bundler/require'], workspace)
       doc_map_with_bundler_require.cache_all!(nil)
       expect(doc_map_with_bundler_require.pins.length - plain_doc_map.pins.length).to be_positive
     end
@@ -178,7 +207,7 @@ describe Solargraph::DocMap do
 
       Solargraph::Convention.register dummy_convention
 
-      doc_map = Solargraph::DocMap.new(['original_gem'], [], workspace)
+      doc_map = Solargraph::DocMap.new(['original_gem'], workspace)
 
       expect(doc_map.requires).to include('original_gem', 'convention_gem1', 'convention_gem2')
     ensure
