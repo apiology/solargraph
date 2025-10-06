@@ -76,7 +76,9 @@ describe Solargraph::Workspace do
   end
 
   it "generates default require path" do
-    expect(workspace.require_paths).to eq([File.join(dir_path, 'lib')])
+    relative = File.join(dir_path, 'lib')
+    absolute = File.absolute_path(relative)
+    expect(workspace.require_paths).to eq([absolute])
   end
 
   it "generates require paths from gemspecs" do
