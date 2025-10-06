@@ -12,6 +12,8 @@ module Solargraph
 
       attr_writer :signatures
 
+      attr_writer :comments
+
       # @return [Parser::AST::Node]
       attr_reader :node
 
