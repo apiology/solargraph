@@ -216,7 +216,7 @@ module Solargraph
       # @type [Array<Gem::Specification>]
       gem_specs = Gem::Specification.to_a
       # try any possible standard libraries, but be quiet about it
-      stdlib_specs = pin_cache.possible_stdlibs.map { |stdlib| find_gem(stdlib, out: nil) }.compact
+      stdlib_specs = PinCache.possible_stdlibs.map { |stdlib| find_gem(stdlib, out: nil) }.compact
       specs = (gem_specs + stdlib_specs)
       specs.each do |spec|
         pin_cache.cache_gem(gemspec: spec, rebuild: rebuild, out: out) unless pin_cache.cached?(spec)
@@ -225,7 +225,7 @@ module Solargraph
 
       # do this after so that we prefer stdlib requires from gems,
       # which are likely to be newer and have more pins
-      pin_cache.cache_all_stdlibs(out: out)
+      PinCache.cache_all_stdlibs(out: out)
 
       out&.puts "Documentation cached for core, standard library and gems."
     end
