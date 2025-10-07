@@ -140,9 +140,8 @@ module Solargraph
       # print time with ms
       workspace = Solargraph::Workspace.new('.')
 
-      api_map = Solargraph::ApiMap.load(Dir.pwd)
       if names.empty?
-        api_map.cache_all_for_doc_map!($stdout, rebuild: options[:rebuild])
+        workspace.cache_all_for_workspace!($stdout, rebuild: options[:rebuild])
       else
         $stderr.puts("Caching these gems: #{names}")
         names.each do |name|
@@ -155,7 +154,7 @@ module Solargraph
           if gemspec.nil?
             warn "Gem '#{name}' not found"
           else
-            api_map.cache_gem(gemspec, rebuild: options[:rebuild], out: $stdout)
+            workspace.cache_gem(gemspec, rebuild: options[:rebuild], out: $stdout)
           end
         end
         $stderr.puts "Documentation cached for #{names.count} gems."
@@ -455,15 +454,6 @@ module Solargraph
       end
       desc += " (#{pin.location.filename} #{pin.location.range.start.line})" if pin.location
       desc
-    end
-
-    # @param gemspec [Gem::Specification]
-    # @param api_map [ApiMap]
-    # @return [void]
-    def do_cache gemspec, api_map
-      # @todo if the rebuild: option is passed as a positional arg,
-      #   typecheck doesn't complain on the below line
-      api_map.cache_gem(gemspec, rebuild: options[:rebuild], out: $stdout)
     end
 
     # @param type [ComplexType]
