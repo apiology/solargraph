@@ -135,7 +135,6 @@ describe Solargraph::Shell do
 
       before do
         allow(Solargraph::Workspace).to receive(:new).and_return(workspace)
-        allow(Solargraph::ApiMap).to receive(:load).with(Dir.pwd).and_return(api_map)
         allow(workspace).to receive(:cache_gem)
       end
 
