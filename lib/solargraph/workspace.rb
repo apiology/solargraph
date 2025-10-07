@@ -19,7 +19,8 @@ module Solargraph
     # @return [String]
     attr_reader :directory
 
-    # @param directory [String] TODO: Remove '' and '*' special cases
+    # @todo Remove '' and '*' special cases
+    # @param directory [String]
     # @param config [Config, nil]
     # @param server [Hash]
     def initialize directory = '', config = nil, server = {}
