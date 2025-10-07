@@ -135,6 +135,7 @@ describe Solargraph::Shell do
 
       before do
         allow(Solargraph::Workspace).to receive(:new).and_return(workspace)
+        allow(workspace).to receive(:cache_gem)
       end
 
       it 'caches all without erroring out' do
@@ -147,7 +148,6 @@ describe Solargraph::Shell do
 
       it 'caches single gem without erroring out' do
         allow(workspace).to receive(:find_gem).with('backport').and_return(gemspec)
-        allow(workspace).to receive(:cache_gem)
 
         capture_both do
           shell.options = { rebuild: false }
