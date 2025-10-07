@@ -141,14 +141,14 @@ describe Solargraph::Workspace do
     before do
       allow(Solargraph::Workspace::Gemspecs).to receive(:new).and_return(gemspecs)
       allow(Solargraph::PinCache).to receive(:cache_core)
+      allow(Solargraph::PinCache).to receive_messages(new: pin_cache, possible_stdlibs: [])
+
       allow(pin_cache).to receive_messages(cache_gem: nil)
-      allow(Solargraph::PinCache).to receive(:possible_stdlibs)
-      allow(Solargraph::PinCache).to receive(:new).and_return(pin_cache)
       allow(Solargraph::PinCache).to receive(:cache_all_stdlibs)
     end
 
     it 'caches core pins' do
-      allow(Solargraph::PinCache).to receive_messages(core?: false, possible_stdlibs: [])
+      allow(Solargraph::PinCache).to receive_messages(core?: false)
       allow(gemspecs).to receive(:all_gemspecs_from_bundle).and_return([])
 
       workspace.cache_all_for_workspace!(nil, rebuild: false)
@@ -161,8 +161,7 @@ describe Solargraph::Workspace do
       allow(gemspecs).to receive(:all_gemspecs_from_bundle).and_return([gemspec])
       allow(pin_cache).to receive(:cached?).and_return(false)
 
-      allow(Solargraph::PinCache).to receive_messages(core?: true,
-                                                      possible_stdlibs: [])
+      allow(Solargraph::PinCache).to receive_messages(core?: true)
 
       workspace.cache_all_for_workspace!(nil, rebuild: false)
 
