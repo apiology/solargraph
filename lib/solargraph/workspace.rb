@@ -215,7 +215,7 @@ module Solargraph
       # @type [Array<Gem::Specification>]
       gem_specs = gemspecs.all_gemspecs_from_bundle
       # try any possible standard libraries, but be quiet about it
-      stdlib_specs = PinCache.possible_stdlibs.map { |stdlib| gemspecs.find_gem(stdlib, out: nil) }.compact
+      stdlib_specs = PinCache.possible_stdlibs.map { |stdlib| find_gem(stdlib, out: nil) }.compact
       specs = (gem_specs + stdlib_specs)
       specs.each do |spec|
         pin_cache.cache_gem(gemspec: spec, rebuild: rebuild, out: out) unless pin_cache.cached?(spec)
