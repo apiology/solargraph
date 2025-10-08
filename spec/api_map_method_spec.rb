@@ -110,15 +110,15 @@ describe 'Solargraph::ApiMap methods' do
     end
   end
 
-  describe '#get_method_stack' do
+  describe '#get_method_stack', time_limit_seconds: 240 do
     let(:out) { StringIO.new }
     let(:api_map) { Solargraph::ApiMap.load_with_cache(Dir.pwd, out) }
 
-    context 'with stdlib that has vital dependencies' do
+    context 'with stdlib that has vital dependencies', time_limit_seconds: 240 do
       let(:external_requires) { ['yaml'] }
       let(:method_stack) { api_map.get_method_stack('YAML', 'safe_load', scope: :class) }
 
-      it 'handles the YAML gem aliased to Psych' do
+      it 'handles the YAML gem aliased to Psych', time_limit_seconds: 240 do
         expect(method_stack).not_to be_empty
       end
     end
@@ -130,6 +130,38 @@ describe 'Solargraph::ApiMap methods' do
       it 'handles finding Thor.desc' do
         expect(method_stack).not_to be_empty
       end
+    end
+  end
+
+  describe '#cache_all_for_doc_map!' do
+    it 'can cache gems without a bench' do
+      api_map = Solargraph::ApiMap.new
+      doc_map = instance_double(Solargraph::DocMap, cache_doc_map_gems!: true)
+      allow(Solargraph::DocMap).to receive(:new).and_return(doc_map)
+      api_map.cache_all_for_doc_map!($stderr)
+      expect(doc_map).to have_received(:cache_doc_map_gems!).with($stderr, rebuild: false)
+    end
+  end
+
+  describe '#cache_gem' do
+    it 'can cache gem without a bench' do
+      api_map = Solargraph::ApiMap.new
+      gemspec = Gem::Specification.find_by_name('backport')
+      expect { api_map.cache_gem(gemspec, out: StringIO.new) }.not_to raise_error
+    end
+  end
+
+  describe '#workspace' do
+    it 'can get a default workspace without a bench' do
+      api_map = Solargraph::ApiMap.new
+      expect(api_map.workspace).not_to be_nil
+    end
+  end
+
+  describe '#uncached_gemspecs' do
+    it 'can get uncached gemspecs workspace without a bench' do
+      api_map = Solargraph::ApiMap.new
+      expect(api_map.uncached_gemspecs).not_to be_nil
     end
   end
 

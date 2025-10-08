@@ -117,13 +117,14 @@ describe Solargraph::Workspace do
 
   it "uses configured require paths" do
     workspace = Solargraph::Workspace.new('spec/fixtures/workspace')
-    expect(workspace.require_paths).to eq(['spec/fixtures/workspace/lib', 'spec/fixtures/workspace/ext'])
+    expect(workspace.require_paths).to eq([File.absolute_path('spec/fixtures/workspace/lib'),
+                                           File.absolute_path('spec/fixtures/workspace/ext')])
   end
 
   it 'ignores gemspecs in excluded directories' do
     # vendor/**/* is excluded by default
     workspace = Solargraph::Workspace.new('spec/fixtures/vendored')
-    expect(workspace.require_paths).to eq(['spec/fixtures/vendored/lib'])
+    expect(workspace.require_paths).to eq([File.absolute_path('spec/fixtures/vendored/lib')])
   end
 
   it 'rescues errors loading files into sources' do
@@ -131,5 +132,41 @@ describe Solargraph::Workspace do
     expect {
       Solargraph::Workspace.new('./path', config)
     }.not_to raise_error
+  end
+
+  describe '#cache_all_for_workspace!' do
+    let(:pin_cache) { instance_double(Solargraph::PinCache) }
+    let(:gemspecs) { instance_double(Solargraph::Workspace::Gemspecs) }
+
+    before do
+      allow(Solargraph::Workspace::Gemspecs).to receive(:new).and_return(gemspecs)
+      allow(Solargraph::PinCache).to receive(:cache_core)
+      allow(Solargraph::PinCache).to receive_messages(new: pin_cache, possible_stdlibs: [])
+      allow(pin_cache).to receive_messages(cache_gem: nil)
+      allow(Solargraph::PinCache).to receive(:cache_all_stdlibs)
+    end
+
+    it 'caches core pins' do
+      allow(Solargraph::PinCache).to receive_messages(core?: false)
+      allow(gemspecs).to receive(:all_gemspecs_from_bundle).and_return([])
+
+      workspace.cache_all_for_workspace!(nil, rebuild: false)
+
+      expect(Solargraph::PinCache).to have_received(:cache_core).with(out: nil)
+    end
+
+    it 'caches gems' do
+      gemspec = instance_double(Gem::Specification, name: 'test_gem', version: '1.0.0')
+      allow(gemspecs).to receive(:all_gemspecs_from_bundle).and_return([gemspec])
+      allow(pin_cache).to receive(:cached?).and_return(false)
+
+      allow(Solargraph::PinCache).to receive_messages(core?: true,
+                                                      possible_stdlibs: [])
+
+      workspace.cache_all_for_workspace!(nil, rebuild: false)
+
+      expect(pin_cache).to have_received(:cache_gem).with(gemspec: gemspec, out: nil,
+                                                          rebuild: false)
+    end
   end
 end

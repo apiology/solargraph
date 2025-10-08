@@ -1,5 +1,6 @@
 require 'bundler/setup'
 require 'webmock/rspec'
+require 'rspec_time_guard'
 WebMock.disable_net_connect!(allow_localhost: true)
 unless ENV['SIMPLECOV_DISABLED']
   # set up lcov reporting for undercover
@@ -25,8 +26,17 @@ RSpec.configure do |c|
   # Allow use of --only-failures with rspec, handy for local development
   c.example_status_persistence_file_path = 'rspec-examples.txt'
 end
+RspecTimeGuard.setup
+RspecTimeGuard.configure do |config|
+  config.global_time_limit_seconds = 60
+  config.continue_on_timeout = false
+end
+
 require 'solargraph'
 # Suppress logger output in specs (if possible)
+# execute any logging blocks to make sure they don't blow up
+Solargraph::Logging.logger.sev_threshold = Logger::DEBUG
+# ...but still suppress logger output in specs (if possible)
 if Solargraph::Logging.logger.respond_to?(:reopen) && !ENV.key?('SOLARGRAPH_LOG')
   Solargraph::Logging.logger.reopen(File::NULL)
 end
@@ -42,4 +52,30 @@ def with_env_var(name, value)
   ensure
     ENV[name] = old_value  # Restore the old value
   end
+end
+
+def capture_stdout &block
+  original_stdout = $stdout
+  $stdout = StringIO.new
+  begin
+    block.call
+    $stdout.string
+  ensure
+    $stdout = original_stdout
+  end
+end
+
+def capture_both &block
+  original_stdout = $stdout
+  original_stderr = $stderr
+  stringio = StringIO.new
+  $stdout = stringio
+  $stderr = stringio
+  begin
+    block.call
+  ensure
+    $stdout = original_stdout
+    $stderr = original_stderr
+  end
+  stringio.string
 end
