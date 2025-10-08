@@ -85,8 +85,6 @@ describe Solargraph::Workspace::Gemspecs, '#fetch_dependencies' do
     context 'with gem does not exist in our bundle' do
       let(:gem_name) { 'activerecord' }
 
-      let(:fake_gem_name) { 'faaaaaake912' }
-
       it 'gives a useful message', time_limit_seconds: 120 do
         dep_names = nil
         output = capture_both { dep_names = deps.map(&:name) }
