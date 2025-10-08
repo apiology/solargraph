@@ -108,21 +108,19 @@ module Solargraph
         # @param runtime_dep [Gem::Dependency]
         # @param deps [Hash{String => Gem::Specification}]
         gem_dep_gemspecs = only_runtime_dependencies(gemspec).each_with_object(deps_so_far) do |runtime_dep, deps|
-          next if deps[runtime_dep.name]
-
-          Solargraph.logger.info "Adding #{runtime_dep.name} dependency for #{gemspec.name}"
-          dep = gemspecs.find { |dep| dep.name == runtime_dep.name }
-          dep ||= Gem::Specification.find_by_name(runtime_dep.name, runtime_dep.requirement)
-        rescue Gem::MissingSpecError
-          dep = resolve_gem_ignoring_local_bundle runtime_dep.name, out: out
-        ensure
+          dep = find_gem(runtime_dep.name, runtime_dep.requirement)
           next unless dep
 
           fetch_dependencies(dep, out: out).each { |sub_dep| deps[sub_dep.name] ||= sub_dep }
+
           deps[dep.name] ||= dep
         end
 
-        gem_dep_gemspecs.values.compact.uniq(&:name)
+        # RBS tracks implicit dependencies, like how the YAML standard
+        # library implies pulling in the psych library.
+        stdlib_deps = RbsMap::StdlibMap.stdlib_dependencies(gemspec.name, gemspec.version) || []
+        stdlib_dep_gemspecs = stdlib_deps.map { |dep| find_gem(dep['name'], dep['version']) }.compact
+        (gem_dep_gemspecs.values.compact + stdlib_dep_gemspecs).uniq(&:name)
       end
 
       # Returns all gemspecs directly depended on by this workspace's
@@ -287,12 +285,12 @@ module Solargraph
       # @todo Should this be using Gem::SpecFetcher and pull them automatically?
       #
       # @param name [String]
-      # @param version [String, nil]
+      # @param version_or_requirement [String, nil]
       # @param out [IO, nil] output stream for logging
       #
       # @return [Gem::Specification, nil]
-      def resolve_gem_ignoring_local_bundle name, version = nil, out: $stderr
-        Gem::Specification.find_by_name(name, version)
+      def resolve_gem_ignoring_local_bundle name, version_or_requirement = nil, out: $stderr
+        Gem::Specification.find_by_name(name, version_or_requirement)
       rescue Gem::MissingSpecError
         begin
           Gem::Specification.find_by_name(name)
@@ -300,7 +298,7 @@ module Solargraph
           stdlibmap = RbsMap::StdlibMap.new(name)
           unless stdlibmap.resolved?
             gem_desc = name
-            gem_desc += ":#{version}" if version
+            gem_desc += ":#{version_or_requirement}" if version_or_requirement
             out&.puts "Please install the gem #{gem_desc} in Solargraph's Ruby environment"
           end
           nil # either not here or in stdlib
