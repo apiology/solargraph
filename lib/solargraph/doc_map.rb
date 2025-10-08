@@ -95,7 +95,7 @@ module Solargraph
       @dependencies ||=
         begin
           all_deps = gemspecs
-                       .flat_map { |spec| fetch_dependencies(spec, out: out) }
+                       .flat_map { |spec| workspace.fetch_dependencies(spec, out: out) }
                        .uniq(&:name)
           existing_gems = gemspecs.map(&:name)
           all_deps.reject { |gemspec| existing_gems.include? gemspec.name }
