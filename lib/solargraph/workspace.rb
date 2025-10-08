@@ -59,7 +59,7 @@ module Solargraph
     #
     # @return [Array<String>]
     def stdlib_dependencies stdlib_name
-      gemspecs.stdlib_dependencies(stdlib_name)
+      gemspecs.stdlib_dependencies stdlib_name
     end
 
     # @return [Environ]
