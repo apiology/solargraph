@@ -59,8 +59,7 @@ module Solargraph
     #
     # @return [Array<String>]
     def stdlib_dependencies stdlib_name
-      deps = RbsMap::StdlibMap.stdlib_dependencies(stdlib_name, nil) || []
-      deps.map { |dep| dep['name'] }.compact
+      gemspecs.stdlib_dependencies stdlib_name
     end
 
     # @return [Environ]
