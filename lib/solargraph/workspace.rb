@@ -229,6 +229,11 @@ module Solargraph
       out&.puts "Documentation cached for core, standard library and gems."
     end
 
+    # @return [Array<Gem::Specification>]
+    def all_gemspecs_from_bundle
+      gemspecs.all_gemspecs_from_bundle
+    end
+
     # Synchronize the workspace from the provided updater.
     #
     # @param updater [Source::Updater]
