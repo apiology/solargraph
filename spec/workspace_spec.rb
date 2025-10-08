@@ -136,8 +136,10 @@ describe Solargraph::Workspace do
 
   describe '#cache_all_for_workspace!' do
     let(:pin_cache) { instance_double(Solargraph::PinCache) }
+    let(:gemspecs) { instance_double(Solargraph::Workspace::Gemspecs) }
 
     before do
+      allow(Solargraph::Workspace::Gemspecs).to receive(:new).and_return(gemspecs)
       allow(Solargraph::PinCache).to receive(:cache_core)
       allow(Solargraph::PinCache).to receive_messages(new: pin_cache, possible_stdlibs: [])
       allow(pin_cache).to receive_messages(cache_gem: nil)
@@ -146,7 +148,7 @@ describe Solargraph::Workspace do
 
     it 'caches core pins' do
       allow(Solargraph::PinCache).to receive_messages(core?: false)
-      allow(pin_cache).to receive_messages(cached?: true)
+      allow(gemspecs).to receive(:all_gemspecs_from_bundle).and_return([])
 
       workspace.cache_all_for_workspace!(nil, rebuild: false)
 
@@ -155,7 +157,7 @@ describe Solargraph::Workspace do
 
     it 'caches gems' do
       gemspec = instance_double(Gem::Specification, name: 'test_gem', version: '1.0.0')
-      allow(Gem::Specification).to receive(:to_a).and_return([gemspec])
+      allow(gemspecs).to receive(:all_gemspecs_from_bundle).and_return([gemspec])
       allow(pin_cache).to receive(:cached?).and_return(false)
 
       allow(Solargraph::PinCache).to receive_messages(core?: true,
