@@ -207,14 +207,6 @@ module Solargraph
       gemspecs.find_gem(name, version)
     end
 
-    # @todo make this actually work against bundle instead of pulling
-    #   all installed gemspecs -
-    #   https://github.com/apiology/solargraph/pull/10
-    # @return [Array<Gem::Specification>]
-    def all_gemspecs_from_bundle
-      Gem::Specification.to_a
-    end
-
     # @param out [IO, nil] output stream for logging
     # @param rebuild [Boolean] whether to rebuild the pins even if they are cached
     # @return [void]
