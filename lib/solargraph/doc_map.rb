@@ -23,7 +23,7 @@ module Solargraph
     # @return [Array<Gem::Specification>]
     def uncached_gemspecs
       uncached_yard_gemspecs.concat(uncached_rbs_collection_gemspecs)
-                            .sort
+                            .sort_by { |gemspec| "#{gemspec.name}:#{gemspec.version}" }
                             .uniq { |gemspec| "#{gemspec.name}:#{gemspec.version}" }
     end
 
@@ -105,8 +105,8 @@ module Solargraph
     # @param out [IO, nil] output stream for logging
     # @return [void]
     def cache(gemspec, rebuild: false, out: nil)
-      build_yard = uncached_yard_gemspecs.include?(gemspec) || rebuild
-      build_rbs_collection = uncached_rbs_collection_gemspecs.include?(gemspec) || rebuild
+      build_yard = uncached_yard_gemspecs.map { |gs| "#{gs.name}:#{gs.version}" }.include?("#{gemspec.name}:#{gemspec.version}") || rebuild
+      build_rbs_collection = uncached_rbs_collection_gemspecs.map { |gs| "#{gs.name}:#{gs.version}" }.include?("#{gemspec.name}:#{gemspec.version}") || rebuild
       if build_yard || build_rbs_collection
         type = []
         type << 'YARD' if build_yard
@@ -288,11 +288,12 @@ module Solargraph
     # @param rbs_version_cache_key [String]
     # @return [Array<Pin::Base>, nil]
     def deserialize_rbs_collection_cache gemspec, rbs_version_cache_key
-      return if rbs_collection_pins_in_memory.key?([gemspec, rbs_version_cache_key])
+      key = "#{gemspec.name}:#{gemspec.version}"
+      return if rbs_collection_pins_in_memory.key?([key, rbs_version_cache_key])
       cached = PinCache.deserialize_rbs_collection_gem(gemspec, rbs_version_cache_key)
       if cached
         logger.info { "Loaded #{cached.length} pins from RBS collection cache for #{gemspec.name}:#{gemspec.version}" } unless cached.empty?
-        rbs_collection_pins_in_memory[[gemspec, rbs_version_cache_key]] = cached
+        rbs_collection_pins_in_memory[[key, rbs_version_cache_key]] = cached
         cached
       else
         logger.debug "No RBS collection pin cache for #{gemspec.name} #{gemspec.version}"

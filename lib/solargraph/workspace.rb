@@ -47,6 +47,13 @@ module Solargraph
       @config ||= Solargraph::Workspace::Config.new(directory)
     end
 
+    # @param stdlib_name [String]
+    #
+    # @return [Array<String>]
+    def stdlib_dependencies stdlib_name
+      gemspecs.stdlib_dependencies(stdlib_name)
+    end
+
     # @param out [IO, nil] output stream for logging
     # @param gemspec [Gem::Specification]
     # @return [Array<Gem::Specification>]
@@ -160,6 +167,19 @@ module Solargraph
           yaml_file if File.file?(yaml_file)
         end
       end
+    end
+
+    # @param name [String]
+    # @param version [String, nil]
+    #
+    # @return [Gem::Specification, nil]
+    def find_gem name, version = nil
+      gemspecs.find_gem(name, version)
+    end
+
+    # @return [Array<Gem::Specification>]
+    def all_gemspecs_from_bundle
+      gemspecs.all_gemspecs_from_bundle
     end
 
     # Synchronize the workspace from the provided updater.
