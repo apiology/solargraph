@@ -34,6 +34,7 @@ module Solargraph
         @fqns_pins_map = nil
         return catalog(pinsets) if changed == 0
 
+        # @sg-ignore Need to add nil check here
         pinsets[changed..].each_with_index do |pins, idx|
           @pinsets[changed + idx] = pins
           @indexes[changed + idx] = if pins.empty?
@@ -78,12 +79,14 @@ module Solargraph
       BOOLEAN_SUPERCLASS_PIN = Pin::Reference::Superclass.new(name: 'Boolean', closure: Pin::ROOT_PIN, source: :solargraph)
       OBJECT_SUPERCLASS_PIN = Pin::Reference::Superclass.new(name: 'Object', closure: Pin::ROOT_PIN, source: :solargraph)
 
-      # @param fqns [String]
+      # @param fqns [String, nil]
       # @return [Pin::Reference::Superclass, nil]
       def get_superclass fqns
         return nil if fqns.nil? || fqns.empty?
+        # @sg-ignore flow sensitive typing needs to handle return if foo.nil? || bar
         return BOOLEAN_SUPERCLASS_PIN if %w[TrueClass FalseClass].include?(fqns)
 
+        # @sg-ignore flow sensitive typing needs to handle "if foo.nil?"
         superclass_references[fqns].first || try_special_superclasses(fqns)
       end
 
@@ -124,7 +127,7 @@ module Solargraph
         index.path_pin_hash[path]
       end
 
-      # @param fqns [String]
+      # @param fqns [String, nil]
       # @param scope [Symbol] :class or :instance
       # @return [Enumerable<Solargraph::Pin::Base>]
       def get_instance_variables(fqns, scope = :instance)
@@ -149,11 +152,6 @@ module Solargraph
       # @return [Boolean]
       def namespace_exists?(fqns)
         fqns_pins(fqns).any?
-      end
-
-      # @return [Set<String>]
-      def namespaces
-        index.namespaces
       end
 
       # @return [Enumerable<Solargraph::Pin::Namespace>]
@@ -202,7 +200,7 @@ module Solargraph
         index.pins_by_class klass
       end
 
-      # @param fqns [String]
+      # @param fqns [String, nil]
       # @return [Array<Solargraph::Pin::Namespace>]
       def fqns_pins fqns
         return [] if fqns.nil?
@@ -277,7 +275,7 @@ module Solargraph
 
       # @param pinsets [Array<Enumerable<Pin::Base>>]
       #
-      # @return [void]
+      # @return [true]
       def catalog pinsets
         @pinsets = pinsets
         # @type [Array<Index>]
@@ -302,10 +300,6 @@ module Solargraph
         end
       end
 
-      # @sg-ignore Rooted type issue here - "Declared return type
-      #   ::Enumerable<::Solargraph::Pin::Symbol> does not match
-      #   inferred type ::Set<::Symbol> for
-      #   Solargraph::ApiMap::Store#symbols"
       # @return [Enumerable<Solargraph::Pin::Symbol>]
       def symbols
         index.pins_by_class(Pin::Symbol)

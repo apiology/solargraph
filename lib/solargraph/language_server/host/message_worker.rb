@@ -28,7 +28,7 @@ module Solargraph
         end
 
         # pending handle messages
-        # @return [Array<Hash>]
+        # @return [Array<Hash{String => undefined}>]
         def messages
           @messages ||= []
         end
@@ -66,6 +66,7 @@ module Solargraph
             @resource.wait(@mutex) if messages.empty?
             next_message
           end
+          # @sg-ignore Need to add nil check here
           handler = @host.receive(message)
           handler&.send_response
         end
@@ -78,6 +79,7 @@ module Solargraph
         end
 
         # @return [Hash, nil]
+        # @sg-ignore We should understand reassignment of variable to new type
         def cancel_message
           # Handle cancellations first
           idx = messages.find_index { |msg| msg['method'] == '$/cancelRequest' }

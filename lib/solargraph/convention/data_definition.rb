@@ -17,6 +17,7 @@ module Solargraph
               type: :class,
               location: loc,
               closure: region.closure,
+              # @sg-ignore flow sensitive typing needs to handle ivars
               name: data_definition_node.class_name,
               comments: comments_for(node),
               visibility: :public,
@@ -39,6 +40,7 @@ module Solargraph
             # Solargraph::SourceMap::Clip#complete_keyword_parameters does not seem to currently take into account [Pin::Method#signatures] hence we only one for :kwarg
             pins.push initialize_method_pin
 
+            # @sg-ignore flow sensitive typing needs to handle ivars
             data_definition_node.attributes.map do |attribute_node, attribute_name|
               initialize_method_pin.parameters.push(
                 Pin::Parameter.new(
@@ -51,6 +53,7 @@ module Solargraph
             end
 
             # define attribute readers and instance variables
+            # @sg-ignore flow sensitive typing needs to handle ivars
             data_definition_node.attributes.each do |attribute_node, attribute_name|
               name = attribute_name.to_s
               method_pin = Pin::Method.new(
@@ -78,7 +81,7 @@ module Solargraph
 
           private
 
-          # @return [DataDefintionNode, nil]
+          # @return [DataDefinition::DataDefintionNode, DataDefinition::DataAssignmentNode, nil]
           def data_definition_node
             @data_definition_node ||= if DataDefintionNode.match?(node)
                                         DataDefintionNode.new(node)
@@ -94,6 +97,7 @@ module Solargraph
             data_comments = comments_for(attribute_node)
             return if data_comments.nil? || data_comments.empty?
 
+            # @sg-ignore flow sensitive typing needs to handle return if foo.nil? || bar
             data_comments.split("\n").find do |row|
               row.include?(attribute_name)
             end&.gsub('@param', '@return')&.gsub(attribute_name, '')

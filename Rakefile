@@ -9,7 +9,7 @@ task :console do
 end
 
 desc "Run the type checker"
-task typecheck: [:typecheck_typed]
+task typecheck: [:typecheck_strong]
 
 desc "Run the type checker at typed level - return code issues provable without annotations being correct"
 task :typecheck_typed do
@@ -63,6 +63,7 @@ def undercover
   status
 rescue StandardError => e
   warn "hit error: #{e.message}"
+  # @sg-ignore Need to add nil check here
   warn "Backtrace:\n#{e.backtrace.join("\n")}"
   warn "output: #{output}"
   puts "Flushing"

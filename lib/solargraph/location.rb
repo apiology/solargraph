@@ -25,6 +25,7 @@ module Solargraph
     end
 
     # @param other [self]
+    # @sg-ignore Why does Solargraph think this should return 0, nil?
     def <=>(other)
       return nil unless other.is_a?(Location)
       if filename == other.filename
@@ -64,6 +65,7 @@ module Solargraph
     def self.from_node(node)
       return nil if node.nil? || node.loc.nil?
       range = Range.from_node(node)
+      # @sg-ignore Need to add nil check here
       self.new(node.loc.expression.source_buffer.name, range)
     end
 

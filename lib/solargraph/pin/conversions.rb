@@ -80,7 +80,7 @@ module Solargraph
 
       # Get a markdown-flavored link to a documentation page.
       #
-      # @return [String]
+      # @return [String, nil]
       def link_documentation
         @link_documentation ||= generate_link
       end

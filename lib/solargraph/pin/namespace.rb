@@ -26,7 +26,6 @@ module Solargraph
         @type = type
         @visibility = visibility
         if name.start_with?('::')
-          # @type [String]
           name = name[2..-1] || ''
           @closure = Solargraph::Pin::ROOT_PIN
         end
@@ -36,9 +35,11 @@ module Solargraph
           # but Foo does not exist.
           parts = name.split('::')
           name = parts.pop
+          # @sg-ignore Need to look at Tuple#include? handling
           closure_name = if [Solargraph::Pin::ROOT_PIN, nil].include?(closure)
             ''
           else
+            # @sg-ignore Need to add nil check here
             closure.full_context.namespace + '::'
           end
           closure_name += parts.join('::')
@@ -103,6 +104,7 @@ module Solargraph
         return_type
       end
 
+      # @sg-ignore Solargraph::Pin::Namespace#gates return type could not be inferred
       def gates
         @gates ||= if path.empty?
           @open_gates

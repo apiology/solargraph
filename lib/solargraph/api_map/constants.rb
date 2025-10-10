@@ -19,8 +19,11 @@ module Solargraph
       #
       # @param name [String]
       # @param gates [Array<Array<String>, String>]
+      #
+      # @sg-ignore flow sensitive typing needs to eliminate literal from union with return if foo == :bar
       # @return [String, nil]
       def resolve(name, *gates)
+        # @sg-ignore Need to add nil check here
         return store.get_path_pins(name[2..]).first&.path if name.start_with?('::')
 
         flat = gates.flatten
@@ -59,13 +62,16 @@ module Solargraph
       # @param gates [Array<String>]
       # @return [String, nil] fully qualified tag
       def qualify name, *gates
+        # @sg-ignore Need to look at Tuple#include? handling
         return name if ['Boolean', 'self', nil].include?(name)
 
         gates.push '' unless gates.include?('')
+        # @sg-ignore flow sensitive typing needs to eliminate literal from union with [:bar].include?(foo)
         fqns = resolve(name, gates)
         return unless fqns
         pin = store.get_path_pins(fqns).first
         if pin.is_a?(Pin::Constant)
+          # @sg-ignore Need to add nil check here
           const = Solargraph::Parser::NodeMethods.unpack_name(pin.assignment)
           return unless const
           resolve(const, pin.gates)
@@ -86,6 +92,7 @@ module Solargraph
 
       # @param name [String]
       # @param gates [Array<String>]
+      # @sg-ignore Should handle redefinition of types in simple contexts
       # @return [String, nil]
       def resolve_and_cache name, gates
         cached_resolve[[name, gates]] = :in_process
@@ -126,7 +133,7 @@ module Solargraph
           resolved = simple_resolve(name, gate, internal)
           return [resolved, gates[(idx + 1)..]] if resolved
           store.get_ancestor_references(gate).each do |ref|
-            return ref.name.sub(/^::/, '') if ref.name.end_with?("::#{name}")
+            return ref.name.sub(/^::/, '') if ref.name.end_with?("::#{name}") && ref.name.start_with?('::')
 
             mixin = resolve(ref.name, ref.reference_gates)
             next unless mixin
@@ -146,6 +153,7 @@ module Solargraph
         here = "#{gate}::#{name}".sub(/^::/, '').sub(/::$/, '')
         pin = store.get_path_pins(here).first
         if pin.is_a?(Pin::Constant) && internal
+          # @sg-ignore Need to add nil check here
           const = Solargraph::Parser::NodeMethods.unpack_name(pin.assignment)
           return unless const
           resolve(const, pin.gates)
@@ -178,13 +186,14 @@ module Solargraph
       # will start the search in the specified context until it finds a
       # match for the namespace.
       #
-      # @param namespace [String, nil] The namespace to
+      # @param namespace [String] The namespace to
       #   match
       # @param context_namespace [String] The context namespace in which the
       #   tag was referenced; start from here to resolve the name
       # @return [String, nil] fully qualified namespace
       def qualify_namespace namespace, context_namespace = ''
         if namespace.start_with?('::')
+          # @sg-ignore Need to add nil check here
           inner_qualify(namespace[2..], '', Set.new)
         else
           inner_qualify(namespace, context_namespace, Set.new)
@@ -230,27 +239,31 @@ module Solargraph
         end
       end
 
-      # @param fqns [String]
+      # @param fqns [String, nil]
       # @param visibility [Array<Symbol>]
       # @param skip [Set<String>]
       # @return [Array<Pin::Base>]
       def inner_get_constants fqns, visibility, skip
         return [] if fqns.nil? || skip.include?(fqns)
+        # @sg-ignore flow sensitive typing needs to handle return if foo.nil? || bar
         skip.add fqns
         result = []
 
         store.get_prepends(fqns).each do |pre|
+          # @sg-ignore Need to add nil check here
           pre_fqns = resolve(pre.name, pre.closure.gates - skip.to_a)
           result.concat inner_get_constants(pre_fqns, [:public], skip)
         end
         result.concat(store.get_constants(fqns, visibility).sort { |a, b| a.name <=> b.name })
         store.get_includes(fqns).each do |pin|
+          # @sg-ignore Need to add nil check here
           inc_fqns = resolve(pin.name, pin.closure.gates - skip.to_a)
           result.concat inner_get_constants(inc_fqns, [:public], skip)
         end
         sc_ref = store.get_superclass(fqns)
         if sc_ref
           fqsc = dereference(sc_ref)
+          # @sg-ignore Need to add nil check here
           result.concat inner_get_constants(fqsc, [:public], skip) unless %w[Object BasicObject].include?(fqsc)
         end
         result
