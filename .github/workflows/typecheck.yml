@@ -28,11 +28,23 @@ jobs:
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: 3.4
-        bundler-cache: false
+        bundler-cache: true
+        cache-version: 2025-06-06
     - name: Install gems
       run: |
         bundle install
         bundle update rbs # use latest available for this Ruby version
+    - name: Cache gem annotations
+      id: dot-cache-restore
+      uses: actions/cache@v4
+      with:
+        key: |
+          2025-06-26-09-${{ runner.os }}-dot-cache-${{ hashFiles('Gemfile.lock') }}
+        restore-keys: |
+          2025-06-26-09-${{ runner.os }}-dot-cache
+          2025-06-26-09-${{ runner.os }}-dot-cache-
+        path: |
+          /home/runner/.cache/solargraph
     - name: Install gem types
       run: bundle exec rbs collection install
     - name: Typecheck self

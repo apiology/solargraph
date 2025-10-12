@@ -25,6 +25,7 @@ jobs:
       with:
         ruby-version: '3.0'
         bundler-cache: true
+        cache-version: 2025-06-06
     - uses: awalsh128/cache-apt-pkgs-action@latest
       with:
         packages: yq
@@ -35,6 +36,17 @@ jobs:
         echo 'gem "solargraph-rspec"' >> .Gemfile
         bundle install
         bundle update rbs
+    - name: Cache gem annotations
+      id: dot-cache-restore
+      uses: actions/cache@v4
+      with:
+        key: |
+          2025-06-26-09-${{ runner.os }}-dot-cache-${{ hashFiles('Gemfile.lock') }}
+        restore-keys: |
+          2025-06-26-09-${{ runner.os }}-dot-cache
+          2025-06-26-09-${{ runner.os }}-dot-cache-
+        path: |
+          /home/runner/.cache/solargraph
     - name: Configure to use plugins
       run: |
         bundle exec solargraph config
@@ -56,6 +68,7 @@ jobs:
       with:
         ruby-version: '3.0'
         bundler-cache: false
+        cache-version: 2025-06-06
     - uses: awalsh128/cache-apt-pkgs-action@latest
       with:
         packages: yq
@@ -69,6 +82,17 @@ jobs:
       run: |
         bundle exec solargraph config
         yq -yi '.plugins += ["solargraph-rails"]' .solargraph.yml
+    - name: Cache gem annotations
+      id: dot-cache-restore
+      uses: actions/cache@v4
+      with:
+        key: |
+          2025-06-26-09-${{ runner.os }}-dot-cache-${{ hashFiles('Gemfile.lock') }}
+        restore-keys: |
+          2025-06-26-09-${{ runner.os }}-dot-cache
+          2025-06-26-09-${{ runner.os }}-dot-cache-
+        path: |
+          /home/runner/.cache/solargraph
     - name: Install gem types
       run: bundle exec rbs collection update
     - name: Ensure typechecking still works
@@ -85,6 +109,7 @@ jobs:
       with:
         ruby-version: '3.0'
         bundler-cache: false
+        cache-version: 2025-06-06
     - uses: awalsh128/cache-apt-pkgs-action@latest
       with:
         packages: yq
@@ -98,6 +123,17 @@ jobs:
       run: |
         bundle exec solargraph config
         yq -yi '.plugins += ["solargraph-rspec"]' .solargraph.yml
+    - name: Cache gem annotations
+      id: dot-cache-restore
+      uses: actions/cache@v4
+      with:
+        key: |
+          2025-06-26-09-${{ runner.os }}-dot-cache-${{ hashFiles('Gemfile.lock') }}
+        restore-keys: |
+          2025-06-26-09-${{ runner.os }}-dot-cache
+          2025-06-26-09-${{ runner.os }}-dot-cache-
+        path: |
+          /home/runner/.cache/solargraph
     - name: Install gem types
       run: bundle exec rbs collection update
     - name: Ensure typechecking still works
@@ -119,7 +155,8 @@ jobs:
   #     uses: ruby/setup-ruby@v1
   #     with:
   #       ruby-version: '3.0'
-  #       bundler-cache: false
+  #       bundler-cache: true
+  #       cache-version: 2025-06-06
   #   - name: Install gems
   #     run: |
   #      cd ../solargraph-rspec
@@ -146,9 +183,21 @@ jobs:
         # solargraph-rails supports Ruby 3.0+
         ruby-version: '3.0'
         bundler-cache: false
+        cache-version: 2025-06-06
         bundler: latest
       env:
         MATRIX_RAILS_VERSION: "7.0"
+    - name: Cache gem annotations
+      id: dot-cache-restore
+      uses: actions/cache@v4
+      with:
+        key: |
+          2025-06-26-09-${{ runner.os }}-dot-cache-${{ hashFiles('Gemfile.lock') }}
+        restore-keys: |
+          2025-06-26-09-${{ runner.os }}-dot-cache
+          2025-06-26-09-${{ runner.os }}-dot-cache-
+        path: |
+          /home/runner/.cache/solargraph
     - name: Install gems
       run: |
        set -x
