@@ -68,7 +68,7 @@ jobs:
       with:
         ruby-version: '3.0'
         bundler-cache: false
-        cache-version: 2025-06-06
+        cache-version: 2025-10-12
     - uses: awalsh128/cache-apt-pkgs-action@latest
       with:
         packages: yq
