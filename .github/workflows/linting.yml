@@ -39,9 +39,9 @@ jobs:
         run: |
           bundle update rbs # use latest available for this Ruby version
 
-      - name: Restore cache of gem annotations
+      - name: Cache gem annotations
         id: dot-cache-restore
-        uses: actions/cache/restore@v4
+        uses: actions/cache@v4
         with:
           key: |
             2025-06-26-09-${{ runner.os }}-dot-cache-${{ hashFiles('Gemfile.lock') }}
