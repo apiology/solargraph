@@ -25,6 +25,7 @@ jobs:
       with:
         ruby-version: '3.0'
         bundler-cache: true
+        cache-version: 2025-06-06
     - uses: awalsh128/cache-apt-pkgs-action@latest
       with:
         packages: yq
@@ -66,7 +67,8 @@ jobs:
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: '3.0'
-        bundler-cache: false
+        bundler-cache: true
+        cache-version: 2025-06-06
     - uses: awalsh128/cache-apt-pkgs-action@latest
       with:
         packages: yq
@@ -106,7 +108,8 @@ jobs:
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: '3.0'
-        bundler-cache: false
+        bundler-cache: true
+        cache-version: 2025-06-06
     - uses: awalsh128/cache-apt-pkgs-action@latest
       with:
         packages: yq
@@ -152,7 +155,8 @@ jobs:
   #     uses: ruby/setup-ruby@v1
   #     with:
   #       ruby-version: '3.0'
-  #       bundler-cache: false
+  #       bundler-cache: true
+  #       cache-version: 2025-06-06
   #   - name: Install gems
   #     run: |
   #      cd ../solargraph-rspec
@@ -178,7 +182,8 @@ jobs:
       with:
         # solargraph-rails supports Ruby 3.0+
         ruby-version: '3.0'
-        bundler-cache: false
+        bundler-cache: true
+        cache-version: 2025-06-06
         bundler: latest
       env:
         MATRIX_RAILS_VERSION: "7.0"

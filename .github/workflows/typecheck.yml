@@ -28,7 +28,8 @@ jobs:
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: 3.4
-        bundler-cache: false
+        bundler-cache: true
+        cache-version: 2025-06-06
     - name: Install gems
       run: |
         bundle install
