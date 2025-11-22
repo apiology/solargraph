@@ -669,9 +669,7 @@ RSpec/NotToNot:
 
 RSpec/PendingWithoutReason:
   Exclude:
-    - 'spec/api_map_method_spec.rb'
     - 'spec/api_map_spec.rb'
-    - 'spec/doc_map_spec.rb'
     - 'spec/pin/local_variable_spec.rb'
     - 'spec/type_checker/levels/strict_spec.rb'
 
