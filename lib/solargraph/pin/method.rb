@@ -22,8 +22,9 @@ module Solargraph
       # @param attribute [Boolean]
       # @param signatures [::Array<Signature>, nil]
       # @param anon_splat [Boolean]
+      # @param context [ComplexType, nil]
       def initialize visibility: :public, explicit: true, block: :undefined, node: nil, attribute: false, signatures: nil, anon_splat: false,
-                     **splat
+                     context: nil, **splat
         super(**splat)
         @visibility = visibility
         @explicit = explicit
@@ -32,16 +33,21 @@ module Solargraph
         @attribute = attribute
         @signatures = signatures
         @anon_splat = anon_splat
+        @context = context if context
       end
 
+      # @param signature_pins [Array<Pin::Signature>]
       # @return [Array<Pin::Signature>]
       def combine_all_signature_pins(*signature_pins)
+        # @type [Hash{Array => Array<Pin::Signature>}]
         by_arity = {}
         signature_pins.each do |signature_pin|
           by_arity[signature_pin.arity] ||= []
           by_arity[signature_pin.arity] << signature_pin
         end
         by_arity.transform_values! do |same_arity_pins|
+          # @param memo [Pin::Signature, nil]
+          # @param signature [Pin::Signature]
           same_arity_pins.reduce(nil) do |memo, signature|
             next signature if memo.nil?
             memo.combine_with(signature)
@@ -376,11 +382,14 @@ module Solargraph
         @attribute
       end
 
-      # @parm other [Method]
+      # @parm other [self]
       def nearly? other
         super &&
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1050
           parameters == other.parameters &&
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1050
           scope == other.scope &&
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1050
           visibility == other.visibility
       end
 
@@ -388,13 +397,16 @@ module Solargraph
         attribute? ? infer_from_iv(api_map) : infer_from_return_nodes(api_map)
       end
 
-      # @return [::Array<Pin::Method>]
+      # @return [::Array<Pin::Signature>]
       def overloads
         # Ignore overload tags with nil parameters. If it's not an array, the
         # tag's source is likely malformed.
+
+        # @param tag [YARD::Tags::OverloadTag]
         @overloads ||= docstring.tags(:overload).select(&:parameters).map do |tag|
           Pin::Signature.new(
             generics: generics,
+            # @param src [Array(String, String)]
             parameters: tag.parameters.map do |src|
               name, decl = parse_overload_param(src.first)
               Pin::Parameter.new(
@@ -507,6 +519,7 @@ module Solargraph
       #
       # @return [ComplexType]
       def param_type_from_name(tag, name)
+        # @param t [YARD::Tags::Tag]
         param = tag.tags(:param).select { |t| t.name == name }.first
         return ComplexType::UNDEFINED unless param
         ComplexType.try_parse(*param.types)
@@ -522,8 +535,12 @@ module Solargraph
       # @param api_map [ApiMap]
       # @return [ComplexType, nil]
       def see_reference api_map
+        # This should actually be an intersection type
+        # @param ref [YARD::Tags::Tag, YARD::Tags::RefTag]
         docstring.ref_tags.each do |ref|
+          # @todo ref should actually be an intersection type
           next unless ref.tag_name == 'return' && ref.owner
+          # @todo ref should actually be an intersection type
           result = resolve_reference(ref.owner.to_s, api_map)
           return result unless result.nil?
         end

@@ -34,6 +34,8 @@ module Solargraph
     # @param source [Source]
     def initialize source
       @source = source
+      # @type [Array<Pin::Base>, nil]
+      @convention_pins = nil
 
       conventions_environ.merge Convention.for_local(self) unless filename.nil?
       # FIXME: unmemoizing the document_symbols in case it was called and memoized from any of conventions above
@@ -41,11 +43,13 @@ module Solargraph
       # solargraph-rails is known to use this method to get the document symbols. It should probably be removed.
       @document_symbols = nil
       self.convention_pins = conventions_environ.pins
+      # @type [Hash{Class<Pin::Base> => Array<Pin::Base>}]
       @pin_select_cache = {}
     end
 
     # @generic T
     # @param klass [Class<generic<T>>]
+    #
     # @return [Array<generic<T>>]
     def pins_by_class klass
       @pin_select_cache[klass] ||= pin_class_hash.select { |key, _| key <= klass }.values.flatten
@@ -141,7 +145,7 @@ module Solargraph
     # @return [Array<Pin::LocalVariable>]
     def locals_at(location)
       return [] if location.filename != filename
-      closure = locate_named_path_pin(location.range.start.line, location.range.start.character)
+      closure = locate_closure_pin(location.range.start.line, location.range.start.character)
       locals.select { |pin| pin.visible_at?(closure, location) }
     end
 
@@ -171,10 +175,10 @@ module Solargraph
 
     private
 
-    # @return [Hash{Class => Array<Pin::Base>}]
     # @return [Array<Pin::Base>]
     attr_writer :convention_pins
 
+    # @return [Hash{Class<Pin::Base> => Array<Pin::Base>}]
     def pin_class_hash
       @pin_class_hash ||= pins.to_set.classify(&:class).transform_values(&:to_a)
     end

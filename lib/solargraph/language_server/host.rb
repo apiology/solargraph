@@ -300,6 +300,7 @@ module Solargraph
         end
       end
 
+      # @sg-ignore Need to validate config
       # @return [String]
       def command_path
         options['commandPath'] || 'solargraph'
@@ -504,6 +505,7 @@ module Solargraph
                 name: 'new',
                 scope: :class,
                 location: pin.location,
+                # @sg-ignore Unresolved call to parameters on Solargraph::Pin::Base
                 parameters: pin.parameters,
                 return_type: ComplexType.try_parse(params['data']['path']),
                 comments: pin.comments,

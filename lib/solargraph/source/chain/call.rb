@@ -50,24 +50,33 @@ module Solargraph
         def resolve api_map, name_pin, locals
           return super_pins(api_map, name_pin) if word == 'super'
           return yield_pins(api_map, name_pin) if word == 'yield'
-          found = if head?
-            api_map.visible_pins(locals, word, name_pin, location)
-          else
-            []
-          end
-          return inferred_pins(found, api_map, name_pin, locals) unless found.empty?
-          pins = name_pin.binder.each_unique_type.flat_map do |context|
+          found = api_map.var_at_location(locals, word, name_pin, location) if head?
+
+          return inferred_pins([found], api_map, name_pin, locals) unless found.nil?
+          binder = name_pin.binder
+          # this is a q_call - i.e., foo&.bar - assume result of call
+          # will be nil or result as if binder were not nil -
+          # chain.rb#maybe_nil will add the nil type later, we just
+          # need to worry about the not-nil case
+
+          # @sg-ignore Need to handle duck-typed method calls on union types
+          binder = binder.without_nil if nullable?
+          pin_groups = binder.each_unique_type.map do |context|
             ns_tag = context.namespace == '' ? '' : context.namespace_type.tag
             stack = api_map.get_method_stack(ns_tag, word, scope: context.scope)
             [stack.first].compact
           end
+          if !api_map.loose_unions && pin_groups.any? { |pins| pins.empty? }
+            pin_groups = []
+          end
+          pins = pin_groups.flatten.uniq(&:path)
           return [] if pins.empty?
           inferred_pins(pins, api_map, name_pin, locals)
         end
 
         private
 
-        # @param pins [::Enumerable<Pin::Method>]
+        # @param pins [::Enumerable<Pin::Base>]
         # @param api_map [ApiMap]
         # @param name_pin [Pin::Base]
         # @param locals [::Array<Solargraph::Pin::LocalVariable, Solargraph::Pin::Parameter>]
@@ -98,7 +107,11 @@ module Solargraph
                   match = ol.parameters.any?(&:restarg?)
                   break
                 end
-                atype = atypes[idx] ||= arg.infer(api_map, Pin::ProxyType.anonymous(name_pin.context, source: :chain), locals)
+                arg_name_pin = Pin::ProxyType.anonymous(name_pin.context,
+                                                        closure: name_pin.closure,
+                                                        gates: name_pin.gates,
+                                                        source: :chain)
+                atype = atypes[idx] ||= arg.infer(api_map, arg_name_pin, locals)
                 unless param.compatible_arg?(atype, api_map) || param.restarg?
                   match = false
                   break
@@ -243,6 +256,7 @@ module Solargraph
         def find_method_pin(name_pin)
           method_pin = name_pin
           until method_pin.is_a?(Pin::Method)
+            # @sg-ignore Need to support this in flow-sensitive typing
             method_pin = method_pin.closure
             return if method_pin.nil?
           end
@@ -266,6 +280,7 @@ module Solargraph
           method_pin = find_method_pin(name_pin)
           return [] unless method_pin
 
+          # @param signature_pin [Pin::Signature]
           method_pin.signatures.map(&:block).compact.map do |signature_pin|
             return_type = signature_pin.return_type.qualify(api_map, *name_pin.gates)
             signature_pin.proxy(return_type)
@@ -309,7 +324,7 @@ module Solargraph
         # @return [Pin::Block, nil]
         def find_block_pin(api_map)
           node_location = Solargraph::Location.from_node(block.node)
-          return if  node_location.nil?
+          return if node_location.nil?
           block_pins = api_map.get_block_pins
           block_pins.find { |pin| pin.location.contain?(node_location) }
         end
@@ -322,10 +337,11 @@ module Solargraph
         def block_call_type(api_map, name_pin, locals)
           return nil unless with_block?
 
-          block_context_pin = name_pin
           block_pin = find_block_pin(api_map)
-          block_context_pin = block_pin.closure if block_pin
-          block.infer(api_map, block_context_pin, locals)
+          # We use the block pin as the closure, as the parameters
+          # here will only be defined inside the block itself and we
+          # need to be able to see them
+          block.infer(api_map, block_pin, locals)
         end
       end
     end
