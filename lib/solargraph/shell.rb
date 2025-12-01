@@ -282,7 +282,7 @@ module Solargraph
       else
         pins = api_map.get_path_pins path
       end
-      # @type [Hash{Symbol => Pin::Base}]
+      # @type [Hash{String, Symbol => Pin::Base}]
       references = {}
       pin = pins.first
       case pin
@@ -295,26 +295,45 @@ module Solargraph
           superclass_pin = api_map.get_path_pins(superclass_tag).first if superclass_tag
           references[:superclass] = superclass_pin if superclass_pin
         end
+      when Pin::Method
+        if options[:references]
+          # @param sig [Solargraph::Pin::Callable]
+          ([pin] + pin.signatures).compact.each do |sig|
+            sig.parameters.each do |param|
+              references[param.name] = param
+            end
+            if sig.block
+              references[:block] = sig.block
+            end
+          end
+        end
       end
 
       pins.each do |pin|
-        if options[:typify] || options[:probe]
-          type = ComplexType::UNDEFINED
-          type = pin.typify(api_map) if options[:typify]
-          type = pin.probe(api_map) if options[:probe] && type.undefined?
-          print_type(type)
-          next
-        end
-
-        print_pin(pin)
+        present_pin(pin, api_map)
       end
+
       references.each do |key, refpin|
         puts "\n# #{key.to_s.capitalize}:\n\n"
-        print_pin(refpin)
+        present_pin(refpin, api_map)
       end
     end
 
     private
+
+    # @param pin [Solargraph::Pin::Base]
+    # @param api_map [Solargraph::ApiMap]
+    # @return [void]
+    def present_pin pin, api_map
+      if options[:typify] || options[:probe]
+          type = ComplexType::UNDEFINED
+          type = pin.typify(api_map) if options[:typify]
+          type = pin.probe(api_map) if options[:probe] && type.undefined?
+          print_type(type)
+      else
+        print_pin(pin)
+      end
+    end
 
     # @param pin [Solargraph::Pin::Base]
     # @return [String]
