@@ -161,6 +161,11 @@ module Solargraph
                     end
       end
 
+      def reset_generated!
+        @return_type = nil
+        super
+      end
+
       # @sg-ignore super always sets @return_type to something
       # @return [ComplexType]
       def return_type

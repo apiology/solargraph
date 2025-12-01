@@ -21,6 +21,11 @@ module Solargraph
         @parameters = parameters
       end
 
+      def reset_generated!
+        parameters.each(&:reset_generated!)
+        super
+      end
+
       # @sg-ignore Need to add nil check here
       # @return [String]
       def method_namespace
