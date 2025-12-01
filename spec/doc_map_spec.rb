@@ -51,7 +51,7 @@ describe Solargraph::DocMap do
   it 'does not warn for redundant requires' do
     # Requiring 'set' is unnecessary because it's already included in core. It
     # might make sense to log redundant requires, but a warning is overkill.
-    allow(Solargraph.logger).to receive(:warn).and_call_original
+    allow(Solargraph.logger).to receive(:warn)
     Solargraph::DocMap.new(['set'], [])
     expect(Solargraph.logger).not_to have_received(:warn).with(/path set/)
   end
