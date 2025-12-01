@@ -313,6 +313,8 @@ module Solargraph
         present_pin(pin, api_map)
       end
 
+      # @param key [String, Symbol]
+      # @param refpin [Pin::Base]
       references.each do |key, refpin|
         puts "\n# #{key.to_s.capitalize}:\n\n"
         present_pin(refpin, api_map)
