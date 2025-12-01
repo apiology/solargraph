@@ -291,8 +291,10 @@ describe Solargraph::Parser::NodeMethods do
     expect(rets.length).to eq(1)
   end
 
-  xit "short-circuits return node finding after a raise statement in a begin expressiona" do
-    node = parse(%(
+  it "short-circuits return node finding after a raise statement in a begin expression" do
+    pending('case being handled')
+
+    node = Solargraph::Parser.parse(%(
       raise "Error"
       y
     ))
