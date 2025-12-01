@@ -22,15 +22,22 @@ module Solargraph
 
     # @param filename [String, nil]
     # @param api_map [ApiMap, nil]
-    # @param rules [Rules]
-    # @param level [Symbol]
-    def initialize filename, api_map: nil, level: :normal, rules: Rules.new(level)
+    # @param level [Symbol] Don't complain about anything above this level
+    # @param workspace [Workspace, nil] Workspace to use for loading
+    #   type checker rules modified by user config
+    # @param type_checker_rules [Hash{Symbol => Symbol}] Overrides for
+    #   type checker rules - e.g., :report_undefined => :strong
+    # @param rules [Rules] Type checker rules object
+    def initialize filename,
+                   api_map: nil,
+                   level: :normal,
+                   workspace: filename ? Workspace.new(File.dirname(filename)) : nil,
+                   rules: workspace ? workspace.rules(level) : Rules.new(level, {})
       @filename = filename
       # @todo Smarter directory resolution
-      @rules = rules
       @api_map = api_map || Solargraph::ApiMap.load(File.dirname(filename),
                                                     loose_unions: !rules.require_all_unique_types_match_expected_on_lhs?)
-
+      @rules = rules
       # @type [Array<Range>]
       @marked_ranges = []
     end
@@ -93,10 +100,11 @@ module Solargraph
     class << self
       # @param filename [String]
       # @param level [Symbol]
+      # @param workspace [Workspace, nil]
       # @return [self]
-      def load filename, level = :normal
+      def load filename, level = :normal, workspace: nil
         source = Solargraph::Source.load(filename)
-        rules = Rules.new(level)
+        rules = workspace ? workspace.rules(level) : Rules.new(level, {})
         api_map = Solargraph::ApiMap.new(loose_unions:
                                            !rules.require_all_unique_types_match_expected_on_lhs?)
         api_map.map(source)
@@ -107,10 +115,11 @@ module Solargraph
       # @param filename [String, nil]
       # @param level [Symbol]
       # @param api_map [Solargraph::ApiMap, nil]
+      # @param workspace [Workspace, nil]
       # @return [self]
-      def load_string code, filename = nil, level = :normal, api_map: nil
+      def load_string code, filename = nil, level = :normal, api_map: nil, workspace: nil
         source = Solargraph::Source.load_string(code, filename)
-        rules = Rules.new(level)
+        rules = workspace ? workspace.rules(level) : Rules.new(level, {})
         api_map ||= Solargraph::ApiMap.new(loose_unions:
                                            !rules.require_all_unique_types_match_expected_on_lhs?)
         # @sg-ignore flow sensitive typing needs better handling of ||= on lvars
