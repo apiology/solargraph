@@ -146,7 +146,7 @@ describe 'Solargraph::ApiMap methods' do
       doc_map = instance_double(Solargraph::DocMap, cache_all!: true)
       allow(Solargraph::DocMap).to receive(:new).and_return(doc_map)
       api_map.cache_all!($stderr)
-      expect(doc_map).to have_received(:cache_all!).with($stderr)
+      expect(doc_map).to have_received(:cache_all!).with($stderr, rebuild: false)
     end
   end
 

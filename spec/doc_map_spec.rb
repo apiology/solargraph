@@ -12,9 +12,7 @@ describe Solargraph::DocMap do
   let(:pre_cache) { true }
   let(:requires) { [] }
 
-  let(:workspace) do
-    Solargraph::Workspace.new(Dir.pwd)
-  end
+  let(:workspace) { Solargraph::Workspace.new(Dir.pwd) }
 
   let(:plain_doc_map) { described_class.new([], workspace) }
 

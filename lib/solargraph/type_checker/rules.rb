@@ -94,6 +94,7 @@ module Solargraph
       # @todo 2: Need to handle duck-typed method calls on union types
       # @todo 2: Need typed hashes
       # @todo 2: Need better handling of #compact
+      # Need better post-if scoping in flow sensitive typing
       # @todo 1: flow sensitive typing should be able to identify more blocks that always return
       # @todo 1: should warn on nil dereference below
       # @todo 1: flow sensitive typing needs to create separate ranges for postfix if
