@@ -164,18 +164,20 @@ module Solargraph
         exist?(rbs_collection_path(gemspec, hash))
       end
 
+      # @param out [StringIO, IO, nil]
       # @return [void]
-      def uncache_core
-        uncache(core_path)
+      def uncache_core out: nil
+        uncache(core_path, out: out)
       end
 
+      # @param out [StringIO, IO, nil]
       # @return [void]
-      def uncache_stdlib
-        uncache(stdlib_path)
+      def uncache_stdlib out: nil
+        uncache(stdlib_path, out: out)
       end
 
       # @param gemspec [Gem::Specification]
-      # @param out [IO, nil]
+      # @param out [StringIO, IO, nil]
       # @return [void]
       def uncache_gem(gemspec, out: nil)
         uncache(yardoc_path(gemspec), out: out)
@@ -189,9 +191,45 @@ module Solargraph
         FileUtils.rm_rf base_dir, secure: true
       end
 
+      def core?
+        File.file?(core_path)
+      end
+
+      # @param out [StringIO, IO, nil]
+      # @return [Enumerable<Pin::Base>]
+      def cache_core out: nil
+        RbsMap::CoreMap.new.cache_core(out: out)
+      end
+
+      # @param out [StringIO, IO, nil] output stream for logging
+      #
+      # @return [void]
+      def cache_all_stdlibs out: $stderr
+        possible_stdlibs.each do |stdlib|
+          RbsMap::StdlibMap.new(stdlib, out: out)
+        end
+      end
+
+      # @return [Array<String>] a list of possible standard library names
+      def possible_stdlibs
+        # all dirs and .rb files in Gem::RUBYGEMS_DIR
+        Dir.glob(File.join(Gem::RUBYGEMS_DIR, '*')).map do |file_or_dir|
+          basename = File.basename(file_or_dir)
+          # remove .rb
+          # @sg-ignore Need better post-if scoping in flow sensitive typing
+          basename = basename[0..-4] if basename.end_with?('.rb')
+          basename
+        end.sort.uniq
+      rescue StandardError => e
+        logger.info { "Failed to get possible stdlibs: #{e.message}" }
+        logger.debug { e.backtrace&.join("\n") }
+        []
+      end
+
       private
 
       # @param file [String]
+      # @sg-ignore Marshal.load evaluates to boolean here which is wrong
       # @return [Array<Solargraph::Pin::Base>, nil]
       def load file
         return nil unless File.file?(file)
@@ -219,6 +257,7 @@ module Solargraph
       end
 
       # @param path_segments [Array<String>]
+      # @param out [IO, nil]
       # @return [void]
       def uncache *path_segments, out: nil
         path = File.join(*path_segments)
@@ -229,7 +268,10 @@ module Solargraph
       end
 
       # @return [void]
+      # @param out [IO, nil]
       # @param path_segments [Array<String>]
+      # @param out [StringIO, IO, nil]
+      # @todo need to warn when no @param exists for 'out'
       def uncache_by_prefix *path_segments, out: nil
         path = File.join(*path_segments)
         glob = "#{path}*"

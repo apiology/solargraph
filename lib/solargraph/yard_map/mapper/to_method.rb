@@ -6,12 +6,13 @@ module Solargraph
       module ToMethod
         extend YardMap::Helpers
 
+        # @type [Hash{Array<String, Symbol, String> => Symbol}]
         VISIBILITY_OVERRIDE = {
           # YARD pays attention to 'private' statements prior to class methods but shouldn't
           ["Rails::Engine", :class, "find_root_with_flag"] => :public
         }
 
-        # @param code_object [YARD::CodeObjects::Base]
+        # @param code_object [YARD::CodeObjects::MethodObject]
         # @param name [String, nil]
         # @param scope [Symbol, nil]
         # @param visibility [Symbol, nil]
@@ -25,9 +26,12 @@ module Solargraph
           return_type = ComplexType::SELF if name == 'new'
           comments = code_object.docstring ? code_object.docstring.all.to_s : ''
           final_scope = scope || code_object.scope
+          # @sg-ignore Need to add nil check here
           override_key = [closure.path, final_scope, name]
           final_visibility = VISIBILITY_OVERRIDE[override_key]
+          # @sg-ignore Need to add nil check here
           final_visibility ||= VISIBILITY_OVERRIDE[[closure.path, final_scope]]
+          # @sg-ignore Need to add nil check here
           final_visibility ||= :private if closure.path == 'Kernel' && Kernel.private_instance_methods(false).include?(name.to_sym)
           final_visibility ||= visibility
           final_visibility ||= :private if code_object.module_function? && final_scope == :instance
@@ -49,6 +53,7 @@ module Solargraph
               source: :yardoc,
             )
           else
+            # @sg-ignore Need to add nil check here
             pin = Pin::Method.new(
               location: location,
               closure: closure,

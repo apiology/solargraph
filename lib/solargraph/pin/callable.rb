@@ -21,8 +21,15 @@ module Solargraph
         @parameters = parameters
       end
 
+      def reset_generated!
+        parameters.each(&:reset_generated!)
+        super
+      end
+
+      # @sg-ignore Need to add nil check here
       # @return [String]
       def method_namespace
+        # @sg-ignore Need to add nil check here
         closure.namespace
       end
 
@@ -67,6 +74,8 @@ module Solargraph
       # @return [Array<Pin::Parameter>]
       def choose_parameters(other)
         raise "Trying to combine two pins with different arities - \nself =#{inspect}, \nother=#{other.inspect}, \n\n self.arity=#{self.arity}, \nother.arity=#{other.arity}" if other.arity != arity
+        # @param param [Pin::Parameter]
+        # @param other_param [Pin::Parameter]
         parameters.zip(other.parameters).map do |param, other_param|
           if param.nil? && other_param.block?
             other_param
@@ -78,6 +87,7 @@ module Solargraph
         end
       end
 
+      # @sg-ignore Need to add nil check here
       # @return [Array<Pin::Parameter>]
       def blockless_parameters
         if parameters.last&.block?
@@ -135,9 +145,11 @@ module Solargraph
         end
       end
 
+      # @sg-ignore Need to add nil check here
       # @return [String]
       def method_name
         raise "closure was nil in #{self.inspect}" if closure.nil?
+        # @sg-ignore Need to add nil check here
         @method_name ||= closure.name
       end
 
@@ -182,7 +194,6 @@ module Solargraph
                                                              resolved_generic_values: resolved_generic_values)
       end
 
-      # @return [Array<String>]
       # @yieldparam [ComplexType]
       # @yieldreturn [ComplexType]
       # @return [self]
@@ -214,6 +225,7 @@ module Solargraph
       end
 
       def to_rbs
+        # @sg-ignore Need to add nil check here
         rbs_generics + '(' + parameters.map { |param| param.to_rbs }.join(', ') + ') ' + (block.nil? ? '' : '{ ' + block.to_rbs + ' } ') + '-> ' + return_type.to_rbs
       end
 

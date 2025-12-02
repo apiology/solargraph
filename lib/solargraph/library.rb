@@ -33,6 +33,7 @@ module Solargraph
       # @type [Source, nil]
       @current = nil
       @sync_count = 0
+      @cache_progress = nil
     end
 
     def inspect
@@ -182,9 +183,14 @@ module Solargraph
       if cursor.comment?
         source = read(filename)
         offset = Solargraph::Position.to_offset(source.code, Solargraph::Position.new(line, column))
+        # @sg-ignore Need to add nil check here
+        # @type [MatchData, nil]
         lft = source.code[0..offset-1].match(/\[[a-z0-9_:<, ]*?([a-z0-9_:]*)\z/i)
+        # @sg-ignore Need to add nil check here
+        # @type [MatchData, nil]
         rgt = source.code[offset..-1].match(/^([a-z0-9_]*)(:[a-z0-9_:]*)?[\]>, ]/i)
         if lft && rgt
+          # @sg-ignore Need to add nil check here
           tag = (lft[1] + rgt[1]).sub(/:+$/, '')
           clip = mutex.synchronize { api_map.clip(cursor) }
           clip.translate tag
@@ -255,6 +261,8 @@ module Solargraph
       files.uniq(&:filename).each do |source|
         found = source.references(pin.name)
         found.select! do |loc|
+          # @sg-ignore Need to add nil check here
+          # @type [Solargraph::Pin::Base, nil]
           referenced = definitions_at(loc.filename, loc.range.ending.line, loc.range.ending.character).first
           referenced&.path == pin.path
         end
@@ -273,6 +281,7 @@ module Solargraph
         # HACK: for language clients that exclude special characters from the start of variable names
         if strip && match = cursor.word.match(/^[^a-z0-9_]+/i)
           found.map! do |loc|
+            # @sg-ignore Need to add nil check here
             Solargraph::Location.new(loc.filename, Solargraph::Range.from_to(loc.range.start.line, loc.range.start.column + match[0].length, loc.range.ending.line, loc.range.ending.column))
           end
         end
@@ -299,6 +308,7 @@ module Solargraph
     def locate_ref location
       map = source_map_hash[location.filename]
       return if map.nil?
+      # @sg-ignore Need to add nil check here
       pin = map.requires.select { |p| p.location.range.contain?(location.range.start) }.first
       return nil if pin.nil?
       # @param full [String]
@@ -403,6 +413,7 @@ module Solargraph
       workspace.config.reporters.each do |line|
         if line == 'all!'
           Diagnostics.reporters.each do |reporter_name|
+            # @sg-ignore Need to add nil check here
             repargs[Diagnostics.reporter(reporter_name)] ||= []
           end
         else
@@ -410,7 +421,9 @@ module Solargraph
           name = args.shift
           reporter = Diagnostics.reporter(name)
           raise DiagnosticsError, "Diagnostics reporter #{name} does not exist" if reporter.nil?
+          # @sg-ignore flow sensitive typing needs to handle 'raise if'
           repargs[reporter] ||= []
+          # @sg-ignore flow sensitive typing needs to handle 'raise if'
           repargs[reporter].concat args
         end
       end
@@ -522,7 +535,7 @@ module Solargraph
       @external_requires = nil
     end
 
-    # @return [Mutex]
+    # @return [Thread::Mutex]
     def mutex
       @mutex ||= Mutex.new
     end
@@ -632,11 +645,15 @@ module Solargraph
     # @return [void]
     def report_cache_progress gem_name, pending
       @total ||= pending
+      # @sg-ignore flow sensitive typing needs better handling of ||= on lvars
       @total = pending if pending > @total
+      # @sg-ignore flow sensitive typing needs better handling of ||= on lvars
       finished = @total - pending
+      # @sg-ignore flow sensitive typing needs better handling of ||= on lvars
       pct = if @total.zero?
         0
       else
+        # @sg-ignore flow sensitive typing needs better handling of ||= on lvars
         ((finished.to_f / @total.to_f) * 100).to_i
       end
       message = "#{gem_name}#{pending > 0 ? " (+#{pending})" : ''}"
@@ -647,9 +664,11 @@ module Solargraph
         @cache_progress = LanguageServer::Progress.new('Caching gem')
         # If we don't send both a begin and a report, the progress notification
         # might get stuck in the status bar forever
+        # @sg-ignore Should handle redefinition of types in simple contexts
         @cache_progress.begin(message, pct)
         changed
         notify_observers @cache_progress
+        # @sg-ignore Should handle redefinition of types in simple contexts
         @cache_progress.report(message, pct)
       end
       changed

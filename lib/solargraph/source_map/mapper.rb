@@ -24,6 +24,7 @@ module Solargraph
         @code = source.code
         @comments = source.comments
         @pins, @locals = Parser.map(source)
+        # @param p [Solargraph::Pin::Base]
         @pins.each { |p| p.source = :code }
         @locals.each { |l| l.source = :code }
         process_comment_directives
@@ -62,6 +63,7 @@ module Solargraph
       # @param position [Solargraph::Position]
       # @return [Solargraph::Pin::Closure]
       def closure_at(position)
+        # @sg-ignore Need to add nil check here
         pins.select{|pin| pin.is_a?(Pin::Closure) and pin.location.range.contain?(position)}.last
       end
 
@@ -70,7 +72,6 @@ module Solargraph
       # @param comment [String]
       # @return [void]
       def process_comment source_position, comment_position, comment
-        # @sg-ignore Wrong argument type for String#=~: object expected String::_MatchAgainst<String, undefined>, received Regexp
         return unless comment.encode('UTF-8', invalid: :replace, replace: '?') =~ DIRECTIVE_REGEXP
         cmnt = remove_inline_comment_hashes(comment)
         parse = Solargraph::Source.parse_docstring(cmnt)
@@ -91,11 +92,13 @@ module Solargraph
       def find_directive_line_number comment, tag, start
         # Avoid overruning the index
         return start unless start < comment.lines.length
+        # @sg-ignore Need to add nil check here
         num = comment.lines[start..-1].find_index do |line|
           # Legacy method directives might be `@method` instead of `@!method`
           # @todo Legacy syntax should probably emit a warning
           line.include?("@!#{tag}") || (tag == 'method' && line.include?("@#{tag}"))
         end
+        # @sg-ignore Need to add nil check here
         num.to_i + start
       end
 
@@ -104,11 +107,14 @@ module Solargraph
       # @param directive [YARD::Tags::Directive]
       # @return [void]
       def process_directive source_position, comment_position, directive
+        # @sg-ignore Need to add nil check here
         docstring = Solargraph::Source.parse_docstring(directive.tag.text).to_docstring
         location = Location.new(@filename, Range.new(comment_position, comment_position))
         case directive.tag.tag_name
         when 'method'
           namespace = closure_at(source_position) || @pins.first
+          # @todo Missed nil violation
+          # @todo Need to add nil check here
           if namespace.location.range.start.line < comment_position.line
             namespace = closure_at(comment_position)
           end
@@ -166,10 +172,13 @@ module Solargraph
         when 'visibility'
 
             kind = directive.tag.text&.to_sym
+            # @sg-ignore Need to look at Tuple#include? handling
             return unless [:private, :protected, :public].include?(kind)
 
             name = directive.tag.name
             closure = closure_at(source_position) || @pins.first
+            # @todo Missed nil violation
+            # @todo Need to add nil check here
             if closure.location.range.start.line < comment_position.line
               closure = closure_at(comment_position)
             end
@@ -187,6 +196,7 @@ module Solargraph
         when 'parse'
           begin
             ns = closure_at(source_position)
+            # @sg-ignore Need to add nil check here
             src = Solargraph::Source.load_string(directive.tag.text, @source.filename)
             region = Parser::Region.new(source: src, closure: ns)
             # @todo These pins may need to be marked not explicit
@@ -196,7 +206,11 @@ module Solargraph
             else
               comment_position.line
             end
-            Parser.process_node(src.node, region, @pins)
+            locals = []
+            ivars = []
+            Parser.process_node(src.node, region, @pins, locals, ivars)
+            @pins.concat ivars
+            # @sg-ignore Need to add nil check here
             @pins[index..-1].each do |p|
               # @todo Smelly instance variable access
               p.location.range.start.instance_variable_set(:@line, p.location.range.start.line + loff)
@@ -209,6 +223,7 @@ module Solargraph
           namespace = closure_at(source_position) || Pin::ROOT_PIN
           namespace.domains.concat directive.tag.types unless directive.tag.types.nil?
         when 'override'
+          # @sg-ignore Need to add nil check here
           pins.push Pin::Reference::Override.new(location, directive.tag.name, docstring.tags,
                                                  source: :source_map)
         when 'macro'
@@ -218,7 +233,9 @@ module Solargraph
 
       # @param line1 [Integer]
       # @param line2 [Integer]
+      # @sg-ignore Need to add nil check here
       def no_empty_lines?(line1, line2)
+        # @sg-ignore Need to add nil check here
         @code.lines[line1..line2].none? { |line| line.strip.empty? }
       end
 
@@ -236,6 +253,7 @@ module Solargraph
             started = true
           elsif started && !p.strip.empty?
             cur = p.index(/[^ ]/)
+            # @sg-ignore Need to add nil check here
             num = cur if cur < num
           end
           ctxt += "#{p[num..-1]}" if started
@@ -245,11 +263,11 @@ module Solargraph
 
       # @return [void]
       def process_comment_directives
-        # @sg-ignore Wrong argument type for String#=~: object expected String::_MatchAgainst<String, undefined>, received Regexp
         return unless @code.encode('UTF-8', invalid: :replace, replace: '?') =~ DIRECTIVE_REGEXP
         code_lines = @code.lines
         @source.associated_comments.each do |line, comments|
           src_pos = line ? Position.new(line, code_lines[line].to_s.chomp.index(/[^\s]/) || 0) : Position.new(code_lines.length, 0)
+          # @sg-ignore Need to add nil check here
           com_pos = Position.new(line + 1 - comments.lines.length, 0)
           process_comment(src_pos, com_pos, comments)
         end

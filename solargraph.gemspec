@@ -1,7 +1,9 @@
+# @sg-ignore Should better support meaning of '&' in RBS
 $LOAD_PATH.unshift File.dirname(__FILE__) + '/lib'
 require 'solargraph/version'
 require 'date'
 
+# @param s [Gem::Specification]
 Gem::Specification.new do |s|
   s.name        = 'solargraph'
   s.version     = Solargraph::VERSION

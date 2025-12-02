@@ -22,8 +22,9 @@ module Solargraph
       # @param attribute [Boolean]
       # @param signatures [::Array<Signature>, nil]
       # @param anon_splat [Boolean]
+      # @param context [ComplexType, ComplexType::UniqueType, nil]
       def initialize visibility: :public, explicit: true, block: :undefined, node: nil, attribute: false, signatures: nil, anon_splat: false,
-                     **splat
+                     context: nil, **splat
         super(**splat)
         @visibility = visibility
         @explicit = explicit
@@ -32,16 +33,21 @@ module Solargraph
         @attribute = attribute
         @signatures = signatures
         @anon_splat = anon_splat
+        @context = context if context
       end
 
+      # @param signature_pins [Array<Pin::Signature>]
       # @return [Array<Pin::Signature>]
       def combine_all_signature_pins(*signature_pins)
+        # @type [Hash{Array => Array<Pin::Signature>}]
         by_arity = {}
         signature_pins.each do |signature_pin|
           by_arity[signature_pin.arity] ||= []
           by_arity[signature_pin.arity] << signature_pin
         end
         by_arity.transform_values! do |same_arity_pins|
+          # @param memo [Pin::Signature, nil]
+          # @param signature [Pin::Signature]
           same_arity_pins.reduce(nil) do |memo, signature|
             next signature if memo.nil?
             memo.combine_with(signature)
@@ -65,7 +71,9 @@ module Solargraph
       # @param other [Pin::Method]
       # @return [Array<Pin::Signature>]
       def combine_signatures(other)
+        # @sg-ignore Need to add nil check here
         all_undefined = signatures.all? { |sig| sig.return_type.undefined? }
+        # @sg-ignore Need to add nil check here
         other_all_undefined = other.signatures.all? { |sig| sig.return_type.undefined? }
         if all_undefined && !other_all_undefined
           other.signatures
@@ -155,6 +163,8 @@ module Solargraph
         !block.nil?
       end
 
+      # @sg-ignore flow-sensitive typing needs to remove literal with
+      #   this unless block
       # @return [Pin::Signature, nil]
       def block
         return @block unless @block == :undefined
@@ -174,9 +184,10 @@ module Solargraph
       end
 
       # @param parameters [::Array<Parameter>]
-      # @param return_type [ComplexType]
+      # @param return_type [ComplexType, nil]
       # @return [Signature]
       def generate_signature(parameters, return_type)
+        # @type [Pin::Signature, nil]
         block = nil
         yieldparam_tags = docstring.tags(:yieldparam)
         yieldreturn_tags = docstring.tags(:yieldreturn)
@@ -197,6 +208,7 @@ module Solargraph
               comments: p.text,
               name: name,
               decl: decl,
+              # @sg-ignore flow sensitive typing needs to handle attrs
               presence: location ? location.range : nil,
               return_type: ComplexType.try_parse(*p.types),
               source: source
@@ -242,6 +254,7 @@ module Solargraph
         else
           "(#{signatures.first.parameters.map(&:full).join(', ')}) " unless signatures.first.parameters.empty?
         end.to_s
+        # @sg-ignore Need to add nil check here
         detail += "=#{probed? ? '~' : (proxied? ? '^' : '>')} #{return_type.to_s}" unless return_type.undefined?
         detail.strip!
         return nil if detail.empty?
@@ -271,6 +284,7 @@ module Solargraph
         return nil if signatures.empty?
 
         rbs = "def #{name}: #{signatures.first.to_rbs}"
+        # @sg-ignore Need to add nil check here
         signatures[1..].each do |sig|
           rbs += "\n"
           rbs += (' ' * (4 + name.length))
@@ -289,6 +303,7 @@ module Solargraph
       end
 
       def typify api_map
+        # @sg-ignore Need to add nil check here
         logger.debug { "Method#typify(self=#{self}, binder=#{binder}, closure=#{closure}, context=#{context.rooted_tags}, return_type=#{return_type.rooted_tags}) - starting" }
         decl = super
         unless decl.undefined?
@@ -298,6 +313,7 @@ module Solargraph
         type = see_reference(api_map) || typify_from_super(api_map)
         logger.debug { "Method#typify(self=#{self}) - type=#{type&.rooted_tags.inspect}" }
         unless type.nil?
+          # @sg-ignore Need to add nil check here
           qualified = type.qualify(api_map, *closure.gates)
           logger.debug { "Method#typify(self=#{self}) => #{qualified.rooted_tags.inspect}" }
           return qualified
@@ -376,11 +392,14 @@ module Solargraph
         @attribute
       end
 
-      # @parm other [Method]
+      # @parm other [self]
       def nearly? other
         super &&
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1050
           parameters == other.parameters &&
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1050
           scope == other.scope &&
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1050
           visibility == other.visibility
       end
 
@@ -388,13 +407,16 @@ module Solargraph
         attribute? ? infer_from_iv(api_map) : infer_from_return_nodes(api_map)
       end
 
-      # @return [::Array<Pin::Method>]
+      # @return [::Array<Pin::Signature>]
       def overloads
         # Ignore overload tags with nil parameters. If it's not an array, the
         # tag's source is likely malformed.
+
+        # @param tag [YARD::Tags::OverloadTag]
         @overloads ||= docstring.tags(:overload).select(&:parameters).map do |tag|
           Pin::Signature.new(
             generics: generics,
+            # @param src [Array(String, String)]
             parameters: tag.parameters.map do |src|
               name, decl = parse_overload_param(src.first)
               Pin::Parameter.new(
@@ -403,6 +425,7 @@ module Solargraph
                 comments: tag.docstring.all.to_s,
                 name: name,
                 decl: decl,
+                # @sg-ignore flow sensitive typing needs to handle attrs
                 presence: location ? location.range : nil,
                 return_type: param_type_from_name(tag, src.first),
                 source: :overloads
@@ -457,10 +480,12 @@ module Solargraph
 
       attr_writer :documentation
 
+      # @sg-ignore Need to add nil check here
       def dodgy_visibility_source?
         # as of 2025-03-12, the RBS generator used for
         # e.g. activesupport did not understand 'private' markings
         # inside 'class << self' blocks, but YARD did OK at it
+        # @sg-ignore Need to add nil check here
         source == :rbs && scope == :class && type_location&.filename&.include?('generated') && return_type.undefined? ||
           # YARD's RBS generator seems to miss a lot of should-be protected instance methods
           source == :rbs && scope == :instance && namespace.start_with?('YARD::') ||
@@ -507,6 +532,7 @@ module Solargraph
       #
       # @return [ComplexType]
       def param_type_from_name(tag, name)
+        # @param t [YARD::Tags::Tag]
         param = tag.tags(:param).select { |t| t.name == name }.first
         return ComplexType::UNDEFINED unless param
         ComplexType.try_parse(*param.types)
@@ -520,15 +546,20 @@ module Solargraph
       end
 
       # @param api_map [ApiMap]
-      # @return [ComplexType, nil]
+      # @return [ComplexType, ComplexType::UniqueType, nil]
       def see_reference api_map
+        # This should actually be an intersection type
+        # @param ref [YARD::Tags::Tag, YARD::Tags::RefTag]
         docstring.ref_tags.each do |ref|
+          # @sg-ignore ref should actually be an intersection type
           next unless ref.tag_name == 'return' && ref.owner
+          # @sg-ignore ref should actually be an intersection type
           result = resolve_reference(ref.owner.to_s, api_map)
           return result unless result.nil?
         end
         match = comments.match(/^[ \t]*\(see (.*)\)/m)
         return nil if match.nil?
+        # @sg-ignore Need to add nil check here
         resolve_reference match[1], api_map
       end
 
@@ -543,6 +574,7 @@ module Solargraph
         stack = rest_of_stack api_map
         return nil if stack.empty?
         stack.each do |pin|
+          # @sg-ignore Need to add nil check here
           return pin.return_type unless pin.return_type.undefined?
         end
         nil
@@ -550,7 +582,7 @@ module Solargraph
 
       # @param ref [String]
       # @param api_map [ApiMap]
-      # @return [ComplexType, nil]
+      # @return [ComplexType, ComplexType::UniqueType, nil]
       def resolve_reference ref, api_map
         parts = ref.split(/[.#]/)
         if parts.first.empty? || parts.one?
@@ -558,6 +590,7 @@ module Solargraph
         else
           fqns = api_map.qualify(parts.first, *gates)
           return ComplexType::UNDEFINED if fqns.nil?
+          # @sg-ignore Need to add nil check here
           path = fqns + ref[parts.first.length] + parts.last
         end
         pins = api_map.get_path_pins(path)
@@ -593,9 +626,11 @@ module Solargraph
           rng = Range.from_node(n)
           next unless rng
           clip = api_map.clip_at(
+            # @sg-ignore Need to add nil check here
             location.filename,
             rng.ending
           )
+          # @sg-ignore Need to add nil check here
           chain = Solargraph::Parser.chain(n, location.filename)
           type = chain.infer(api_map, self, clip.locals)
           result.push type unless type.undefined?

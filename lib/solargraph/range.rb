@@ -19,7 +19,6 @@ module Solargraph
       @ending = ending
     end
 
-    # @sg-ignore Fix "Not enough arguments to Module#protected"
     protected def equality_fields
       [start, ending]
     end
@@ -51,8 +50,11 @@ module Solargraph
     # @return [Boolean]
     def contain? position
       position = Position.normalize(position)
+      # @sg-ignore We should understand reassignment of variable to new type
       return false if position.line < start.line || position.line > ending.line
+      # @sg-ignore We should understand reassignment of variable to new type
       return false if position.line == start.line && position.character < start.character
+      # @sg-ignore We should understand reassignment of variable to new type
       return false if position.line == ending.line && position.character > ending.character
       true
     end
@@ -60,9 +62,11 @@ module Solargraph
     # True if the range contains the specified position and the position does not precede it.
     #
     # @param position [Position, Array(Integer, Integer)]
+    # @sg-ignore Should handle redefinition of types in simple contexts
     # @return [Boolean]
     def include? position
       position = Position.normalize(position)
+      # @sg-ignore Should handle redefinition of types in simple contexts
       contain?(position) && !(position.line == start.line && position.character == start.character)
     end
 
