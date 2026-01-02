@@ -21,6 +21,11 @@ module Solargraph
         @parameters = parameters
       end
 
+      def reset_generated!
+        parameters.each(&:reset_generated!)
+        super
+      end
+
       # @return [String]
       def method_namespace
         closure.namespace
@@ -208,6 +213,11 @@ module Solargraph
         return false if block? && !with_block
         return false if argcount < parcount && !(argcount == parcount - 1 && parameters.last.restarg?)
         true
+      end
+
+      def reset_generated!
+        super
+        @parameters.each(&:reset_generated!)
       end
 
       # @return [Integer]
