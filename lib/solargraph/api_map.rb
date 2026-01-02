@@ -23,6 +23,9 @@ module Solargraph
     # @return [Array<String>]
     attr_reader :missing_docs
 
+    # @return [Solargraph::Workspace::Gemspecs]
+    attr_reader :gemspecs
+
     # @param pins [Array<Solargraph::Pin::Base>]
     def initialize pins: []
       @source_map_hash = {}
@@ -109,7 +112,7 @@ module Solargraph
                         @doc_map.any_uncached?
 
       if recreate_docmap
-        @doc_map = DocMap.new(unresolved_requires, [], bench.workspace, out: nil) # @todo Implement gem preferences
+        @doc_map = DocMap.new(unresolved_requires, bench.workspace, out: nil) # @todo Implement gem preferences
         @unresolved_requires = @doc_map.unresolved_requires
       end
       @cache.clear if store.update(@@core_map.pins, @doc_map.pins, conventions_environ.pins, iced_pins, live_pins)
@@ -124,12 +127,14 @@ module Solargraph
       [self.class, @source_map_hash, conventions_environ, @doc_map, @unresolved_requires]
     end
 
-    # @return [DocMap, nil]
-    attr_reader :doc_map
+    # @return [DocMap]
+    def doc_map
+      @doc_map ||= DocMap.new([], Workspace.new('.'))
+    end
 
     # @return [::Array<Gem::Specification>]
     def uncached_gemspecs
-      @doc_map&.uncached_gemspecs || []
+      doc_map.uncached_gemspecs || []
     end
 
     # @return [Enumerable<Pin::Base>]
@@ -190,7 +195,7 @@ module Solargraph
     # @param out [StringIO, IO, nil]
     # @return [void]
     def cache_all_for_doc_map! out
-      @doc_map.cache_doc_map_gems!(out)
+      doc_map.cache_doc_map_gems!(out)
     end
 
     # @param gemspec [Gem::Specification]
@@ -198,7 +203,7 @@ module Solargraph
     # @param out [IO, nil]
     # @return [void]
     def cache_gem(gemspec, rebuild: false, out: nil)
-      @doc_map.cache(gemspec, rebuild: rebuild, out: out)
+      doc_map.cache(gemspec, rebuild: rebuild, out: out)
     end
 
     class << self
@@ -677,7 +682,7 @@ module Solargraph
 
     # @return [Workspace, nil]
     def workspace
-      @doc_map&.workspace
+      doc_map.workspace
     end
 
     # @param fq_reference_tag [String] A fully qualified whose method should be pulled in

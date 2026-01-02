@@ -4,7 +4,7 @@ describe Solargraph::YardMap::Mapper do
   end
 
   def pins_with require
-    doc_map = Solargraph::DocMap.new([require], [], @api_map.workspace, out: nil)
+    doc_map = Solargraph::DocMap.new([require], @api_map.workspace, out: nil)
     doc_map.cache_doc_map_gems!(nil)
     doc_map.pins
   end
@@ -24,7 +24,7 @@ describe Solargraph::YardMap::Mapper do
 
   it 'marks explicit methods' do
     # Using rspec-expectations because it's a known dependency
-    pin = pins_with('rspec/expectations').find { |pin| pin.path == 'RSpec::Matchers#be_truthy' }
+    pin = pins_with('rspec-expectations').find { |pin| pin.path == 'RSpec::Matchers#be_truthy' }
     expect(pin).not_to be_nil
     expect(pin.explicit?).to be(true)
   end
@@ -44,7 +44,7 @@ describe Solargraph::YardMap::Mapper do
 
   it 'marks non-explicit methods' do
     # Using rspec-expectations because it's a known dependency
-    pin = pins_with('rspec/expectations').find { |pin| pin.path == 'RSpec::Matchers#expect' }
+    pin = pins_with('rspec-expectations').find { |pin| pin.path == 'RSpec::Matchers#expect' }
     expect(pin.explicit?).to be(false)
   end
 
@@ -66,10 +66,10 @@ describe Solargraph::YardMap::Mapper do
 
   it 'adds correct gates' do
     # Asssuming the ast gem exists because it's a known dependency
-    pin = pins_with('ast').find do |pin|
+    inc = pins_with('ast').find do |pin|
       pin.is_a?(Solargraph::Pin::Namespace) && pin.name == 'Mixin' && pin.closure.path == 'AST::Processor'
     end
-    expect(pin.gates).to eq(['AST::Processor::Mixin', 'AST::Processor', 'AST', ''])
+    expect(inc.gates).to eq(['AST::Processor::Mixin', 'AST::Processor', 'AST', ''])
   end
 
   it 'adds extend references' do

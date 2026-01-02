@@ -11,12 +11,14 @@ describe Solargraph::Shell do
   before do
     File.open(File.join(temp_dir, 'Gemfile'), 'w') do |file|
         file.puts "source 'https://rubygems.org'"
-        file.puts "gem 'solargraph', path: #{File.expand_path('..', __dir__)}"
+        file.puts "gem 'solargraph', path: '#{File.expand_path('..', __dir__)}'"
     end
     output, status = Open3.capture2e("bundle install", chdir: temp_dir)
     raise "Failure installing bundle: #{output}" unless status.success?
   end
 
+  # @type cmd [Array<String>]
+  # @return [String]
   def bundle_exec(*cmd)
     # run the command in the temporary directory with bundle exec
     output, status = Open3.capture2e("bundle exec #{cmd.join(' ')}", chdir: temp_dir)
@@ -127,6 +129,40 @@ describe Solargraph::Shell do
         end
 
         expect(output).to include("Gem 'solargraph123' not found")
+      end
+    end
+
+    context 'with mocked Workspace' do
+      let(:api_map) { instance_double(Solargraph::ApiMap) }
+      let(:workspace) { instance_double(Solargraph::Workspace) }
+      let(:gemspec) { instance_double(Gem::Specification, name: 'backport') }
+
+      before do
+        allow(Solargraph::Workspace).to receive(:new).and_return(workspace)
+        allow(Solargraph::ApiMap).to receive(:load).with('.').and_return(api_map)
+        allow(api_map).to receive(:cache_gem)
+        allow(api_map).to receive(:workspace).and_return(workspace)
+      end
+
+      it 'caches all without erroring out' do
+        pending 'delegation to api_map'
+
+        allow(api_map).to receive(:cache_all!)
+
+        _output = capture_both { shell.gems }
+
+        expect(api_map).to have_received(:cache_all!)
+      end
+
+      it 'caches single gem without erroring out' do
+        allow(workspace).to receive(:find_gem).with('backport').and_return(gemspec)
+
+        capture_both do
+          shell.options = { rebuild: false }
+          shell.gems('backport')
+        end
+
+        expect(api_map).to have_received(:cache_gem).with(gemspec, out: an_instance_of(StringIO), rebuild: false)
       end
     end
   end
