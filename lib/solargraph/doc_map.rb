@@ -263,7 +263,6 @@ module Solargraph
       gemspec_deps + stdlib_deps
     end
 
-
     def inspect
       self.class.inspect
     end
