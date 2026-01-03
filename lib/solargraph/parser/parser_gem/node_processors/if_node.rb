@@ -11,9 +11,8 @@ module Solargraph
             process_children
 
             position = get_node_start_position(node)
-            # @sg-ignore
-            # @type [Solargraph::Pin::Breakable, nil]
             enclosing_breakable_pin = pins.select do |pin|
+              # @sg-ignore https://github.com/castwide/solargraph/pull/1114
               pin.is_a?(Pin::Breakable) && pin.location.range.contain?(position)
             end.last
             FlowSensitiveTyping.new(locals, enclosing_breakable_pin).process_if(node)

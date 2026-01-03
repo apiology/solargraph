@@ -160,6 +160,8 @@ module Solargraph
       def read_config config_path = ''
         return nil if config_path.empty?
         return nil unless File.file?(config_path)
+        # @sg-ignore Unresolved call to safe_load_file on
+        #   Module<Psych>
         YAML.safe_load_file(config_path)
       end
 

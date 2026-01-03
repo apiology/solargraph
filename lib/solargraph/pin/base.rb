@@ -224,6 +224,7 @@ module Solargraph
       #
       # @return [Object, nil]
       def choose other, attr
+        # @type [Array]
         results = [self, other].map(&attr).compact
         # true and false are different classes and can't be sorted
         return true if results.any? { |r| [true, false].include?(r) }

@@ -91,6 +91,8 @@ module Solargraph
               loc = get_node_location(node)
               clos = region.closure
               cmnt = comments_for(node)
+              # @sg-ignore Wrong argument type for Array#include?: object
+              #   expected Symbol, received Parser::AST::Node
               if %i[attr_reader attr_accessor].include?(node.children[1])
                 pins.push Solargraph::Pin::Method.new(
                   location: loc,
@@ -103,6 +105,8 @@ module Solargraph
                   source: :parser
                 )
               end
+              # @sg-ignore Wrong argument type for Array#include?:
+              #   object expected Symbol, received Parser::AST::Node
               next unless %i[attr_writer attr_accessor].include?(node.children[1])
               method_pin = Solargraph::Pin::Method.new(
                 location: loc,

@@ -66,8 +66,8 @@ module Solargraph
         next yard_pin unless rbs_pin && yard_pin.class == Pin::Method
 
         unless rbs_pin
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1114
           logger.debug do
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1114
             "GemPins.combine: No rbs pin for #{yard_pin.path} - using YARD's '#{yard_pin.inspect} (return_type=#{yard_pin.return_type}; signatures=#{yard_pin.signatures})"
           end
           next yard_pin
