@@ -486,7 +486,6 @@ Metrics/ParameterLists:
     - 'lib/solargraph/pin/callable.rb'
     - 'lib/solargraph/type_checker.rb'
     - 'lib/solargraph/yard_map/mapper/to_method.rb'
-    - 'lib/solargraph/yard_map/to_method.rb'
 
 # Configuration parameters: AllowedMethods, AllowedPatterns, Max.
 Metrics/PerceivedComplexity:
@@ -518,7 +517,12 @@ Naming/MemoizedInstanceVariableName:
 # Configuration parameters: MinNameLength, AllowNamesEndingInNumbers, AllowedNames, ForbiddenNames.
 # AllowedNames: as, at, by, cc, db, id, if, in, io, ip, of, on, os, pp, to
 Naming/MethodParameterName:
-  Enabled: false
+  Exclude:
+    - 'lib/solargraph/parser/parser_gem/node_chainer.rb'
+    - 'lib/solargraph/pin/base.rb'
+    - 'lib/solargraph/range.rb'
+    - 'lib/solargraph/source.rb'
+    - 'lib/solargraph/yard_map/mapper/to_method.rb'
 
 # Configuration parameters: Mode, AllowedMethods, AllowedPatterns, AllowBangMethods, WaywardPredicates.
 # AllowedMethods: call
@@ -1203,7 +1207,6 @@ Style/TrailingCommaInArrayLiteral:
 # SupportedStylesForMultiline: comma, consistent_comma, diff_comma, no_comma
 Style/TrailingCommaInHashLiteral:
   Exclude:
-    - 'lib/solargraph/pin/base_variable.rb'
     - 'lib/solargraph/pin/callable.rb'
     - 'lib/solargraph/pin/closure.rb'
     - 'lib/solargraph/pin/parameter.rb'

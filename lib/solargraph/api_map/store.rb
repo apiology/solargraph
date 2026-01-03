@@ -34,6 +34,7 @@ module Solargraph
         @fqns_pins_map = nil
         return catalog(pinsets) if changed == 0
 
+        # @sg-ignore Need to add nil check here
         pinsets[changed..].each_with_index do |pins, idx|
           @pinsets[changed + idx] = pins
           @indexes[changed + idx] = if pins.empty?
@@ -79,7 +80,7 @@ module Solargraph
       BOOLEAN_SUPERCLASS_PIN = Pin::Reference::Superclass.new(name: 'Boolean', closure: Pin::ROOT_PIN, source: :solargraph)
       OBJECT_SUPERCLASS_PIN = Pin::Reference::Superclass.new(name: 'Object', closure: Pin::ROOT_PIN, source: :solargraph)
 
-      # @param fqns [String]
+      # @param fqns [String, nil]
       # @return [Pin::Reference::Superclass, nil]
       def get_superclass fqns
         return nil if fqns.nil? || fqns.empty?
@@ -125,7 +126,7 @@ module Solargraph
         index.path_pin_hash[path]
       end
 
-      # @param fqns [String]
+      # @param fqns [String, nil]
       # @param scope [Symbol] :class or :instance
       # @return [Enumerable<Solargraph::Pin::Base>]
       def get_instance_variables(fqns, scope = :instance)
@@ -198,7 +199,7 @@ module Solargraph
         index.pins_by_class klass
       end
 
-      # @param fqns [String]
+      # @param fqns [String, nil]
       # @return [Array<Solargraph::Pin::Namespace>]
       def fqns_pins fqns
         return [] if fqns.nil?
@@ -243,11 +244,11 @@ module Solargraph
             next if refs.nil?
             # @param ref [String]
             refs.map(&:type).map(&:to_s).each do |ref|
-              # @sg-ignore We should understand reassignment of variable to new type
+              # @sg-ignore Flow-sensitive typing should be able to handle redefinition
               next if ref.nil? || ref.empty? || visited.include?(ref)
-              # @sg-ignore We should understand reassignment of variable to new type
+              # @sg-ignore Flow-sensitive typing should be able to handle redefinition
               ancestors << ref
-              # @sg-ignore We should understand reassignment of variable to new type
+              # @sg-ignore Flow-sensitive typing should be able to handle redefinition
               queue << ref
             end
           end
@@ -277,7 +278,7 @@ module Solargraph
 
       # @param pinsets [Array<Array<Pin::Base>>]
       #
-      # @return [void]
+      # @return [true]
       def catalog pinsets
         @pinsets = pinsets
         # @type [Array<Index>]

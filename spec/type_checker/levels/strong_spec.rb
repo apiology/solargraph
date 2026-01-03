@@ -11,6 +11,7 @@ describe Solargraph::TypeChecker do
           attr_reader :filename
 
           # @param other [self]
+          # @return [-1, 0, 1, nil]
           def <=>(other)
             return nil unless other.is_a?(Location)
 
@@ -141,8 +142,6 @@ describe Solargraph::TypeChecker do
     end
 
     it 'provides nil checking on calls from parameters without assignments' do
-      pending('https://github.com/castwide/solargraph/pull/1127')
-
       checker = type_checker(%(
         # @param baz [String, nil]
         #
@@ -628,6 +627,26 @@ describe Solargraph::TypeChecker do
       end
     end
 
+    it 'resolves constants inside modules inside classes' do
+      checker = type_checker(%(
+        class Bar
+          module Foo
+            CONSTANT = 'hi'
+          end
+        end
+
+        class Bar
+          include Foo
+
+          # @return [String]
+          def baz
+            CONSTANT
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
     it 'handles "while foo" flow sensitive typing correctly' do
       checker = type_checker(%(
         # @param a [String, nil]
@@ -708,8 +727,6 @@ describe Solargraph::TypeChecker do
     end
 
     it 'knows that ivar references with intermediate calls are not safe' do
-      pending 'flow-sensitive typing improvements'
-
       checker = type_checker(%(
         class Foo
           def initialize

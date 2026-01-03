@@ -31,10 +31,6 @@ module Solargraph
     #   type.  The former is useful during completion, but the
     #   latter is best for typechecking at higher levels.
     #
-    #   Currently applies only to selecting potential methods to
-    #   select in a Call link, but is likely to expand in the
-    #   future to similar situations.
-    #
     def initialize pins: [], loose_unions: true
       @source_map_hash = {}
       @cache = Cache.new
@@ -156,9 +152,10 @@ module Solargraph
       @@core_map.pins
     end
 
-    # @param name [String]
+    # @param name [String, nil]
     # @return [YARD::Tags::MacroDirective, nil]
     def named_macro name
+      # @sg-ignore Need to add nil check here
       store.named_macros[name]
     end
 
@@ -207,7 +204,7 @@ module Solargraph
       api_map
     end
 
-    # @param out [IO, nil]
+    # @param out [StringIO, IO, nil]
     # @return [void]
     def cache_all!(out)
       @doc_map.cache_all!(out)
@@ -215,7 +212,7 @@ module Solargraph
 
     # @param gemspec [Gem::Specification]
     # @param rebuild [Boolean]
-    # @param out [IO, nil]
+    # @param out [StringIO, IO, nil]
     # @return [void]
     def cache_gem(gemspec, rebuild: false, out: nil)
       @doc_map.cache(gemspec, rebuild: rebuild, out: out)
@@ -230,7 +227,7 @@ module Solargraph
     #
     #
     # @param directory [String]
-    # @param out [IO, nil] The output stream for messages
+    # @param out [IO, StringIO, nil] The output stream for messages
     # @param loose_unions [Boolean] See #initialize
     #
     # @return [ApiMap]
@@ -350,6 +347,7 @@ module Solargraph
       result.concat store.get_instance_variables(namespace, scope)
       sc_fqns = namespace
       while (sc = store.get_superclass(sc_fqns))
+        # @sg-ignore flow sensitive typing needs to handle "if foo = bar"
         sc_fqns = store.constants.dereference(sc)
         result.concat store.get_instance_variables(sc_fqns, scope)
       end
@@ -362,21 +360,20 @@ module Solargraph
     # preferring pins created by flow-sensitive typing when we have
     # them based on the Closure and Location.
     #
-    # @param locals [Array<Pin::LocalVariable>]
+    # @param candidates [Array<Pin::BaseVariable>]
     # @param name [String]
     # @param closure [Pin::Closure]
     # @param location [Location]
     #
-    # @return [Pin::LocalVariable, nil]
-    def var_at_location(locals, name, closure, location)
-      with_correct_name = locals.select { |pin| pin.name == name}
-      with_presence = with_correct_name.reject { |pin| pin.presence.nil? }
-      vars_at_location = with_presence.reject do |pin|
+    # @return [Pin::BaseVariable, nil]
+    def var_at_location(candidates, name, closure, location)
+      with_correct_name = candidates.select { |pin| pin.name == name}
+      vars_at_location = with_correct_name.reject do |pin|
         # visible_at? excludes the starting position, but we want to
         # include it for this purpose
-        (!pin.visible_at?(closure, location) &&
-         !pin.starts_at?(location))
+        (!pin.visible_at?(closure, location) && !pin.starts_at?(location))
       end
+
       vars_at_location.inject(&:combine_with)
     end
 
@@ -623,6 +620,7 @@ module Solargraph
     # @param cursor [Source::Cursor]
     # @return [SourceMap::Clip]
     def clip cursor
+      # @sg-ignore Need to add nil check here
       raise FileNotFoundError, "ApiMap did not catalog #{cursor.filename}" unless source_map_hash.key?(cursor.filename)
 
       SourceMap::Clip.new(self, cursor)
@@ -679,6 +677,7 @@ module Solargraph
       return true if sup == sub
       sc_fqns = sub
       while (sc = store.get_superclass(sc_fqns))
+        # @sg-ignore flow sensitive typing needs to handle "if foo = bar"
         sc_new = store.constants.dereference(sc)
         # Cyclical inheritance is invalid
         return false if sc_new == sc_fqns
@@ -706,6 +705,7 @@ module Solargraph
       with_resolved_aliases = pins.map do |pin|
         next pin unless pin.is_a?(Pin::MethodAlias)
         resolved = resolve_method_alias(pin)
+        # @sg-ignore Need to add nil check here
         next nil if resolved.respond_to?(:visibility) && !visibility.include?(resolved.visibility)
         resolved
       end.compact
@@ -806,6 +806,7 @@ module Solargraph
         if scope == :instance
           store.get_includes(fqns).reverse.each do |ref|
             in_tag = dereference(ref)
+            # @sg-ignore Need to add nil check here
             result.concat inner_get_methods_from_reference(in_tag, namespace_pin, rooted_type, scope, visibility, deep, skip, true)
           end
           rooted_sc_tag = qualify_superclass(rooted_tag)
@@ -884,6 +885,7 @@ module Solargraph
     # @return [Pin::Method, nil]
     def resolve_method_alias(alias_pin)
       ancestors = store.get_ancestors(alias_pin.full_context.reduce_class_type.tag)
+      # @type [Pin::Method, nil]
       original = nil
 
       # Search each ancestor for the original method

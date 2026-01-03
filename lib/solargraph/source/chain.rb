@@ -71,6 +71,7 @@ module Solargraph
 
       # @return [Chain]
       def base
+        # @sg-ignore Need to add nil check here
         @base ||= Chain.new(links[0..-2])
       end
 
@@ -113,6 +114,7 @@ module Solargraph
         #
         # @todo ProxyType uses 'type' for the binder, but '
         working_pin = name_pin
+        # @sg-ignore Need to add nil check here
         links[0..-2].each do |link|
           pins = link.resolve(api_map, working_pin, locals)
           type = infer_from_definitions(pins, working_pin, api_map, locals)
@@ -155,7 +157,7 @@ module Solargraph
       # @param api_map [ApiMap]
       # @param name_pin [Pin::Base]
       # @param locals [::Array<Pin::LocalVariable>]
-      # @return [ComplexType]
+      # @return [ComplexType, ComplexType::UniqueType]
       def infer_uncached api_map, name_pin, locals
         pins = define(api_map, name_pin, locals)
         if pins.empty?
@@ -213,9 +215,9 @@ module Solargraph
       # @param name_pin [Pin::Base]
       # @param api_map [ApiMap]
       # @param locals [::Enumerable<Pin::LocalVariable>]
-      # @return [ComplexType]
+      # @return [ComplexType, ComplexType::UniqueType]
       def infer_from_definitions pins, name_pin, api_map, locals
-        # @type [::Array<ComplexType>]
+        # @type [::Array<ComplexType, ComplexType::UniqueType>]
         types = []
         unresolved_pins = []
         # @todo this param tag shouldn't be needed to probe the type
@@ -233,6 +235,7 @@ module Solargraph
               # @todo even at strong, no typechecking complaint
               #   happens when a [Pin::Base,nil] is passed into a method
               #   that accepts only [Pin::Namespace] as an argument
+              # @sg-ignore Need to add nil check here
               type = type.resolve_generics(pin.closure, name_pin.binder)
             end
             types << type
@@ -279,8 +282,8 @@ module Solargraph
         type.self_to_type(name_pin.context)
       end
 
-      # @param type [ComplexType]
-      # @return [ComplexType]
+      # @param type [ComplexType, ComplexType::UniqueType]
+      # @return [ComplexType, ComplexType::UniqueType]
       def maybe_nil type
         return type if type.undefined? || type.void? || type.nullable?
         return type unless nullable?

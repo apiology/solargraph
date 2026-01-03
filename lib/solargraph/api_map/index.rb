@@ -150,6 +150,7 @@ module Solargraph
 
       # @return [void]
       def map_overrides
+        # @todo should complain when type for 'ovr' is not provided
         # @param ovr [Pin::Reference::Override]
         pins_by_class(Pin::Reference::Override).each do |ovr|
           logger.debug { "ApiMap::Index#map_overrides: Looking at override #{ovr} for #{ovr.name}" }
@@ -160,7 +161,15 @@ module Solargraph
                         path_pin_hash[pin.path.sub(/#initialize/, '.new')].first
                       end
             (ovr.tags.map(&:tag_name) + ovr.delete).uniq.each do |tag|
+              # @sg-ignore Wrong argument type for
+              #   YARD::Docstring#delete_tags: name expected String,
+              #   received String, Symbol - delete_tags is ok with a
+              #   _ToS, but we should fix anyway
               pin.docstring.delete_tags tag
+              # @sg-ignore Wrong argument type for
+              #   YARD::Docstring#delete_tags: name expected String,
+              #   received String, Symbol - delete_tags is ok with a
+              #   _ToS, but we should fix anyway
               new_pin.docstring.delete_tags tag if new_pin
             end
             ovr.tags.each do |tag|

@@ -19,7 +19,9 @@ module Solargraph
       #   that was made to this variable
       # @param assignments [Array<Parser::AST::Node>] Possible
       #   assignments that may have been made to this variable
-      # @param mass_assignment [Array(Parser::AST::Node, Integer), nil]
+      # @param mass_assignment [::Array(Parser::AST::Node, Integer), nil]
+      # @param assignment [Parser::AST::Node, nil]
+      # @param assignments [::Array<Parser::AST::Node>]
       # @param exclude_return_type [ComplexType, nil] Ensure any
       #   return type returned will never include any of these unique
       #   types in the unique types of its complex type.
@@ -40,11 +42,12 @@ module Solargraph
       #   with Numeric and nil is compatible with nil.
       # @see https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#union-types
       # @see https://en.wikipedia.org/wiki/Intersection_type#TypeScript_example
-      # @param mass_assignment [Array(Parser::AST::Node, Integer), nil]
       # @param presence [Range, nil]
+      # @param presence_certain [Boolean]
       def initialize assignment: nil, assignments: [], mass_assignment: nil, return_type: nil,
                      intersection_return_type: nil, exclude_return_type: nil,
-                     presence: nil, **splat
+                     presence: nil, presence_certain: false,
+                     **splat
         super(**splat)
         @assignments = (assignment.nil? ? [] : [assignment]) + assignments
         # @type [nil, ::Array(Parser::AST::Node, Integer)]
@@ -53,11 +56,7 @@ module Solargraph
         @intersection_return_type = intersection_return_type
         @exclude_return_type = exclude_return_type
         @presence = presence
-      end
-
-      def reset_generated!
-        @assignment = nil
-        super
+        @presence_certain = presence_certain
       end
 
       # @param presence [Range]
@@ -77,6 +76,11 @@ module Solargraph
         result
       end
 
+      def reset_generated!
+        @assignment = nil
+        super
+      end
+
       def combine_with(other, attrs={})
         new_assignments = combine_assignments(other)
         new_attrs = attrs.merge({
@@ -86,8 +90,13 @@ module Solargraph
           intersection_return_type: combine_types(other, :intersection_return_type),
           exclude_return_type: combine_types(other, :exclude_return_type),
           presence: combine_presence(other),
+          presence_certain: combine_presence_certain(other)
         })
         super(other, new_attrs)
+      end
+
+      def inner_desc
+        super + ", intersection_return_type=#{intersection_return_type&.rooted_tags.inspect}, exclude_return_type=#{exclude_return_type&.rooted_tags.inspect}, presence=#{presence.inspect}, assignments=#{assignments}"
       end
 
       # @param other [self]
@@ -97,6 +106,16 @@ module Solargraph
         # @todo pick first non-nil arbitrarily - we don't yet support
         #   mass assignment merging
         mass_assignment || other.mass_assignment
+      end
+
+      # If a certain pin is being combined with an uncertain pin, we
+      # end up with a certain result
+      #
+      # @param other [self]
+      #
+      # @return [Boolean]
+      def combine_presence_certain(other)
+        presence_certain? || other.presence_certain?
       end
 
       # @return [Parser::AST::Node, nil]
@@ -109,10 +128,6 @@ module Solargraph
       # @return [::Array<Parser::AST::Node>]
       def combine_assignments(other)
         (other.assignments + assignments).uniq
-      end
-
-      def inner_desc
-        super + ", intersection_return_type=#{intersection_return_type&.rooted_tags.inspect}, exclude_return_type=#{exclude_return_type&.rooted_tags.inspect}, presence=#{presence.inspect}, assignments=#{assignments}"
       end
 
       def completion_item_kind
@@ -147,10 +162,12 @@ module Solargraph
             rng = Range.from_node(node)
             next if rng.nil?
             pos = rng.ending
+            # @sg-ignore Need to add nil check here
             clip = api_map.clip_at(location.filename, pos)
             # Use the return node for inference. The clip might infer from the
             # first node in a method call instead of the entire call.
             chain = Parser.chain(node, nil, nil)
+            # @sg-ignore Need to add nil check here
             result = chain.infer(api_map, closure, clip.locals).self_to_type(closure.context)
             types.push result unless result.undefined?
           end
@@ -215,9 +232,11 @@ module Solargraph
       end
 
       # @param other_loc [Location]
+      # @sg-ignore flow sensitive typing needs to handle attrs
       def starts_at?(other_loc)
         location&.filename == other_loc.filename &&
           presence &&
+          # @sg-ignore flow sensitive typing needs to handle attrs
           presence.start == other_loc.range.start
       end
 
@@ -229,6 +248,7 @@ module Solargraph
       def combine_presence(other)
         return presence || other.presence if presence.nil? || other.presence.nil?
 
+        # @sg-ignore flow sensitive typing needs to handle attrs
         Range.new([presence.start, other.presence.start].max, [presence.ending, other.presence.ending].min)
       end
 
@@ -246,11 +266,14 @@ module Solargraph
           return closure || other.closure
         end
 
+        # @sg-ignore flow sensitive typing needs to handle attrs
         if closure.location.nil? || other.closure.location.nil?
+          # @sg-ignore flow sensitive typing needs to handle attrs
           return closure.location.nil? ? other.closure : closure
         end
 
         # if filenames are different, this will just pick one
+        # @sg-ignore flow sensitive typing needs to handle attrs
         return closure if closure.location <= other.closure.location
 
         other.closure
@@ -259,9 +282,15 @@ module Solargraph
       # @param other_closure [Pin::Closure]
       # @param other_loc [Location]
       def visible_at?(other_closure, other_loc)
+        # @sg-ignore flow sensitive typing needs to handle attrs
         location.filename == other_loc.filename &&
+          # @sg-ignore flow sensitive typing needs to handle attrs
           (!presence || presence.include?(other_loc.range.start)) &&
           visible_in_closure?(other_closure)
+      end
+
+      def presence_certain?
+        @presence_certain
       end
 
       protected
@@ -298,12 +327,14 @@ module Solargraph
           return closure || other.closure
         end
 
+        # @sg-ignore Need to add nil check here
         if closure.location.nil? || other.closure.location.nil?
+          # @sg-ignore Need to add nil check here
           return closure.location.nil? ? other.closure : closure
         end
 
         # if filenames are different, this will just pick one
-        # @todo flow sensitive typing needs to handle ivars
+        # @sg-ignore flow sensitive typing needs to handle attrs
         return closure if closure.location <= other.closure.location
 
         other.closure
@@ -319,10 +350,13 @@ module Solargraph
         # if we're declared at top level, we can't be seen from within
         # methods declared tere
 
+        # @sg-ignore Need to add nil check here
         return false if viewing_closure.is_a?(Pin::Method) && closure.context.tags == 'Class<>'
 
+        # @sg-ignore Need to add nil check here
         return true if viewing_closure.binder.namespace == closure.binder.namespace
 
+        # @sg-ignore Need to add nil check here
         return true if viewing_closure.return_type == closure.context
 
         # classes and modules can't see local variables declared

@@ -31,6 +31,7 @@ module Solargraph
           fill_loader.add(path: Pathname(FILLS_DIRECTORY))
           fill_conversions = Conversions.new(loader: fill_loader)
           @pins.concat fill_conversions.pins
+
           # add some overrides
           @pins.concat RbsMap::CoreFills::ALL
           # process overrides, then remove any which couldn't be resolved

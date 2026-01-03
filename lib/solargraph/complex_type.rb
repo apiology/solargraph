@@ -22,7 +22,10 @@ module Solargraph
         items.delete_if { |i| i.name == 'false' || i.name == 'true' }
         items.unshift(UniqueType::BOOLEAN)
       end
+      # @type [Array<UniqueType>]
       items = [UniqueType::UNDEFINED] if items.any?(&:undefined?)
+      # @todo shouldn't need this cast - if statement above adds an 'Array' type
+      # @type [Array<UniqueType>]
       @items = items
     end
 
@@ -44,7 +47,7 @@ module Solargraph
     end
 
     # @param generics_to_resolve [Enumerable<String>]]
-    # @param context_type [UniqueType, nil]
+    # @param context_type [ComplexType, ComplexType::UniqueType, nil]
     # @param resolved_generic_values [Hash{String => ComplexType}] Added to as types are encountered or resolved
     # @return [self]
     def resolve_generics_from_context generics_to_resolve, context_type, resolved_generic_values: {}
@@ -65,7 +68,7 @@ module Solargraph
        (@items.length > 1 ? ')' : ''))
     end
 
-    # @param dst [ComplexType]
+    # @param dst [ComplexType, ComplexType::UniqueType]
     # @return [ComplexType]
     def self_to_type dst
       object_type_dst = dst.reduce_class_type
@@ -238,14 +241,15 @@ module Solargraph
     end
 
     # @param api_map [ApiMap]
-    # @param expected [ComplexType]
-    # @param inferred [ComplexType]
+    # @param expected [ComplexType, UniqueType]
+    # @param inferred [ComplexType, UniqueType]
     # @return [Boolean]
     def duck_types_match? api_map, expected, inferred
       raise ArgumentError, 'Expected type must be duck type' unless expected.duck_type?
       expected.each do |exp|
         next unless exp.duck_type?
         quack = exp.to_s[1..]
+        # @sg-ignore Need to add nil check here
         return false if api_map.get_method_stack(inferred.namespace, quack, scope: inferred.scope).empty?
       end
       true
@@ -425,17 +429,18 @@ module Solargraph
       # #  @todo Need ability to use a literal true as a type below
       # #  @param partial [Boolean] True if the string is part of a another type
       # #  @return [Array<UniqueType>]
-      # @todo To be able to select the right signature above,
+      # @sg-ignore To be able to select the right signature above,
       #   Chain::Call needs to know the decl type (:arg, :optarg,
       #   :kwarg, etc) of the arguments given, instead of just having
       #   an array of Chains as the arguments.
       def parse *strings, partial: false
-        # @type [Hash{Array<String> => ComplexType}]
+        # @type [Hash{Array<String> => ComplexType, Array<ComplexType::UniqueType>}]
         @cache ||= {}
         unless partial
           cached = @cache[strings]
           return cached unless cached.nil?
         end
+        # @types [Array<ComplexType::UniqueType>]
         types = []
         key_types = nil
         strings.each do |type_string|
@@ -456,6 +461,7 @@ module Solargraph
               elsif base.end_with?('=')
                 raise ComplexTypeError, "Invalid hash thing" unless key_types.nil?
                 # types.push ComplexType.new([UniqueType.new(base[0..-2].strip)])
+                # @sg-ignore Need to add nil check here
                 types.push UniqueType.parse(base[0..-2].strip, subtype_string)
                 # @todo this should either expand key_type's type
                 #   automatically or complain about not being

@@ -41,7 +41,7 @@ module Solargraph
       # @param type_location [Solargraph::Location, nil]
       # @param closure [Solargraph::Pin::Closure, nil]
       # @param name [String]
-      # @param comments [String]
+      # @param comments [String, nil]
       # @param source [Symbol, nil]
       # @param docstring [YARD::Docstring, nil]
       # @param directives [::Array<YARD::Tags::Directive>, nil]
@@ -57,6 +57,9 @@ module Solargraph
         @docstring = docstring
         @directives = directives
         @combine_priority = combine_priority
+        # @type [ComplexType, ComplexType::UniqueType, nil]
+        @binder = nil
+
 
         assert_source_provided
         assert_location_provided
@@ -72,7 +75,6 @@ module Solargraph
       # @return [Pin::Closure, nil]
       def closure
         Solargraph.assert_or_log(:closure, "Closure not set on #{self.class} #{name.inspect} from #{source.inspect}") unless @closure
-        # @type [Pin::Closure, nil]
         @closure
       end
 
@@ -139,6 +141,7 @@ module Solargraph
       end
 
       # @param other [self]
+      #
       # @return [::Array<YARD::Tags::Directive>, nil]
       def combine_directives(other)
         return self.directives if other.directives.empty?
@@ -153,6 +156,7 @@ module Solargraph
       end
 
       # @param other [self]
+      # @sg-ignore @type should override probed type
       # @return [String]
       def combine_name(other)
         if needs_consistent_name? || other.needs_consistent_name?
@@ -215,9 +219,12 @@ module Solargraph
         end
       end
 
+      # @sg-ignore need boolish support for ? methods
       def dodgy_return_type_source?
         # uses a lot of 'Object' instead of 'self'
-        location&.filename&.include?('core_ext/object/')
+        location&.filename&.include?('core_ext/object/') ||
+          # ditto
+          location&.filename&.include?('stdlib/date/0/date.rbs')
       end
 
       # when choices are arbitrary, make sure the choice is consistent
@@ -225,7 +232,8 @@ module Solargraph
       # @param other [Pin::Base]
       # @param attr [::Symbol]
       #
-      # @return [Object, nil]
+      # @sg-ignore
+      # @return [undefined, nil]
       def choose(other, attr)
         results = [self, other].map(&attr).compact
         # true and false are different classes and can't be sorted
@@ -262,6 +270,7 @@ module Solargraph
         end
       end
 
+      # @sg-ignore need boolish support for ? methods
       def rbs_location?
         type_location&.rbs?
       end
@@ -374,8 +383,11 @@ module Solargraph
           [
             # maximize number of gates, as types in other combined pins may
             # depend on those gates
+
+            # @sg-ignore Need better handling of #compact
             closure.gates.length,
             # use basename so that results don't vary system to system
+            # @sg-ignore Need better handling of #compact
             File.basename(closure.best_location.to_s)
           ]
         end
@@ -392,7 +404,7 @@ module Solargraph
       end
 
       # @param generics_to_resolve [Enumerable<String>]
-      # @param return_type_context [ComplexType, nil]
+      # @param return_type_context [ComplexType, ComplexType::UniqueType, nil]
       # @param context [ComplexType]
       # @param resolved_generic_values [Hash{String => ComplexType}]
       # @return [self]
@@ -434,6 +446,7 @@ module Solargraph
       # @return [String, nil]
       def filename
         return nil if location.nil?
+        # @sg-ignore flow sensitive typing needs to handle attrs
         location.filename
       end
 
@@ -469,11 +482,16 @@ module Solargraph
       # @return [Boolean]
       def nearly? other
         self.class == other.class &&
+          # @sg-ignore Translate to something flow sensitive typing understands
           name == other.name &&
+          # @sg-ignore flow sensitive typing needs to handle attrs
           (closure == other.closure || (closure && closure.nearly?(other.closure))) &&
+          # @sg-ignore Translate to something flow sensitive typing understands
           (comments == other.comments ||
+            # @sg-ignore Translate to something flow sensitive typing understands
             (((maybe_directives? == false && other.maybe_directives? == false) || compare_directives(directives, other.directives)) &&
-            compare_docstring_tags(docstring, other.docstring))
+             # @sg-ignore Translate to something flow sensitive typing understands
+             compare_docstring_tags(docstring, other.docstring))
           )
       end
 
@@ -500,6 +518,7 @@ module Solargraph
         @docstring ||= Solargraph::Source.parse_docstring('').to_docstring
       end
 
+      # @sg-ignore parse_comments will always set @directives
       # @return [::Array<YARD::Tags::Directive>]
       def directives
         parse_comments unless @directives
@@ -520,6 +539,7 @@ module Solargraph
       #
       # @return [Boolean]
       def maybe_directives?
+        # @sg-ignore flow sensitive typing needs to handle ivars
         return !@directives.empty? if defined?(@directives) && @directives
         @maybe_directives ||= comments.include?('@!')
       end
@@ -536,7 +556,7 @@ module Solargraph
       # provided ApiMap.
       #
       # @param api_map [ApiMap]
-      # @return [ComplexType]
+      # @return [ComplexType, ComplexType::UniqueType]
       def typify api_map
         return_type.qualify(api_map, *(closure&.gates || ['']))
       end
@@ -544,14 +564,14 @@ module Solargraph
       # Infer the pin's return type via static code analysis.
       #
       # @param api_map [ApiMap]
-      # @return [ComplexType]
+      # @return [ComplexType, ComplexType::UniqueType]
       def probe api_map
         typify api_map
       end
 
       # @deprecated Use #typify and/or #probe instead
       # @param api_map [ApiMap]
-      # @return [ComplexType]
+      # @return [ComplexType, ComplexType::UniqueType]
       def infer api_map
         Solargraph::Logging.logger.warn "WARNING: Pin #infer methods are deprecated. Use #typify or #probe instead."
         type = typify(api_map)
@@ -584,7 +604,7 @@ module Solargraph
       # the return type and the #proxied? setting, the proxy should be a clone
       # of the original.
       #
-      # @param return_type [ComplexType]
+      # @param return_type [ComplexType, ComplexType::UniqueType, nil]
       # @return [self]
       def proxy return_type
         result = dup
@@ -670,7 +690,7 @@ module Solargraph
       # @return [Boolean]
       attr_writer :proxied
 
-      # @return [ComplexType]
+      # @return [ComplexType, ComplexType::UniqueType, nil]
       attr_writer :return_type
 
       attr_writer :docstring

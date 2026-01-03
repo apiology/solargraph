@@ -10,8 +10,10 @@ module Solargraph
       #   @abstract
       #   @return [void]
       # @type @closure [Pin::Closure, nil]
+      # @type @binder [ComplexType, ComplexType::UniqueType, nil]
 
-      # @return [Location]
+      # @todo Missed nil violation
+      # @return [Location, nil]
       attr_accessor :location
 
       # @param value [Pin::Closure]
@@ -33,12 +35,13 @@ module Solargraph
         @name ||= ''
       end
 
+      # @todo redundant with Base#return_type?
       # @return [ComplexType]
       def return_type
         @return_type ||= ComplexType::UNDEFINED
       end
 
-      # @return [ComplexType]
+      # @return [ComplexType, ComplexType::UniqueType]
       def context
         # Get the static context from the nearest namespace
         @context ||= find_context
@@ -50,9 +53,8 @@ module Solargraph
         context.namespace.to_s
       end
 
-      # @sg-ignore Solargraph::Pin::Common#binder return type could
-      #   not be inferred
-      # @return [ComplexType]
+      # @return [ComplexType, ComplexType::UniqueType]
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1100
       def binder
         @binder || context
       end
@@ -82,6 +84,7 @@ module Solargraph
           elsif here.is_a?(Pin::Method)
             return here.context
           end
+          # @sg-ignore Need to add nil check here
           here = here.closure
         end
         ComplexType::ROOT

@@ -100,9 +100,9 @@ module Solargraph
         #   s(:send, nil, :bar))
         # [4] pry(main)>
         conditional_node = if_node.children[0]
-        # @type [Parser::AST::Node]
+        # @type [Parser::AST::Node, nil]
         then_clause = if_node.children[1]
-        # @type [Parser::AST::Node]
+        # @type [Parser::AST::Node, nil]
         else_clause = if_node.children[2]
 
         unless enclosing_breakable_pin.nil?
@@ -294,6 +294,7 @@ module Solargraph
       #
       # @return [Solargraph::Pin::LocalVariable, nil]
       def find_local(variable_name, position)
+        # @sg-ignore Need to add nil check here
         pins = locals.select { |pin| pin.name == variable_name && pin.presence.include?(position) }
         pins.first
       end
@@ -306,6 +307,7 @@ module Solargraph
       def process_isa(isa_node, true_presences, false_presences)
         isa_type_name, variable_name = parse_isa(isa_node)
         return if variable_name.nil? || variable_name.empty?
+        # @sg-ignore Need to add nil check here
         isa_position = Range.from_node(isa_node).start
 
         pin = find_local(variable_name, isa_position)
@@ -342,17 +344,19 @@ module Solargraph
         # we're looking for and typechecking will cover any invalid
         # ones
         return unless nilp_arg.nil?
-
+        # @sg-ignore Need to add nil check here
         nilp_position = Range.from_node(nilp_node).start
 
         pin = find_local(variable_name, nilp_position)
         return unless pin
 
+        # @type Hash{Pin::LocalVariable => Array<Hash{Symbol => ComplexType}>}
         if_true = {}
         if_true[pin] ||= []
         if_true[pin] << { type: ComplexType::NIL }
         process_facts(if_true, true_presences)
 
+        # @type Hash{Pin::LocalVariable => Array<Hash{Symbol => ComplexType}>}
         if_false = {}
         if_false[pin] ||= []
         if_false[pin] << { not_type: ComplexType::NIL }
@@ -402,16 +406,19 @@ module Solargraph
         variable_name = parse_variable(node)
         return if variable_name.nil?
 
+        # @sg-ignore Need to add nil check here
         var_position = Range.from_node(node).start
 
         pin = find_local(variable_name, var_position)
         return unless pin
 
+        # @type Hash{Pin::LocalVariable => Array<Hash{Symbol => ComplexType}>}
         if_true = {}
         if_true[pin] ||= []
         if_true[pin] << { not_type: ComplexType::NIL }
         process_facts(if_true, true_presences)
 
+        # @type Hash{Pin::LocalVariable => Array<Hash{Symbol => ComplexType}>}
         if_false = {}
         if_false[pin] ||= []
         if_false[pin] << { type: ComplexType.parse('nil, false') }
@@ -438,7 +445,8 @@ module Solargraph
         "#{module_type_name}::#{class_node}"
       end
 
-      # @param clause_node [Parser::AST::Node]
+      # @param clause_node [Parser::AST::Node, nil]
+      # @sg-ignore need boolish support for ? methods
       def always_breaks?(clause_node)
         clause_node&.type == :break
       end
@@ -446,6 +454,7 @@ module Solargraph
       # @param clause_node [Parser::AST::Node, nil]
       def always_leaves_compound_statement?(clause_node)
         # https://docs.ruby-lang.org/en/2.2.0/keywords_rdoc.html
+        # @sg-ignore Need to look at Tuple#include? handling
         [:return, :raise, :next, :redo, :retry].include?(clause_node&.type)
       end
 
