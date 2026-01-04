@@ -16,11 +16,7 @@ module Solargraph
     # @type [Hash{String => RbsMap}]
     @@rbs_maps_hash = {}
 
-    attr_reader :library
-
-    attr_reader :rbs_collection_paths
-
-    attr_reader :rbs_collection_config_path
+    attr_reader :library, :rbs_collection_paths, :rbs_collection_config_path
 
     # @param library [String]
     # @param version [String, nil]
@@ -47,7 +43,7 @@ module Solargraph
     #   updated upstream for the same library and version.  May change
     #   if the config for where information comes form changes.
     def cache_key
-      @hextdigest ||= begin
+      @cache_key ||= begin
         # @type [String, nil]
         data = nil
         if rbs_collection_config_path
@@ -99,7 +95,7 @@ module Solargraph
     # @return [generic<T>, nil]
     def path_pin path, klass = Pin::Base
       pin = pins.find { |p| p.path == path }
-      pin if pin&.is_a?(klass)
+      pin if pin.is_a?(klass)
     end
 
     # @param path [String]
@@ -146,13 +142,13 @@ module Solargraph
     # @return [Boolean] true if adding the library succeeded
     def add_library loader, library, version
       @resolved = if loader.has_library?(library: library, version: version)
-        loader.add library: library, version: version
-        logger.debug { "#{short_name} successfully loaded library #{library}:#{version}" }
-        true
-      else
-        logger.info { "#{short_name} did not find data for library #{library}:#{version}" }
-        false
-      end
+                    loader.add library: library, version: version
+                    logger.debug { "#{short_name} successfully loaded library #{library}:#{version}" }
+                    true
+                  else
+                    logger.info { "#{short_name} did not find data for library #{library}:#{version}" }
+                    false
+                  end
     end
 
     # @return [String]

@@ -1,9 +1,11 @@
+# frozen_string_literal: true
+
 describe Solargraph::YardMap::Mapper do
   it 'converts nil docstrings to empty strings' do
     dir = File.absolute_path(File.join('spec', 'fixtures', 'yard_map'))
     Dir.chdir dir do
       YARD::Registry.load([File.join(dir, 'attr.rb')], true)
-      mapper = Solargraph::YardMap::Mapper.new(YARD::Registry.all)
+      mapper = described_class.new(YARD::Registry.all)
       pins = mapper.map
       pin = pins.select { |pin| pin.path == 'Foo#bar' }.first
       expect(pin.comments).to be_a(String)
@@ -17,7 +19,7 @@ describe Solargraph::YardMap::Mapper do
     rspec = Gem::Specification.find_by_name('rspec-expectations')
     Solargraph::Yardoc.cache([], rspec)
     Solargraph::Yardoc.load!(rspec)
-    pins = Solargraph::YardMap::Mapper.new(YARD::Registry.all).map
+    pins = described_class.new(YARD::Registry.all).map
     pin = pins.find { |pin| pin.path == 'RSpec::Matchers#be_truthy' }
     expect(pin.explicit?).to be(true)
   end
@@ -27,7 +29,7 @@ describe Solargraph::YardMap::Mapper do
     logger = Gem::Specification.find_by_name('logger')
     Solargraph::Yardoc.cache([], logger)
     registry = Solargraph::Yardoc.load!(logger)
-    pins = Solargraph::YardMap::Mapper.new(registry).map
+    pins = described_class.new(registry).map
     pins = pins.select { |pin| pin.path == 'Logger.new' }
     expect(pins.map(&:return_type).uniq.map(&:to_s)).to eq(['self'])
   end
@@ -37,7 +39,7 @@ describe Solargraph::YardMap::Mapper do
     rubocop = Gem::Specification.find_by_name('rubocop')
     Solargraph::Yardoc.cache([], rubocop)
     Solargraph::Yardoc.load!(rubocop)
-    pins = Solargraph::YardMap::Mapper.new(YARD::Registry.all).map
+    pins = described_class.new(YARD::Registry.all).map
     pins = pins.select { |pin| pin.path == 'RuboCop::Options.new' }
     expect(pins.map(&:return_type).uniq.map(&:to_s)).to eq(['self'])
     expect(pins.flat_map(&:signatures).map(&:return_type).uniq.map(&:to_s)).to eq(['self'])
@@ -47,7 +49,7 @@ describe Solargraph::YardMap::Mapper do
     # Using rspec-expectations because it's a known dependency
     rspec = Gem::Specification.find_by_name('rspec-expectations')
     Solargraph::Yardoc.load!(rspec)
-    pins = Solargraph::YardMap::Mapper.new(YARD::Registry.all).map
+    pins = described_class.new(YARD::Registry.all).map
     pin = pins.find { |pin| pin.path == 'RSpec::Matchers#expect' }
     expect(pin.explicit?).to be(false)
   end
@@ -56,7 +58,7 @@ describe Solargraph::YardMap::Mapper do
     # Asssuming the yard gem exists because it's a known dependency
     gemspec = Gem::Specification.find_by_name('yard')
     Solargraph::Yardoc.cache([], gemspec)
-    pins = Solargraph::YardMap::Mapper.new(Solargraph::Yardoc.load!(gemspec)).map
+    pins = described_class.new(Solargraph::Yardoc.load!(gemspec)).map
     pin = pins.find do |pin|
       pin.is_a?(Solargraph::Pin::Reference::Superclass) && pin.name == 'YARD::CodeObjects::NamespaceObject'
     end
@@ -67,8 +69,8 @@ describe Solargraph::YardMap::Mapper do
     # Asssuming the ast gem exists because it's a known dependency
     gemspec = Gem::Specification.find_by_name('ast')
     Solargraph::Yardoc.cache([], gemspec)
-    pins = Solargraph::YardMap::Mapper.new(Solargraph::Yardoc.load!(gemspec)).map
-    inc= pins.find do |pin|
+    pins = described_class.new(Solargraph::Yardoc.load!(gemspec)).map
+    inc = pins.find do |pin|
       pin.is_a?(Solargraph::Pin::Reference::Include) && pin.name == 'AST::Processor::Mixin' && pin.closure.path == 'AST::Processor'
     end
     expect(inc).to be_a(Solargraph::Pin::Reference::Include)
@@ -78,7 +80,7 @@ describe Solargraph::YardMap::Mapper do
     # Asssuming the ast gem exists because it's a known dependency
     gemspec = Gem::Specification.find_by_name('ast')
     Solargraph::Yardoc.cache([], gemspec)
-    pins = Solargraph::YardMap::Mapper.new(Solargraph::Yardoc.load!(gemspec)).map
+    pins = described_class.new(Solargraph::Yardoc.load!(gemspec)).map
     pin = pins.find do |pin|
       pin.is_a?(Solargraph::Pin::Namespace) && pin.name == 'Mixin' && pin.closure.path == 'AST::Processor'
     end
@@ -89,7 +91,7 @@ describe Solargraph::YardMap::Mapper do
     # Asssuming the yard gem exists because it's a known dependency
     gemspec = Gem::Specification.find_by_name('yard')
     Solargraph::Yardoc.cache([], gemspec)
-    pins = Solargraph::YardMap::Mapper.new(Solargraph::Yardoc.load!(gemspec)).map
+    pins = described_class.new(Solargraph::Yardoc.load!(gemspec)).map
     ext = pins.find do |pin|
       pin.is_a?(Solargraph::Pin::Reference::Extend) && pin.name == 'Enumerable' && pin.closure.path == 'YARD::Registry'
     end

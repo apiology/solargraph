@@ -21,13 +21,8 @@ module Solargraph
       @character = character
     end
 
-    # @sg-ignore Fix "Not enough arguments to Module#protected"
-    protected def equality_fields
-      [line, character]
-    end
-
     # @param other [Position]
-    def <=>(other)
+    def <=> other
       return nil unless other.is_a?(Position)
       if line == other.line
         character <=> other.character
@@ -92,7 +87,7 @@ module Solargraph
         cursor += line_length
         line += 1
       end
-      character = 0 if character.nil? and (cursor - offset).between?(0, 1)
+      character = 0 if character.nil? && (cursor - offset).between?(0, 1)
       raise InvalidOffsetError if character.nil?
       Position.new(line, character)
     end
@@ -114,6 +109,13 @@ module Solargraph
       return false unless other.is_a?(Position)
       # @sg-ignore https://github.com/castwide/solargraph/pull/1114
       line == other.line and character == other.character
+    end
+
+    protected
+
+    # @sg-ignore Fix "Not enough arguments to Module#protected"
+    def equality_fields
+      [line, character]
     end
   end
 end

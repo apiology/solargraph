@@ -22,11 +22,10 @@ module Solargraph
           found = false
           inferred.each do |inf|
             # if api_map.super_and_sub?(fuzz(inf), fuzz(exp))
-            if either_way?(api_map, inf, exp)
-              found = true
-              matches.push inf
-              break
-            end
+            next unless either_way?(api_map, inf, exp)
+            found = true
+            matches.push inf
+            break
           end
           return false unless found
         end
@@ -91,7 +90,7 @@ module Solargraph
         raise ArgumentError, 'Expected type must be duck type' unless expected.duck_type?
         expected.each do |exp|
           next unless exp.duck_type?
-          quack = exp.to_s[1..-1]
+          quack = exp.to_s[1..]
           return false if api_map.get_method_stack(inferred.namespace, quack, scope: inferred.scope).empty?
         end
         true
@@ -111,7 +110,7 @@ module Solargraph
       # @param cls1 [ComplexType::UniqueType]
       # @param cls2 [ComplexType::UniqueType]
       # @return [Boolean]
-      def either_way?(api_map, cls1, cls2)
+      def either_way? api_map, cls1, cls2
         # @todo there should be a level of typechecking which uses the
         #   full tag with parameters to determine compatibility
         f1 = cls1.name

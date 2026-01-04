@@ -8,10 +8,10 @@ module Solargraph
           @word = word
         end
 
-        def resolve api_map, name_pin, locals
+        def resolve api_map, name_pin, _locals
           return [Pin::ROOT_PIN] if word.empty?
           if word.start_with?('::')
-            base = word[2..-1]
+            base = word[2..]
             gates = ['']
           else
             base = word

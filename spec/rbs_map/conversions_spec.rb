@@ -1,9 +1,11 @@
+# frozen_string_literal: true
+
 describe Solargraph::RbsMap::Conversions do
   context 'with RBS to digest' do
     # create a temporary directory with the scope of the spec
     around do |example|
       require 'tmpdir'
-      Dir.mktmpdir("rspec-solargraph-") do |dir|
+      Dir.mktmpdir('rspec-solargraph-') do |dir|
         @temp_dir = dir
         example.run
       end
@@ -12,7 +14,7 @@ describe Solargraph::RbsMap::Conversions do
     let(:conversions) do
       loader = RBS::EnvironmentLoader.new(core_root: nil, repository: RBS::Repository.new(no_stdlib: false))
       loader.add(path: Pathname(temp_dir))
-      Solargraph::RbsMap::Conversions.new(loader: loader)
+      described_class.new(loader: loader)
     end
 
     let(:api_map) { Solargraph::ApiMap.new }
@@ -26,6 +28,8 @@ describe Solargraph::RbsMap::Conversions do
     attr_reader :temp_dir
 
     context 'with self alias to self method' do
+      subject(:alias_pin) { api_map.get_method_stack('Foo', 'bar?', scope: :class).first }
+
       let(:rbs) do
         <<~RBS
           class Foo
@@ -37,11 +41,9 @@ describe Solargraph::RbsMap::Conversions do
 
       let(:method_pin) { api_map.get_method_stack('Foo', 'bar', scope: :class).first }
 
-      subject(:alias_pin) { api_map.get_method_stack('Foo', 'bar?', scope: :class).first }
+      it { is_expected.not_to be_nil }
 
-      it { should_not be_nil }
-
-      it { should be_instance_of(Solargraph::Pin::Method) }
+      it { is_expected.to be_instance_of(Solargraph::Pin::Method) }
 
       it 'finds the type' do
         expect(alias_pin.return_type.tag).to eq('String')
@@ -49,6 +51,8 @@ describe Solargraph::RbsMap::Conversions do
     end
 
     context 'with untyped response' do
+      subject(:method_pin) { conversions.pins.find { |pin| pin.path == 'Foo#bar' } }
+
       let(:rbs) do
         <<~RBS
           class Foo
@@ -57,13 +61,11 @@ describe Solargraph::RbsMap::Conversions do
         RBS
       end
 
-      subject(:method_pin) { conversions.pins.find { |pin| pin.path == 'Foo#bar' } }
+      it { is_expected.not_to be_nil }
 
-      it { should_not be_nil }
+      it { is_expected.to be_a(Solargraph::Pin::Method) }
 
-      it { should be_a(Solargraph::Pin::Method) }
-
-      it 'maps untyped in RBS to undefined in Solargraph 'do
+      it 'maps untyped in RBS to undefined in Solargraph' do
         expect(method_pin.return_type.tag).to eq('undefined')
       end
     end
@@ -101,6 +103,8 @@ describe Solargraph::RbsMap::Conversions do
     end
 
     context 'with overlapping module hierarchies and inheritance' do
+      subject(:method_pin) { api_map.get_method_stack('A::B::C', 'foo').first }
+
       let(:rbs) do
         <<~RBS
           module B
@@ -117,9 +121,7 @@ describe Solargraph::RbsMap::Conversions do
         RBS
       end
 
-      subject(:method_pin) { api_map.get_method_stack('A::B::C', 'foo').first }
-
-      it { should be_a(Solargraph::Pin::Method) }
+      it { is_expected.to be_a(Solargraph::Pin::Method) }
     end
   end
 

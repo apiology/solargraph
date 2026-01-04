@@ -1,13 +1,11 @@
+# frozen_string_literal: true
+
 module Solargraph
   module Pin
     class Signature < Callable
       # allow signature to be created before method pin, then set this
       # to the method pin
       attr_writer :closure
-
-      def initialize **splat
-        super(**splat)
-      end
 
       def generics
         @generics ||= [].freeze
@@ -44,13 +42,12 @@ module Solargraph
         method_stack = closure.rest_of_stack api_map
         logger.debug { "Signature#typify(self=#{self}) - method_stack: #{method_stack}" }
         method_stack.each do |pin|
-          sig = pin.signatures.find { |s| s.arity == self.arity }
+          sig = pin.signatures.find { |s| s.arity == arity }
           next unless sig
-          unless sig.return_type.undefined?
-            qualified = sig.return_type.qualify(api_map, closure.namespace)
-            logger.debug { "Signature#typify(self=#{self}) => #{qualified.rooted_tags.inspect}" }
-            return qualified
-          end
+          next if sig.return_type.undefined?
+          qualified = sig.return_type.qualify(api_map, closure.namespace)
+          logger.debug { "Signature#typify(self=#{self}) => #{qualified.rooted_tags.inspect}" }
+          return qualified
         end
         out = super
         logger.debug { "Signature#typify(self=#{self}) => #{out}" }

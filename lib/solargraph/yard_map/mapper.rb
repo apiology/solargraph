@@ -34,19 +34,20 @@ module Solargraph
       # @return [Array<Pin::Base>]
       def generate_pins code_object
         result = []
-        if code_object.is_a?(YARD::CodeObjects::NamespaceObject)
+        case code_object
+        when YARD::CodeObjects::NamespaceObject
           nspin = ToNamespace.make(code_object, @spec, @namespace_pins[code_object.namespace.to_s])
           @namespace_pins[code_object.path] = nspin
           result.push nspin
-          if code_object.is_a?(YARD::CodeObjects::ClassObject) and !code_object.superclass.nil?
+          if code_object.is_a?(YARD::CodeObjects::ClassObject) && !code_object.superclass.nil?
             # This method of superclass detection is a bit of a hack. If
             # the superclass is a Proxy, it is assumed to be undefined in its
             # yardoc and converted to a fully qualified namespace.
             superclass = if code_object.superclass.is_a?(YARD::CodeObjects::Proxy)
-              "::#{code_object.superclass}"
-            else
-              code_object.superclass.to_s
-            end
+                           "::#{code_object.superclass}"
+                         else
+                           code_object.superclass.to_s
+                         end
             result.push Solargraph::Pin::Reference::Superclass.new(name: superclass, closure: nspin, source: :yard_map)
           end
           code_object.class_mixins.each do |m|
@@ -59,7 +60,7 @@ module Solargraph
               source: :yard_map
             )
           end
-        elsif code_object.is_a?(YARD::CodeObjects::MethodObject)
+        when YARD::CodeObjects::MethodObject
           closure = @namespace_pins[code_object.namespace.to_s]
           if code_object.name == :initialize && code_object.scope == :instance
             # @todo Check the visibility of <Class>.new
@@ -68,7 +69,7 @@ module Solargraph
           else
             result.push ToMethod.make(code_object, nil, nil, nil, closure, @spec)
           end
-        elsif code_object.is_a?(YARD::CodeObjects::ConstantObject)
+        when YARD::CodeObjects::ConstantObject
           closure = @namespace_pins[code_object.namespace]
           result.push ToConstant.make(code_object, closure, @spec)
         end

@@ -20,13 +20,8 @@ module Solargraph
       @range = range
     end
 
-    # @sg-ignore Fix "Not enough arguments to Module#protected"
-    protected def equality_fields
-      [filename, range]
-    end
-
     # @param other [self]
-    def <=>(other)
+    def <=> other
       return nil unless other.is_a?(Location)
       if filename == other.filename
         range <=> other.range
@@ -62,10 +57,10 @@ module Solargraph
 
     # @param node [Parser::AST::Node, nil]
     # @return [Location, nil]
-    def self.from_node(node)
+    def self.from_node node
       return nil if node.nil? || node.loc.nil?
       range = Range.from_node(node)
-      self.new(node.loc.expression.source_buffer.name, range)
+      new(node.loc.expression.source_buffer.name, range)
     end
 
     # @param other [BasicObject]
@@ -77,6 +72,13 @@ module Solargraph
 
     def inspect
       "#<#{self.class} #{filename}, #{range.inspect}>"
+    end
+
+    protected
+
+    # @sg-ignore Fix "Not enough arguments to Module#protected"
+    def equality_fields
+      [filename, range]
     end
   end
 end

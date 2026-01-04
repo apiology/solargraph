@@ -11,11 +11,6 @@ module Solargraph
 
       attr_reader :all_params, :subtypes, :key_types
 
-      # @sg-ignore Fix "Not enough arguments to Module#protected"
-      protected def equality_fields
-        [@name, @all_params, @subtypes, @key_types]
-      end
-
       # Create a UniqueType with the specified name and an optional substring.
       # The substring is the parameter section of a parametrized type, e.g.,
       # for the type `Array<String>`, the name is `Array` and the substring is
@@ -26,11 +21,9 @@ module Solargraph
       # @param make_rooted [Boolean, nil]
       # @return [UniqueType]
       def self.parse name, substring = '', make_rooted: nil
-        if name.start_with?(':::')
-          raise ComplexTypeError, "Illegal prefix: #{name}"
-        end
+        raise ComplexTypeError, "Illegal prefix: #{name}" if name.start_with?(':::')
         if name.start_with?('::')
-          name = name[2..-1]
+          name = name[2..]
           rooted = true
         elsif !can_root_name?(name)
           rooted = true
@@ -48,13 +41,17 @@ module Solargraph
           subs = ComplexType.parse(substring[1..-2], partial: true)
           parameters_type = PARAMETERS_TYPE_BY_STARTING_TAG.fetch(substring[0])
           if parameters_type == :hash
-            raise ComplexTypeError, "Bad hash type: name=#{name}, substring=#{substring}" unless !subs.is_a?(ComplexType) and subs.length == 2 and !subs[0].is_a?(UniqueType) and !subs[1].is_a?(UniqueType)
+            unless !subs.is_a?(ComplexType) && (subs.length == 2) && !subs[0].is_a?(UniqueType) && !subs[1].is_a?(UniqueType)
+              raise ComplexTypeError,
+                    "Bad hash type: name=#{name}, substring=#{substring}"
+            end
             key_types.concat(subs[0].map { |u| ComplexType.new([u]) })
             subtypes.concat(subs[1].map { |u| ComplexType.new([u]) })
           elsif parameters_type == :list && name == 'Hash'
             # Treat Hash<A, B> as Hash{A => B}
             if subs.length != 2
-              raise ComplexTypeError, "Bad hash type: name=#{name}, substring=#{substring} - must have exactly two parameters"
+              raise ComplexTypeError,
+                    "Bad hash type: name=#{name}, substring=#{substring} - must have exactly two parameters"
             end
             key_types.concat(subs[0].map { |u| ComplexType.new([u]) })
             subtypes.concat(subs[1].map { |u| ComplexType.new([u]) })
@@ -70,9 +67,9 @@ module Solargraph
       # @param subtypes [Array<ComplexType>]
       # @param rooted [Boolean]
       # @param parameters_type [Symbol, nil]
-      def initialize(name, key_types = [], subtypes = [], rooted:, parameters_type: nil)
-        if parameters_type.nil?
-          raise "You must supply parameters_type if you provide parameters" unless key_types.empty? && subtypes.empty?
+      def initialize name, key_types = [], subtypes = [], rooted:, parameters_type: nil
+        if parameters_type.nil? && !(key_types.empty? && subtypes.empty?)
+          raise 'You must supply parameters_type if you provide parameters'
         end
         raise "Please remove leading :: and set rooted instead - #{name.inspect}" if name.start_with?('::')
         @name = name
@@ -94,7 +91,7 @@ module Solargraph
         # @todo use api_map to establish number of generics in type;
         #   if only one is allowed but multiple are passed in, treat
         #   those as implicit unions
-        ['Hash', 'Array', 'Set', '_ToAry', 'Enumerable', '_Each'].include?(name) && parameters_type != :fixed
+        %w[Hash Array Set _ToAry Enumerable _Each].include?(name) && parameters_type != :fixed
       end
 
       def to_s
@@ -129,14 +126,14 @@ module Solargraph
         #    | `false`
         return name if name.empty?
         return 'NilClass' if name == 'nil'
-        return 'Boolean' if ['true', 'false'].include?(name)
+        return 'Boolean' if %w[true false].include?(name)
         return 'Symbol' if name[0] == ':'
         return 'String' if ['"', "'"].include?(name[0])
         return 'Integer' if name.match?(/^-?\d+$/)
         name
       end
 
-      def eql?(other)
+      def eql? other
         self.class == other.class &&
           # @sg-ignore https://github.com/castwide/solargraph/pull/1114
           @name == other.name &&
@@ -152,7 +149,7 @@ module Solargraph
           @parameters_type == other.parameters_type
       end
 
-      def ==(other)
+      def == other
         eql?(other)
       end
 
@@ -191,9 +188,9 @@ module Solargraph
           'nil'
         elsif name == GENERIC_TAG_NAME
           all_params.first.name
-        elsif ['Class', 'Module'].include?(name)
+        elsif %w[Class Module].include?(name)
           rbs_name
-        elsif ['Tuple', 'Array'].include?(name) && fixed_parameters?
+        elsif %w[Tuple Array].include?(name) && fixed_parameters?
           # tuples don't have a name; they're just [foo, bar, baz].
           if substring == '()'
             # but there are no zero element tuples, so we go with an array
@@ -218,7 +215,7 @@ module Solargraph
 
       # @param types [Array<UniqueType, ComplexType>]
       # @return [String]
-      def rbs_union(types)
+      def rbs_union types
         if types.length == 1
           types.first.to_rbs
         else
@@ -244,13 +241,15 @@ module Solargraph
 
       # @param api_map [ApiMap] The ApiMap that performs qualification
       # @param atype [ComplexType] type which may be assigned to this type
-      def can_assign?(api_map, atype)
+      def can_assign? api_map, atype
         logger.debug { "UniqueType#can_assign?(self=#{rooted_tags.inspect}, atype=#{atype.rooted_tags.inspect})" }
         downcasted_atype = atype.downcast_to_literal_if_possible
         out = downcasted_atype.all? do |autype|
           autype.name == name || api_map.super_and_sub?(name, autype.name)
         end
-        logger.debug { "UniqueType#can_assign?(self=#{rooted_tags.inspect}, atype=#{atype.rooted_tags.inspect}) => #{out}" }
+        logger.debug do
+          "UniqueType#can_assign?(self=#{rooted_tags.inspect}, atype=#{atype.rooted_tags.inspect}) => #{out}"
+        end
         out
       end
 
@@ -273,15 +272,18 @@ module Solargraph
           end
           if new_binding
             resolved_generic_values.transform_values! do |complex_type|
-              complex_type.resolve_generics_from_context(generics_to_resolve, nil, resolved_generic_values: resolved_generic_values)
+              complex_type.resolve_generics_from_context(generics_to_resolve, nil,
+                                                         resolved_generic_values: resolved_generic_values)
             end
           end
           return resolved_generic_values[type_param] || self
         end
 
         # @todo typechecking should complain when the method being called has no @yieldparam tag
-        new_key_types = resolve_param_generics_from_context(generics_to_resolve, context_type, resolved_generic_values, &:key_types)
-        new_subtypes = resolve_param_generics_from_context(generics_to_resolve, context_type, resolved_generic_values, &:subtypes)
+        new_key_types = resolve_param_generics_from_context(generics_to_resolve, context_type, resolved_generic_values,
+                                                            &:key_types)
+        new_subtypes = resolve_param_generics_from_context(generics_to_resolve, context_type, resolved_generic_values,
+                                                           &:subtypes)
         recreate(new_key_types: new_key_types, new_subtypes: new_subtypes)
       end
 
@@ -290,7 +292,7 @@ module Solargraph
       # @param resolved_generic_values [Hash{String => ComplexType}]
       # @yieldreturn [Array<ComplexType>]
       # @return [Array<ComplexType>]
-      def resolve_param_generics_from_context(generics_to_resolve, context_type, resolved_generic_values)
+      def resolve_param_generics_from_context generics_to_resolve, context_type, resolved_generic_values
         types = yield self
         types.each_with_index.flat_map do |ct, i|
           ct.items.flat_map do |ut|
@@ -298,10 +300,12 @@ module Solargraph
             if context_params && context_params[i]
               type_arg = context_params[i]
               type_arg.map do |new_unique_context_type|
-                ut.resolve_generics_from_context generics_to_resolve, new_unique_context_type, resolved_generic_values: resolved_generic_values
+                ut.resolve_generics_from_context generics_to_resolve, new_unique_context_type,
+                                                 resolved_generic_values: resolved_generic_values
               end
             else
-              ut.resolve_generics_from_context generics_to_resolve, nil, resolved_generic_values: resolved_generic_values
+              ut.resolve_generics_from_context generics_to_resolve, nil,
+                                               resolved_generic_values: resolved_generic_values
             end
           end
         end
@@ -323,7 +327,7 @@ module Solargraph
             idx = definitions.generics.index(generic_name)
             next t if idx.nil?
             if context_type.parameters_type == :hash
-              if idx == 0
+              if idx.zero?
                 next ComplexType.new(context_type.key_types)
               elsif idx == 1
                 next ComplexType.new(context_type.subtypes)
@@ -331,7 +335,7 @@ module Solargraph
                 next ComplexType::UNDEFINED
               end
             elsif context_type.all?(&:implicit_union?)
-              if idx == 0 && !context_type.all_params.empty?
+              if idx.zero? && !context_type.all_params.empty?
                 ComplexType.new(context_type.all_params)
               else
                 ComplexType::UNDEFINED
@@ -363,7 +367,7 @@ module Solargraph
       # @param rooted [Boolean, nil]
       # @param new_subtypes [Array<ComplexType>, nil]
       # @return [self]
-      def recreate(new_name: nil, make_rooted: nil, new_key_types: nil, new_subtypes: nil)
+      def recreate new_name: nil, make_rooted: nil, new_key_types: nil, new_subtypes: nil
         raise "Please remove leading :: and set rooted instead - #{new_name}" if new_name&.start_with?('::')
 
         new_name ||= name
@@ -396,8 +400,10 @@ module Solargraph
       # @yieldparam t [UniqueType]
       # @yieldreturn [self]
       # @return [self]
-      def transform(new_name = nil, &transform_type)
-        raise "Please remove leading :: and set rooted with recreate() instead - #{new_name}" if new_name&.start_with?('::')
+      def transform new_name = nil, &transform_type
+        if new_name&.start_with?('::')
+          raise "Please remove leading :: and set rooted with recreate() instead - #{new_name}"
+        end
         if name == ComplexType::GENERIC_TAG_NAME
           # doesn't make sense to manipulate the name of the generic
           new_key_types = @key_types
@@ -406,7 +412,8 @@ module Solargraph
           new_key_types = @key_types.flat_map { |ct| ct.items.map { |ut| ut.transform(&transform_type) } }
           new_subtypes = @subtypes.flat_map { |ct| ct.items.map { |ut| ut.transform(&transform_type) } }
         end
-        new_type = recreate(new_name: new_name || name, new_key_types: new_key_types, new_subtypes: new_subtypes, make_rooted: @rooted)
+        new_type = recreate(new_name: new_name || name, new_key_types: new_key_types, new_subtypes: new_subtypes,
+                            make_rooted: @rooted)
         yield new_type
       end
 
@@ -415,6 +422,7 @@ module Solargraph
       # @param api_map [ApiMap] The ApiMap that performs qualification
       # @param context [String] The namespace from which to resolve names
       # @return [self, ComplexType, UniqueType] The generated ComplexType
+      # @param [Array<Object>] gates
       def qualify api_map, *gates
         transform do |t|
           next t if t.name == GENERIC_TAG_NAME
@@ -453,12 +461,12 @@ module Solargraph
       end
 
       # @param name_to_check [String]
-      def can_root_name?(name_to_check = name)
+      def can_root_name? name_to_check = name
         self.class.can_root_name?(name_to_check)
       end
 
       # @param name [String]
-      def self.can_root_name?(name)
+      def self.can_root_name? name
         # name is not lowercase
         !name.empty? && name != name.downcase
       end
@@ -475,8 +483,14 @@ module Solargraph
         '::NilClass' => UniqueType::NIL
       }.freeze
 
-
       include Logging
+
+      protected
+
+      # @sg-ignore Fix "Not enough arguments to Module#protected"
+      def equality_fields
+        [@name, @all_params, @subtypes, @key_types]
+      end
     end
   end
 end

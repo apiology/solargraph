@@ -1,5 +1,7 @@
+# frozen_string_literal: true
+
 describe Solargraph::Pin::LocalVariable do
-  xit "merges presence changes so that [not currently used]" do
+  xit 'merges presence changes so that [not currently used]' do
     map1 = Solargraph::SourceMap.load_string(%(
       class Foo
         foo = 'foo'
@@ -22,15 +24,14 @@ describe Solargraph::Pin::LocalVariable do
     expect(pin2.presence.ending.to_hash).to eq({ line: 5, character: 9 })
 
     combined = pin1.combine_with(pin2)
-    expect(combined).to be_a(Solargraph::Pin::LocalVariable)
-
+    expect(combined).to be_a(described_class)
 
     expect(combined.source).to eq(:combined)
     # no choice behavior defined yet - if/when this is to be used, we
     # should indicate which one should override in the range situation
   end
 
-  it "asserts on attempt to merge namespace changes" do
+  it 'asserts on attempt to merge namespace changes' do
     map1 = Solargraph::SourceMap.load_string(%(
       class Foo
         foo = 'foo'

@@ -1,9 +1,11 @@
+# frozen_string_literal: true
+
 describe Solargraph::TypeChecker::Checks do
   it 'validates simple core types' do
     api_map = Solargraph::ApiMap.new
     exp = Solargraph::ComplexType.parse('String')
     inf = Solargraph::ComplexType.parse('String')
-    match = Solargraph::TypeChecker::Checks.types_match?(api_map, exp, inf)
+    match = described_class.types_match?(api_map, exp, inf)
     expect(match).to be(true)
   end
 
@@ -11,7 +13,7 @@ describe Solargraph::TypeChecker::Checks do
     api_map = Solargraph::ApiMap.new
     exp = Solargraph::ComplexType.parse('String')
     inf = Solargraph::ComplexType.parse('Integer')
-    match = Solargraph::TypeChecker::Checks.types_match?(api_map, exp, inf)
+    match = described_class.types_match?(api_map, exp, inf)
     expect(match).to be(false)
   end
 
@@ -24,7 +26,7 @@ describe Solargraph::TypeChecker::Checks do
     api_map.map source
     sup = Solargraph::ComplexType.parse('Sup')
     sub = Solargraph::ComplexType.parse('Sub')
-    match = Solargraph::TypeChecker::Checks.types_match?(api_map, sup, sub)
+    match = described_class.types_match?(api_map, sup, sub)
     expect(match).to be(true)
   end
 
@@ -48,7 +50,7 @@ describe Solargraph::TypeChecker::Checks do
     api_map = Solargraph::ApiMap.new
     exp = Solargraph::ComplexType.parse('Array')
     inf = Solargraph::ComplexType.parse('Array<String>')
-    match = Solargraph::TypeChecker::Checks.types_match?(api_map, exp, inf)
+    match = described_class.types_match?(api_map, exp, inf)
     expect(match).to be(true)
   end
 
@@ -59,7 +61,7 @@ describe Solargraph::TypeChecker::Checks do
     api_map.catalog Solargraph::Bench.new(source_maps: [source_map], external_requires: ['set'])
     exp = Solargraph::ComplexType.parse('Set')
     inf = Solargraph::ComplexType.parse('Set<String>')
-    match = Solargraph::TypeChecker::Checks.types_match?(api_map, exp, inf)
+    match = described_class.types_match?(api_map, exp, inf)
     expect(match).to be(true)
   end
 
@@ -67,7 +69,7 @@ describe Solargraph::TypeChecker::Checks do
     api_map = Solargraph::ApiMap.new
     exp = Solargraph::ComplexType.parse('Hash{ Symbol => String}')
     inf = Solargraph::ComplexType.parse('Hash')
-    match = Solargraph::TypeChecker::Checks.types_match?(api_map, exp, inf)
+    match = described_class.types_match?(api_map, exp, inf)
     expect(match).to be(true)
   end
 
@@ -75,7 +77,7 @@ describe Solargraph::TypeChecker::Checks do
     api_map = Solargraph::ApiMap.new
     exp = Solargraph::ComplexType.parse('String, Integer')
     inf = Solargraph::ComplexType.parse('String, Integer')
-    match = Solargraph::TypeChecker::Checks.types_match?(api_map, exp, inf)
+    match = described_class.types_match?(api_map, exp, inf)
     expect(match).to be(true)
   end
 
@@ -83,7 +85,7 @@ describe Solargraph::TypeChecker::Checks do
     api_map = Solargraph::ApiMap.new
     exp = Solargraph::ComplexType.parse('String, Integer')
     inf = Solargraph::ComplexType.parse('Integer, String')
-    match = Solargraph::TypeChecker::Checks.types_match?(api_map, exp, inf)
+    match = described_class.types_match?(api_map, exp, inf)
     expect(match).to be(true)
   end
 
@@ -91,7 +93,7 @@ describe Solargraph::TypeChecker::Checks do
     api_map = Solargraph::ApiMap.new
     exp = Solargraph::ComplexType.parse('String')
     inf = Solargraph::ComplexType.parse('String, Integer')
-    match = Solargraph::TypeChecker::Checks.types_match?(api_map, exp, inf)
+    match = described_class.types_match?(api_map, exp, inf)
     expect(match).to be(false)
   end
 
@@ -99,7 +101,7 @@ describe Solargraph::TypeChecker::Checks do
     api_map = Solargraph::ApiMap.new
     exp = Solargraph::ComplexType.parse('nil')
     inf = Solargraph::ComplexType.parse('nil')
-    match = Solargraph::TypeChecker::Checks.types_match?(api_map, exp, inf)
+    match = described_class.types_match?(api_map, exp, inf)
     expect(match).to be(true)
   end
 
@@ -107,7 +109,7 @@ describe Solargraph::TypeChecker::Checks do
     api_map = Solargraph::ApiMap.new
     exp = Solargraph::ComplexType.parse('Class<Object>')
     inf = Solargraph::ComplexType.parse('Class<String>')
-    match = Solargraph::TypeChecker::Checks.types_match?(api_map, exp, inf)
+    match = described_class.types_match?(api_map, exp, inf)
     expect(match).to be(true)
   end
 
@@ -115,7 +117,7 @@ describe Solargraph::TypeChecker::Checks do
     api_map = Solargraph::ApiMap.new
     exp = Solargraph::ComplexType.parse('Class<String>')
     inf = Solargraph::ComplexType.parse('Class')
-    match = Solargraph::TypeChecker::Checks.types_match?(api_map, exp, inf)
+    match = described_class.types_match?(api_map, exp, inf)
     expect(match).to be(true)
   end
 
@@ -128,9 +130,9 @@ describe Solargraph::TypeChecker::Checks do
     api_map.map source
     sup = Solargraph::ComplexType.parse('Sup')
     sub = Solargraph::ComplexType.parse('Sub')
-    match = Solargraph::TypeChecker::Checks.either_way?(api_map, sup, sub)
+    match = described_class.either_way?(api_map, sup, sub)
     expect(match).to be(true)
-    match = Solargraph::TypeChecker::Checks.either_way?(api_map, sub, sup)
+    match = described_class.either_way?(api_map, sub, sup)
     expect(match).to be(true)
   end
 
@@ -138,9 +140,9 @@ describe Solargraph::TypeChecker::Checks do
     api_map = Solargraph::ApiMap.new
     sup = Solargraph::ComplexType.parse('String')
     sub = Solargraph::ComplexType.parse('Array')
-    match = Solargraph::TypeChecker::Checks.either_way?(api_map, sup, sub)
+    match = described_class.either_way?(api_map, sup, sub)
     expect(match).to be(false)
-    match = Solargraph::TypeChecker::Checks.either_way?(api_map, sub, sup)
+    match = described_class.either_way?(api_map, sub, sup)
     expect(match).to be(false)
   end
 end
