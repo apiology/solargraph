@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 describe 'NodeChainer' do
   it 'recognizes self keywords' do
     chain = Solargraph::Parser.chain_string('self.foo')

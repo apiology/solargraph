@@ -54,11 +54,11 @@ module Solargraph
 
       # @return [Boolean]
       def nil_type?
-        @nil_type ||= (name.casecmp('nil') == 0)
+        @nil_type ||= name.casecmp('nil').zero?
       end
 
       def tuple?
-        @tuple_type ||= (name == 'Tuple') || (name == 'Array' && subtypes.length >= 1 && fixed_parameters?)
+        @tuple ||= (name == 'Tuple') || (name == 'Array' && subtypes.length >= 1 && fixed_parameters?)
       end
 
       def void?
@@ -217,7 +217,7 @@ module Solargraph
 
       # @yieldparam [UniqueType]
       # @return [Enumerator<UniqueType>]
-      def each_unique_type &block
+      def each_unique_type
         return enum_for(__method__) unless block_given?
         yield self
       end

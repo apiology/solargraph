@@ -11,11 +11,6 @@ module Solargraph
 
       attr_reader :all_params, :subtypes, :key_types
 
-      # @sg-ignore Fix "Not enough arguments to Module#protected"
-      protected def equality_fields
-        [@name, @all_params, @subtypes, @key_types]
-      end
-
       # Create a UniqueType with the specified name and an optional substring.
       # The substring is the parameter section of a parametrized type, e.g.,
       # for the type `Array<String>`, the name is `Array` and the substring is
@@ -28,7 +23,7 @@ module Solargraph
       def self.parse name, substring = '', make_rooted: nil
         raise ComplexTypeError, "Illegal prefix: #{name}" if name.start_with?(':::')
         if name.start_with?('::')
-          name = name[2..-1]
+          name = name[2..]
           rooted = true
         elsif !can_root_name?(name)
           rooted = true
@@ -46,7 +41,7 @@ module Solargraph
           subs = ComplexType.parse(substring[1..-2], partial: true)
           parameters_type = PARAMETERS_TYPE_BY_STARTING_TAG.fetch(substring[0])
           if parameters_type == :hash
-            unless !subs.is_a?(ComplexType) and subs.length == 2 and !subs[0].is_a?(UniqueType) and !subs[1].is_a?(UniqueType)
+            unless !subs.is_a?(ComplexType) && (subs.length == 2) && !subs[0].is_a?(UniqueType) && !subs[1].is_a?(UniqueType)
               raise ComplexTypeError,
                     "Bad hash type: name=#{name}, substring=#{substring}"
             end
@@ -332,7 +327,7 @@ module Solargraph
             idx = definitions.generics.index(generic_name)
             next t if idx.nil?
             if context_type.parameters_type == :hash
-              if idx == 0
+              if idx.zero?
                 next ComplexType.new(context_type.key_types)
               elsif idx == 1
                 next ComplexType.new(context_type.subtypes)
@@ -340,7 +335,7 @@ module Solargraph
                 next ComplexType::UNDEFINED
               end
             elsif context_type.all?(&:implicit_union?)
-              if idx == 0 && !context_type.all_params.empty?
+              if idx.zero? && !context_type.all_params.empty?
                 ComplexType.new(context_type.all_params)
               else
                 ComplexType::UNDEFINED
@@ -489,6 +484,13 @@ module Solargraph
       }.freeze
 
       include Logging
+
+      protected
+
+      # @sg-ignore Fix "Not enough arguments to Module#protected"
+      def equality_fields
+        [@name, @all_params, @subtypes, @key_types]
+      end
     end
   end
 end

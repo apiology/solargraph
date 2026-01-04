@@ -11,7 +11,7 @@ module Solargraph
       # @return [generic<T>, nil]
       def code_object_at path, klass = YARD::CodeObjects::Base
         obj = code_object_map[path]
-        obj if obj&.is_a?(klass)
+        obj if obj.is_a?(klass)
       end
 
       # @return [Array<String>]

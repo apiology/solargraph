@@ -86,7 +86,7 @@ module Solargraph
       #
       # @return [self]
       def combine_with other, attrs = {}
-        raise "tried to combine #{other.class} with #{self.class}" unless other.class == self.class
+        raise "tried to combine #{other.class} with #{self.class}" unless other.instance_of?(self.class)
         priority_choice = choose_priority(other)
         return priority_choice unless priority_choice.nil?
 
@@ -184,11 +184,6 @@ module Solargraph
         true
       end
 
-      # @sg-ignore def should infer as symbol - "Not enough arguments to Module#protected"
-      protected def equality_fields
-        [name, location, type_location, closure, source]
-      end
-
       # @param other [self]
       # @return [ComplexType]
       def combine_return_type other
@@ -202,7 +197,7 @@ module Solargraph
           return_type
         else
           all_items = return_type.items + other.return_type.items
-          if all_items.any? { |item| item.selfy? } && all_items.any? do |item|
+          if all_items.any?(&:selfy?) && all_items.any? do |item|
             item.rooted_tag == context.reduce_class_type.rooted_tag
           end
             # assume this was a declaration that should have said 'self'
@@ -413,7 +408,7 @@ module Solargraph
       # @param context_type [ComplexType] The receiver type
       # @return [self]
       def resolve_generics definitions, context_type
-        transform_types { |t| t.resolve_generics(definitions, context_type) if t }
+        transform_types { |t| t&.resolve_generics(definitions, context_type) }
       end
 
       def all_rooted?
@@ -464,7 +459,7 @@ module Solargraph
       # @param other [Solargraph::Pin::Base, Object]
       # @return [Boolean]
       def nearly? other
-        self.class == other.class &&
+        instance_of?(other.class) &&
           name == other.name &&
           (closure == other.closure || (closure && closure.nearly?(other.closure))) &&
           (comments == other.comments ||
@@ -620,7 +615,7 @@ module Solargraph
         rbs = return_type.rooted_tags if return_type.name == 'Class'
         if path
           if rbs
-            path + ' ' + rbs
+            "#{path} #{rbs}"
           else
             path
           end
@@ -663,6 +658,11 @@ module Solargraph
       def reset_generated!; end
 
       protected
+
+      # @sg-ignore def should infer as symbol - "Not enough arguments to Module#protected"
+      def equality_fields
+        [name, location, type_location, closure, source]
+      end
 
       # @return [Boolean]
       attr_writer :probed
@@ -721,7 +721,7 @@ module Solargraph
       # @param tag2 [YARD::Tags::Tag]
       # @return [Boolean]
       def compare_tags tag1, tag2
-        tag1.class == tag2.class &&
+        tag1.instance_of?(tag2.class) &&
           tag1.tag_name == tag2.tag_name &&
           tag1.text == tag2.text &&
           tag1.name == tag2.name &&

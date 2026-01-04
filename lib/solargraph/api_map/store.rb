@@ -32,7 +32,7 @@ module Solargraph
 
         # @todo Fix this map
         @fqns_pins_map = nil
-        return catalog(pinsets) if changed == 0
+        return catalog(pinsets) if changed.zero?
 
         pinsets[changed..].each_with_index do |pins, idx|
           @pinsets[changed + idx] = pins

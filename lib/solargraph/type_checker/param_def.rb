@@ -25,11 +25,9 @@ module Solargraph
         # @param pin [Solargraph::Pin::Method]
         # @return [Array<ParamDef>]
         def from pin
-          result = []
-          pin.parameters.each do |par|
-            result.push ParamDef.new(par.name, par.decl)
+          pin.parameters.map do |par|
+            ParamDef.new(par.name, par.decl)
           end
-          result
         end
       end
     end

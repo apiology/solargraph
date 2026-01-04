@@ -48,11 +48,6 @@ module Solargraph
 
       attr_reader :node
 
-      # @sg-ignore Fix "Not enough arguments to Module#protected"
-      protected def equality_fields
-        [links, node]
-      end
-
       # @param node [Parser::AST::Node, nil]
       # @param links [::Array<Chain::Link>]
       # @param splat [Boolean]
@@ -223,7 +218,8 @@ module Solargraph
       # @param api_map [ApiMap]
       # @param locals [::Enumerable<Pin::LocalVariable>]
       # @return [ComplexType]
-      def infer_from_definitions pins, context, api_map, locals
+      # @param [Object] _locals
+      def infer_from_definitions pins, context, api_map, _locals
         # @type [::Array<ComplexType>]
         types = []
         unresolved_pins = []
@@ -291,6 +287,13 @@ module Solargraph
         return type if type.undefined? || type.void? || type.nullable?
         return type unless nullable?
         ComplexType.new(type.items + [ComplexType::NIL])
+      end
+
+      protected
+
+      # @sg-ignore Fix "Not enough arguments to Module#protected"
+      def equality_fields
+        [links, node]
       end
     end
   end

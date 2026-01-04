@@ -110,13 +110,6 @@ module Solargraph
       self
     end
 
-    # @todo need to model type def statement in chains as a symbol so
-    #   that this overload of 'protected' will typecheck @sg-ignore
-    # @sg-ignore
-    protected def equality_fields
-      [self.class, @source_map_hash, conventions_environ, @doc_map, @unresolved_requires]
-    end
-
     # @return [DocMap]
     def doc_map
       @doc_map ||= DocMap.new([], [])
@@ -342,8 +335,8 @@ module Solargraph
 
     # @sg-ignore Missing @return tag for Solargraph::ApiMap#visible_pins
     # @see Solargraph::Parser::FlowSensitiveTyping#visible_pins
-    def visible_pins(*args, **kwargs, &blk)
-      Solargraph::Parser::FlowSensitiveTyping.visible_pins(*args, **kwargs, &blk)
+    def visible_pins(...)
+      Solargraph::Parser::FlowSensitiveTyping.visible_pins(...)
     end
 
     # Get an array of class variable pins for a namespace.
@@ -476,7 +469,7 @@ module Solargraph
       result = Set.new
       complex_type.each do |type|
         if type.duck_type?
-          result.add Pin::DuckMethod.new(name: type.to_s[1..-1], source: :api_map)
+          result.add Pin::DuckMethod.new(name: type.to_s[1..], source: :api_map)
           result.merge get_methods('Object')
         else
           unless type.nil? || type.name == 'void'
@@ -950,6 +943,15 @@ module Solargraph
     # @param rooted_type [ComplexType]
     def can_resolve_generics? namespace_pin, rooted_type
       has_generics?(namespace_pin) && !rooted_type.all_params.empty?
+    end
+
+    protected
+
+    # @todo need to model type def statement in chains as a symbol so
+    #   that this overload of 'protected' will typecheck @sg-ignore
+    # @sg-ignore
+    def equality_fields
+      [self.class, @source_map_hash, conventions_environ, @doc_map, @unresolved_requires]
     end
   end
 end

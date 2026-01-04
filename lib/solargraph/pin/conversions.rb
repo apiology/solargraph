@@ -43,7 +43,7 @@ module Solargraph
           data: {
             path: path,
             return_type: return_type.tag,
-            location: (location ? location.to_hash : nil),
+            location: location&.to_hash,
             deprecated: deprecated?
           }
         }

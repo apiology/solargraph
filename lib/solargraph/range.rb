@@ -19,11 +19,6 @@ module Solargraph
       @ending = ending
     end
 
-    # @sg-ignore Fix "Not enough arguments to Module#protected"
-    protected def equality_fields
-      [start, ending]
-    end
-
     # @param other [BasicObject]
     def <=> other
       return nil unless other.is_a?(Range)
@@ -85,7 +80,7 @@ module Solargraph
     # @param node [Parser::AST::Node]
     # @return [Range, nil]
     def self.from_node node
-      return unless node&.loc && node.loc.expression
+      return unless node&.loc&.expression
       from_expr(node.loc.expression)
     end
 
@@ -106,6 +101,13 @@ module Solargraph
 
     def inspect
       "#<#{self.class} #{start.inspect} to #{ending.inspect}>"
+    end
+
+    protected
+
+    # @sg-ignore Fix "Not enough arguments to Module#protected"
+    def equality_fields
+      [start, ending]
     end
   end
 end

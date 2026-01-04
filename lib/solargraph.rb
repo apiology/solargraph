@@ -56,7 +56,7 @@ module Solargraph
   CHDIR_MUTEX = Mutex.new
 
   # @param type [Symbol] Type of assert.
-  def self.asserts_on? type
+  def self.asserts_on? _type
     if ENV['SOLARGRAPH_ASSERTS'].nil? || ENV['SOLARGRAPH_ASSERTS'].empty?
       false
     elsif ENV['SOLARGRAPH_ASSERTS'] == 'on'

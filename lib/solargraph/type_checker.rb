@@ -394,17 +394,16 @@ module Solargraph
         return errors if par.decl == :restarg # bail out and assume the rest is valid pending better arg processing
         argchain = arguments[idx]
         if argchain.nil?
+          final_arg = arguments.last
           if par.decl == :arg
-            final_arg = arguments.last
             if final_arg && final_arg.node.type == :splat
               argchain = final_arg
               return errors
             else
               errors.push Problem.new(location, "Not enough arguments to #{pin.path}")
             end
-          else
-            final_arg = arguments.last
-            argchain = final_arg if final_arg && %i[kwsplat hash].include?(final_arg.node.type)
+          elsif final_arg && %i[kwsplat hash].include?(final_arg.node.type)
+            argchain = final_arg
           end
         end
         if argchain
@@ -747,7 +746,7 @@ module Solargraph
     # @param pin [Pin::Method]
     def abstract? pin
       pin.docstring.has_tag?('abstract') ||
-        (pin.closure && pin.closure.docstring.has_tag?('abstract'))
+        pin.closure&.docstring&.has_tag?('abstract')
     end
 
     # @param pin [Pin::Method]

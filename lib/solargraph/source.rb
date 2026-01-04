@@ -64,7 +64,7 @@ module Solargraph
     def from_to l1, c1, l2, c2
       b = Solargraph::Position.line_char_to_offset(code, l1, c1)
       e = Solargraph::Position.line_char_to_offset(code, l2, c2)
-      code[b..e - 1]
+      code[b..(e - 1)]
     end
 
     # Get the nearest node that contains the specified index.
@@ -183,7 +183,7 @@ module Solargraph
       rng = Range.from_node(node)
       b = Position.line_char_to_offset(code, rng.start.line, rng.start.column)
       e = Position.line_char_to_offset(code, rng.ending.line, rng.ending.column)
-      frag = code[b..e - 1].to_s
+      frag = code[b..(e - 1)].to_s
       frag.strip.gsub(/,$/, '')
     end
 
@@ -269,11 +269,12 @@ module Solargraph
     # @param result [Array<Range>]
     # @param parent [Symbol, nil]
     # @return [void]
-    def inner_folding_ranges top, result = [], parent = nil
+    # @param [Object, nil] _parent
+    def inner_folding_ranges top, result = [], _parent = nil
       return unless Parser.is_ast_node?(top)
       if FOLDING_NODE_TYPES.include?(top.type)
         range = Range.from_node(top)
-        if (result.empty? || range.start.line > result.last.start.line) && !(range.ending.line - range.start.line < 2)
+        if (result.empty? || range.start.line > result.last.start.line) && range.ending.line - range.start.line >= 2
           result.push range
         end
       end
@@ -299,7 +300,7 @@ module Solargraph
         else
           here = p.index(/[^ \t]/)
           skip = here if skip.nil? || here < skip
-          ctxt.concat p[skip..-1]
+          ctxt.concat p[skip..]
         end
         started = true
       end
@@ -331,7 +332,7 @@ module Solargraph
       return [] unless synchronized?
       result = []
       grouped = []
-      comments.keys.each do |l|
+      comments.each_key do |l|
         if grouped.empty? || l == grouped.last + 1
           grouped.push l
         else

@@ -16,9 +16,9 @@ module Solargraph
         # @param node [Parser::AST::Node, Object]
         def initialize type, node
           if node.is_a?(::Parser::AST::Node)
-            if node.type == :true
+            if node.type == true
               @value = true
-            elsif node.type == :false
+            elsif node.type == false
               @value = false
             elsif %i[int sym].include?(node.type)
               @value = node.children.first
@@ -29,18 +29,20 @@ module Solargraph
           @complex_type = ComplexType.try_parse(type)
         end
 
-        # @sg-ignore Fix "Not enough arguments to Module#protected"
-        protected def equality_fields
-          super + [@value, @type, @literal_type, @complex_type]
-        end
-
-        def resolve api_map, name_pin, locals
+        def resolve api_map, _name_pin, _locals
           if api_map.super_and_sub?(@complex_type.name, @literal_type.name)
             [Pin::ProxyType.anonymous(@literal_type, source: :chain)]
           else
             # we don't support this value as a literal type
             [Pin::ProxyType.anonymous(@complex_type, source: :chain)]
           end
+        end
+
+        protected
+
+        # @sg-ignore Fix "Not enough arguments to Module#protected"
+        def equality_fields
+          super + [@value, @type, @literal_type, @complex_type]
         end
       end
     end

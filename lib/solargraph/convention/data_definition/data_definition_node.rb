@@ -83,7 +83,7 @@ module Solargraph
 
         # @return [Array<Parser::AST::Node>]
         def data_attribute_nodes
-          data_node.children[2..-1]
+          data_node.children[2..]
         end
       end
     end

@@ -1,14 +1,16 @@
+# frozen_string_literal: true
+
 describe Solargraph::RbsMap do
   it 'loads from a gemspec' do
     spec = Gem::Specification.find_by_name('rbs')
-    rbs_map = Solargraph::RbsMap.from_gemspec(spec, nil, nil)
+    rbs_map = described_class.from_gemspec(spec, nil, nil)
     pin = rbs_map.path_pin('RBS::EnvironmentLoader#add_collection')
     expect(pin).to be
   end
 
   it 'converts constants and aliases to correct types' do
     spec = Gem::Specification.find_by_name('rbs')
-    rbs_map = Solargraph::RbsMap.from_gemspec(spec, nil, nil)
+    rbs_map = described_class.from_gemspec(spec, nil, nil)
     pin = rbs_map.path_pin('RBS::EnvironmentLoader::DEFAULT_CORE_ROOT')
     expect(pin.return_type.tag).to eq('Pathname')
     pin = rbs_map.path_pin('RBS::EnvironmentWalker::InstanceNode')

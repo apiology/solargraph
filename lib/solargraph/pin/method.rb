@@ -86,7 +86,7 @@ module Solargraph
         return priority_choice unless priority_choice.nil?
 
         sigs = combine_signatures(other)
-        parameters = if sigs.length > 0
+        parameters = if sigs.length.positive?
                        [].freeze
                      else
                        choose(other, :parameters).clone.freeze
@@ -113,7 +113,7 @@ module Solargraph
 
       def transform_types &transform
         # @todo 'super' alone should work here I think, but doesn't typecheck at level typed
-        m = super(&transform)
+        m = super
         m.signatures = m.signatures.map do |sig|
           sig.transform_types(&transform)
         end
@@ -201,7 +201,7 @@ module Solargraph
               comments: p.text,
               name: name,
               decl: decl,
-              presence: location ? location.range : nil,
+              presence: location&.range,
               return_type: ComplexType.try_parse(*p.types),
               source: source
             )
@@ -266,7 +266,7 @@ module Solargraph
       def signature_help
         @signature_help ||= signatures.map do |sig|
           {
-            label: name + '(' + sig.parameters.map(&:full).join(', ') + ')',
+            label: "#{name}(#{sig.parameters.map(&:full).join(', ')})",
             documentation: documentation
           }
         end
@@ -327,26 +327,26 @@ module Solargraph
         if @documentation.nil?
           method_docs ||= super || ''
           param_tags = docstring.tags(:param)
-          unless param_tags.nil? or param_tags.empty?
+          unless param_tags.nil? || param_tags.empty?
             method_docs += "\n\n" unless method_docs.empty?
             method_docs += "Params:\n"
             lines = []
             param_tags.each do |p|
               l = "* #{p.name}"
-              l += " [#{escape_brackets(p.types.join(', '))}]" unless p.types.nil? or p.types.empty?
+              l += " [#{escape_brackets(p.types.join(', '))}]" unless p.types.nil? || p.types.empty?
               l += " #{p.text}"
               lines.push l
             end
             method_docs += lines.join("\n")
           end
           yieldparam_tags = docstring.tags(:yieldparam)
-          unless yieldparam_tags.nil? or yieldparam_tags.empty?
+          unless yieldparam_tags.nil? || yieldparam_tags.empty?
             method_docs += "\n\n" unless method_docs.empty?
             method_docs += "Block Params:\n"
             lines = []
             yieldparam_tags.each do |p|
               l = "* #{p.name}"
-              l += " [#{escape_brackets(p.types.join(', '))}]" unless p.types.nil? or p.types.empty?
+              l += " [#{escape_brackets(p.types.join(', '))}]" unless p.types.nil? || p.types.empty?
               l += " #{p.text}"
               lines.push l
             end
@@ -359,7 +359,7 @@ module Solargraph
             lines = []
             yieldreturn_tags.each do |r|
               l = '*'
-              l += " [#{escape_brackets(r.types.join(', '))}]" unless r.types.nil? or r.types.empty?
+              l += " [#{escape_brackets(r.types.join(', '))}]" unless r.types.nil? || r.types.empty?
               l += " #{r.text}"
               lines.push l
             end
@@ -372,7 +372,7 @@ module Solargraph
             lines = []
             return_tags.each do |r|
               l = '*'
-              l += " [#{escape_brackets(r.types.join(', '))}]" unless r.types.nil? or r.types.empty?
+              l += " [#{escape_brackets(r.types.join(', '))}]" unless r.types.nil? || r.types.empty?
               l += " #{r.text}"
               lines.push l
             end
@@ -427,7 +427,7 @@ module Solargraph
                 comments: tag.docstring.all.to_s,
                 name: name,
                 decl: decl,
-                presence: location ? location.range : nil,
+                presence: location&.range,
                 return_type: param_type_from_name(tag, src.first),
                 source: :overloads
               )
@@ -652,9 +652,9 @@ module Solargraph
       def parse_overload_param name
         # @todo this needs to handle mandatory vs not args, kwargs, blocks, etc
         if name.start_with?('**')
-          [name[2..-1], :kwrestarg]
+          [name[2..], :kwrestarg]
         elsif name.start_with?('*')
-          [name[1..-1], :restarg]
+          [name[1..], :restarg]
         else
           [name, :arg]
         end

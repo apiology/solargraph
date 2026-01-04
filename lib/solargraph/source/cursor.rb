@@ -38,10 +38,10 @@ module Solargraph
       # @return [String]
       def start_of_word
         @start_of_word ||= begin
-          match = source.code[0..offset - 1].to_s.match(start_word_pattern)
+          match = source.code[0..(offset - 1)].to_s.match(start_word_pattern)
           result = (match ? match[0] : '')
           # Including the preceding colon if the word appears to be a symbol
-          if source.code[0..offset - result.length - 1].end_with?(':') and !source.code[0..offset - result.length - 1].end_with?('::')
+          if source.code[0..(offset - result.length - 1)].end_with?(':') && !source.code[0..(offset - result.length - 1)].end_with?('::')
             result = ":#{result}"
           end
           result
@@ -54,7 +54,7 @@ module Solargraph
       # @return [String]
       def end_of_word
         @end_of_word ||= begin
-          match = source.code[offset..-1].to_s.match(end_word_pattern)
+          match = source.code[offset..].to_s.match(end_word_pattern)
           match ? match[0] : ''
         end
       end

@@ -20,11 +20,6 @@ module Solargraph
       @range = range
     end
 
-    # @sg-ignore Fix "Not enough arguments to Module#protected"
-    protected def equality_fields
-      [filename, range]
-    end
-
     # @param other [self]
     def <=> other
       return nil unless other.is_a?(Location)
@@ -77,6 +72,13 @@ module Solargraph
 
     def inspect
       "#<#{self.class} #{filename}, #{range.inspect}>"
+    end
+
+    protected
+
+    # @sg-ignore Fix "Not enough arguments to Module#protected"
+    def equality_fields
+      [filename, range]
     end
   end
 end

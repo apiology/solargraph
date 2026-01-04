@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 describe Solargraph::Parser::NodeProcessor do
   it 'ignores bare private_constant calls' do
     node = Solargraph::Parser.parse(%(
@@ -6,7 +8,7 @@ describe Solargraph::Parser::NodeProcessor do
       end
     ))
     expect do
-      Solargraph::Parser::NodeProcessor.process(node)
+      described_class.process(node)
     end.not_to raise_error
   end
 
@@ -14,7 +16,7 @@ describe Solargraph::Parser::NodeProcessor do
     node = Solargraph::Parser.parse(%(
       def foo(bar = nil, baz = nil); end
     ))
-    pins, = Solargraph::Parser::NodeProcessor.process(node)
+    pins, = described_class.process(node)
     # Method pin is first pin after default namespace
     pin = pins[1]
     expect(pin.parameters.map(&:name)).to eq(%w[bar baz])
@@ -26,7 +28,7 @@ describe Solargraph::Parser::NodeProcessor do
       detail += "foo"
       detail.strip!
     ))
-    _, vars = Solargraph::Parser::NodeProcessor.process(node)
+    _, vars = described_class.process(node)
 
     # ensure we parsed the += correctly and won't report an unexpected
     # nil assignment
@@ -51,17 +53,17 @@ describe Solargraph::Parser::NodeProcessor do
       end
     end
 
-    Solargraph::Parser::NodeProcessor.register(:def, dummy_processor1)
-    Solargraph::Parser::NodeProcessor.register(:def, dummy_processor2)
+    described_class.register(:def, dummy_processor1)
+    described_class.register(:def, dummy_processor2)
     node = Solargraph::Parser.parse(%(
       def some_method; end
     ))
-    pins, = Solargraph::Parser::NodeProcessor.process(node)
+    pins, = described_class.process(node)
     # empty namespace pin is root namespace
     expect(pins.map(&:name)).to contain_exactly('', 'foo', 'bar', 'some_method')
 
     # Clean up the registered processors
-    Solargraph::Parser::NodeProcessor.deregister(:def, dummy_processor1)
-    Solargraph::Parser::NodeProcessor.deregister(:def, dummy_processor2)
+    described_class.deregister(:def, dummy_processor1)
+    described_class.deregister(:def, dummy_processor2)
   end
 end

@@ -159,13 +159,13 @@ module Solargraph
           if node.type == :block
             result.push node
             if Parser.is_ast_node?(node.children[0]) && node.children[0].children.length > 2
-              node.children[0].children[2..-1].each { |child| result.concat call_nodes_from(child) }
+              node.children[0].children[2..].each { |child| result.concat call_nodes_from(child) }
             end
-            node.children[1..-1].each { |child| result.concat call_nodes_from(child) }
+            node.children[1..].each { |child| result.concat call_nodes_from(child) }
           elsif node.type == :send
             result.push node
             result.concat call_nodes_from(node.children.first)
-            node.children[2..-1].each { |child| result.concat call_nodes_from(child) }
+            node.children[2..].each { |child| result.concat call_nodes_from(child) }
           elsif %i[super zsuper].include?(node.type)
             result.push node
             node.children.each { |child| result.concat call_nodes_from(child) }
@@ -211,7 +211,7 @@ module Solargraph
           position = cursor.position
           offset = cursor.offset
           tree = if source.synchronized?
-                   match = source.code[0..offset - 1].match(/,\s*\z/)
+                   match = source.code[0..(offset - 1)].match(/,\s*\z/)
                    if match
                      source.tree_at(position.line, position.column - match[0].length)
                    else
@@ -224,12 +224,12 @@ module Solargraph
           prev = nil
           tree.each do |node|
             if node.type == :send
-              args = node.children[2..-1]
+              args = node.children[2..]
               if !args.empty?
                 return node if prev && args.include?(prev)
               elsif source.synchronized?
-                return node if source.code[0..offset - 1] =~ /\(\s*\z/ && source.code[offset..-1] =~ /^\s*\)/
-              elsif source.code[0..offset - 1] =~ /\([^(]*\z/
+                return node if source.code[0..(offset - 1)] =~ /\(\s*\z/ && source.code[offset..] =~ /^\s*\)/
+              elsif source.code[0..(offset - 1)] =~ /\([^(]*\z/
                 return node
               end
             end
@@ -300,14 +300,14 @@ module Solargraph
         #    statements in value positions.
         module DeepInference
           class << self
-            CONDITIONAL_ALL_BUT_FIRST = %i[if unless]
-            CONDITIONAL_ALL = [:or]
-            ONLY_ONE_CHILD = [:return]
-            FIRST_TWO_CHILDREN = [:rescue]
-            COMPOUND_STATEMENTS = %i[begin kwbegin]
-            SKIPPABLE = %i[def defs class sclass module]
-            FUNCTION_VALUE = [:block]
-            CASE_STATEMENT = [:case]
+            CONDITIONAL_ALL_BUT_FIRST = %i[if unless].freeze
+            CONDITIONAL_ALL = [:or].freeze
+            ONLY_ONE_CHILD = [:return].freeze
+            FIRST_TWO_CHILDREN = [:rescue].freeze
+            COMPOUND_STATEMENTS = %i[begin kwbegin].freeze
+            SKIPPABLE = %i[def defs class sclass module].freeze
+            FUNCTION_VALUE = [:block].freeze
+            CASE_STATEMENT = [:case].freeze
 
             # @param node [AST::Node] a method body compound statement
             # @param include_explicit_returns [Boolean] If true,
@@ -346,7 +346,7 @@ module Solargraph
               if COMPOUND_STATEMENTS.include?(node.type)
                 result.concat from_value_position_compound_statement node
               elsif CONDITIONAL_ALL_BUT_FIRST.include?(node.type)
-                result.concat reduce_to_value_nodes(node.children[1..-1])
+                result.concat reduce_to_value_nodes(node.children[1..])
                 # result.push NIL_NODE unless node.children[2]
               elsif CONDITIONAL_ALL.include?(node.type)
                 result.concat reduce_to_value_nodes(node.children)
@@ -364,7 +364,7 @@ module Solargraph
                   result.concat explicit_return_values_from_compound_statement(node.children[2])
                 end
               elsif CASE_STATEMENT.include?(node.type)
-                node.children[1..-1].each do |cc|
+                node.children[1..].each do |cc|
                   if cc.nil?
                     result.push NIL_NODE
                   elsif cc.type == :when
@@ -466,7 +466,7 @@ module Solargraph
                 elsif COMPOUND_STATEMENTS.include?(node.type)
                   result.concat from_value_position_compound_statement(node)
                 elsif CONDITIONAL_ALL_BUT_FIRST.include?(node.type)
-                  result.concat reduce_to_value_nodes(node.children[1..-1])
+                  result.concat reduce_to_value_nodes(node.children[1..])
                 elsif node.type == :return
                   result.concat reduce_to_value_nodes([node.children[0]])
                 elsif node.type == :or

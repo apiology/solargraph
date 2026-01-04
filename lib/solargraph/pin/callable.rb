@@ -195,7 +195,7 @@ module Solargraph
       # @return [self]
       def transform_types &transform
         # @todo 'super' alone should work here I think, but doesn't typecheck at level typed
-        callable = super(&transform)
+        callable = super
         callable.block = block.transform_types(&transform) if block?
         callable.parameters = parameters.map do |param|
           param.transform_types(&transform)
@@ -221,9 +221,9 @@ module Solargraph
       end
 
       def to_rbs
-        rbs_generics + '(' + parameters.map { |param|
-          param.to_rbs
-        }.join(', ') + ') ' + (block.nil? ? '' : '{ ' + block.to_rbs + ' } ') + '-> ' + return_type.to_rbs
+        "#{rbs_generics}(#{parameters.map(&:to_rbs).join(', ')}) #{unless block.nil?
+                                                                     "{ #{block.to_rbs} } "
+                                                                   end}-> #{return_type.to_rbs}"
       end
 
       def block?

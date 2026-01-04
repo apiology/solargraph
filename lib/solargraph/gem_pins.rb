@@ -14,7 +14,7 @@ module Solargraph
     # @param pins [Array<Pin::Base>]
     # @return [Array<Pin::Base>]
     def self.combine_method_pins_by_path pins
-      method_pins, alias_pins = pins.partition { |pin| pin.class == Pin::Method }
+      method_pins, alias_pins = pins.partition { |pin| pin.instance_of?(Pin::Method) }
       by_path = method_pins.group_by(&:path)
       by_path.transform_values! do |pins|
         GemPins.combine_method_pins(*pins)
@@ -63,7 +63,7 @@ module Solargraph
       combined = yard_pins.map do |yard_pin|
         in_yard.add yard_pin.path
         rbs_pin = rbs_api_map.get_path_pins(yard_pin.path).filter { |pin| pin.is_a? Pin::Method }.first
-        next yard_pin unless rbs_pin && yard_pin.class == Pin::Method
+        next yard_pin unless rbs_pin && yard_pin.instance_of?(Pin::Method)
 
         unless rbs_pin
           logger.debug do
@@ -95,7 +95,7 @@ module Solargraph
       # @param choices [Array<ComplexType>]
       # @return [ComplexType]
       def best_return_type *choices
-        choices.find { |pin| pin.defined? } || choices.first || ComplexType::UNDEFINED
+        choices.find(&:defined?) || choices.first || ComplexType::UNDEFINED
       end
     end
   end

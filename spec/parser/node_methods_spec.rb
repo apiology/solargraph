@@ -1,68 +1,70 @@
+# frozen_string_literal: true
+
 # These tests are deliberately generic because they apply to both the Legacy
 # and Rubyvm node methods.
 describe Solargraph::Parser::NodeMethods do
   it 'unpacks constant nodes into strings' do
     ast = Solargraph::Parser.parse('Foo::Bar')
-    expect(Solargraph::Parser::NodeMethods.unpack_name(ast)).to eq 'Foo::Bar'
+    expect(described_class.unpack_name(ast)).to eq 'Foo::Bar'
   end
 
   it 'infers literal strings' do
     ast = Solargraph::Parser.parse("x = 'string'")
-    expect(Solargraph::Parser::NodeMethods.infer_literal_node_type(ast.children[1])).to eq '::String'
+    expect(described_class.infer_literal_node_type(ast.children[1])).to eq '::String'
   end
 
   it 'infers literal hashes' do
     ast = Solargraph::Parser.parse('x = {}')
-    expect(Solargraph::Parser::NodeMethods.infer_literal_node_type(ast.children[1])).to eq '::Hash'
+    expect(described_class.infer_literal_node_type(ast.children[1])).to eq '::Hash'
   end
 
   it 'infers literal arrays' do
     ast = Solargraph::Parser.parse('x = []')
-    expect(Solargraph::Parser::NodeMethods.infer_literal_node_type(ast.children[1])).to eq '::Array'
+    expect(described_class.infer_literal_node_type(ast.children[1])).to eq '::Array'
   end
 
   it 'infers literal integers' do
     ast = Solargraph::Parser.parse('x = 100')
-    expect(Solargraph::Parser::NodeMethods.infer_literal_node_type(ast.children[1])).to eq '::Integer'
+    expect(described_class.infer_literal_node_type(ast.children[1])).to eq '::Integer'
   end
 
   it 'infers literal floats' do
     ast = Solargraph::Parser.parse('x = 10.1')
-    expect(Solargraph::Parser::NodeMethods.infer_literal_node_type(ast.children[1])).to eq '::Float'
+    expect(described_class.infer_literal_node_type(ast.children[1])).to eq '::Float'
   end
 
   it 'infers literal symbols' do
     ast = Solargraph::Parser.parse(':symbol')
-    expect(Solargraph::Parser::NodeMethods.infer_literal_node_type(ast)).to eq '::Symbol'
+    expect(described_class.infer_literal_node_type(ast)).to eq '::Symbol'
   end
 
   it 'infers double quoted symbols' do
     ast = Solargraph::Parser.parse(':"symbol"')
-    expect(Solargraph::Parser::NodeMethods.infer_literal_node_type(ast)).to eq '::Symbol'
+    expect(described_class.infer_literal_node_type(ast)).to eq '::Symbol'
   end
 
   it 'infers interpolated double quoted symbols' do
-    ast = Solargraph::Parser.parse(':"#{Object}"')
-    expect(Solargraph::Parser::NodeMethods.infer_literal_node_type(ast)).to eq '::Symbol'
+    ast = Solargraph::Parser.parse(%(:"#{Object}"))
+    expect(described_class.infer_literal_node_type(ast)).to eq '::Symbol'
   end
 
   it 'infers single quoted symbols' do
     ast = Solargraph::Parser.parse(":'symbol'")
-    expect(Solargraph::Parser::NodeMethods.infer_literal_node_type(ast)).to eq '::Symbol'
+    expect(described_class.infer_literal_node_type(ast)).to eq '::Symbol'
   end
 
   it 'infers literal booleans' do
     true_ast = Solargraph::Parser.parse('true')
-    expect(Solargraph::Parser::NodeMethods.infer_literal_node_type(true_ast)).to eq '::Boolean'
+    expect(described_class.infer_literal_node_type(true_ast)).to eq '::Boolean'
     false_ast = Solargraph::Parser.parse('false')
-    expect(Solargraph::Parser::NodeMethods.infer_literal_node_type(false_ast)).to eq '::Boolean'
+    expect(described_class.infer_literal_node_type(false_ast)).to eq '::Boolean'
   end
 
   it 'handles return nodes with implicit nil values' do
     node = Solargraph::Parser.parse(%(
       return if true
     ))
-    rets = Solargraph::Parser::NodeMethods.returns_from_method_body(node)
+    rets = described_class.returns_from_method_body(node)
     # @todo Should there be two returns, the second being nil?
     expect(rets.map(&:to_s)).to eq(['(nil)', '(nil)'])
     expect(rets.length).to eq(2)
@@ -72,7 +74,7 @@ describe Solargraph::Parser::NodeMethods do
     node = Solargraph::Parser.parse(%(
       return bla if true
     ))
-    rets = Solargraph::Parser::NodeMethods.returns_from_method_body(node)
+    rets = described_class.returns_from_method_body(node)
     # Two returns, the second being implicit nil
     expect(rets.length).to eq(2)
   end
@@ -84,7 +86,7 @@ describe Solargraph::Parser::NodeMethods do
         true
       end
     ))
-    returns = Solargraph::Parser::NodeMethods.returns_from_method_body(node)
+    returns = described_class.returns_from_method_body(node)
     # Include an implicit `nil` for missing else
     expect(returns.map(&:to_s)).to eq(['(true)', '(nil)'])
   end
@@ -108,7 +110,7 @@ describe Solargraph::Parser::NodeMethods do
         end
       end
     ))
-    returns = Solargraph::Parser::NodeMethods.returns_from_method_body(node)
+    returns = described_class.returns_from_method_body(node)
     expect(returns.length).to eq(6)
     expect(returns.map(&:to_s)).to eq(['(true)', '(int 73)', '(false)', '(nil)', '(false)', '(true)'])
   end
@@ -122,7 +124,7 @@ describe Solargraph::Parser::NodeMethods do
         false
       end
     ))
-    returns = Solargraph::Parser::NodeMethods.returns_from_method_body(node)
+    returns = described_class.returns_from_method_body(node)
     expect(returns.length).to eq(2)
   end
 
@@ -142,7 +144,7 @@ describe Solargraph::Parser::NodeMethods do
       x = 1
       return x
     ))
-    rets = Solargraph::Parser::NodeMethods.returns_from_method_body(node)
+    rets = described_class.returns_from_method_body(node)
     expect(rets.length).to eq(1)
   end
 
@@ -152,7 +154,7 @@ describe Solargraph::Parser::NodeMethods do
       return x
       y
     ))
-    rets = Solargraph::Parser::NodeMethods.returns_from_method_body(node)
+    rets = described_class.returns_from_method_body(node)
     expect(rets.length).to eq(1)
   end
 
@@ -162,7 +164,7 @@ describe Solargraph::Parser::NodeMethods do
       return x if foo
       y
     ))
-    rets = Solargraph::Parser::NodeMethods.returns_from_method_body(node)
+    rets = described_class.returns_from_method_body(node)
     expect(rets.length).to eq(2)
   end
 
@@ -173,38 +175,38 @@ describe Solargraph::Parser::NodeMethods do
         y
       end
     ))
-    rets = Solargraph::Parser::NodeMethods.returns_from_method_body(node)
+    rets = described_class.returns_from_method_body(node)
     expect(rets.length).to eq(1)
   end
 
   it "handles top 'and' nodes" do
     node = Solargraph::Parser.parse('1 && "2"')
-    rets = Solargraph::Parser::NodeMethods.returns_from_method_body(node)
+    rets = described_class.returns_from_method_body(node)
     expect(rets.length).to eq(1)
     expect(rets[0].type.to_s.downcase).to eq('and')
   end
 
   it "handles top 'or' nodes" do
     node = Solargraph::Parser.parse('1 || "2"')
-    rets = Solargraph::Parser::NodeMethods.returns_from_method_body(node)
+    rets = described_class.returns_from_method_body(node)
     expect(rets.length).to eq(2)
-    expect(Solargraph::Parser::NodeMethods.infer_literal_node_type(rets[0])).to eq('::Integer')
-    expect(Solargraph::Parser::NodeMethods.infer_literal_node_type(rets[1])).to eq('::String')
+    expect(described_class.infer_literal_node_type(rets[0])).to eq('::Integer')
+    expect(described_class.infer_literal_node_type(rets[1])).to eq('::String')
   end
 
   it "handles nested 'and' nodes" do
     node = Solargraph::Parser.parse('return 1 && "2"')
-    rets = Solargraph::Parser::NodeMethods.returns_from_method_body(node)
+    rets = described_class.returns_from_method_body(node)
     expect(rets.length).to eq(1)
     expect(rets[0].type.to_s.downcase).to eq('and')
   end
 
   it "handles nested 'or' nodes" do
     node = Solargraph::Parser.parse('return 1 || "2"')
-    rets = Solargraph::Parser::NodeMethods.returns_from_method_body(node)
+    rets = described_class.returns_from_method_body(node)
     expect(rets.length).to eq(2)
-    expect(Solargraph::Parser::NodeMethods.infer_literal_node_type(rets[0])).to eq('::Integer')
-    expect(Solargraph::Parser::NodeMethods.infer_literal_node_type(rets[1])).to eq('::String')
+    expect(described_class.infer_literal_node_type(rets[0])).to eq('::Integer')
+    expect(described_class.infer_literal_node_type(rets[1])).to eq('::String')
   end
 
   it 'finds return nodes in blocks' do
@@ -213,7 +215,7 @@ describe Solargraph::Parser::NodeMethods do
         return item if foo
       end
     ))
-    rets = Solargraph::Parser::NodeMethods.returns_from_method_body(node)
+    rets = described_class.returns_from_method_body(node)
     expect(rets.map(&:type)).to eq(%i[block lvar])
   end
 
@@ -224,7 +226,7 @@ describe Solargraph::Parser::NodeMethods do
         '123'
       end
     ))
-    rets = Solargraph::Parser::NodeMethods.returns_from_method_body(node)
+    rets = described_class.returns_from_method_body(node)
     expect(rets.map(&:type)).to eq([:str])
   end
 
@@ -237,7 +239,7 @@ describe Solargraph::Parser::NodeMethods do
       end
       nil
     ))
-    rets = Solargraph::Parser::NodeMethods.returns_from_method_body(node)
+    rets = described_class.returns_from_method_body(node)
     expect(rets.map(&:type)).to eq(%i[lvar nil])
   end
 
@@ -245,7 +247,7 @@ describe Solargraph::Parser::NodeMethods do
     node = Solargraph::Parser.parse(%(
       return if true
     ))
-    rets = Solargraph::Parser::NodeMethods.returns_from_method_body(node)
+    rets = described_class.returns_from_method_body(node)
     # The expectation is changing from previous versions. If conditions
     # have an implicit else branch, so this node should return [nil, nil].
     expect(rets.length).to eq(2)
@@ -255,7 +257,7 @@ describe Solargraph::Parser::NodeMethods do
     node = Solargraph::Parser.parse(%(
       return bla if true
     ))
-    rets = Solargraph::Parser::NodeMethods.returns_from_method_body(node)
+    rets = described_class.returns_from_method_body(node)
     expect(rets.map(&:type)).to eq(%i[send nil])
   end
 
@@ -275,7 +277,7 @@ describe Solargraph::Parser::NodeMethods do
       x = 1
       return x
     ))
-    rets = Solargraph::Parser::NodeMethods.returns_from_method_body(node)
+    rets = described_class.returns_from_method_body(node)
     expect(rets.map(&:type)).to eq([:lvar])
   end
 
@@ -285,7 +287,7 @@ describe Solargraph::Parser::NodeMethods do
       return x
       y
     ))
-    rets = Solargraph::Parser::NodeMethods.returns_from_method_body(node)
+    rets = described_class.returns_from_method_body(node)
     expect(rets.length).to eq(1)
   end
 
@@ -294,7 +296,7 @@ describe Solargraph::Parser::NodeMethods do
       raise "Error"
       y
     ))
-    rets = Solargraph::Parser::NodeMethods.returns_from_method_body(node)
+    rets = described_class.returns_from_method_body(node)
     expect(rets.length).to eq(0)
   end
 
@@ -304,7 +306,7 @@ describe Solargraph::Parser::NodeMethods do
       raise "Error" if foo
       y
     ))
-    rets = Solargraph::Parser::NodeMethods.returns_from_method_body(node)
+    rets = described_class.returns_from_method_body(node)
     expect(rets.length).to eq(1)
   end
 
@@ -314,7 +316,7 @@ describe Solargraph::Parser::NodeMethods do
       return "Error" if foo
       y
     ))
-    rets = Solargraph::Parser::NodeMethods.returns_from_method_body(node)
+    rets = described_class.returns_from_method_body(node)
     expect(rets.length).to eq(2)
   end
 
@@ -325,31 +327,31 @@ describe Solargraph::Parser::NodeMethods do
         y
       end
     ))
-    rets = Solargraph::Parser::NodeMethods.returns_from_method_body(node)
+    rets = described_class.returns_from_method_body(node)
     expect(rets.length).to eq(1)
   end
 
   it "handles top 'and' nodes" do
     node = Solargraph::Parser.parse('1 && "2"')
-    rets = Solargraph::Parser::NodeMethods.returns_from_method_body(node)
+    rets = described_class.returns_from_method_body(node)
     expect(rets.map(&:type)).to eq([:and])
   end
 
   it "handles top 'or' nodes" do
     node = Solargraph::Parser.parse('1 || "2"')
-    rets = Solargraph::Parser::NodeMethods.returns_from_method_body(node)
+    rets = described_class.returns_from_method_body(node)
     expect(rets.map(&:type)).to eq(%i[int str])
   end
 
   it "handles nested 'and' nodes from return" do
     node = Solargraph::Parser.parse('return 1 && "2"')
-    rets = Solargraph::Parser::NodeMethods.returns_from_method_body(node)
+    rets = described_class.returns_from_method_body(node)
     expect(rets.map(&:type)).to eq([:and])
   end
 
   it "handles nested 'or' nodes from return" do
     node = Solargraph::Parser.parse('return 1 || "2"')
-    rets = Solargraph::Parser::NodeMethods.returns_from_method_body(node)
+    rets = described_class.returns_from_method_body(node)
     expect(rets.map(&:type)).to eq(%i[int str])
   end
 
@@ -359,7 +361,7 @@ describe Solargraph::Parser::NodeMethods do
         return item if foo
       end
     ))
-    rets = Solargraph::Parser::NodeMethods.returns_from_method_body(node)
+    rets = described_class.returns_from_method_body(node)
     expect(rets.map(&:type)).to eq(%i[block lvar])
     # expect(rets[1].type).to eq(:DVAR)
   end
@@ -373,7 +375,7 @@ describe Solargraph::Parser::NodeMethods do
       end
       nil
     ))
-    rets = Solargraph::Parser::NodeMethods.returns_from_method_body(node)
+    rets = described_class.returns_from_method_body(node)
     expect(rets.map(&:type)).to eq(%i[lvar nil])
     # expect(rets[0].type).to eq(:DVAR)
   end
@@ -386,7 +388,7 @@ describe Solargraph::Parser::NodeMethods do
         ""
       end
     ))
-    rets = Solargraph::Parser::NodeMethods.returns_from_method_body(node)
+    rets = described_class.returns_from_method_body(node)
     expect(rets.map(&:type)).to eq(%i[str str])
   end
 
@@ -397,7 +399,7 @@ describe Solargraph::Parser::NodeMethods do
         ""
       end
     ))
-    rets = Solargraph::Parser::NodeMethods.returns_from_method_body(node)
+    rets = described_class.returns_from_method_body(node)
     expect(rets.map(&:type)).to eq(%i[str nil])
   end
 
@@ -410,20 +412,20 @@ describe Solargraph::Parser::NodeMethods do
         super
       end
     ))
-    rets = Solargraph::Parser::NodeMethods.returns_from_method_body(node)
+    rets = described_class.returns_from_method_body(node)
     expect(rets.map(&:type)).to eq(%i[send zsuper])
   end
 
   describe 'convert_hash' do
     it 'converts literal hash arguments' do
       node = Solargraph::Parser.parse('{foo: :bar}')
-      hash = Solargraph::Parser::NodeMethods.convert_hash(node)
+      hash = described_class.convert_hash(node)
       expect(hash.keys).to eq([:foo])
     end
 
     it 'ignores call arguments' do
       node = Solargraph::Parser.parse('some_call')
-      hash = Solargraph::Parser::NodeMethods.convert_hash(node)
+      hash = described_class.convert_hash(node)
       expect(hash).to eq({})
     end
   end
@@ -437,7 +439,7 @@ describe Solargraph::Parser::NodeMethods do
           end
         end
       ))
-      calls = Solargraph::Parser::NodeMethods.call_nodes_from(source.node)
+      calls = described_class.call_nodes_from(source.node)
       expect(calls).to be_one
     end
 
@@ -445,7 +447,7 @@ describe Solargraph::Parser::NodeMethods do
       source = Solargraph::Source.load_string(%(
         Foo.new.bar('string')
       ))
-      calls = Solargraph::Parser::NodeMethods.call_nodes_from(source.node)
+      calls = described_class.call_nodes_from(source.node)
       expect(calls.length).to eq(2)
     end
 
@@ -453,7 +455,7 @@ describe Solargraph::Parser::NodeMethods do
       source = Solargraph::Source.load_string(%(
         [ Foo.new.bar('string') ]
       ))
-      calls = Solargraph::Parser::NodeMethods.call_nodes_from(source.node)
+      calls = described_class.call_nodes_from(source.node)
       expect(calls.length).to eq(2)
     end
 
@@ -461,7 +463,7 @@ describe Solargraph::Parser::NodeMethods do
       source = Solargraph::Source.load_string(%(
         [ Foo.new.bar('string') ].compact
       ))
-      calls = Solargraph::Parser::NodeMethods.call_nodes_from(source.node)
+      calls = described_class.call_nodes_from(source.node)
       expect(calls.length).to eq(3)
     end
 
@@ -477,7 +479,7 @@ describe Solargraph::Parser::NodeMethods do
           end
         end
       ))
-      calls = Solargraph::Parser::NodeMethods.call_nodes_from(source.node)
+      calls = described_class.call_nodes_from(source.node)
       expect(calls.length).to eq(2)
     end
   end

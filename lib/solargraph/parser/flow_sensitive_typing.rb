@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Solargraph
   module Parser
     class FlowSensitiveTyping
@@ -110,7 +112,7 @@ module Solargraph
           end
           return pins_with_specific_visibility
         end
-        flow_defined_pins = pins_with_specific_visibility.select { |p| p.presence_certain? }
+        flow_defined_pins = pins_with_specific_visibility.select(&:presence_certain?)
         if flow_defined_pins.empty?
           logger.debug do
             "FlowSensitiveTyping#visible_pins(name=#{name}, closure=#{closure}, location=#{location}) => #{visible_pins_specific_to_this_closure} - no flow-defined pins"

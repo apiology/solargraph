@@ -35,11 +35,6 @@ module Solargraph
           fix_block_pass
         end
 
-        # @sg-ignore Fix "Not enough arguments to Module#protected"
-        protected def equality_fields
-          super + [arguments, block]
-        end
-
         def with_block?
           !!@block
         end
@@ -215,7 +210,8 @@ module Solargraph
         # @param context [ComplexType]
         # @param locals [::Array<Pin::LocalVariable, Pin::Parameter>]
         # @return [Pin::ProxyType]
-        def inner_process_macro pin, macro, api_map, context, locals
+        # @param [Object] _context
+        def inner_process_macro pin, macro, api_map, _context, locals
           vals = arguments.map { |c| Pin::ProxyType.anonymous(c.infer(api_map, pin, locals), source: :chain) }
           txt = macro.tag.text.clone
           if txt.empty? && macro.tag.name
@@ -301,7 +297,8 @@ module Solargraph
         # @param block_parameter_types [::Array<ComplexType>]
         # @param locals [::Array<Pin::LocalVariable>]
         # @return [ComplexType, nil]
-        def block_symbol_call_type api_map, context, block_parameter_types, locals
+        # @param [Object] _locals
+        def block_symbol_call_type api_map, context, block_parameter_types, _locals
           # Ruby's shorthand for sending the passed in method name
           # to the first yield parameter with no arguments
           block_symbol_name = block.links.first.word
@@ -336,6 +333,13 @@ module Solargraph
           block_pin = find_block_pin(api_map)
           block_context_pin = block_pin.closure if block_pin
           block.infer(api_map, block_context_pin, locals)
+        end
+
+        protected
+
+        # @sg-ignore Fix "Not enough arguments to Module#protected"
+        def equality_fields
+          super + [arguments, block]
         end
       end
     end

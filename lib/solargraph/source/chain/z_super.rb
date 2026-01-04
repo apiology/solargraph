@@ -21,7 +21,7 @@ module Solargraph
         # @param api_map [ApiMap]
         # @param name_pin [Pin::Base]
         # @param locals [::Array<Pin::Base>]
-        def resolve api_map, name_pin, locals
+        def resolve api_map, name_pin, _locals
           super_pins(api_map, name_pin)
         end
       end

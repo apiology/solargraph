@@ -28,7 +28,7 @@ module Solargraph
         @visibility = visibility
         if name.start_with?('::')
           # @type [String]
-          name = name[2..-1] || ''
+          name = name[2..] || ''
           @closure = Solargraph::Pin::ROOT_PIN
         end
         @open_gates = gates
@@ -40,7 +40,7 @@ module Solargraph
           closure_name = if [Solargraph::Pin::ROOT_PIN, nil].include?(closure)
                            ''
                          else
-                           closure.full_context.namespace + '::'
+                           "#{closure.full_context.namespace}::"
                          end
           closure_name += parts.join('::')
           @closure = Pin::Namespace.new(name: closure_name, gates: [parts.join('::')], source: :namespace)
@@ -100,7 +100,7 @@ module Solargraph
         @domains ||= []
       end
 
-      def typify api_map
+      def typify _api_map
         return_type
       end
 

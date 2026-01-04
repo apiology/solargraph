@@ -50,7 +50,7 @@ module Solargraph
       # @return [String]
       def fix_drive_letter path
         return path unless path.match(/^[a-z]:/)
-        path[0].upcase + path[1..-1]
+        path[0].upcase + path[1..]
       end
 
       # @todo This is a smelly way to redirect output, but the RuboCop specs do

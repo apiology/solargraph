@@ -43,7 +43,7 @@ module Solargraph
     #   updated upstream for the same library and version.  May change
     #   if the config for where information comes form changes.
     def cache_key
-      @hextdigest ||= begin
+      @cache_key ||= begin
         # @type [String, nil]
         data = nil
         if rbs_collection_config_path
@@ -95,7 +95,7 @@ module Solargraph
     # @return [generic<T>, nil]
     def path_pin path, klass = Pin::Base
       pin = pins.find { |p| p.path == path }
-      pin if pin&.is_a?(klass)
+      pin if pin.is_a?(klass)
     end
 
     # @param path [String]

@@ -82,7 +82,8 @@ module Solargraph
     # @param gemspec [Gem::Specification]
     # @param out [IO]
     # @return [void]
-    def cache_yard_pins gemspec, out
+    # @param [Object] _out
+    def cache_yard_pins gemspec, _out
       pins = GemPins.build_yard_pins(yard_plugins, gemspec)
       PinCache.serialize_yard_gem(gemspec, pins)
       logger.info { "Cached #{pins.length} YARD pins for gem #{gemspec.name}:#{gemspec.version}" } unless pins.empty?
@@ -91,7 +92,8 @@ module Solargraph
     # @param gemspec [Gem::Specification]
     # @param out [IO]
     # @return [void]
-    def cache_rbs_collection_pins gemspec, out
+    # @param [Object] _out
+    def cache_rbs_collection_pins gemspec, _out
       rbs_map = RbsMap.from_gemspec(gemspec, rbs_collection_path, rbs_collection_config_path)
       pins = rbs_map.pins
       rbs_version_cache_key = rbs_map.cache_key
@@ -116,7 +118,7 @@ module Solargraph
         type = []
         type << 'YARD' if build_yard
         type << 'RBS collection' if build_rbs_collection
-        out.puts("Caching #{type.join(' and ')} pins for gem #{gemspec.name}:#{gemspec.version}") if out
+        out&.puts("Caching #{type.join(' and ')} pins for gem #{gemspec.name}:#{gemspec.version}")
       end
       cache_yard_pins(gemspec, out) if build_yard
       cache_rbs_collection_pins(gemspec, out) if build_rbs_collection
@@ -134,12 +136,12 @@ module Solargraph
 
     # @return [Hash{Array(String, String) => Array<Pin::Base>}] Indexed by gemspec name and version
     def self.all_yard_gems_in_memory
-      @yard_gems_in_memory ||= {}
+      @all_yard_gems_in_memory ||= {}
     end
 
     # @return [Hash{String => Hash{Array(String, String) => Array<Pin::Base>}}] stored by RBS collection path
     def self.all_rbs_collection_gems_in_memory
-      @rbs_collection_gems_in_memory ||= {}
+      @all_rbs_collection_gems_in_memory ||= {}
     end
 
     # @return [Hash{Array(String, String) => Array<Pin::Base>}] Indexed by gemspec name and version
@@ -154,7 +156,7 @@ module Solargraph
 
     # @return [Hash{Array(String, String) => Array<Pin::Base>}] Indexed by gemspec name and version
     def self.all_combined_pins_in_memory
-      @combined_pins_in_memory ||= {}
+      @all_combined_pins_in_memory ||= {}
     end
 
     # @todo this should also include an index by the hash of the RBS collection
@@ -183,10 +185,10 @@ module Solargraph
       with_gemspecs, without_gemspecs = required_gems_map.partition { |_, v| v }
       # @sg-ignore Need support for RBS duck interfaces like _ToHash
       # @type [Array<String>]
-      paths = Hash[without_gemspecs].keys
+      paths = without_gemspecs.to_h.keys
       # @sg-ignore Need support for RBS duck interfaces like _ToHash
       # @type [Array<Gem::Specification>]
-      gemspecs = Hash[with_gemspecs].values.flatten.compact + dependencies.to_a
+      gemspecs = with_gemspecs.to_h.values.flatten.compact + dependencies.to_a
 
       paths.each do |path|
         deserialize_stdlib_rbs_map path

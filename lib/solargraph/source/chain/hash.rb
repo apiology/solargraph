@@ -12,21 +12,23 @@ module Solargraph
           @splatted = splatted
         end
 
-        # @sg-ignore Fix "Not enough arguments to Module#protected"
-        protected def equality_fields
-          super + [@splatted]
-        end
-
         def word
           @word ||= "<#{@type}>"
         end
 
-        def resolve api_map, name_pin, locals
+        def resolve _api_map, _name_pin, _locals
           [Pin::ProxyType.anonymous(@complex_type, source: :chain)]
         end
 
         def splatted?
           @splatted
+        end
+
+        protected
+
+        # @sg-ignore Fix "Not enough arguments to Module#protected"
+        def equality_fields
+          super + [@splatted]
         end
       end
     end

@@ -74,7 +74,7 @@ module Solargraph
 
           return false if keyword_init_param.nil?
 
-          keyword_init_param.children[0].children[1].type == :true
+          keyword_init_param.children[0].children[1].type == true
         end
 
         # @return [Parser::AST::Node]
@@ -94,7 +94,7 @@ module Solargraph
 
         # @return [Array<Parser::AST::Node>]
         def struct_attribute_nodes
-          struct_node.children[2..-1]
+          struct_node.children[2..]
         end
       end
     end
