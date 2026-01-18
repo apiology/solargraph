@@ -3,7 +3,7 @@
 module Solargraph
   # A container for type data based on YARD type tags.
   #
-  class ComplexType
+  class ComplexType < Type
     GENERIC_TAG_NAME = 'generic'.freeze
     # @!parse
     #   include TypeMethods
@@ -15,6 +15,8 @@ module Solargraph
 
     # @param types [Array<UniqueType, ComplexType>]
     def initialize types = [UniqueType::UNDEFINED]
+      super()
+
       # @todo @items here should not need an annotation
       # @type [Array<UniqueType>]
       items = types.flat_map(&:items).uniq(&:to_s)
