@@ -5,7 +5,7 @@ module Solargraph
     # An individual type signature. A complex type can consist of multiple
     # unique types.
     #
-    class UniqueType
+    class UniqueType < Type
       include TypeMethods
       include Equality
 
@@ -70,6 +70,8 @@ module Solargraph
       # @param rooted [Boolean]
       # @param parameters_type [Symbol, nil]
       def initialize name, key_types = [], subtypes = [], rooted:, parameters_type: nil
+        super()
+
         if parameters_type.nil? && !(key_types.empty? && subtypes.empty?)
           raise 'You must supply parameters_type if you provide parameters'
         end
