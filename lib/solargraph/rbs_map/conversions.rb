@@ -489,14 +489,14 @@ module Solargraph
           # @sg-ignore RBS generic type understanding issue
           name = param.name ? param.name.to_s : "arg_#{arg_num += 1}"
           # @sg-ignore RBS generic type understanding issue
-          parameters.push Solargraph::Pin::Parameter.new(decl: :arg, name: name, closure: pin, return_type: ComplexType.try_parse(other_type_to_tag(param.type)).force_rooted, source: :rbs, type_location: type_location)
+          parameters.push Solargraph::Pin::Parameter.new(decl: :arg, name: name, closure: pin, return_type: other_type_to_type(param.type), source: :rbs, type_location: type_location)
         end
         type.type.optional_positionals.each do |param|
           # @sg-ignore RBS generic type understanding issue
           name = param.name ? param.name.to_s : "arg_#{arg_num += 1}"
           parameters.push Solargraph::Pin::Parameter.new(decl: :optarg, name: name, closure: pin,
                                                          # @sg-ignore RBS generic type understanding issue
-                                                         return_type: ComplexType.try_parse(other_type_to_tag(param.type)).force_rooted,
+                                                         return_type: other_type_to_type(param.type),
                                                          type_location: type_location,
                                                          source: :rbs)
         end
@@ -521,7 +521,7 @@ module Solargraph
           name = orig ? orig.to_s : "arg_#{arg_num += 1}"
           parameters.push Solargraph::Pin::Parameter.new(decl: :kwarg, name: name, closure: pin,
                                                          # @sg-ignore RBS generic type understanding issue
-                                                         return_type: ComplexType.try_parse(other_type_to_tag(param.type)).force_rooted,
+                                                         return_type: other_type_to_type(param.type),
                                                          source: :rbs, type_location: type_location)
         end
         type.type.optional_keywords.each do |orig, param|
@@ -529,7 +529,7 @@ module Solargraph
           name = orig ? orig.to_s : "arg_#{arg_num += 1}"
           parameters.push Solargraph::Pin::Parameter.new(decl: :kwoptarg, name: name, closure: pin,
                                                          # @sg-ignore RBS generic type understanding issue
-                                                         return_type: ComplexType.try_parse(other_type_to_tag(param.type)).force_rooted,
+                                                         return_type: other_type_to_type(param.type),
                                                          type_location: type_location,
                                                          source: :rbs)
         end
@@ -736,9 +736,7 @@ module Solargraph
       # @return [ComplexType::UniqueType]
       def build_type(type_name, type_args = [])
         base = RBS_TO_YARD_TYPE[type_name.relative!.to_s] || type_name.relative!.to_s
-        params = type_args.map { |a| other_type_to_tag(a) }.map do |t|
-          ComplexType.try_parse(t).force_rooted
-        end
+        params = type_args.map { |a| other_type_to_type(a) }
         if base == 'Hash' && params.length == 2
           ComplexType::UniqueType.new(base, [params.first], [params.last], rooted: true, parameters_type: :hash)
         else
@@ -797,7 +795,6 @@ module Solargraph
           #   determine dead code
           'undefined'
         elsif type.is_a?(RBS::Types::Intersection)
-          type.types.inject(&:intersect)
           type.types.map { |member| other_type_to_type(member).rooted_tag }.join(', ')
         elsif type.is_a?(RBS::Types::Proc)
           'Proc'
