@@ -100,6 +100,21 @@ module Solargraph
       }.freeze
       private_constant :RBS_TO_YARD_TYPE
 
+      # @param type_name [RBS::TypeName]
+      # @param type_args [Enumerable<RBS::Types::Bases::Base>]
+      # @return [ComplexType::UniqueType]
+      def build_type type_name, type_args = []
+        rooted_rbs_name = type_name.relative!.to_s
+        base = RBS_TO_YARD_TYPE.fetch(rooted_rbs_name, rooted_rbs_name)
+        params = type_args.map { |a| other_type_to_type(a) }
+        # tuples have their own class and are handled in other_type_to_type
+        if base == 'Hash' && params.length == 2
+          ComplexType::UniqueType.new(base, [params.first], [params.last], rooted: true, parameters_type: :hash)
+        else
+          ComplexType::UniqueType.new(base, [], params.reject(&:undefined?), rooted: true, parameters_type: :list)
+        end
+      end
+
       # @param decl [RBS::AST::Declarations::Module::Self]
       # @param closure [Pin::Namespace]
       # @return [void]
@@ -191,13 +206,10 @@ module Solargraph
       # @param decl [RBS::AST::Declarations::Class]
       # @return [void]
       def class_decl_to_pin decl
-        # @type [Hash{String => ComplexType}]
+        # @type [Hash{String => ComplexType, ComplexType::UniqueType}]
         generic_defaults = {}
         decl.type_params.each do |param|
-          if param.default_type
-            type = other_type_to_type param.default_type
-            generic_defaults[param.name.to_s] = type
-          end
+          generic_defaults[param.name.to_s] = other_type_to_type param.default_type if param.default_type
         end
 
         class_name = decl.name.relative!.to_s # TODO
@@ -759,19 +771,6 @@ module Solargraph
           other_type_to_type(type_aliases[type.type.return_type.to_s].type) # TODO
         else
           other_type_to_type type.type.return_type
-        end
-      end
-
-      # @param type_name [RBS::TypeName]
-      # @param type_args [Enumerable<RBS::Types::Bases::Base>]
-      # @return [ComplexType::UniqueType]
-      def build_type(type_name, type_args = [])
-        base = RBS_TO_YARD_TYPE[type_name.relative!.to_s] || type_name.relative!.to_s
-        params = type_args.map { |a| other_type_to_type(a) }
-        if base == 'Hash' && params.length == 2
-          ComplexType::UniqueType.new(base, [params.first], [params.last], rooted: true, parameters_type: :hash)
-        else
-          ComplexType::UniqueType.new(base, [], params.reject(&:undefined?), rooted: true, parameters_type: :list)
         end
       end
 
