@@ -88,8 +88,17 @@ module Solargraph
       # @param module_pin [Pin::Namespace]
       # @return [void]
       def convert_self_types_to_pins decl, module_pin
-        decl.self_types.each { |self_type| context = convert_self_type_to_pins(self_type, module_pin) }
+        decl.self_types.each { |self_type| convert_self_type_to_pins(self_type, module_pin) }
       end
+
+      RBS_TO_YARD_TYPE = {
+        'bool' => 'Boolean',
+        'string' => 'String',
+        'int' => 'Integer',
+        'untyped' => '',
+        'NilClass' => 'nil'
+      }.freeze
+      private_constant :RBS_TO_YARD_TYPE
 
       # @param decl [RBS::AST::Declarations::Module::Self]
       # @param closure [Pin::Namespace]
@@ -167,10 +176,22 @@ module Solargraph
         context
       end
 
+      # Pull the name of type variables for a generic - not the
+      # values, the names (e.g., T, U, V).  As such, "rooting" isn't a
+      # thing, these are all in the global namespace.
+      #
+      # @param decl [RBS::AST::Declarations::Class, RBS::AST::Declarations::Interface,
+      #   RBS::AST::Declarations::Module]
+      #
+      # @return [Array<String>]
+      def type_parameter_names decl
+        decl.type_params.map(&:name).map(&:to_s)
+      end
+
       # @param decl [RBS::AST::Declarations::Class]
       # @return [void]
       def class_decl_to_pin decl
-        generics = decl.type_params.map(&:name).map(&:to_s)
+        # @type [Hash{String => ComplexType}]
         generic_defaults = {}
         decl.type_params.each do |param|
           if param.default_type
@@ -178,7 +199,11 @@ module Solargraph
             generic_defaults[param.name.to_s] = type
           end
         end
-        class_name = decl.name.relative!.to_s
+
+        class_name = decl.name.relative!.to_s # TODO
+
+        generics = type_parameter_names(decl)
+
         class_pin = Solargraph::Pin::Namespace.new(
           type: :class,
           name: class_name,
@@ -196,7 +221,7 @@ module Solargraph
         if decl.super_class
           type = build_type(decl.super_class.name, decl.super_class.args)
           generic_values = type.all_params.map(&:to_s)
-          superclass_name = decl.super_class.name.to_s
+          superclass_name = decl.super_class.name.to_s # TODO
           pins.push Solargraph::Pin::Reference::Superclass.new(
             type_location: location_decl_to_pin_location(decl.super_class.location),
             closure: class_pin,
@@ -216,10 +241,10 @@ module Solargraph
         class_pin = Solargraph::Pin::Namespace.new(
           type: :module,
           type_location: location_decl_to_pin_location(decl.location),
-          name: decl.name.relative!.to_s,
-          closure: Solargraph::Pin::ROOT_PIN,
+          name: decl.name.relative!.to_s, # TODO
+          closure: Solargraph::Pin::ROOT_PIN, # TODO should this use a closure???
           comments: decl.comment&.string,
-          generics: decl.type_params.map(&:name).map(&:to_s),
+          generics: type_parameter_names(decl),
           # HACK: Using :hidden to keep interfaces from appearing in
           # autocompletion
           visibility: :hidden,
@@ -239,7 +264,7 @@ module Solargraph
           type_location: location_decl_to_pin_location(decl.location),
           closure: Solargraph::Pin::ROOT_PIN,
           comments: decl.comment&.string,
-          generics: decl.type_params.map(&:name).map(&:to_s),
+          generics: type_parameter_names(decl),
           source: :rbs
         )
         pins.push module_pin
@@ -299,7 +324,7 @@ module Solargraph
         old_name = decl.old_name.relative!.to_s # TODO
         old_type = ComplexType.parse(old_name).force_rooted # TODO
 
-        pins.push create_constant(new_name, old_type, decl.comment&.string, decl, 'Module')
+        pins.push create_constant(new_name, old_name, decl.comment&.string, decl, 'Module')
       end
 
       # @param decl [RBS::AST::Declarations::Constant]
@@ -727,16 +752,8 @@ module Solargraph
         )
       end
 
-      RBS_TO_YARD_TYPE = {
-        'bool' => 'Boolean',
-        'string' => 'String',
-        'int' => 'Integer',
-        'untyped' => '',
-        'NilClass' => 'nil'
-      }
-
       # @param type [RBS::MethodType, RBS::Types::Block]
-      # @return [ComplexType]
+      # @return [ComplexType, ComplexType::UniqueType]
       def method_type_to_type type
         if type_aliases.key?(type.type.return_type.to_s) # TODO
           other_type_to_type(type_aliases[type.type.return_type.to_s].type) # TODO
