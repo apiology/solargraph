@@ -23,7 +23,7 @@ module Solargraph
       end
 
       # @param loader [RBS::EnvironmentLoader]
-      def initialize(loader:)
+      def initialize loader:
         @loader = loader
         @pins = []
         load_environment_to_pins(loader)
@@ -43,12 +43,14 @@ module Solargraph
       end
 
       # @param loader [RBS::EnvironmentLoader]
+      #
       # @return [void]
-      def load_environment_to_pins(loader)
+      def load_environment_to_pins loader
         environment = RBS::Environment.from_loader(loader).resolve_type_names
-        cursor = pins.length
         if environment.declarations.empty?
-          Solargraph.logger.info "No RBS declarations found in environment for core_root #{loader.core_root.inspect}, libraries #{loader.libs} and directories #{loader.dirs}"
+          Solargraph.logger.info 'No RBS declarations found in environment for core_root ' \
+                                 "#{loader.core_root.inspect}, libraries #{loader.libs} and " \
+                                 "directories #{loader.dirs}"
           return
         end
         environment.declarations.each { |decl| convert_decl_to_pin(decl, Solargraph::Pin::ROOT_PIN) }
@@ -233,7 +235,7 @@ module Solargraph
       def module_decl_to_pin decl
         module_pin = Solargraph::Pin::Namespace.new(
           type: :module,
-          name: decl.name.relative!.to_s,
+          name: decl.name.relative!.to_s, # TODO
           type_location: location_decl_to_pin_location(decl.location),
           closure: Solargraph::Pin::ROOT_PIN,
           comments: decl.comment&.string,
@@ -294,7 +296,8 @@ module Solargraph
       def module_alias_decl_to_pin decl
         # See https://www.rubydoc.info/gems/rbs/3.4.3/RBS/AST/Declarations/ModuleAlias
         new_name = decl.new_name.relative!.to_s
-        old_name = decl.old_name.relative!.to_s
+        old_name = decl.old_name.relative!.to_s # TODO
+        old_type = ComplexType.parse(old_name).force_rooted # TODO
 
         pins.push create_constant(new_name, old_name, decl.comment&.string, decl,  'Module')
       end
@@ -310,7 +313,7 @@ module Solargraph
       # @return [void]
       def global_decl_to_pin decl
         closure = Solargraph::Pin::ROOT_PIN
-        name = decl.name.to_s
+        name = decl.name.to_s # TODO
         pin = Solargraph::Pin::GlobalVariable.new(
           name: name,
           closure: closure,
@@ -318,11 +321,10 @@ module Solargraph
           type_location: location_decl_to_pin_location(decl.location),
           source: :rbs
         )
-        rooted_tag = other_type_to_type(decl.type).rooted_tags
+        rooted_tag = other_type_to_type(decl.type).rooted_tags # TODO
         pin.docstring.add_tag(YARD::Tags::Tag.new(:type, '', rooted_tag))
         pins.push pin
       end
-
 
       # Visibility overrides that will allow the Solargraph project
       # and plugins to pass typechecking using SOLARGRAPH_ASSERTS=on,
@@ -339,41 +341,45 @@ module Solargraph
       #   allow that to be extended via .solargraph.yml
       # @type [Hash{Array(String, Symbol, String) => Symbol}
       VISIBILITY_OVERRIDE = {
-        ["Rails::Engine", :instance, "run_tasks_blocks"] => :protected,
+        ['Rails::Engine', :instance, 'run_tasks_blocks'] => :protected,
         # Should have been marked as both instance and class method in module -e.g., 'module_function'
-        ["Kernel", :instance, "pretty_inspect"] => :private,
+        ['Kernel', :instance, 'pretty_inspect'] => :private,
         # marked incorrectly in RBS
-        ["WEBrick::HTTPUtils::FormData", :instance, "next_data"] => :protected,
-        ["Rails::Command", :class, "command_type"] => :private,
-        ["Rails::Command", :class, "lookup_paths"] => :private,
-        ["Rails::Command", :class, "file_lookup_paths"] => :private,
-        ["Rails::Railtie", :instance, "run_console_blocks"] => :protected,
-        ["Rails::Railtie", :instance, "run_generators_blocks"] => :protected,
-        ["Rails::Railtie", :instance, "run_runner_blocks"] => :protected,
-        ["Rails::Railtie", :instance, "run_tasks_blocks"] => :protected,
-        ["ActionController::Base", :instance, "_protected_ivars"] => :private,
-        ["ActionView::Template", :instance, "method_name"] => :public,
-        ["Module", :instance, "ruby2_keywords"] => :private,
-        ["Nokogiri::XML::Node", :instance, "coerce"] => :protected,
-        ["Nokogiri::XML::Document", :class, "empty_doc?"] => :private,
-        ["Nokogiri::Decorators::Slop", :instance, "respond_to_missing?"] => :public,
-        ["RuboCop::Cop::RangeHelp", :instance, "source_range"] => :private,
-        ["AST::Node", :instance, "original_dup"] => :private,
-        ["Rainbow::Presenter", :instance, "wrap_with_sgr"] => :private,
-      }
+        ['WEBrick::HTTPUtils::FormData', :instance, 'next_data'] => :protected,
+        ['Rails::Command', :class, 'command_type'] => :private,
+        ['Rails::Command', :class, 'lookup_paths'] => :private,
+        ['Rails::Command', :class, 'file_lookup_paths'] => :private,
+        ['Rails::Railtie', :instance, 'run_console_blocks'] => :protected,
+        ['Rails::Railtie', :instance, 'run_generators_blocks'] => :protected,
+        ['Rails::Railtie', :instance, 'run_runner_blocks'] => :protected,
+        ['Rails::Railtie', :instance, 'run_tasks_blocks'] => :protected,
+        ['ActionController::Base', :instance, '_protected_ivars'] => :private,
+        ['ActionView::Template', :instance, 'method_name'] => :public,
+        ['Module', :instance, 'ruby2_keywords'] => :private,
+        ['Nokogiri::XML::Node', :instance, 'coerce'] => :protected,
+        ['Nokogiri::XML::Document', :class, 'empty_doc?'] => :private,
+        ['Nokogiri::Decorators::Slop', :instance, 'respond_to_missing?'] => :public,
+        ['RuboCop::Cop::RangeHelp', :instance, 'source_range'] => :private,
+        ['AST::Node', :instance, 'original_dup'] => :private,
+        ['Rainbow::Presenter', :instance, 'wrap_with_sgr'] => :private
+      }.freeze
+      private_constant :VISIBILITY_OVERRIDE
 
-      # @param decl [RBS::AST::Members::MethodDefinition, RBS::AST::Members::AttrReader, RBS::AST::Members::AttrWriter, RBS::AST::Members::AttrAccessor]
+      # @param decl [RBS::AST::Members::MethodDefinition, RBS::AST::Members::AttrReader,
+      #   RBS::AST::Members::AttrWriter, RBS::AST::Members::AttrAccessor]
       # @param closure [Pin::Closure]
       # @param context [Context]
       # @param scope [Symbol] :instance or :class
       # @param name [String] The name of the method
       # @return [Symbol]
-      def calculate_method_visibility(decl, context, closure, scope, name)
+      def calculate_method_visibility decl, context, closure, scope, name
         override_key = [closure.path, scope, name]
         visibility = VISIBILITY_OVERRIDE[override_key]
         simple_override_key = [closure.path, scope]
         visibility ||= VISIBILITY_OVERRIDE[simple_override_key]
-        visibility ||= :private if closure.path == 'Kernel' && Kernel.private_instance_methods(false).include?(decl.name)
+        if closure.path == 'Kernel' && Kernel.private_instance_methods(false).include?(decl.name) # TODO
+          visibility ||= :private
+        end
         if decl.kind == :singleton_instance
           # this is a 'module function'
           visibility ||= :private
@@ -393,10 +399,10 @@ module Solargraph
         # having different type params / orders - we may need to match
         # this data model and have generics live in signatures to
         # handle those correctly
-        generics = decl.overloads.map(&:method_type).flat_map(&:type_params).map(&:name).map(&:to_s).uniq
+        generics = decl.overloads.map(&:method_type).flat_map(&:type_params).map(&:name).map(&:to_s).uniq # TODO
 
         if decl.instance?
-          name = decl.name.to_s
+          name = decl.name.to_s # TODO
           final_scope = :instance
           visibility = calculate_method_visibility(decl, context, closure, final_scope, name)
           pin = Solargraph::Pin::Method.new(
@@ -449,17 +455,19 @@ module Solargraph
           rbs_block = overload.method_type.block
           block = if rbs_block
                     block_parameters, block_return_type = parts_of_function(rbs_block, pin)
-                    Pin::Signature.new(generics: generics, parameters: block_parameters, return_type: block_return_type, source: :rbs,
+                    Pin::Signature.new(generics: generics, parameters: block_parameters,
+                                       return_type: block_return_type, source: :rbs,
                                        type_location: type_location, closure: pin)
                   end
-          Pin::Signature.new(generics: generics, parameters: signature_parameters, return_type: signature_return_type, block: block, source: :rbs,
+          Pin::Signature.new(generics: generics, parameters: signature_parameters,
+                             return_type: signature_return_type, block: block, source: :rbs,
                              type_location: type_location, closure: pin)
         end
       end
 
       # @param location [RBS::Location, nil]
       # @return [Solargraph::Location, nil]
-      def location_decl_to_pin_location(location)
+      def location_decl_to_pin_location location
         return nil if location&.name.nil?
 
         # @sg-ignore flow sensitive typing should handle return nil if location&.name.nil?
@@ -468,17 +476,18 @@ module Solargraph
         end_pos = Position.new(location.end_line - 1, location.end_column)
         range = Range.new(start_pos, end_pos)
         # @sg-ignore flow sensitve typing should handle return nil if location&.name.nil?
-        Location.new(location.name.to_s, range)
+        Location.new(location.name.to_s, range) # TODO
       end
 
-      # @param type [RBS::MethodType,RBS::Types::Block]
+      # @param type [RBS::MethodType, RBS::Types::Block]
       # @param pin [Pin::Method]
       # @return [Array(Array<Pin::Parameter>, ComplexType)]
       def parts_of_function type, pin
         type_location = pin.type_location
         if defined?(RBS::Types::UntypedFunction) && type.type.is_a?(RBS::Types::UntypedFunction)
           return [
-            [Solargraph::Pin::Parameter.new(decl: :restarg, name: 'arg', closure: pin, source: :rbs, type_location: type_location)],
+            [Solargraph::Pin::Parameter.new(decl: :restarg, name: 'arg', closure: pin, source: :rbs,
+                                            type_location: type_location)],
             method_type_to_type(type)
           ]
         end
@@ -487,13 +496,14 @@ module Solargraph
         arg_num = -1
         type.type.required_positionals.each do |param|
           # @sg-ignore RBS generic type understanding issue
-          name = param.name ? param.name.to_s : "arg_#{arg_num += 1}"
-          # @sg-ignore RBS generic type understanding issue
-          parameters.push Solargraph::Pin::Parameter.new(decl: :arg, name: name, closure: pin, return_type: other_type_to_type(param.type), source: :rbs, type_location: type_location)
+          name = param.name ? param.name.to_s : "arg_#{arg_num += 1}" # TODO
+          parameters.push Solargraph::Pin::Parameter.new(decl: :arg, name: name, closure: pin,
+                                                         return_type: other_type_to_type(param.type),
+                                                         source: :rbs, type_location: type_location)
         end
         type.type.optional_positionals.each do |param|
           # @sg-ignore RBS generic type understanding issue
-          name = param.name ? param.name.to_s : "arg_#{arg_num += 1}"
+          name = param.name ? param.name.to_s : "arg_#{arg_num += 1}" # TODO
           parameters.push Solargraph::Pin::Parameter.new(decl: :optarg, name: name, closure: pin,
                                                          # @sg-ignore RBS generic type understanding issue
                                                          return_type: other_type_to_type(param.type),
@@ -501,7 +511,7 @@ module Solargraph
                                                          source: :rbs)
         end
         if type.type.rest_positionals
-          name = type.type.rest_positionals.name ? type.type.rest_positionals.name.to_s : "arg_#{arg_num += 1}"
+          name = type.type.rest_positionals.name ? type.type.rest_positionals.name.to_s : "arg_#{arg_num += 1}" # TODO
           inner_rest_positional_type = other_type_to_type(type.type.rest_positionals.type)
           rest_positional_type = ComplexType::UniqueType.new('Array',
                                                              [],
@@ -509,12 +519,13 @@ module Solargraph
                                                              rooted: true, parameters_type: :list)
           parameters.push Solargraph::Pin::Parameter.new(decl: :restarg, name: name, closure: pin,
                                                          source: :rbs, type_location: type_location,
-                                                         return_type: rest_positional_type,)
+                                                         return_type: rest_positional_type)
         end
         type.type.trailing_positionals.each do |param|
           # @sg-ignore RBS generic type understanding issue
-          name = param.name ? param.name.to_s : "arg_#{arg_num += 1}"
-          parameters.push Solargraph::Pin::Parameter.new(decl: :arg, name: name, closure: pin, source: :rbs, type_location: type_location)
+          name = param.name ? param.name.to_s : "arg_#{arg_num += 1}" # TODO
+          parameters.push Solargraph::Pin::Parameter.new(decl: :arg, name: name, closure: pin, source: :rbs,
+                                                         type_location: type_location)
         end
         type.type.required_keywords.each do |orig, param|
           # @sg-ignore RBS generic type understanding issue
@@ -534,8 +545,9 @@ module Solargraph
                                                          source: :rbs)
         end
         if type.type.rest_keywords
-          name = type.type.rest_keywords.name ? type.type.rest_keywords.name.to_s : "arg_#{arg_num += 1}"
-          parameters.push Solargraph::Pin::Parameter.new(decl: :kwrestarg, name: type.type.rest_keywords.name.to_s, closure: pin,
+          name = type.type.rest_keywords.name ? type.type.rest_keywords.name.to_s : "arg_#{arg_num += 1}" # TODO
+          parameters.push Solargraph::Pin::Parameter.new(decl: :kwrestarg,
+                                                         name: type.type.rest_keywords.name.to_s, closure: pin, # TODO
                                                          source: :rbs, type_location: type_location)
         end
 
@@ -547,8 +559,8 @@ module Solargraph
       # @param closure [Pin::Namespace]
       # @param context [Context]
       # @return [void]
-      def attr_reader_to_pin(decl, closure, context)
-        name = decl.name.to_s
+      def attr_reader_to_pin decl, closure, context
+        name = decl.name.to_s # TODO
         final_scope = decl.kind == :instance ? :instance : :class
         visibility = calculate_method_visibility(decl, context, closure, final_scope, name)
         pin = Solargraph::Pin::Method.new(
@@ -561,9 +573,11 @@ module Solargraph
           visibility: visibility,
           source: :rbs
         )
-        rooted_tag = other_type_to_type(decl.type).rooted_tags
+        rooted_tag = other_type_to_type(decl.type).rooted_tags # TODO
         pin.docstring.add_tag(YARD::Tags::Tag.new(:return, '', rooted_tag))
-        logger.debug { "Conversions#attr_reader_to_pin(name=#{name.inspect}, visibility=#{visibility.inspect}) => #{pin.inspect}" }
+        logger.debug do
+          "Conversions#attr_reader_to_pin(name=#{name.inspect}, visibility=#{visibility.inspect}) => #{pin.inspect}"
+        end
         pins.push pin
       end
 
@@ -571,9 +585,9 @@ module Solargraph
       # @param closure [Pin::Namespace]
       # @param context [Context]
       # @return [void]
-      def attr_writer_to_pin(decl, closure, context)
+      def attr_writer_to_pin decl, closure, context
         final_scope = decl.kind == :instance ? :instance : :class
-        name = "#{decl.name.to_s}="
+        name = "#{decl.name}="
         visibility = calculate_method_visibility(decl, context, closure, final_scope, name)
         type_location = location_decl_to_pin_location(decl.location)
         pin = Solargraph::Pin::Method.new(
