@@ -247,9 +247,9 @@ module Solargraph
       end
 
       # @param decl [RBS::AST::Declarations::Interface]
-      # @param closure [Pin::Closure]
       # @return [void]
-      def interface_decl_to_pin decl, closure
+      # @param [Object] _closure
+      def interface_decl_to_pin decl, _closure
         class_pin = Solargraph::Pin::Namespace.new(
           type: :module,
           type_location: location_decl_to_pin_location(decl.location),
@@ -289,13 +289,16 @@ module Solargraph
       end
 
       # @param name [String]
-      # @param tag [String]
+      # @param type [ComplexType, ComplexType::UniqueType]
       # @param comments [String, nil]
-      # @param decl [RBS::AST::Declarations::ClassAlias, RBS::AST::Declarations::Constant, RBS::AST::Declarations::ModuleAlias]
-      # @param base [String, nil] Optional conversion of tag to base<tag>
+      # @param decl [RBS::AST::Declarations::ClassAlias,
+      #   RBS::AST::Declarations::Constant,
+      #   RBS::AST::Declarations::ModuleAlias]
+      # @param base [String, nil] Optional conversion of tag to
+      #   base<tag> - valid values are Class and Module
       #
       # @return [Solargraph::Pin::Constant]
-      def create_constant(name, tag, comments, decl, base = nil)
+      def create_constant name, type, comments, decl, base = nil
         parts = name.split('::')
         if parts.length > 1
           name = parts.last
@@ -312,8 +315,10 @@ module Solargraph
           comments: comments,
           source: :rbs
         )
-        tag = "#{base}<#{tag}>" if base
-        rooted_tag = ComplexType.parse(tag).force_rooted.rooted_tags
+        rooted_tag = type.rooted_tags # TODO
+        if base
+          rooted_tag = "#{base}<#{rooted_tag}>" # TODO
+        end
         constant_pin.docstring.add_tag(YARD::Tags::Tag.new(:return, '', rooted_tag))
         constant_pin
       end
@@ -322,10 +327,10 @@ module Solargraph
       # @return [void]
       def class_alias_decl_to_pin decl
         # See https://www.rubydoc.info/gems/rbs/3.4.3/RBS/AST/Declarations/ClassAlias
-        new_name = decl.new_name.relative!.to_s
-        old_name = decl.old_name.relative!.to_s
-
-        pins.push create_constant(new_name, old_name, decl.comment&.string, decl, 'Class')
+        new_name = decl.new_name.relative!.to_s # TODO
+        old_name = decl.old_name.relative!.to_s # TODO
+        old_type = ComplexType.parse(old_name).force_rooted # TODO
+        pins.push create_constant(new_name, old_type, decl.comment&.string, decl, 'Class')
       end
 
       # @param decl [RBS::AST::Declarations::ModuleAlias]
@@ -336,14 +341,14 @@ module Solargraph
         old_name = decl.old_name.relative!.to_s # TODO
         old_type = ComplexType.parse(old_name).force_rooted # TODO
 
-        pins.push create_constant(new_name, old_name, decl.comment&.string, decl, 'Module')
+        pins.push create_constant(new_name, old_type, decl.comment&.string, decl, 'Module')
       end
 
       # @param decl [RBS::AST::Declarations::Constant]
       # @return [void]
       def constant_decl_to_pin decl
         type = other_type_to_type(decl.type)
-        pins.push create_constant(decl.name.relative!.to_s, type.rooted_tag, decl.comment&.string, decl)
+        pins.push create_constant(decl.name.relative!.to_s, type, decl.comment&.string, decl) # TODO
       end
 
       # @param decl [RBS::AST::Declarations::Global]
