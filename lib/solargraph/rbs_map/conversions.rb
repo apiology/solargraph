@@ -254,7 +254,7 @@ module Solargraph
           type: :module,
           type_location: location_decl_to_pin_location(decl.location),
           name: decl.name.relative!.to_s, # TODO
-          closure: Solargraph::Pin::ROOT_PIN, # TODO should this use a closure???
+          closure: Solargraph::Pin::ROOT_PIN, # TODO: should this use a closure???
           comments: decl.comment&.string,
           generics: type_parameter_names(decl),
           # HACK: Using :hidden to keep interfaces from appearing in
@@ -785,70 +785,69 @@ module Solargraph
       #
       # @return [ComplexType, ComplexType::UniqueType]
       def other_type_to_type type
-        tag = case type
-              when RBS::Types::Optional
-                return ComplexType.new([other_type_to_type(type.type),
-                                        ComplexType::UniqueType::NIL])
-              when RBS::Types::Bases::Any
-                return ComplexType::UNDEFINED
-              when RBS::Types::Bases::Bool
-                return ComplexType::BOOLEAN
-              when RBS::Types::Tuple
-                tuple_types = type.types.map { |t| other_type_to_type(t) }
-                return ComplexType::UniqueType.new('Tuple', [], tuple_types, rooted: true, parameters_type: :list)
-              when RBS::Types::Literal
-                type.literal.inspect
-              when RBS::Types::Union
-                return ComplexType.new(type.types.map { |t| other_type_to_type(t) })
-              when RBS::Types::Record
-                # @todo Better record support
-                'Hash'
-              when RBS::Types::Bases::Nil
-                return ComplexType::NIL
-              when RBS::Types::Bases::Self
-                return ComplexType::SELF
-              when RBS::Types::Bases::Void
-                return ComplexType::VOID
-              when RBS::Types::Variable
-                "generic<#{type.name}>" # TODO
-              when RBS::Types::ClassInstance # && !type.args.empty?
-                return build_type(type.name, type.args)
-              when RBS::Types::Bases::Instance
-                return ComplexType::SELF
-              when RBS::Types::Bases::Top
-                # top is the most super superclass
-                'BasicObject'
-              when RBS::Types::Bases::Bottom
-                # bottom is used in contexts where nothing will ever return
-                # - e.g., it could be the return type of 'exit()' or 'raise'
-                #
-                # @todo define a specific bottom type and use it to
-                #   determine dead code
-                return ComplexType::UNDEFINED
-              when RBS::Types::Intersection
-                return ComplexType.new(type.types.map { |member| other_type_to_type(member) })
-              when RBS::Types::Proc
-                'Proc'
-              when RBS::Types::Alias
-                # type-level alias use - e.g., 'bool' in "type bool = true | false"
-                # @todo ensure these get resolved after processing all aliases
-                # @todo handle recursive aliases
-                return build_type(type.name, type.args)
-              when RBS::Types::Interface
-                # represents a mix-in module which can be considered a
-                # subtype of a consumer of it
-                return build_type(type.name, type.args)
-              when RBS::Types::ClassSingleton
-                # e.g., singleton(String)
-                return build_type(type.name)
-              else
-                # RBS doesn't provide a common base class for its type AST nodes
-                #
-                # @sg-ignore all types should include location
-                Solargraph.logger.warn "Unrecognized RBS type: #{type.class} at #{type.location}"
-                return ComplexType::UNDEFINED
-              end
-        ComplexType.try_parse(tag).force_rooted
+        case type
+        when RBS::Types::Optional
+          ComplexType.new([other_type_to_type(type.type),
+                           ComplexType::UniqueType::NIL])
+        when RBS::Types::Bases::Any
+          ComplexType::UNDEFINED
+        when RBS::Types::Bases::Bool
+          ComplexType::BOOLEAN
+        when RBS::Types::Tuple
+          tuple_types = type.types.map { |t| other_type_to_type(t) }
+          ComplexType::UniqueType.new('Tuple', [], tuple_types, rooted: true, parameters_type: :list)
+        when RBS::Types::Literal
+          ComplexType.try_parse(type.literal.inspect).force_rooted
+        when RBS::Types::Union
+          ComplexType.new(type.types.map { |t| other_type_to_type(t) })
+        when RBS::Types::Record
+          # @todo Better record support
+          ComplexType::UniqueType.new('Hash', rooted: true)
+        when RBS::Types::Bases::Nil
+          ComplexType::NIL
+        when RBS::Types::Bases::Self
+          ComplexType::SELF
+        when RBS::Types::Bases::Void
+          ComplexType::VOID
+        when RBS::Types::Variable
+          ComplexType.parse("generic<#{type.name}>").force_rooted # TODO
+        when RBS::Types::ClassInstance # && !type.args.empty?
+          build_type(type.name, type.args)
+        when RBS::Types::Bases::Instance
+          ComplexType::SELF
+        when RBS::Types::Bases::Top
+          # top is the most super superclass
+          ComplexType::UniqueType.new('BasicObject', rooted: true)
+        when RBS::Types::Bases::Bottom
+          # bottom is used in contexts where nothing will ever return
+          # - e.g., it could be the return type of 'exit()' or 'raise'
+          #
+          # @todo define a specific bottom type and use it to
+          #   determine dead code
+          ComplexType::UNDEFINED
+        when RBS::Types::Intersection
+          ComplexType.new(type.types.map { |member| other_type_to_type(member) })
+        when RBS::Types::Proc
+          ComplexType::UniqueType.new('Proc', rooted: true)
+        when RBS::Types::Alias
+          # type-level alias use - e.g., 'bool' in "type bool = true | false"
+          # @todo ensure these get resolved after processing all aliases
+          # @todo handle recursive aliases
+          build_type(type.name, type.args)
+        when RBS::Types::Interface
+          # represents a mix-in module which can be considered a
+          # subtype of a consumer of it
+          build_type(type.name, type.args)
+        when RBS::Types::ClassSingleton
+          # e.g., singleton(String)
+          build_type(type.name)
+        else
+          # RBS doesn't provide a common base class for its type AST nodes
+          #
+          # @sg-ignore all types should include location
+          Solargraph.logger.warn "Unrecognized RBS type: #{type.class} at #{type.location}"
+          ComplexType::UNDEFINED
+        end
       end
 
       # @param decl [RBS::AST::Declarations::Class, RBS::AST::Declarations::Module]
