@@ -787,6 +787,7 @@ module Solargraph
       def other_type_to_type type
         case type
         when RBS::Types::Optional
+          # @sg-ignore flow based typing needs to understand case when class pattern
           ComplexType.new([other_type_to_type(type.type),
                            ComplexType::UniqueType::NIL])
         when RBS::Types::Bases::Any
@@ -794,11 +795,14 @@ module Solargraph
         when RBS::Types::Bases::Bool
           ComplexType::BOOLEAN
         when RBS::Types::Tuple
+          # @sg-ignore flow based typing needs to understand case when class pattern
           tuple_types = type.types.map { |t| other_type_to_type(t) }
           ComplexType::UniqueType.new('Tuple', [], tuple_types, rooted: true, parameters_type: :list)
         when RBS::Types::Literal
+          # @sg-ignore flow based typing needs to understand case when class pattern
           ComplexType.try_parse(type.literal.inspect).force_rooted
         when RBS::Types::Union
+          # @sg-ignore flow based typing needs to understand case when class pattern
           ComplexType.new(type.types.map { |t| other_type_to_type(t) })
         when RBS::Types::Record
           # @todo Better record support
@@ -810,8 +814,10 @@ module Solargraph
         when RBS::Types::Bases::Void
           ComplexType::VOID
         when RBS::Types::Variable
+          # @sg-ignore flow based typing needs to understand case when class pattern
           ComplexType.parse("generic<#{type.name}>").force_rooted # TODO
         when RBS::Types::ClassInstance # && !type.args.empty?
+          # @sg-ignore flow based typing needs to understand case when class pattern
           build_type(type.name, type.args)
         when RBS::Types::Bases::Instance
           ComplexType::SELF
@@ -826,6 +832,7 @@ module Solargraph
           #   determine dead code
           ComplexType::UNDEFINED
         when RBS::Types::Intersection
+          # @sg-ignore flow based typing needs to understand case when class pattern
           ComplexType.new(type.types.map { |member| other_type_to_type(member) })
         when RBS::Types::Proc
           ComplexType::UniqueType.new('Proc', rooted: true)
@@ -833,13 +840,16 @@ module Solargraph
           # type-level alias use - e.g., 'bool' in "type bool = true | false"
           # @todo ensure these get resolved after processing all aliases
           # @todo handle recursive aliases
+          # @sg-ignore flow based typing needs to understand case when class pattern
           build_type(type.name, type.args)
         when RBS::Types::Interface
           # represents a mix-in module which can be considered a
           # subtype of a consumer of it
+          # @sg-ignore flow based typing needs to understand case when class pattern
           build_type(type.name, type.args)
         when RBS::Types::ClassSingleton
           # e.g., singleton(String)
+          # @sg-ignore flow based typing needs to understand case when class pattern
           build_type(type.name)
         else
           # RBS doesn't provide a common base class for its type AST nodes
