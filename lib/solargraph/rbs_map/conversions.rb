@@ -330,7 +330,7 @@ module Solargraph
         new_name = decl.new_name.relative!.to_s # TODO
         old_name = decl.old_name.relative!.to_s # TODO
         old_type = ComplexType.parse(old_name).force_rooted # TODO
-        pins.push create_constant(new_name, old_type, decl.comment&.string, decl, 'Class')
+        pins.push create_constant(new_name, old_type, decl.comment&.string, decl, '::Class')
       end
 
       # @param decl [RBS::AST::Declarations::ModuleAlias]
@@ -341,7 +341,7 @@ module Solargraph
         old_name = decl.old_name.relative!.to_s # TODO
         old_type = ComplexType.parse(old_name).force_rooted # TODO
 
-        pins.push create_constant(new_name, old_type, decl.comment&.string, decl, 'Module')
+        pins.push create_constant(new_name, old_type, decl.comment&.string, decl, '::Module')
       end
 
       # @param decl [RBS::AST::Declarations::Constant]
