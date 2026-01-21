@@ -797,7 +797,7 @@ module Solargraph
         when RBS::Types::Tuple
           # @sg-ignore flow based typing needs to understand case when class pattern
           tuple_types = type.types.map { |t| other_type_to_type(t) }
-          ComplexType::UniqueType.new('Tuple', [], tuple_types, rooted: true, parameters_type: :list)
+          ComplexType::UniqueType.new('Tuple', [], tuple_types, rooted: false, parameters_type: :fixed)
         when RBS::Types::Literal
           # @sg-ignore flow based typing needs to understand case when class pattern
           ComplexType.try_parse(type.literal.inspect).force_rooted
