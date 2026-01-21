@@ -120,7 +120,7 @@ module Solargraph
       # @return [void]
       def convert_self_type_to_pins decl, closure
         type = build_type(decl.name, decl.args)
-        generic_values = type.all_params.map(&:to_s)
+        generic_values = type.all_params.map(&:rooted_tags)
         include_pin = Solargraph::Pin::Reference::Include.new(
           name: type.rooted_name,
           type_location: location_decl_to_pin_location(decl.location),
@@ -232,7 +232,7 @@ module Solargraph
         pins.push class_pin
         if decl.super_class
           type = build_type(decl.super_class.name, decl.super_class.args)
-          generic_values = type.all_params.map(&:to_s)
+          generic_values = type.all_params.map(&:to_s) # TODO
           superclass_name = decl.super_class.name.to_s # TODO
           pins.push Solargraph::Pin::Reference::Superclass.new(
             type_location: location_decl_to_pin_location(decl.super_class.location),
@@ -337,7 +337,7 @@ module Solargraph
       # @return [void]
       def module_alias_decl_to_pin decl
         # See https://www.rubydoc.info/gems/rbs/3.4.3/RBS/AST/Declarations/ModuleAlias
-        new_name = decl.new_name.relative!.to_s
+        new_name = decl.new_name.relative!.to_s # TODO
         old_name = decl.old_name.relative!.to_s # TODO
         old_type = ComplexType.parse(old_name).force_rooted # TODO
 
@@ -465,24 +465,23 @@ module Solargraph
             pin.instance_variable_set(:@return_type, ComplexType::VOID)
           end
         end
-        if decl.singleton?
-          final_scope = :class
-          name = decl.name.to_s
-          visibility = calculate_method_visibility(decl, context, closure, final_scope, name)
-          pin = Solargraph::Pin::Method.new(
-            name: name,
-            closure: closure,
-            comments: decl.comment&.string,
-            type_location: location_decl_to_pin_location(decl.location),
-            visibility: visibility,
-            scope: final_scope,
-            signatures: [],
-            generics: generics,
-            source: :rbs
-          )
-          pin.signatures.concat method_def_to_sigs(decl, pin)
-          pins.push pin
-        end
+        return unless decl.singleton?
+        final_scope = :class
+        name = decl.name.to_s # TODO
+        visibility = calculate_method_visibility(decl, context, closure, final_scope, name)
+        pin = Solargraph::Pin::Method.new(
+          name: name,
+          closure: closure,
+          comments: decl.comment&.string,
+          type_location: location_decl_to_pin_location(decl.location),
+          visibility: visibility,
+          scope: final_scope,
+          signatures: [],
+          generics: generics,
+          source: :rbs
+        )
+        pin.signatures.concat method_def_to_sigs(decl, pin)
+        pins.push pin
       end
 
       # @param decl [RBS::AST::Members::MethodDefinition]
@@ -797,7 +796,7 @@ module Solargraph
         when RBS::Types::Tuple
           # @sg-ignore flow based typing needs to understand case when class pattern
           tuple_types = type.types.map { |t| other_type_to_type(t) }
-          ComplexType::UniqueType.new('Tuple', [], tuple_types, rooted: false, parameters_type: :fixed)
+          ComplexType::UniqueType.new('Tuple', [], tuple_types, rooted: true, parameters_type: :fixed)
         when RBS::Types::Literal
           # @sg-ignore flow based typing needs to understand case when class pattern
           ComplexType.try_parse(type.literal.inspect).force_rooted
