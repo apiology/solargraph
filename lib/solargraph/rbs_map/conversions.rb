@@ -100,11 +100,18 @@ module Solargraph
       }.freeze
       private_constant :RBS_TO_YARD_TYPE
 
+      # @param [RBS::TypeName]
+      #
+      # @return [String]
+      def raw_rooted_name(type_name)
+        type_name.relative!.to_s
+      end
+
       # @param type_name [RBS::TypeName]
       # @param type_args [Enumerable<RBS::Types::Bases::Base>]
       # @return [ComplexType::UniqueType]
       def build_type type_name, type_args = []
-        rooted_rbs_name = type_name.relative!.to_s
+        rooted_rbs_name = raw_rooted_name(type_name)
         base = RBS_TO_YARD_TYPE.fetch(rooted_rbs_name, rooted_rbs_name)
         params = type_args.map { |a| other_type_to_type(a) }
         # tuples have their own class and are handled in other_type_to_type
@@ -212,7 +219,7 @@ module Solargraph
           generic_defaults[param.name.to_s] = other_type_to_type param.default_type if param.default_type
         end
 
-        class_name = decl.name.relative!.to_s # TODO
+        class_name = raw_rooted_name(decl.name)
 
         generics = type_parameter_names(decl)
 
@@ -232,7 +239,7 @@ module Solargraph
         pins.push class_pin
         if decl.super_class
           type = build_type(decl.super_class.name, decl.super_class.args)
-          generic_values = type.all_params.map(&:to_s) # TODO
+          generic_values = type.all_params.map(&:rooted_tags)
           superclass_name = decl.super_class.name.to_s # TODO
           pins.push Solargraph::Pin::Reference::Superclass.new(
             type_location: location_decl_to_pin_location(decl.super_class.location),
@@ -253,7 +260,7 @@ module Solargraph
         class_pin = Solargraph::Pin::Namespace.new(
           type: :module,
           type_location: location_decl_to_pin_location(decl.location),
-          name: decl.name.relative!.to_s, # TODO
+          name: raw_rooted_name(decl.name),
           closure: Solargraph::Pin::ROOT_PIN, # TODO: should this use a closure???
           comments: decl.comment&.string,
           generics: type_parameter_names(decl),
@@ -272,7 +279,7 @@ module Solargraph
       def module_decl_to_pin decl
         module_pin = Solargraph::Pin::Namespace.new(
           type: :module,
-          name: decl.name.relative!.to_s, # TODO
+          name: raw_rooted_name(decl.name),
           type_location: location_decl_to_pin_location(decl.location),
           closure: Solargraph::Pin::ROOT_PIN,
           comments: decl.comment&.string,
@@ -327,9 +334,8 @@ module Solargraph
       # @return [void]
       def class_alias_decl_to_pin decl
         # See https://www.rubydoc.info/gems/rbs/3.4.3/RBS/AST/Declarations/ClassAlias
-        new_name = decl.new_name.relative!.to_s # TODO
-        old_name = decl.old_name.relative!.to_s # TODO
-        old_type = ComplexType.parse(old_name).force_rooted # TODO
+        new_name = raw_rooted_name(decl.new_name)
+        old_type = build_type(decl.old_name)
         pins.push create_constant(new_name, old_type, decl.comment&.string, decl, '::Class')
       end
 
@@ -720,7 +726,7 @@ module Solargraph
       # @return [void]
       def include_to_pin decl, closure
         type = build_type(decl.name, decl.args)
-        generic_values = type.all_params.map(&:to_s)
+        generic_values = type.all_params.map(&:rooted_tags)
         pins.push Solargraph::Pin::Reference::Include.new(
           name: decl.name.relative!.to_s, # TODO
           type_location: location_decl_to_pin_location(decl.location),
@@ -869,7 +875,7 @@ module Solargraph
           # @todo are we handling prepend correctly?
           klass = mixin.is_a?(RBS::AST::Members::Include) ? Pin::Reference::Include : Pin::Reference::Extend
           type = build_type(mixin.name, mixin.args)
-          generic_values = type.all_params.map(&:to_s)
+          generic_values = type.all_params.map(&:rooted_tags)
           pins.push klass.new(
             name: mixin.name.relative!.to_s, # TODO
             type_location: location_decl_to_pin_location(mixin.location),
