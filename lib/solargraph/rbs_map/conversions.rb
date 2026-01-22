@@ -539,6 +539,7 @@ module Solargraph
           # @sg-ignore RBS generic type understanding issue
           name = param.name ? param.name.to_s : "arg_#{arg_num += 1}" # TODO
           parameters.push Solargraph::Pin::Parameter.new(decl: :arg, name: name, closure: pin,
+                                                         # @sg-ignore RBS generic type understanding issue
                                                          return_type: other_type_to_type(param.type),
                                                          source: :rbs, type_location: type_location)
         end
