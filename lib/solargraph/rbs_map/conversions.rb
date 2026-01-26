@@ -62,22 +62,54 @@ module Solargraph
       def convert_decl_to_pin decl, closure
         case decl
         when RBS::AST::Declarations::Class
+          # @sg-ignore flow sensitive typing should support case/when
+          unless closure.name == '' || decl.name.absolute?
+            Solargraph.assert_or_log(:rbs_closure, "Ignoring closure #{closure.inspect} on class #{decl.inspect}")
+          end
           class_decl_to_pin decl
         when RBS::AST::Declarations::Interface
+          # @sg-ignore flow sensitive typing should support case/when
+          unless closure.name == '' || decl.name.absolute?
+            Solargraph.assert_or_log(:rbs_closure, "Ignoring closure #{closure.inspect} on interface #{decl.inspect}")
+          end
           # STDERR.puts "Skipping interface #{decl.name.relative!}"
-          interface_decl_to_pin decl, closure
+          interface_decl_to_pin decl
         when RBS::AST::Declarations::TypeAlias
+          # @sg-ignore flow sensitive typing should support case/when
+          unless closure.name == '' || decl.name.absolute?
+            # @sg-ignore flow sensitive typing should support case/when
+            Solargraph.assert_or_log(:rbs_closure, "Ignoring closure #{closure.inspect} on alias type name #{decl.name.to_s}")
+          end
           # @sg-ignore flow sensitive typing should support case/when
           type_aliases[decl.name.to_s] = decl
         when RBS::AST::Declarations::Module
+          # @sg-ignore flow sensitive typing should support case/when
+          unless closure.name == '' || decl.name.absolute?
+            # @sg-ignore flow sensitive typing should support case/when
+            Solargraph.assert_or_log(:rbs_closure, "Ignoring closure #{closure.inspect} on alias type name #{decl.name.to_s}")
+          end
           module_decl_to_pin decl
         when RBS::AST::Declarations::Constant
+          # @sg-ignore flow sensitive typing should support case/when
+          unless closure.name == '' || decl.name.absolute?
+            Solargraph.assert_or_log(:rbs_closure, "Ignoring closure #{closure.inspect} on constant #{decl.inspect}")
+          end
           constant_decl_to_pin decl
         when RBS::AST::Declarations::ClassAlias
+          # @sg-ignore flow sensitive typing should support case/when
+          unless closure.name == '' || decl.new_name.absolute?
+            Solargraph.assert_or_log(:rbs_closure, "Ignoring closure #{closure.inspect} on class alias #{decl.inspect}")
+          end
           class_alias_decl_to_pin decl
         when RBS::AST::Declarations::ModuleAlias
+          unless closure.name == ''
+            Solargraph.assert_or_log(:rbs_closure, "Ignoring closure #{closure.inspect} on module alias #{decl.inspect}")
+          end
           module_alias_decl_to_pin decl
         when RBS::AST::Declarations::Global
+          unless closure.name == ''
+            Solargraph.assert_or_log(:rbs_closure, "Ignoring closure #{closure.inspect} on global decl #{decl.inspect}")
+          end
           global_decl_to_pin decl
         else
           Solargraph.logger.warn "Skipping declaration #{decl.class}"
@@ -118,7 +150,9 @@ module Solargraph
       #
       # @return [String]
       def fqns(type_name)
-        raise "Received unexpected unqualified type name: #{type_name}" unless type_name.absolute?
+        unless type_name.absolute?
+          Solargraph.assert_or_log(:rbs_fqns, "Received unexpected unqualified type name: #{type_name}")
+        end
         ns = type_name.relative!.to_s
         RBS_TO_CLASS.fetch(ns, ns)
       end
@@ -273,13 +307,12 @@ module Solargraph
 
       # @param decl [RBS::AST::Declarations::Interface]
       # @return [void]
-      # @param [Object] _closure
-      def interface_decl_to_pin decl, _closure
+      def interface_decl_to_pin decl
         class_pin = Solargraph::Pin::Namespace.new(
           type: :module,
           type_location: location_decl_to_pin_location(decl.location),
           name: fqns(decl.name),
-          closure: Solargraph::Pin::ROOT_PIN, # TODO: should this use a closure???
+          closure: Solargraph::Pin::ROOT_PIN,
           comments: decl.comment&.string,
           generics: type_parameter_names(decl),
           # HACK: Using :hidden to keep interfaces from appearing in
@@ -563,7 +596,7 @@ module Solargraph
         arg_num = -1
         type.type.required_positionals.each do |param|
           # @sg-ignore RBS generic type understanding issue
-          name = param.name ? param.name.to_s : "arg_#{arg_num += 1}" # TODO
+          name = param.name ? param.name.to_s : "arg_#{arg_num += 1}"
           parameters.push Solargraph::Pin::Parameter.new(decl: :arg, name: name, closure: pin,
                                                          # @sg-ignore RBS generic type understanding issue
                                                          return_type: other_type_to_type(param.type),
@@ -571,7 +604,7 @@ module Solargraph
         end
         type.type.optional_positionals.each do |param|
           # @sg-ignore RBS generic type understanding issue
-          name = param.name ? param.name.to_s : "arg_#{arg_num += 1}" # TODO
+          name = param.name ? param.name.to_s : "arg_#{arg_num += 1}"
           parameters.push Solargraph::Pin::Parameter.new(decl: :optarg, name: name, closure: pin,
                                                          # @sg-ignore RBS generic type understanding issue
                                                          return_type: other_type_to_type(param.type),
@@ -579,7 +612,7 @@ module Solargraph
                                                          source: :rbs)
         end
         if type.type.rest_positionals
-          name = type.type.rest_positionals.name ? type.type.rest_positionals.name.to_s : "arg_#{arg_num += 1}" # TODO
+          name = type.type.rest_positionals.name ? type.type.rest_positionals.name.to_s : "arg_#{arg_num += 1}"
           inner_rest_positional_type = other_type_to_type(type.type.rest_positionals.type)
           rest_positional_type = ComplexType::UniqueType.new('Array',
                                                              [],
@@ -591,7 +624,7 @@ module Solargraph
         end
         type.type.trailing_positionals.each do |param|
           # @sg-ignore RBS generic type understanding issue
-          name = param.name ? param.name.to_s : "arg_#{arg_num += 1}" # TODO
+          name = param.name ? param.name.to_s : "arg_#{arg_num += 1}"
           parameters.push Solargraph::Pin::Parameter.new(decl: :arg, name: name, closure: pin, source: :rbs,
                                                          type_location: type_location)
         end
@@ -613,9 +646,9 @@ module Solargraph
                                                          source: :rbs)
         end
         if type.type.rest_keywords
-          name = type.type.rest_keywords.name ? type.type.rest_keywords.name.to_s : "arg_#{arg_num += 1}" # TODO
+          name = type.type.rest_keywords.name ? type.type.rest_keywords.name.to_s : "arg_#{arg_num += 1}"
           parameters.push Solargraph::Pin::Parameter.new(decl: :kwrestarg,
-                                                         name: type.type.rest_keywords.name.to_s, closure: pin, # TODO
+                                                         name: type.type.rest_keywords.name.to_s, closure: pin,
                                                          source: :rbs, type_location: type_location)
         end
 
@@ -628,7 +661,7 @@ module Solargraph
       # @param context [Context]
       # @return [void]
       def attr_reader_to_pin decl, closure, context
-        name = decl.name.to_s # TODO
+        name = decl.name.to_s
         final_scope = decl.kind == :instance ? :instance : :class
         visibility = calculate_method_visibility(decl, context, closure, final_scope, name)
         pin = Solargraph::Pin::Method.new(
