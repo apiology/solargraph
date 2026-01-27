@@ -22,6 +22,16 @@ module Solargraph
     end
     alias required requires
 
+    # @param requires [Array<String>]
+    # @param workspace [Workspace, nil]
+    # @param out [IO, nil] output stream for logging
+    def initialize requires, workspace, out: $stderr
+      @provided_requires = requires.compact
+      @workspace = workspace
+      @out = out
+    end
+
+    # @sg-ignore flow sensitive typing needs to understand reassignment
     # @return [Array<Gem::Specification>]
     def uncached_gemspecs
       if @uncached_gemspecs.nil?
@@ -29,15 +39,6 @@ module Solargraph
         pins # force lazy-loaded pin lookup
       end
       @uncached_gemspecs
-    end
-
-    # @param requires [Array<String>]
-    # @param workspace [Workspace]
-    # @param out [IO, nil] output stream for logging
-    def initialize requires, workspace, out: $stderr
-      @provided_requires = requires.compact
-      @workspace = workspace
-      @out = out
     end
 
     # @return [Array<Pin::Base>]
@@ -61,9 +62,10 @@ module Solargraph
     end
 
     # Cache all pins needed for the sources in this doc_map
-    # @param out [IO, nil] output stream for logging
+    # @param out [StringIO, IO, nil] output stream for logging
+    # @param rebuild [Boolean] whether to rebuild the pins even if they are cached
     # @return [void]
-    def cache_doc_map_gems! out
+    def cache_doc_map_gems! out, rebuild: false
       unless uncached_gemspecs.empty?
         logger.info do
           gem_desc = uncached_gemspecs.map { |gemspec| "#{gemspec.name}:#{gemspec.version}" }.join(', ')
@@ -72,7 +74,7 @@ module Solargraph
       end
       time = Benchmark.measure do
         uncached_gemspecs.each do |gemspec|
-          cache(gemspec, out: out)
+          cache(gemspec, rebuild: rebuild, out: out)
         end
       end
       milliseconds = (time.real * 1000).round
@@ -87,14 +89,20 @@ module Solargraph
       @unresolved_requires ||= required_gems_map.select { |_, gemspecs| gemspecs.nil? }.keys
     end
 
-    # @return [Set<Gem::Specification>]
-    # @param out [IO]
+    # @return [Array<Gem::Specification>]
+    # @param out [IO, nil]
     def dependencies out: $stderr
       @dependencies ||=
         begin
-          all_deps = gemspecs.flat_map { |spec| workspace.fetch_dependencies(spec, out: out) }
+          gem_deps = gemspecs
+                       .flat_map { |spec| workspace.fetch_dependencies(spec, out: out) }
+                       .uniq(&:name)
+          stdlib_deps = gemspecs
+                          .flat_map { |spec| workspace.stdlib_dependencies(spec.name) }
+                          .flat_map { |dep_name| workspace.resolve_require(dep_name) }
+                          .compact
           existing_gems = gemspecs.map(&:name)
-          all_deps.reject { |gemspec| existing_gems.include? gemspec.name }.to_set
+          (gem_deps + stdlib_deps).reject { |gemspec| existing_gems.include? gemspec.name }
         end
     end
 
@@ -102,7 +110,7 @@ module Solargraph
     #
     # @param gemspec [Gem::Specification]
     # @param rebuild [Boolean] whether to rebuild the pins even if they are cached
-    # @param out [IO, nil] output stream for logging
+    # @param out [StringIO, IO, nil] output stream for logging
     #
     # @return [void]
     def cache gemspec, rebuild: false, out: nil
@@ -123,12 +131,23 @@ module Solargraph
     def load_serialized_gem_pins out: @out
       serialized_pins = []
       with_gemspecs, without_gemspecs = required_gems_map.partition { |_, v| v }
-      # @sg-ignore Need support for RBS duck interfaces like _ToHash
+      # @sg-ignore Need better typing for Hash[]
       # @type [Array<String>]
       missing_paths = Hash[without_gemspecs].keys
-      # @sg-ignore Need support for RBS duck interfaces like _ToHash
       # @type [Array<Gem::Specification>]
       gemspecs = Hash[with_gemspecs].values.flatten.compact + dependencies(out: out).to_a
+
+      # if we are type checking a gem project, we should not include
+      # pins from rbs or yard from that gem here - we use our own
+      # parser for those pins
+
+      # @param gemspec [Gem::Specification, Bundler::LazySpecification, Bundler::StubSpecification]
+      gemspecs.reject! do |gemspec|
+        gemspec.respond_to?(:source) &&
+          gemspec.source.instance_of?(Bundler::Source::Gemspec) &&
+          gemspec.source.respond_to?(:path) &&
+          gemspec.source.path == Pathname.new('.')
+      end
 
       missing_paths.each do |path|
         # this will load from disk if needed; no need to manage
@@ -136,8 +155,10 @@ module Solargraph
         stdlib_name_guess = path.split('/').first
 
         # try to resolve the stdlib name
+        # @type [Array<String>]
         deps = workspace.stdlib_dependencies(stdlib_name_guess) || []
         [stdlib_name_guess, *deps].compact.each do |potential_stdlib_name|
+          # @sg-ignore Need to support splatting in literal array
           rbs_pins = pin_cache.cache_stdlib_rbs_map potential_stdlib_name
           serialized_pins.concat rbs_pins if rbs_pins
         end
@@ -168,17 +189,6 @@ module Solargraph
     def required_gems_map
       @required_gems_map ||= requires.to_h { |path| [path, workspace.resolve_require(path)] }
     end
-
-    def inspect
-      self.class.inspect
-    end
-
-    # @param gemspec [Gem::Specification]
-    # @return [Array<Gem::Dependency>]
-    def only_runtime_dependencies gemspec
-      gemspec.dependencies - gemspec.development_dependencies
-    end
-
 
     def inspect
       self.class.inspect

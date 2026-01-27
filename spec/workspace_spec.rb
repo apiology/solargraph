@@ -68,6 +68,13 @@ describe Solargraph::Workspace do
     }.not_to raise_error
   end
 
+  it "detects gemspecs in workspaces" do
+    gemspec_file = File.join(dir_path, 'test.gemspec')
+    File.write(gemspec_file, '')
+    expect(workspace.gemspec?).to be(true)
+    expect(workspace.gemspec_files).to eq([gemspec_file])
+  end
+
   it "generates default require path" do
     expect(workspace.require_paths).to eq([File.join(dir_path, 'lib')])
   end
@@ -136,21 +143,19 @@ describe Solargraph::Workspace do
 
   describe '#cache_all_for_workspace!' do
     let(:pin_cache) { instance_double(Solargraph::PinCache) }
-    let(:gemspecs) { instance_double(Solargraph::Workspace::Gemspecs) }
 
     before do
-      allow(Solargraph::Workspace::Gemspecs).to receive(:new).and_return(gemspecs)
       allow(Solargraph::PinCache).to receive(:cache_core)
       allow(Solargraph::PinCache).to receive(:possible_stdlibs)
       allow(Solargraph::PinCache).to receive(:new).and_return(pin_cache)
-      allow(pin_cache).to receive(:cache_gem)
-      allow(pin_cache).to receive(:cache_all_stdlibs)
+      allow(pin_cache).to receive_messages(cache_gem: nil, possible_stdlibs: [])
+      allow(Solargraph::PinCache).to receive(:cache_all_stdlibs)
     end
 
     it 'caches core pins' do
-      allow(Solargraph::PinCache).to receive(:core?).and_return(false)
-      allow(gemspecs).to receive(:all_gemspecs_from_bundle).and_return([])
-      allow(pin_cache).to receive(:possible_stdlibs).and_return([])
+      allow(Solargraph::PinCache).to receive_messages(core?: false)
+      allow(pin_cache).to receive_messages(cached?: true,
+                                           cache_all_stdlibs: nil)
 
       workspace.cache_all_for_workspace!(nil, rebuild: false)
 
@@ -159,15 +164,18 @@ describe Solargraph::Workspace do
 
     it 'caches gems' do
       gemspec = instance_double(Gem::Specification, name: 'test_gem', version: '1.0.0')
-      allow(Solargraph::PinCache).to receive(:core?).and_return(true)
       allow(gemspecs).to receive(:all_gemspecs_from_bundle).and_return([gemspec])
       allow(pin_cache).to receive(:cached?).with(gemspec).and_return(false)
-      allow(pin_cache).to receive(:possible_stdlibs).and_return([])
+
+      allow(pin_cache).to receive(:cache_all_stdlibs).with(out: nil, rebuild: false)
+
+      allow(Solargraph::PinCache).to receive_messages(core?: true,
+                                                      possible_stdlibs: [])
 
       workspace.cache_all_for_workspace!(nil, rebuild: false)
 
-      expect(pin_cache).to have_received(:cache_gem)
-        .with(gemspec: gemspec, rebuild: false, out: nil)
+      expect(pin_cache).to have_received(:cache_gem).with(gemspec: gemspec, out: nil,
+                                                          rebuild: false)
     end
   end
 end

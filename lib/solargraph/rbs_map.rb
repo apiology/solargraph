@@ -26,7 +26,7 @@ module Solargraph
     # @param version [String, nil]
     # @param rbs_collection_config_path [String, Pathname, nil]
     # @param rbs_collection_paths [Array<Pathname, String>]
-    # @param out [IO, nil] where to log messages
+    # @param out [StringIO, IO, nil] where to log messages
     def initialize library, version = nil, rbs_collection_config_path: nil, rbs_collection_paths: [], out: $stderr
       if rbs_collection_config_path.nil? && !rbs_collection_paths.empty?
         raise 'Please provide rbs_collection_config_path if you provide rbs_collection_paths'
@@ -43,7 +43,7 @@ module Solargraph
     CACHE_KEY_STDLIB = 'stdlib'
     CACHE_KEY_LOCAL = 'local'
 
-    # @param cache_key [String]
+    # @param cache_key [String, nil]
     # @return [String, nil] a description of the source of the RBS info
     def self.rbs_source_desc cache_key
       case cache_key
@@ -78,6 +78,7 @@ module Solargraph
         # @type gem_config [nil, Hash{String => Hash{String => String}}]
         gem_config = nil
         if rbs_collection_config_path
+          # @sg-ignore flow sensitive typing needs to handle attrs
           lockfile_path = RBS::Collection::Config.to_lockfile_path(Pathname.new(rbs_collection_config_path))
           if lockfile_path.exist?
             collection_config = RBS::Collection::Config.from_path lockfile_path
@@ -98,6 +99,7 @@ module Solargraph
           when 'stdlib'
             CACHE_KEY_STDLIB
           else
+            # @sg-ignore Need to add nil check here
             Digest::SHA1.hexdigest(data)
           end
         end
@@ -109,6 +111,10 @@ module Solargraph
     # @param rbs_collection_config_path [String, Pathname, nil]
     # @return [RbsMap]
     def self.from_gemspec gemspec, rbs_collection_path, rbs_collection_config_path
+      # prefers stdlib RBS if available
+      rbs_map = RbsMap::StdlibMap.new(gemspec.name)
+      return rbs_map if rbs_map.resolved?
+
       rbs_map = RbsMap.new(gemspec.name, gemspec.version,
                            rbs_collection_paths: [rbs_collection_path].compact,
                            rbs_collection_config_path: rbs_collection_config_path)
@@ -128,7 +134,6 @@ module Solargraph
     # @return [Array<Pin::Base>]
     def pins out: $stderr
       @pins ||= if resolved?
-                  loader.libs.each { |lib| log_caching(lib, out: out) }
                   conversions.pins
                 else
                   []
@@ -138,6 +143,9 @@ module Solargraph
     # @generic T
     # @param path [String]
     # @param klass [Class<generic<T>>]
+    #
+    # @sg-ignore Need to be able to resolve generics based on a
+    #   Class<generic<T>> param
     # @return [generic<T>, nil]
     def path_pin path, klass = Pin::Base
       pin = pins.find { |p| p.path == path }
@@ -182,26 +190,27 @@ module Solargraph
       @conversions ||= Conversions.new(loader: loader)
     end
 
-    # @param lib [RBS::EnvironmentLoader::Library]
-    # @param out [IO, nil] where to log messages
-    # @return [void]
-    def log_caching lib, out:; end
+    def resolve_dependencies?
+      # we need to resolve dependencies via gemfile.lock manually for
+      # YARD regardless, so use same mechanism here so we don't
+      # duplicate work generating pins from dependencies
+      false
+    end
 
     # @param loader [RBS::EnvironmentLoader]
     # @param library [String]
     # @param version [String, nil] the version of the library to load, or nil for any
-    # @param out [IO, nil] where to log messages
+    # @param out [StringIO, IO, nil] where to log messages
     # @return [Boolean] true if adding the library succeeded
     def add_library loader, library, version, out: $stderr
       @resolved = if loader.has_library?(library: library, version: version)
-                    # we find our own dependencies from gemfile.lock
-                    loader.add library: library, version: version, resolve_dependencies: false
+                    loader.add library: library, version: version, resolve_dependencies: resolve_dependencies?
                     logger.debug { "#{short_name} successfully loaded library #{library}:#{version}" }
                     true
-      else
-        logger.info { "#{short_name} did not find data for library #{library}:#{version}" }
-        false
-      end
+                  else
+                    logger.info { "#{short_name} did not find data for library #{library}:#{version}" }
+                    false
+                  end
     end
 
     # @return [String]

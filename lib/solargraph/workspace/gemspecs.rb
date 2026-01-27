@@ -54,24 +54,32 @@ module Solargraph
           require.tr('/', '-'),
           require.split('/').first
         ].compact.uniq
+        # @param gem_name [String]
         gem_names_to_try.each do |gem_name|
+          # @sg-ignore Unresolved call to == on Boolean
           gemspec = all_gemspecs.find { |gemspec| gemspec.name == gem_name }
+          # @sg-ignore flow sensitive typing should be able to handle redefinition
           return [gemspec_or_preference(gemspec)] if gemspec
 
           begin
             gemspec = Gem::Specification.find_by_name(gem_name)
+            # @sg-ignore flow sensitive typing should be able to handle redefinition
             return [gemspec_or_preference(gemspec)] if gemspec
           rescue Gem::MissingSpecError
-            logger.debug "Gem #{gem_name} not found in the current Ruby environment"
+            logger.debug do
+              "Require path #{require} could not be resolved to a gem via find_by_path or guess of #{gem_name}"
+            end
           end
-
           # look ourselves just in case this is hanging out somewhere
-          # that find_by_path doesn't index'
+          # that find_by_path doesn't index
           gemspec = all_gemspecs.find do |spec|
             spec = to_gem_specification(spec) unless spec.respond_to?(:files)
 
+            # @sg-ignore Translate to something flow sensitive typing understands
             spec&.files&.any? { |gemspec_file| file == gemspec_file }
           end
+
+          # @sg-ignore flow sensitive typing should be able to handle redefinition
           return [gemspec_or_preference(gemspec)] if gemspec
         end
 
@@ -92,11 +100,14 @@ module Solargraph
       #
       # @return [Gem::Specification, nil]
       def find_gem name, version = nil, out: $stderr
-        gemspec = all_gemspecs_from_bundle.find { |gemspec| gemspec.name == name && gemspec.version == version }
-        return gemspec if gemspec
+        # @sg-ignore flow sensitive typing should be able to handle redefinition
+        specish = all_gemspecs_from_bundle.find { |specish| specish.name == name && specish.version == version }
+        return to_gem_specification specish if specish
 
-        gemspec = all_gemspecs_from_bundle.find { |gemspec| gemspec.name == name }
-        return gemspec if gemspec
+        # @sg-ignore flow sensitive typing should be able to handle redefinition
+        specish = all_gemspecs_from_bundle.find { |specish| specish.name == name }
+        # @sg-ignore flow sensitive typing needs to create separate ranges for postfix if
+        return to_gem_specification specish if specish
 
         resolve_gem_ignoring_local_bundle name, version, out: out
       end
@@ -117,8 +128,8 @@ module Solargraph
           next if deps[runtime_dep.name]
 
           Solargraph.logger.info "Adding #{runtime_dep.name} dependency for #{gemspec.name}"
-          dep = gemspecs.find { |dep| dep.name == runtime_dep.name }
-          # @sg-ignore Unresolved call to requirement on Gem::Dependency
+
+          dep = find_gem(runtime_dep.name, runtime_dep.requirement)
           dep ||= Gem::Specification.find_by_name(runtime_dep.name, runtime_dep.requirement)
         rescue Gem::MissingSpecError
           dep = resolve_gem_ignoring_local_bundle runtime_dep.name, out: out
@@ -126,8 +137,10 @@ module Solargraph
           next unless dep
 
           fetch_dependencies(dep, out: out).each { |sub_dep| deps[sub_dep.name] ||= sub_dep }
+
           deps[dep.name] ||= dep
         end
+
         # RBS tracks implicit dependencies, like how the YAML standard
         # library implies pulling in the psych library.
         stdlib_deps = RbsMap::StdlibMap.stdlib_dependencies(gemspec.name, gemspec.version) || []
@@ -158,7 +171,9 @@ module Solargraph
       private
 
       # @param specish [Gem::Specification, Bundler::LazySpecification, Bundler::StubSpecification]
+      #
       # @return [Gem::Specification, nil]
+      # @sg-ignore flow sensitive typing needs better handling of ||= on lvars
       def to_gem_specification specish
         # print time including milliseconds
         self.class.gem_specification_cache[specish] ||= case specish
@@ -175,7 +190,6 @@ module Solargraph
                                                             nil
                                                           end
                                                           # yay!
-
                                                         when Bundler::LazySpecification
                                                           # materializing didn't work.  Let's look in the local
                                                           # rubygems without bundler's help
@@ -183,25 +197,26 @@ module Solargraph
                                                                                             specish.version
                                                         when Bundler::StubSpecification
                                                           # turns a Bundler::StubSpecification into a
-                                                          # Gem::StubSpecification into a Gem::Specification
-                                                          # @sg-ignore
-                                                          specish = specish.stub
-                                                          # @sg-ignore
-                                                          if specish.respond_to?(:spec)
-                                                            # @sg-ignore
-                                                            specish.spec
+                                                          # Gem::StubSpecification if we can
+                                                          if specish.respond_to?(:stub)
+                                                            # @sg-ignore flow sensitive typing ought to be able to handle 'when ClassName'
+                                                            to_gem_specification specish.stub
                                                           else
-                                                            # turn the crank again
-                                                            to_gem_specification(specish)
+                                                            # A Bundler::StubSpecification is a Bundler::
+                                                            # RemoteSpecification which ought to proxy a Gem::
+                                                            # Specification
+                                                            @@warned_on_gem_type ||= false
+                                                            unless @@warned_on_gem_type
+                                                              logger.warn "Unexpected type while resolving gem: #{specish.class}"
+                                                              @@warned_on_gem_type = true
+                                                            end
+                                                            specish
                                                           end
+                                                        when Gem::StubSpecification
+                                                          # @sg-ignore flow sensitive typing ought to be able to handle 'when ClassName'
+                                                          specish.to_spec
                                                         else
-                                                          @@warned_on_gem_type ||= false
-                                                          unless @@warned_on_gem_type
-                                                            # @sg-ignore
-                                                            logger.warn "Unexpected type while resolving gem: #{specish.class}"
-                                                            @@warned_on_gem_type = true
-                                                          end
-                                                          nil
+                                                          raise "Unexpected type while resolving gem: #{specish.class}"
                                                         end
       end
 
@@ -225,8 +240,9 @@ module Solargraph
         end
       end
 
+      # @sg-ignore need boolish support for ? methods
       def in_this_bundle?
-        Bundler.definition&.lockfile&.to_s&.start_with?(directory) # rubocop:disable Style/SafeNavigationChainLength
+        Bundler.definition&.lockfile&.to_s&.start_with?(directory)
       end
 
       # @return [Array<Gem::Specification, Bundler::LazySpecification, Bundler::StubSpecification>]
@@ -300,12 +316,12 @@ module Solargraph
       # @todo Should this be using Gem::SpecFetcher and pull them automatically?
       #
       # @param name [String]
-      # @param version [String, nil]
+      # @param version_or_requirement [String, nil]
       # @param out [IO, nil] output stream for logging
       #
       # @return [Gem::Specification, nil]
-      def resolve_gem_ignoring_local_bundle name, version = nil, out: $stderr
-        Gem::Specification.find_by_name(name, version)
+      def resolve_gem_ignoring_local_bundle name, version_or_requirement = nil, out: $stderr
+        Gem::Specification.find_by_name(name, version_or_requirement)
       rescue Gem::MissingSpecError
         begin
           Gem::Specification.find_by_name(name)
@@ -313,13 +329,14 @@ module Solargraph
           stdlibmap = RbsMap::StdlibMap.new(name)
           unless stdlibmap.resolved?
             gem_desc = name
-            gem_desc += ":#{version}" if version
+            gem_desc += ":#{version_or_requirement}" if version_or_requirement
             out&.puts "Please install the gem #{gem_desc} in Solargraph's Ruby environment"
           end
           nil # either not here or in stdlib
         end
       end
 
+      # @sg-ignore flow sensitive typing needs better handling of ||= on lvars
       # @return [Array<Gem::Specification>]
       def all_gemspecs_from_external_bundle
         @all_gemspecs_from_external_bundle ||=
@@ -331,11 +348,13 @@ module Solargraph
                       'specish_objects = specish_objects.map(&:materialize_for_installation);' \
                       'end;' \
                       'specish_objects.map { |specish| [specish.name, specish.version] }'
+            # @type [Array<Gem::Specification>]
             query_external_bundle(command).map do |name, version|
               resolve_gem_ignoring_local_bundle(name, version)
             end.compact
           rescue Solargraph::BundleNotFoundError => e
             Solargraph.logger.info e.message
+            # @sg-ignore Need to add nil check here
             Solargraph.logger.debug e.backtrace.join("\n")
             []
           end

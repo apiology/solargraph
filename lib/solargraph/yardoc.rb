@@ -32,6 +32,14 @@ module Solargraph
         return
       end
 
+      Solargraph.logger.info "Caching yardoc for #{gemspec.name} #{gemspec.version}"
+      cmd = "yardoc --db #{gem_yardoc_path} --no-output --plugin solargraph"
+      yard_plugins.each { |plugin| cmd << " --plugin #{plugin}" }
+      Solargraph.logger.debug { "Running: #{cmd}" }
+      # @todo set these up to run in parallel
+      # @sg-ignore Our fill won't work properly due to an issue in
+      #   Callable#arity_matches? - see comment there
+
       stdout_and_stderr_str, status = Open3.capture2e(current_bundle_env_tweaks, cmd, chdir: gemspec.gem_dir)
       return if status.success?
       Solargraph.logger.warn { "YARD failed running #{cmd.inspect} in #{gemspec.gem_dir}" }
@@ -39,8 +47,8 @@ module Solargraph
     end
 
     # @param gem_yardoc_path [String] the path to the yardoc cache of a particular gem
-    # @param gemspec [Gem::Specification]
-    # @param out [IO, nil] where to log messages
+    # @param gemspec [Gem::Specification, Bundler::LazySpecification]
+    # @param out [StringIO, IO, nil] where to log messages
     # @return [Array<Pin::Base>]
     def build_pins gem_yardoc_path, gemspec, out: $stderr
       yardoc = load!(gem_yardoc_path)
@@ -85,6 +93,7 @@ module Solargraph
     # @return [Hash{String => String}] a hash of environment variables to override
     def current_bundle_env_tweaks
       tweaks = {}
+      # @sg-ignore Translate to something flow sensitive typing understands
       if ENV['BUNDLE_GEMFILE'] && !ENV['BUNDLE_GEMFILE'].empty?
         tweaks['BUNDLE_GEMFILE'] = File.expand_path(ENV['BUNDLE_GEMFILE'])
       end

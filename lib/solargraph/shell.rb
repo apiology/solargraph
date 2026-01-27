@@ -109,6 +109,37 @@ module Solargraph
       # '
     end
 
+    desc 'uncache GEM [...GEM]', 'Delete specific cached gem documentation'
+    long_desc %(
+      Specify one or more gem names to clear. 'core' or 'stdlib' may
+      also be specified to clear cached system documentation.
+      Documentation will be regenerated as needed.
+    )
+    # @param gems [Array<String>]
+    # @return [void]
+    def uncache *gems
+      raise ArgumentError, 'No gems specified.' if gems.empty?
+      workspace = Solargraph::Workspace.new(Dir.pwd)
+
+      gems.each do |gem|
+        if gem == 'core'
+          PinCache.uncache_core(out: $stdout)
+          next
+        end
+
+        if gem == 'stdlib'
+          PinCache.uncache_stdlib(out: $stdout)
+          next
+        end
+
+        spec = workspace.find_gem(gem)
+        raise Thor::InvocationError, "Gem '#{gem}' not found" if spec.nil?
+
+        # @sg-ignore flow sensitive typing needs to handle 'raise if'
+        workspace.uncache_gem(spec, out: $stdout)
+      end
+    end
+
     desc 'gems [GEM[=VERSION]...] [STDLIB...] [core]', 'Cache documentation for
          installed libraries'
     long_desc %( This command will cache the
@@ -146,7 +177,7 @@ module Solargraph
         $stderr.puts("Caching these gems: #{names}")
         names.each do |name|
           if name == 'core'
-            PinCache.cache_core(out: $stdout)
+            PinCache.cache_core(out: $stdout) if !PinCache.core? || options[:rebuild]
             next
           end
 
@@ -156,36 +187,15 @@ module Solargraph
           else
             workspace.cache_gem(gemspec, rebuild: options[:rebuild], out: $stdout)
           end
+        rescue Gem::MissingSpecError
+          warn "Gem '#{name}' not found"
+        rescue Gem::Requirement::BadRequirementError => e
+          warn "Gem '#{name}' failed while loading"
+          warn e.message
+          # @sg-ignore Need to add nil check here
+          warn e.backtrace.join("\n")
         end
         $stderr.puts "Documentation cached for #{names.count} gems."
-      end
-    end
-
-    desc 'uncache GEM [...GEM]', 'Delete specific cached gem documentation'
-    long_desc %(
-      Specify one or more gem names to clear. 'core' or 'stdlib' may
-      also be specified to clear cached system documentation.
-      Documentation will be regenerated as needed.
-    )
-    # @param gems [Array<String>]
-    # @return [void]
-    def uncache *gems
-      raise ArgumentError, 'No gems specified.' if gems.empty?
-      workspace = Solargraph::Workspace.new(Dir.pwd)
-
-      gems.each do |gem|
-        if gem == 'core'
-          PinCache.uncache_core(out: $stdout)
-          next
-        end
-
-        if gem == 'stdlib'
-          PinCache.uncache_stdlib(out: $stdout)
-          next
-        end
-
-        spec = Gem::Specification.find_by_name(gem)
-        workspace.uncache_gem(spec, out: $stdout)
       end
     end
 
@@ -210,7 +220,10 @@ module Solargraph
       workspace = Solargraph::Workspace.new(directory)
       level = options[:level].to_sym
       rules = workspace.rules(level)
-      api_map = Solargraph::ApiMap.load_with_cache(directory, $stdout)
+      api_map =
+        Solargraph::ApiMap.load_with_cache(directory, $stdout,
+                                           loose_unions:
+                                             !rules.require_all_unique_types_support_call?)
       probcount = 0
       if files.empty?
         files = api_map.source_maps.map(&:filename)
@@ -218,10 +231,9 @@ module Solargraph
         files.map! { |file| File.realpath(file) }
       end
       filecount = 0
-
       time = Benchmark.measure {
         files.each do |file|
-          checker = TypeChecker.new(file, api_map: api_map, level: options[:level].to_sym, workspace: workspace)
+          checker = TypeChecker.new(file, api_map: api_map, rules: rules, level: options[:level].to_sym, workspace: workspace)
           problems = checker.problems
           next if problems.empty?
           problems.sort! { |a, b| a.location.range.start.line <=> b.location.range.start.line }
@@ -252,19 +264,25 @@ module Solargraph
       api_map = nil
       time = Benchmark.measure {
         api_map = Solargraph::ApiMap.load_with_cache(directory, $stdout)
+        # @sg-ignore flow sensitive typing should be able to handle redefinition
         api_map.pins.each do |pin|
           begin
             puts pin_description(pin) if options[:verbose]
             pin.typify api_map
             pin.probe api_map
           rescue StandardError => e
+            # @todo to add nil check here
+            # @todo should warn on nil dereference below
             STDERR.puts "Error testing #{pin_description(pin)} #{pin.location ? "at #{pin.location.filename}:#{pin.location.range.start.line + 1}" : ''}"
             STDERR.puts "[#{e.class}]: #{e.message}"
+            # @todo Need to add nil check here
+            # @todo flow sensitive typing should be able to handle redefinition
             STDERR.puts e.backtrace.join("\n")
             exit 1
           end
         end
       }
+      # @sg-ignore Need to add nil check here
       puts "Scanned #{directory} (#{api_map.pins.length} pins) in #{time.real} seconds."
     end
 
@@ -312,6 +330,7 @@ module Solargraph
         exit 1
       when Pin::Namespace
         if options[:references]
+          # @sg-ignore Need to add nil check here
           superclass_tag = api_map.qualify_superclass(pin.return_type.tag)
           superclass_pin = api_map.get_path_pins(superclass_tag).first if superclass_tag
           references[:superclass] = superclass_pin if superclass_pin
@@ -342,6 +361,7 @@ module Solargraph
     def pin_description pin
       desc = if pin.path.nil? || pin.path.empty?
         if pin.closure
+          # @sg-ignore Need to add nil check here
           "#{pin.closure.path} | #{pin.name}"
         else
           "#{pin.context.namespace} | #{pin.name}"
@@ -349,11 +369,12 @@ module Solargraph
       else
         pin.path
       end
+      # @sg-ignore Need to add nil check here
       desc += " (#{pin.location.filename} #{pin.location.range.start.line})" if pin.location
       desc
     end
 
-    # @param type [ComplexType]
+    # @param type [ComplexType, ComplexType::UniqueType]
     # @return [void]
     def print_type(type)
       if options[:rbs]
