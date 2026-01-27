@@ -410,6 +410,7 @@ Metrics/MethodLength:
     - 'lib/solargraph/complex_type.rb'
     - 'lib/solargraph/convention/struct_definition.rb'
     - 'lib/solargraph/parser/parser_gem/node_chainer.rb'
+    - 'lib/solargraph/shell.rb'
     - 'lib/solargraph/source_map/mapper.rb'
 
 # Configuration parameters: CountComments, CountAsOne.

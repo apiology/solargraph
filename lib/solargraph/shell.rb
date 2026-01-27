@@ -362,7 +362,7 @@ module Solargraph
     option :memory, type: :boolean, aliases: :m, desc: 'Include memory usage counter', default: true
     # @param file [String, nil]
     # @return [void]
-    def profile(file = nil) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+    def profile(file = nil)
       begin
         require 'vernier'
       rescue LoadError
