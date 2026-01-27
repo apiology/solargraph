@@ -118,6 +118,7 @@ module Solargraph
 
           Solargraph.logger.info "Adding #{runtime_dep.name} dependency for #{gemspec.name}"
           dep = gemspecs.find { |dep| dep.name == runtime_dep.name }
+          # @sg-ignore Unresolved call to requirement on Gem::Dependency
           dep ||= Gem::Specification.find_by_name(runtime_dep.name, runtime_dep.requirement)
         rescue Gem::MissingSpecError
           dep = resolve_gem_ignoring_local_bundle runtime_dep.name, out: out
@@ -183,8 +184,11 @@ module Solargraph
                                                         when Bundler::StubSpecification
                                                           # turns a Bundler::StubSpecification into a
                                                           # Gem::StubSpecification into a Gem::Specification
+                                                          # @sg-ignore
                                                           specish = specish.stub
+                                                          # @sg-ignore
                                                           if specish.respond_to?(:spec)
+                                                            # @sg-ignore
                                                             specish.spec
                                                           else
                                                             # turn the crank again
@@ -193,8 +197,8 @@ module Solargraph
                                                         else
                                                           @@warned_on_gem_type ||= false
                                                           unless @@warned_on_gem_type
-                                                            logger.warn 'Unexpected type while resolving gem: ' \
-                                                                        "#{specish.class}"
+                                                            # @sg-ignore
+                                                            logger.warn "Unexpected type while resolving gem: #{specish.class}"
                                                             @@warned_on_gem_type = true
                                                           end
                                                           nil
