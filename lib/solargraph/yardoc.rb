@@ -23,7 +23,11 @@ module Solargraph
       yard_plugins.each { |plugin| cmd << " --plugin #{plugin}" }
       Solargraph.logger.debug { "Running: #{cmd}" }
       # @todo set these up to run in parallel
-      unless File.exist?(gemspec.gem_dir)
+      unless Dir.exist? gemspec.gem_dir
+        # Can happen in at least some (old?) RubyGems versions when we
+        # have a gemspec describing a standard library like bundler.
+        #
+        # https://github.com/apiology/solargraph/actions/runs/17650140201/job/50158676842?pr=10
         Solargraph.logger.info { "Bad info from gemspec - #{gemspec.gem_dir} does not exist" }
         return
       end
