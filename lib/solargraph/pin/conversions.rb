@@ -109,7 +109,6 @@ module Solargraph
         return nil if this_path == 'undefined'
         return nil if this_path.nil? || this_path == 'undefined'
         return this_path if path.nil?
-        # o@sg-ignore Unresolved call to escape on Class<CGI>
         "[#{escape_brackets(this_path).gsub('_', '\\\\_')}](solargraph:/document?query=#{CGI.escape(this_path)})"
       end
 

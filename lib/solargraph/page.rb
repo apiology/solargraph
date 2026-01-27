@@ -35,9 +35,7 @@ module Solargraph
 
       # @param text [String]
       # @return [String]
-      # @sg-ignore Solargraph::Page::Binder#escape return type could not be inferred
       def escape text
-        # @sg-ignore Unresolved call to escapeHTML on Class<CGI>
         CGI.escapeHTML(text)
       end
 

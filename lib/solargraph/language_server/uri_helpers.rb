@@ -29,10 +29,7 @@ module Solargraph
       #
       # @param text [String]
       # @return [String]
-      # @sg-ignore Solargraph::LanguageServer::UriHelpers.encode
-      #   return type could not be inferred
       def encode text
-        # @sg-ignore Unresolved call to escape on Class<CGI>
         CGI.escape(text)
            .gsub('%3A', ':')
            .gsub('%5C', '\\')
@@ -44,10 +41,7 @@ module Solargraph
       #
       # @param text [String]
       # @return [String]
-      # @sg-ignore Solargraph::LanguageServer::UriHelpers.decode
-      #   return type could not be inferred
       def decode text
-        # @sg-ignore Unresolved call to unescape on Class<CGI>
         CGI.unescape(text)
       end
     end
