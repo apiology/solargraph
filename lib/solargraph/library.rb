@@ -517,6 +517,7 @@ module Solargraph
       # return if new_set == source_map_external_require_hash[source_map.filename]
       _filenames = nil
       filenames = ->{ _filenames ||= workspace.filenames.to_set }
+      # @sg-ignore Need to add a nil check here
       source_map_external_require_hash[source_map.filename] = new_set.reject do |path|
         workspace.require_paths.any? do |base|
           full = File.join(base, path)
