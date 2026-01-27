@@ -27,6 +27,7 @@ module Solargraph
     def self.combine_method_pins(*pins)
       # @type [Pin::Method, nil]
       combined_pin = nil
+      # @param memo [Pin::Method, nil]
       out = pins.reduce(combined_pin) do |memo, pin|
         next pin if memo.nil?
         if memo == pin && memo.source != :combined
@@ -41,8 +42,8 @@ module Solargraph
       out
     end
 
-    # @param yard_pins [Array<Pin::Base>]
-    # @param rbs_pins [Array<Pin::Base>]
+    # @param yard_pins [Array<Pin::Method>]
+    # @param rbs_pins [Array<Pin::Method>]
     #
     # @return [Array<Pin::Base>]
     def self.combine(yard_pins, rbs_pins)
