@@ -74,7 +74,7 @@ jobs:
         #
         # match version in Gemfile.lock and use same version below
         bundler: 2.5.23
-        bundler-cache: false
+        bundler-cache: true
     - name: Set rbs version
       run: echo "gem 'rbs', '${{ matrix.rbs-version }}'" >> .Gemfile
     #  /home/runner/.rubies/ruby-head/lib/ruby/gems/3.5.0+2/gems/rbs-3.9.4/lib/rbs.rb:11:
