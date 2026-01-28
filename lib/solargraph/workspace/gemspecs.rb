@@ -178,18 +178,8 @@ module Solargraph
         # print time including milliseconds
         self.class.gem_specification_cache[specish] ||= case specish
                                                         when Gem::Specification
-                                                          @@warned_on_rubygems ||= false
-                                                          if specish.respond_to?(:identifier)
-                                                            specish
-                                                          else
-                                                            # see https://github.com/castwide/solargraph/actions/runs/17588131738/job/49961580698?pr=1006 - happened on Ruby 3.0
-                                                            unless @@warned_on_rubygems
-                                                              logger.warn "Incomplete Gem::Specification encountered - recommend upgrading rubygems"
-                                                              @@warned_on_rubygems = true
-                                                            end
-                                                            nil
-                                                          end
                                                           # yay!
+                                                          specish
                                                         when Bundler::LazySpecification
                                                           # materializing didn't work.  Let's look in the local
                                                           # rubygems without bundler's help
