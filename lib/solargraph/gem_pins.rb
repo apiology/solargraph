@@ -28,6 +28,7 @@ module Solargraph
       # @type [Pin::Method, nil]
       combined_pin = nil
       # @param memo [Pin::Method, nil]
+      # @param pin [Pin::Method]
       out = pins.reduce(combined_pin) do |memo, pin|
         next pin if memo.nil?
         if memo == pin && memo.source != :combined
