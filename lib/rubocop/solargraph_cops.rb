@@ -2,4 +2,4 @@
 
 require 'solargraph'
 
-require_relative 'cop/solargraph/new_tag_type_position'
+require_relative 'cop/solargraph/type_violation'
