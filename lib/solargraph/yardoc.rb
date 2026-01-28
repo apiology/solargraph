@@ -18,7 +18,6 @@ module Solargraph
     def build_docs gem_yardoc_path, yard_plugins, gemspec
       return if docs_built?(gem_yardoc_path)
 
-      # @todo set these up to run in parallel
       unless Dir.exist? gemspec.gem_dir
         # Can happen in at least some (old?) RubyGems versions when we
         # have a gemspec describing a standard library like bundler.
