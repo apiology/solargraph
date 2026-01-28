@@ -19,10 +19,6 @@ module Solargraph
     # @return [String]
     attr_reader :directory
 
-    # @return [Array<String>]
-    attr_reader :gemnames
-    alias source_gems gemnames
-
     # @todo Remove '' and '*' special cases
     # @param directory [String]
     # @param config [Config, nil]
@@ -243,14 +239,6 @@ module Solargraph
       gemspecs.all_gemspecs_from_bundle
     end
 
-    # @todo make this actually work against bundle instead of pulling
-    #   all installed gemspecs -
-    #   https://github.com/apiology/solargraph/pull/10
-    # @return [Array<Gem::Specification>]
-    def all_gemspecs_from_bundle
-      Gem::Specification.to_a
-    end
-
     # @param out [StringIO, IO, nil] output stream for logging
     # @param rebuild [Boolean] whether to rebuild the pins even if they are cached
     # @return [void]
@@ -258,7 +246,7 @@ module Solargraph
       PinCache.cache_core(out: out) unless PinCache.core? && !rebuild
 
       # @type [Array<Gem::Specification>]
-      gem_specs = gemspecs.all_gemspecs_from_bundle
+      gem_specs = all_gemspecs_from_bundle
       # try any possible standard libraries, but be quiet about it
       stdlib_specs = pin_cache.possible_stdlibs.map { |stdlib| find_gem(stdlib, out: nil) }.compact
       specs = (gem_specs + stdlib_specs)

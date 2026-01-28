@@ -16,12 +16,6 @@ module Solargraph
     # @return [Workspace]
     attr_reader :workspace
 
-    # @return [Array<String>]
-    def requires
-      @requires ||= @provided_requires + (workspace.global_environ&.requires || [])
-    end
-    alias required requires
-
     # @param requires [Array<String>]
     # @param workspace [Workspace, nil]
     # @param out [IO, nil] output stream for logging
@@ -30,6 +24,12 @@ module Solargraph
       @workspace = workspace
       @out = out
     end
+
+    # @return [Array<String>]
+    def requires
+      @requires ||= @provided_requires + (workspace.global_environ&.requires || [])
+    end
+    alias required requires
 
     # @sg-ignore flow sensitive typing needs to understand reassignment
     # @return [Array<Gem::Specification>]

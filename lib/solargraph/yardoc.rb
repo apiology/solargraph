@@ -18,10 +18,6 @@ module Solargraph
     def build_docs gem_yardoc_path, yard_plugins, gemspec
       return if docs_built?(gem_yardoc_path)
 
-      Solargraph.logger.info "Saving yardoc for #{gemspec.name} #{gemspec.version} into #{gem_yardoc_path}"
-      cmd = "yardoc --db #{gem_yardoc_path} --no-output --plugin solargraph"
-      yard_plugins.each { |plugin| cmd << " --plugin #{plugin}" }
-      Solargraph.logger.debug { "Running: #{cmd}" }
       # @todo set these up to run in parallel
       unless Dir.exist? gemspec.gem_dir
         # Can happen in at least some (old?) RubyGems versions when we
@@ -39,7 +35,6 @@ module Solargraph
       # @todo set these up to run in parallel
       # @sg-ignore Our fill won't work properly due to an issue in
       #   Callable#arity_matches? - see comment there
-
       stdout_and_stderr_str, status = Open3.capture2e(current_bundle_env_tweaks, cmd, chdir: gemspec.gem_dir)
       return if status.success?
       Solargraph.logger.warn { "YARD failed running #{cmd.inspect} in #{gemspec.gem_dir}" }
