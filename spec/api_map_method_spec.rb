@@ -127,6 +127,7 @@ describe 'Solargraph::ApiMap methods' do
       it 'handles the YAML gem aliased to Psych' do
         specs = api_map.resolve_require('yaml')
         specs.each { |spec| api_map.cache_gem(spec) }
+        api_map.catalog bench
 
         expect(method_stack).not_to be_empty
       end
@@ -139,6 +140,7 @@ describe 'Solargraph::ApiMap methods' do
       it 'handles finding Thor.desc' do
         specs = api_map.resolve_require('thor')
         specs.each { |spec| api_map.cache_gem(spec) }
+        api_map.catalog bench
 
         # if this fails you may not have an rbs collection installed
         expect(method_stack).not_to be_empty
