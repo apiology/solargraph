@@ -245,7 +245,6 @@ module Solargraph
     def cache_all_for_workspace! out, rebuild: false
       PinCache.cache_core(out: out) unless PinCache.core? && !rebuild
 
-      # @type [Array<Gem::Specification>]
       gem_specs = all_gemspecs_from_bundle
       # try any possible standard libraries, but be quiet about it
       stdlib_specs = pin_cache.possible_stdlibs.map { |stdlib| find_gem(stdlib, out: nil) }.compact
