@@ -57,7 +57,7 @@ jobs:
         ruby-version: 3.4 # keep same as typecheck.yml
         # See https://github.com/castwide/solargraph/actions/runs/19000135777/job/54265647107?pr=1119
         rubygems: latest
-        bundler-cache: false
+        bundler-cache: true
     - uses: awalsh128/cache-apt-pkgs-action@latest
       with:
         packages: yq
@@ -86,7 +86,7 @@ jobs:
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: 3.4 # keep same as typecheck.yml
-        bundler-cache: false
+        bundler-cache: true
     - uses: awalsh128/cache-apt-pkgs-action@latest
       with:
         packages: yq
@@ -126,7 +126,7 @@ jobs:
       with:
         ruby-version: 3.4
         rubygems: latest
-        bundler-cache: false
+        bundler-cache: true
     - name: Install gems
       run: |
         set -x
@@ -181,7 +181,7 @@ jobs:
       with:
         # solargraph-rails supports Ruby 3.0+
         ruby-version: '3.0'
-        bundler-cache: false
+        bundler-cache: true
         # https://github.com/apiology/solargraph/actions/runs/19400815835/job/55508092473?pr=17
         rubygems: latest
         bundler: latest
