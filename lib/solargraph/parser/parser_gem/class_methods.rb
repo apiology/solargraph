@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'prism'
+
 module Solargraph
   module Parser
     module ParserGem
