@@ -50,7 +50,7 @@ Gem::Specification.new do |s|
   s.add_dependency 'thor', '~> 1.0'
   s.add_dependency 'tilt', '~> 2.0'
   s.add_dependency 'yard', '~> 0.9', '>= 0.9.24'
-  s.add_dependency 'yard-activesupport-concern', '~> 0.0'
+  s.add_dependency 'yard-activesupport-concern-apiology', '~> 0.0'
   s.add_dependency 'yard-solargraph', '~> 0.1'
 
   s.add_development_dependency 'pry', '~> 0.15'
