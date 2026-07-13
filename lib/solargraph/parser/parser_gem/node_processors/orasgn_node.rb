@@ -7,6 +7,7 @@ module Solargraph
         class OrasgnNode < Parser::NodeProcessor::Base
           # @return [void]
           def process
+            # @sg-ignore Unresolved call to type on Parser::AST::Node, nil; Unresolved call to children on Parser::AST::Node, nil
             new_node = node.updated(node.children[0].type, node.children[0].children + [node.children[1]])
             NodeProcessor.process(new_node, region, pins, locals, ivars)
           end

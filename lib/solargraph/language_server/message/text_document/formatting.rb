@@ -75,6 +75,7 @@ module Solargraph
             ]
 
             %w[except only].each do |arg|
+              # @sg-ignore Wrong argument type for Solargraph::LanguageServer::Message::TextDocument::Formatting#cop_list: value expected Array, String, received String, nil
               cops = cop_list(config[arg])
               args += ["--#{arg}", cops] if cops
             end
@@ -124,7 +125,9 @@ module Solargraph
                        }
                      else
                        {
+                         # @sg-ignore Wrong argument type for Integer#-: arg_0 expected BigDecimal, received Integer
                          line: original.lines.length - 1,
+                         # @sg-ignore Unresolved call to length on String, nil
                          character: original.lines.last.length
                        }
                      end

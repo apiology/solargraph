@@ -21,18 +21,23 @@ module Solargraph
         @buffer_lines = @buffer.lines
       end
 
+      # @return [Object]
       def on_comment *args
         # @sg-ignore
         # @type [Array(Symbol, String, Array([Integer, nil], [Integer, nil]))]
         result = super
         # @sg-ignore Need to add nil check here
         if @buffer_lines[result[2][0]][0..result[2][1]].strip =~ /^#/
+          # @sg-ignore Unresolved call to chomp on Symbol, String, Array, nil
           chomped = result[1].chomp
+          # @sg-ignore Unresolved call to [] on Symbol, String, Array, nil; Unresolved call to encode
           if result[2][0].zero? && chomped.encode('UTF-8', 'binary', invalid: :replace, undef: :replace,
                                                                      replace: '').match(/^#\s*frozen_string_literal:/)
             chomped = '#'
           end
+          # @sg-ignore Unresolved call to [] on Symbol, String, Array, nil
           @comments[result[2][0]] =
+            # @sg-ignore Unresolved call to [] on Symbol, String, Array, nil
             Snippet.new(Range.from_to(result[2][0], result[2][1], result[2][0], result[2][1] + chomped.length), chomped)
         end
         result
@@ -41,10 +46,14 @@ module Solargraph
       # @param result [Array(Symbol, String, Array([Integer, nil], [Integer, nil]))]
       # @return [void]
       def create_snippet result
+        # @sg-ignore Unresolved call to chomp on Symbol, String, Array, nil
         chomped = result[1].chomp
+        # @sg-ignore Unresolved call to [] on Symbol, String, Array, nil
         @comments[result[2][0]] =
           Snippet.new(
+            # @sg-ignore Unresolved call to [] on Symbol, String, Array, nil
             Range.from_to(result[2][0] || 0, result[2][1] || 0, result[2][0] || 0,
+                          # @sg-ignore Unresolved call to [] on Symbol, String, Array, nil; Unresolved call to length
                           (result[2][1] || 0) + chomped.length), chomped
           )
       end

@@ -261,6 +261,7 @@ module Solargraph
 
       # @param api_map [ApiMap]
       # @return [ComplexType]
+      # @sg-ignore Declared return type ::Solargraph::ComplexType does not match inferred type ::Solargraph::ComplexType, nil for Solargraph::Pin::Parameter#typify_block_param
       def typify_block_param api_map
         block_pin = closure
         return block_pin.typify_parameters(api_map)[index] if block_pin.is_a?(Pin::Block) && block_pin.receiver && index
@@ -281,6 +282,7 @@ module Solargraph
             found = p
             break
           end
+          # @sg-ignore Unresolved call to name on YARD::Tags::Tag, nil
           if found.nil? && !index.nil? && params[index] && (params[index].name.nil? || params[index].name.empty?)
             found = params[index]
           end
@@ -319,6 +321,7 @@ module Solargraph
         return nil if skip.include?(ref)
         skip.push ref
         parts = ref.split(/[.#]/)
+        # @sg-ignore Unresolved call to empty? on String, nil
         if parts.first.empty?
           path = "#{namespace}#{ref}"
         else

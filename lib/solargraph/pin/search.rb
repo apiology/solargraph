@@ -53,7 +53,9 @@ module Solargraph
       # @param str2 [String]
       #
       # @return [Float]
+      # @sg-ignore Declared return type ::Float does not match inferred type ::Complex, ::Float for Solargraph::Pin::Search#fuzzy_string_match
       def fuzzy_string_match str1, str2
+        # @sg-ignore Wrong argument type for Float#+: arg_0 expected Complex, received BigDecimal; Wrong argument type for Float#+: arg_0 expected Numeric, received BigDecimal; Wrong argument type for Float#/: arg_0 expected BigDecimal, received Integer
         return 1.0 + (str2.length.to_f / str1.length) if str1.downcase.include?(str2.downcase)
         JaroWinkler.similarity(str1, str2, ignore_case: true)
       end

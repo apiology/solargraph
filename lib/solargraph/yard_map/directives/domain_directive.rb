@@ -21,6 +21,7 @@ module Solargraph
         # @param [Array<Pin::Base>] pins
         # @param [Position] position
         # @return [Pin::Namespace]
+        # @sg-ignore Declared return type ::Solargraph::Pin::Namespace does not match inferred type ::Solargraph::Pin::Base, nil for Solargraph::YardMap::Directives::DomainDirective.closure_at; Declared return type ::Solargraph::Pin::Namespace does not match inferred type ::Solargraph::Pin::Base, nil for Solargraph::...
         def closure_at pins, position
           pins.select { |pin| pin.is_a?(Pin::Namespace) and pin.location&.range&.contain?(position) }.last
         end

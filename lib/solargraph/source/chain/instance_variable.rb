@@ -13,7 +13,6 @@ module Solargraph
           @location = location
         end
 
-        # @sg-ignore Declared return type
         #   ::Array<::Solargraph::Pin::Base> does not match inferred
         #   type ::Array<::Solargraph::Pin::BaseVariable, ::NilClass>
         #   for Solargraph::Source::Chain::InstanceVariable#resolve

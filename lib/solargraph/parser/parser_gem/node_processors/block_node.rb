@@ -7,10 +7,12 @@ module Solargraph
         class BlockNode < Parser::NodeProcessor::Base
           include ParserGem::NodeMethods
 
+          # @return [void]
           def process
             location = get_node_location(node)
             scope = region.scope || region.closure.context.scope
             if other_class_eval?
+              # @sg-ignore Unresolved call to children on Parser::AST::Node, nil
               clazz_name = unpack_name(node.children[0].children[0])
               # instance variables should come from the Class<T> type
               # - i.e., treated as class instance variables
@@ -33,9 +35,13 @@ module Solargraph
 
           private
 
+          # @return [Boolean]
           def other_class_eval?
+            # @sg-ignore Unresolved call to type on Parser::AST::Node, nil
             node.children[0].type == :send &&
+              # @sg-ignore Unresolved call to children on Parser::AST::Node, nil
               node.children[0].children[1] == :class_eval &&
+              # @sg-ignore Unresolved call to children on Parser::AST::Node, nil
               %i[cbase const].include?(node.children[0].children[0]&.type)
           end
         end

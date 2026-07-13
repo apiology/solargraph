@@ -27,9 +27,11 @@ module Solargraph
           #       s(:send, nil, :bar)))
           #
           # @param node [Parser::AST::Node]
+          # @return [Boolean]
           def match? node
             return false unless node&.type == :class
 
+            # @sg-ignore Wrong argument type for Solargraph::Convention::DataDefinition::DataDefintionNode.data_definition_node?: data_node expected Parser::AST::Node, received Parser::AST::Node, nil
             data_definition_node?(node.children[1])
           end
 
@@ -41,6 +43,7 @@ module Solargraph
             return false unless data_node.is_a?(::Parser::AST::Node)
             return false unless data_node&.type == :send
             return false unless data_node.children[0]&.type == :const
+            # @sg-ignore Unresolved call to children on Parser::AST::Node, nil
             return false unless data_node.children[0].children[1] == :Data
             return false unless data_node.children[1] == :define
 

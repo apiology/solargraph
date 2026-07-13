@@ -5,6 +5,7 @@ module Solargraph
     module ParserGem
       module NodeProcessors
         class ArgsNode < Parser::NodeProcessor::Base
+          # @return [void]
           def process
             callable = region.closure
             if callable.is_a? Pin::Callable
@@ -13,12 +14,14 @@ module Solargraph
               else
                 node.children.each do |u|
                   loc = get_node_location(u)
+                  # @sg-ignore Wrong argument type for Solargraph::Pin::Parameter.new: asgn_code expected String, nil, received String, NilClass
                   locals.push Solargraph::Pin::Parameter.new(
                     location: loc,
                     closure: callable,
                     comments: comments_for(node),
                     name: u.children[0].to_s,
                     assignment: u.children[1],
+                    # @sg-ignore Wrong argument type for Solargraph::Parser::Region#code_for: node expected Parser::AST::Node, received Parser::AST::Node, nil
                     asgn_code: u.children[1] ? region.code_for(u.children[1]) : nil,
                     # @sg-ignore Need to add nil check here
                     presence: callable.location.range,

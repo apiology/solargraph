@@ -25,8 +25,10 @@ module Solargraph
         return unless and_node.type == :and
 
         # @type [Parser::AST::Node]
+        # @sg-ignore Declared type Parser::AST::Node does not match inferred type Parser::AST::Node, nil for variable lhs
         lhs = and_node.children[0]
         # @type [Parser::AST::Node]
+        # @sg-ignore Declared type Parser::AST::Node does not match inferred type Parser::AST::Node, nil for variable rhs
         rhs = and_node.children[1]
 
         before_rhs_loc = rhs.location.expression.adjust(begin_pos: -1)
@@ -51,8 +53,10 @@ module Solargraph
         return unless or_node.type == :or
 
         # @type [Parser::AST::Node]
+        # @sg-ignore Declared type Parser::AST::Node does not match inferred type Parser::AST::Node, nil for variable lhs
         lhs = or_node.children[0]
         # @type [Parser::AST::Node]
+        # @sg-ignore Declared type Parser::AST::Node does not match inferred type Parser::AST::Node, nil for variable rhs
         rhs = or_node.children[1]
 
         before_rhs_loc = rhs.location.expression.adjust(begin_pos: -1)
@@ -152,6 +156,7 @@ module Solargraph
                                     get_node_end_position(else_clause))
         end
 
+        # @sg-ignore Wrong argument type for Solargraph::Parser::FlowSensitiveTyping#process_expression: expression_node expected Parser::AST::Node, received Parser::AST::Node, nil
         process_expression(conditional_node, true_ranges, false_ranges)
       end
 
@@ -187,6 +192,7 @@ module Solargraph
                                    get_node_end_position(do_clause))
         end
 
+        # @sg-ignore Wrong argument type for Solargraph::Parser::FlowSensitiveTyping#process_expression: expression_node expected Parser::AST::Node, received Parser::AST::Node, nil
         process_expression(conditional_node, true_ranges, false_ranges)
       end
 
@@ -227,6 +233,7 @@ module Solargraph
         # Add specialized vars for the rest of the block
         #
         facts_by_pin.each_pair do |pin, facts|
+          # @sg-ignore Unresolved call to each
           facts.each do |fact|
             downcast_type = fact.fetch(:type, nil)
             downcast_not_type = fact.fetch(:not_type, nil)
@@ -265,16 +272,20 @@ module Solargraph
         #     s(:const, nil, :Baz)),
         #
         call_receiver = call_node.children[0]
+        # @sg-ignore Wrong argument type for Solargraph::Parser::FlowSensitiveTyping#type_name: node expected Parser::AST::Node, received Parser::AST::Node, nil
         call_arg = type_name(call_node.children[2])
 
         # check if call_receiver looks like this:
         #  s(:send, nil, :foo)
         # and set variable_name to :foo
+        # @sg-ignore Unresolved call to children
         if call_receiver&.type == :send && call_receiver.children[0].nil? && call_receiver.children[1].is_a?(Symbol)
+          # @sg-ignore Unresolved call to children
           variable_name = call_receiver.children[1].to_s
         end
         # or like this:
         # (lvar :repr)
+        # @sg-ignore Unresolved call to children
         variable_name = call_receiver.children[0].to_s if %i[lvar ivar].include?(call_receiver&.type)
         return unless variable_name
 
@@ -392,6 +403,7 @@ module Solargraph
         receiver = bang_node.children[0]
 
         # swap the two presences
+        # @sg-ignore Wrong argument type for Solargraph::Parser::FlowSensitiveTyping#process_expression: expression_node expected Parser::AST::Node, received Parser::AST::Node, nil
         process_expression(receiver, false_presences, true_presences)
       end
 

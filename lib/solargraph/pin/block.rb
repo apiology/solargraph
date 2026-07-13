@@ -45,10 +45,12 @@ module Solargraph
       # @param parameters [::Array<Parameter>]
       #
       # @return [::Array<ComplexType>]
+      # @sg-ignore Declared return type ::Array<::Solargraph::ComplexType> does not match inferred type ::Enumerator<::Array(::Solargraph::Pin::Parameter, ::Array, ::Integer), undefined> for Solargraph::Pin::Block#destructure_yield_types
       def destructure_yield_types yield_types, parameters
         # yielding a tuple into a block will destructure the tuple
         if yield_types.length == 1
           yield_type = yield_types.first
+          # @sg-ignore Unresolved call to tuple?; Unresolved call to all_params
           return yield_type.all_params if yield_type.tuple? && yield_type.all_params.length == parameters.length
         end
         parameters.map.with_index { |_, idx| yield_types[idx] || ComplexType::UNDEFINED }
@@ -75,13 +77,18 @@ module Solargraph
           argument_types = destructure_yield_types(yield_types, parameters)
           param_types = argument_types.each_with_index.map do |arg_type, idx|
             param = parameters[idx]
+            # @sg-ignore Wrong argument type for Solargraph::Source::Chain#infer: name_pin expected Solargraph::Pin::Base, received Solargraph::Pin::Parameter, nil
             param_type = chain.base.infer(api_map, param, locals)
+            # @sg-ignore Unresolved call to nil?
             unless arg_type.nil?
+              # @sg-ignore Unresolved call to generic?
               if arg_type.generic? && param_type.defined?
                 # @sg-ignore Need to add nil check here
                 namespace_pin = api_map.get_namespace_pins(meth.namespace, closure.namespace).first
+                # @sg-ignore Unresolved call to resolve_generics
                 arg_type.resolve_generics(namespace_pin, param_type)
               else
+                # @sg-ignore Unresolved call to self_to_type
                 arg_type.self_to_type(chain.base.infer(api_map, self, locals)).qualify(api_map, *meth.gates)
               end
             end

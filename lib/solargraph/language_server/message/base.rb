@@ -85,6 +85,7 @@ module Solargraph
             # https://microsoft.github.io/language-server-protocol/specifications/specification-current/#cancelRequest
             # cancel should send response RequestCancelled
             Solargraph::Logging.logger.info "Cancelled response to ##{id} #{method}"
+            # @sg-ignore Wrong argument type for Solargraph::LanguageServer::Message::Base#set_result: data expected Hash, Array, nil, received NilClass
             set_result nil
             set_error ErrorCodes::REQUEST_CANCELLED, 'Cancelled by client'
           else

@@ -45,7 +45,9 @@ task :full_spec do
   warn 'ending spec'
   # move coverage/full-new to coverage/full on success so that we
   # always have the last successful run's 'coverage info
+  # @sg-ignore Wrong argument type for FileUtils.rm_rf: list expected FileUtils::path, Array<FileUtils::path>, received String
   FileUtils.rm_rf('coverage/full')
+  # @sg-ignore Wrong argument type for FileUtils.mv: src expected FileUtils::path, Array<FileUtils::path>, received String
   FileUtils.mv('coverage/full-new', 'coverage/full')
 end
 

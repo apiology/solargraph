@@ -50,6 +50,7 @@ module Solargraph
               obj.add_file(pin.location.filename, pin.location.range.start.line, !pin.comments.empty?)
             end
           end
+          # @sg-ignore Unresolved call to docstring= on YARD::CodeObjects::Base, nil
           code_object_map[pin.path].docstring = pin.docstring
           store.get_includes(pin.path).each do |ref|
             include_object = code_object_at(pin.path, YARD::CodeObjects::ClassObject)
@@ -103,6 +104,7 @@ module Solargraph
 
       # @return [YARD::CodeObjects::RootObject]
       def root_code_object
+        # @sg-ignore Wrong argument type for YARD::CodeObjects::NamespaceObject.new: namespace expected YARD::CodeObjects::NamespaceObject, Symbol, nil, received NilClass
         @root_code_object ||= YARD::CodeObjects::RootObject.new(nil, 'root')
       end
     end

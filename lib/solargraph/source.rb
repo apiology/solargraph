@@ -66,6 +66,7 @@ module Solargraph
     def from_to l1, c1, l2, c2
       b = Solargraph::Position.line_char_to_offset(code, l1, c1)
       e = Solargraph::Position.line_char_to_offset(code, l2, c2)
+      # @sg-ignore Wrong argument type for Integer#-: arg_0 expected BigDecimal, received Integer
       code[b..(e - 1)]
     end
 
@@ -74,6 +75,7 @@ module Solargraph
     # @param line [Integer]
     # @param column [Integer]
     # @return [AST::Node]
+    # @sg-ignore Declared return type ::AST::Node does not match inferred type ::Parser::AST::Node, nil for Solargraph::Source#node_at
     def node_at line, column
       tree_at(line, column).first
     end
@@ -196,6 +198,7 @@ module Solargraph
       b = Position.line_char_to_offset(code, rng.start.line, rng.start.column)
       # @sg-ignore Need to add nil check here
       e = Position.line_char_to_offset(code, rng.ending.line, rng.ending.column)
+      # @sg-ignore Wrong argument type for Integer#-: arg_0 expected BigDecimal, received Integer
       frag = code[b..(e - 1)].to_s
       frag.strip.gsub(/,$/, '')
     end
@@ -203,12 +206,14 @@ module Solargraph
     # @param node [AST::Node]
     #
     # @return [String, nil]
+    # @sg-ignore Declared return type ::String, nil does not match inferred type ::String, ::NilClass for Solargraph::Source#comments_for
     def comments_for node
       rng = Range.from_node(node)
       # @sg-ignore Need to add nil check here
       stringified_comments[rng.start.line] ||= begin
         # @sg-ignore Need to add nil check here
         buff = associated_comments[rng.start.line]
+        # @sg-ignore Wrong argument type for Solargraph::Source#stringify_comment_array: comments expected String, received String, NilClass
         buff ? stringify_comment_array(buff) : nil
       end
     end
@@ -258,14 +263,19 @@ module Solargraph
         # @type [Integer, nil]
         last = nil
         comments.each_pair do |num, snip|
+          # @sg-ignore Unresolved call to ==
           if !last || num == last + 1
+            # @sg-ignore Unresolved call to text
             buffer.concat "#{snip.text}\n"
           else
+            # @sg-ignore Wrong argument type for Solargraph::Source#first_not_empty_from: line expected Integer, received BigDecimal; Wrong argument type for Integer#+: arg_0 expected BigDecimal, received Integer
             result[first_not_empty_from(last + 1)] = buffer.clone
+            # @sg-ignore Unresolved call to text
             buffer.replace "#{snip.text}\n"
           end
           last = num
         end
+        # @sg-ignore Wrong argument type for Solargraph::Source#first_not_empty_from: line expected Integer, received BigDecimal; Wrong argument type for Integer#+: arg_0 expected BigDecimal, received Integer
         result[first_not_empty_from(last + 1)] = buffer unless buffer.empty? || last.nil?
         result
       end
@@ -277,7 +287,9 @@ module Solargraph
     # @return [Integer]
     def first_not_empty_from line
       cursor = line
+      # @sg-ignore Unresolved call to strip on String, nil
       cursor += 1 while cursor < code_lines.length && code_lines[cursor].strip.empty?
+      # @sg-ignore Wrong argument type for Integer#>: arg_0 expected Numeric, received BigDecimal; Wrong argument type for Integer#-: arg_0 expected BigDecimal, received Integer
       cursor = line if cursor > code_lines.length - 1
       cursor
     end

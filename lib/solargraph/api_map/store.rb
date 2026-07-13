@@ -32,6 +32,7 @@ module Solargraph
 
         # @todo Fix this map
         @fqns_pins_map = nil
+        # @sg-ignore Unresolved call to zero?
         return catalog(pinsets) if changed.zero?
 
         # @sg-ignore Need to add nil check here
@@ -44,7 +45,9 @@ module Solargraph
                                     end
         end
         # @type [Index]
+        # @sg-ignore Declared type Solargraph::ApiMap::Index does not match inferred type Solargraph::ApiMap::Index, nil for variable @index
         @index = @indexes.last.clone
+        # @sg-ignore Unresolved call to merge
         @index = @index.merge(block.call) if block
         constants.clear
         cached_qualify_superclass.clear
@@ -90,6 +93,7 @@ module Solargraph
         return nil if fqns.nil? || fqns.empty?
         return BOOLEAN_SUPERCLASS_PIN if %w[TrueClass FalseClass].include?(fqns)
 
+        # @sg-ignore Unresolved call to first on Array<Solargraph::Pin::Reference::Superclass>, nil
         superclass_references[fqns].first || try_special_superclasses(fqns)
       end
 
@@ -126,6 +130,7 @@ module Solargraph
 
       # @param path [String]
       # @return [Array<Solargraph::Pin::Base>]
+      # @sg-ignore Declared return type ::Array<::Solargraph::Pin::Base> does not match inferred type ::Array<::Solargraph::Pin::Base>, nil for Solargraph::ApiMap::Store#get_path_pins
       def get_path_pins path
         index.path_pin_hash[path]
       end
@@ -205,6 +210,7 @@ module Solargraph
 
       # @param fqns [String, nil]
       # @return [Array<Solargraph::Pin::Namespace>]
+      # @sg-ignore Declared return type ::Array<::Solargraph::Pin::Namespace> does not match inferred type ::Array, ::Array<::Solargraph::Pin::Namespace>, nil for Solargraph::ApiMap::Store#fqns_pins
       def fqns_pins fqns
         return [] if fqns.nil?
         if fqns.include?('::')
@@ -245,14 +251,13 @@ module Solargraph
 
           # Add includes, prepends, and extends
           [get_includes(current), get_prepends(current), get_extends(current)].each do |refs|
+            # @sg-ignore Unresolved call to nil?
             next if refs.nil?
             # @param ref [String]
+            # @sg-ignore Unresolved call to map
             refs.map(&:type).map(&:to_s).each do |ref|
-              # @sg-ignore flow sensitive typing should be able to handle redefinition
               next if ref.nil? || ref.empty? || visited.include?(ref)
-              # @sg-ignore flow sensitive typing should be able to handle redefinition
               ancestors << ref
-              # @sg-ignore flow sensitive typing should be able to handle redefinition
               queue << ref
             end
           end
@@ -311,6 +316,7 @@ module Solargraph
           end
         end
         @index = @indexes.last.clone
+        # @sg-ignore Unresolved call to merge
         @index = @index.merge(block.call) if block
         constants.clear
         cached_qualify_superclass.clear
@@ -360,6 +366,7 @@ module Solargraph
 
       # @param name [String]
       # @return [Enumerable<Solargraph::Pin::Base>]
+      # @sg-ignore Declared return type ::Enumerable<::Solargraph::Pin::Base> does not match inferred type ::Array, ::Array<::Solargraph::Pin::Namespace>, nil for Solargraph::ApiMap::Store#namespace_children
       def namespace_children name
         return [] unless index.namespace_hash.key?(name)
         index.namespace_hash[name]
@@ -384,7 +391,9 @@ module Solargraph
 
       # @param fq_sub_tag [String]
       # @return [String, nil]
+      # @sg-ignore Declared return type ::String, nil does not match inferred type ::String, ::NilClass for Solargraph::ApiMap::Store#qualify_and_cache_superclass
       def qualify_and_cache_superclass fq_sub_tag
+        # @sg-ignore Wrong argument type for Hash#[]=: arg1 expected String, NilClass, received String, nil
         cached_qualify_superclass[fq_sub_tag] = uncached_qualify_superclass(fq_sub_tag)
       end
 

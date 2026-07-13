@@ -5,6 +5,7 @@ module Solargraph
     module Message
       module TextDocument
         class Hover < Base
+          # @return [void]
           def process
             line = params['position']['line']
             col = params['position']['character']
@@ -32,6 +33,7 @@ module Solargraph
             Logging.logger.warn "[#{e.class}] #{e.message}"
             # @sg-ignore Need to add nil check here
             Logging.logger.warn e.backtrace.join("\n")
+            # @sg-ignore Wrong argument type for Solargraph::LanguageServer::Message::Base#set_result: data expected Hash, Array, nil, received NilClass
             set_result nil
           end
 

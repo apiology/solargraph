@@ -106,6 +106,7 @@ module Solargraph
         # @sg-ignore `newline_index` is always an Integer inside the while block
         character = offset - newline_index - 1
       end
+      # @sg-ignore Unresolved call to between? on BigDecimal
       character = 0 if character.nil? && (cursor - offset).between?(0, 1)
       raise InvalidOffsetError if character.nil?
       # @sg-ignore flow sensitive typing needs to handle 'raise if'
@@ -121,6 +122,7 @@ module Solargraph
     # @return [Position]
     def self.normalize object
       return object if object.is_a?(Position)
+      # @sg-ignore Wrong argument type for Solargraph::Position.new: line expected Integer, received Integer, nil
       return Position.new(object[0], object[1]) if object.is_a?(Array)
       raise ArgumentError, "Unable to convert #{object.class} to Position"
     end

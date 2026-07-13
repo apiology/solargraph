@@ -30,6 +30,7 @@ module Solargraph
       # @param visibility [Array<Symbol>]
       # @param deep [Boolean]
       # @return [Array<Pin::Method>]
+      # @sg-ignore Declared return type ::Array<::Solargraph::Pin::Method> does not match inferred type ::Array<::Solargraph::Pin::Method>, nil for Solargraph::ApiMap::Cache#get_methods
       def get_methods fqns, scope, visibility, deep
         @methods["#{fqns}|#{scope}|#{visibility}|#{deep}"]
       end
@@ -47,6 +48,7 @@ module Solargraph
       # @param namespace [String]
       # @param contexts [Array<String>]
       # @return [Array<Pin::Base>]
+      # @sg-ignore Declared return type ::Array<::Solargraph::Pin::Base> does not match inferred type ::Array<::Solargraph::Pin::Base>, nil for Solargraph::ApiMap::Cache#get_constants
       def get_constants namespace, contexts
         @constants["#{namespace}|#{contexts}"]
       end
@@ -62,6 +64,7 @@ module Solargraph
       # @param name [String]
       # @param context [String]
       # @return [String, nil]
+      # @sg-ignore Declared return type ::String, nil does not match inferred type ::String, ::NilClass, nil for Solargraph::ApiMap::Cache#get_qualified_namespace
       def get_qualified_namespace name, context
         @qualified_namespaces["#{name}|#{context}"]
       end
@@ -71,11 +74,13 @@ module Solargraph
       # @param value [String, nil]
       # @return [void]
       def set_qualified_namespace name, context, value
+        # @sg-ignore Wrong argument type for Hash#[]=: arg1 expected String, NilClass, received String, nil
         @qualified_namespaces["#{name}|#{context}"] = value
       end
 
       # @param path [String]
       # @return [Pin::Method]
+      # @sg-ignore Declared return type ::Solargraph::Pin::Method does not match inferred type ::Solargraph::Pin::Method, nil for Solargraph::ApiMap::Cache#get_receiver_definition
       def get_receiver_definition path
         @receiver_definitions[path]
       end

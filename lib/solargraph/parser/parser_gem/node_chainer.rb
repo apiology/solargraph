@@ -53,13 +53,16 @@ module Solargraph
         # @return [Array<Chain::Link>]
         def generate_links n
           return [] unless n.is_a?(::Parser::AST::Node)
+          # @sg-ignore Wrong argument type for Solargraph::Parser::ParserGem::NodeChainer#generate_links: n expected Parser::AST::Node, received Parser::AST::Node, nil
           return generate_links(n.children[0]) if n.type == :splat
           # @type [Array<Chain::Link>]
           result = []
           if n.type == :block
+            # @sg-ignore Wrong argument type for Solargraph::Parser::ParserGem::NodeChainer.chain: node expected Parser::AST::Node, received Parser::AST::Node, nil
             result.concat NodeChainer.chain(n.children[0], @filename, n).links
           elsif n.type == :send
             if n.children[0].is_a?(::Parser::AST::Node)
+              # @sg-ignore Wrong argument type for Solargraph::Parser::ParserGem::NodeChainer#generate_links: n expected Parser::AST::Node, received Parser::AST::Node, nil
               result.concat generate_links(n.children[0])
               result.push Chain::Call.new(n.children[1].to_s, Location.from_node(n), node_args(n), passed_block(n))
             elsif n.children[0].nil?
@@ -73,6 +76,7 @@ module Solargraph
             end
           elsif n.type == :csend
             if n.children[0].is_a?(::Parser::AST::Node)
+              # @sg-ignore Wrong argument type for Solargraph::Parser::ParserGem::NodeChainer#generate_links: n expected Parser::AST::Node, received Parser::AST::Node, nil
               result.concat generate_links(n.children[0])
               result.push Chain::QCall.new(n.children[1].to_s, Location.from_node(n), node_args(n))
             elsif n.children[0].nil?
@@ -107,7 +111,9 @@ module Solargraph
             # s(:or_asgn,
             #   s(:ivasgn, :@bar),
             #   s(:int, 123))
+            # @sg-ignore Wrong argument type for Solargraph::Parser::ParserGem::NodeChainer.chain: node expected Parser::AST::Node, received Parser::AST::Node, nil
             lhs_chain = NodeChainer.chain n.children[0] # s(:ivasgn, :@bar)
+            # @sg-ignore Wrong argument type for Solargraph::Parser::ParserGem::NodeChainer.chain: node expected Parser::AST::Node, received Parser::AST::Node, nil
             rhs_chain = NodeChainer.chain n.children[1] # s(:int, 123)
             or_link = Chain::Or.new([lhs_chain, rhs_chain])
             # this is just for a call chain, so we don't need to record the assignment
@@ -116,23 +122,29 @@ module Solargraph
             # @todo Undefined or what?
             result.push Chain::UNDEFINED_CALL
           elsif n.type == :and
+            # @sg-ignore Wrong argument type for Solargraph::Parser::ParserGem::NodeChainer#generate_links: n expected Parser::AST::Node, received Parser::AST::Node, nil
             result.concat generate_links(n.children.last)
           elsif n.type == :or
+            # @sg-ignore Wrong argument type for Solargraph::Parser::ParserGem::NodeChainer.chain: node expected Parser::AST::Node, received Parser::AST::Node, nil
             result.push Chain::Or.new([NodeChainer.chain(n.children[0], @filename),
+                                       # @sg-ignore Wrong argument type for Solargraph::Parser::ParserGem::NodeChainer.chain: node expected Parser::AST::Node, received Parser::AST::Node, nil
                                        NodeChainer.chain(n.children[1], @filename, n)])
           elsif n.type == :if
             then_clause = if n.children[1]
+                            # @sg-ignore Wrong argument type for Solargraph::Parser::ParserGem::NodeChainer.chain: node expected Parser::AST::Node, received Parser::AST::Node, nil
                             NodeChainer.chain(n.children[1], @filename, n)
                           else
                             Source::Chain.new([Source::Chain::Literal.new('nil', nil)], n)
                           end
             else_clause = if n.children[2]
+                            # @sg-ignore Wrong argument type for Solargraph::Parser::ParserGem::NodeChainer.chain: node expected Parser::AST::Node, received Parser::AST::Node, nil
                             NodeChainer.chain(n.children[2], @filename, n)
                           else
                             Source::Chain.new([Source::Chain::Literal.new('nil', nil)], n)
                           end
             result.push Chain::If.new([then_clause, else_clause])
           elsif %i[begin kwbegin].include?(n.type)
+            # @sg-ignore Wrong argument type for Solargraph::Parser::ParserGem::NodeChainer#generate_links: n expected Parser::AST::Node, received Parser::AST::Node, nil
             result.concat generate_links(n.children.last)
           elsif n.type == :block_pass
             block_variable_name_node = n.children[0]
@@ -159,9 +171,12 @@ module Solargraph
         end
 
         # @param node [Parser::AST::Node]
+        # @return [Boolean]
         def hash_is_splatted? node
           return false unless Parser.is_ast_node?(node) && node.type == :hash
+          # @sg-ignore Unresolved call to type on Parser::AST::Node, nil
           return false unless Parser.is_ast_node?(node.children.last) && node.children.last.type == :kwsplat
+          # @sg-ignore Unresolved call to children on Parser::AST::Node, nil
           if Parser.is_ast_node?(node.children.last.children[0]) && node.children.last.children[0].type == :hash
             return false
           end

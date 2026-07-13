@@ -33,7 +33,9 @@ module Solargraph
             next unless new_text == dupable
             # @sg-ignore flow sensitive typing needs to handle attrs
             offset = Position.to_offset(text, range.start)
+            # @sg-ignore Wrong argument type for Integer#-: arg_0 expected BigDecimal, received Integer
             if text[offset - 1] == dupable
+              # @sg-ignore Wrong argument type for Solargraph::Position.from_offset: offset expected Integer, received BigDecimal; Wrong argument type for Integer#-: arg_0 expected BigDecimal, received Integer
               p = Position.from_offset(text, offset - 1)
               # @sg-ignore flow sensitive typing needs to handle attrs
               r = Change.new(Range.new(p, range.start), ' ')
@@ -82,6 +84,7 @@ module Solargraph
         start_offset = Position.to_offset(text, range.start)
         # @sg-ignore Need to add nil check here
         end_offset = Position.to_offset(text, range.ending)
+        # @sg-ignore Wrong argument type for Integer#-: arg_0 expected BigDecimal, received Integer
         (start_offset.zero? ? '' : text[0..(start_offset - 1)].to_s) + normalize(insert) + text[end_offset..].to_s
       end
     end

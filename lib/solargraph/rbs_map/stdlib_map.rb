@@ -16,6 +16,8 @@ module Solargraph
       #   have cached them already
       # @param library [String]
       # @param out [StringIO, IO, nil] where to log messages
+      # @return [Object]
+      # @sg-ignore Declared return type ::Object does not match inferred type ::Boolean, void, nil for Solargraph::RbsMap::StdlibMap#initialize
       def initialize library, rebuild: false, out: $stderr
         cached_pins = PinCache.deserialize_stdlib_require library
         if cached_pins && !rebuild
@@ -23,6 +25,7 @@ module Solargraph
           @resolved = true
           @loaded = true
           logger.debug { "Deserialized #{cached_pins.length} cached pins for stdlib require #{library.inspect}" }
+        # @sg-ignore Wrong argument type for RBS::Collection::Sources::Stdlib#has?: version expected String, nil, received NilClass
         elsif self.class.source.has? library, nil
           super(library, out: out)
           unless resolved?

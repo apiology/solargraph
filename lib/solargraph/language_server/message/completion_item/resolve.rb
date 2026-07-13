@@ -22,8 +22,10 @@ module Solargraph
                    .reject { |pin| pin.documentation.empty? && pin.return_type.undefined? }
             result = params
                      .transform_keys(&:to_sym)
+                     # @sg-ignore Unresolved call to resolve_completion_item on Solargraph::Pin::Base, nil
                      .merge(pins.first.resolve_completion_item)
                      .merge(documentation: markup_content(join_docs(docs)))
+            # @sg-ignore Unresolved call to detail on Solargraph::Pin::Base, nil
             result[:detail] = pins.first.detail
             result
           end

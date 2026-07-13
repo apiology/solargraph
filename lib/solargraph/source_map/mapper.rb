@@ -73,8 +73,10 @@ module Solargraph
         # @param d [YARD::Tags::Directive]
         parse.directives.each do |d|
           line_num = find_directive_line_number(cmnt, d.tag.tag_name, last_line)
+          # @sg-ignore Wrong argument type for Solargraph::Position.new: line expected Integer, received BigDecimal; Wrong argument type for Integer#+: arg_0 expected BigDecimal, received Integer
           pos = Solargraph::Position.new(comment_position.line + line_num - 1, comment_position.column)
           process_directive(source_position, pos, d)
+          # @sg-ignore Wrong argument type for Integer#+: arg_0 expected BigDecimal, received Integer
           last_line = line_num + 1
         end
       end

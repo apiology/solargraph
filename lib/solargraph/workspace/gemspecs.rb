@@ -56,7 +56,6 @@ module Solargraph
         ].compact.uniq
         # @param gem_name [String]
         gem_names_to_try.each do |gem_name|
-          # @sg-ignore Unresolved call to == on Boolean
           gemspec = all_gemspecs.find { |gemspec| gemspec.name == gem_name }
           # @sg-ignore flow sensitive typing should be able to handle redefinition
           return [gemspec_or_preference(gemspec)] if gemspec
@@ -100,11 +99,9 @@ module Solargraph
       #
       # @return [Gem::Specification, nil]
       def find_gem name, version = nil, out: $stderr
-        # @sg-ignore flow sensitive typing should be able to handle redefinition
         specish = all_gemspecs_from_bundle.find { |specish| specish.name == name && specish.version == version }
         return to_gem_specification specish if specish
 
-        # @sg-ignore flow sensitive typing should be able to handle redefinition
         specish = all_gemspecs_from_bundle.find { |specish| specish.name == name }
         # @sg-ignore flow sensitive typing needs to create separate ranges for postfix if
         return to_gem_specification specish if specish
@@ -136,6 +133,7 @@ module Solargraph
         # RBS tracks implicit dependencies, like how the YAML standard
         # library implies pulling in the psych library.
         stdlib_deps = RbsMap::StdlibMap.stdlib_dependencies(gemspec.name, gemspec.version) || []
+        # @sg-ignore Wrong argument type for Solargraph::Workspace::Gemspecs#find_gem: name expected String, received String, nil
         stdlib_dep_gemspecs = stdlib_deps.map { |dep| find_gem(dep['name'], dep['version']) }.compact
         (gem_dep_gemspecs.values.compact + stdlib_dep_gemspecs).uniq(&:name)
       end
@@ -188,7 +186,6 @@ module Solargraph
                                                             # Specification
                                                             specish
                                                           end
-                                                        # @sg-ignore Unresolved constant Gem::StubSpecification
                                                         when Gem::StubSpecification
                                                           # @sg-ignore Unresolved call to to_spec on Gem::Specification, Bundler::LazySpecification, Bundler::StubSpecification
                                                           specish.to_spec
@@ -200,6 +197,7 @@ module Solargraph
       # @param command [String] The expression to evaluate in the external bundle
       # @sg-ignore Need a JSON type
       # @yield [undefined, nil]
+      # @return [Object]
       def query_external_bundle command
         Solargraph.with_clean_env do
           cmd = [
@@ -207,6 +205,7 @@ module Solargraph
             "require 'bundler'; require 'json'; Dir.chdir('#{directory}') { puts begin; #{command}; end.to_json }"
           ]
           o, e, s = Open3.capture3(*cmd)
+          # @sg-ignore Unresolved call to success?
           if s.success?
             Solargraph.logger.debug "External bundle: #{o}"
             o && !o.empty? ? JSON.parse(o.split("\n").last) : nil
@@ -271,7 +270,6 @@ module Solargraph
               'Bundler.definition.dependencies' \
               '.select { |dep| dep.groups.include?(:default) && dep.should_include? }' \
               '.map(&:name)'
-            # @sg-ignore
             # @type [Array<String>]
             dep_names = query_external_bundle command
 
@@ -326,6 +324,7 @@ module Solargraph
                       'end;' \
                       'specish_objects.map { |specish| [specish.name, specish.version] }'
             # @type [Array<Gem::Specification>]
+            # @sg-ignore Unresolved call to map on Object
             query_external_bundle(command).map do |name, version|
               resolve_gem_ignoring_local_bundle(name, version)
             end.compact
@@ -347,8 +346,10 @@ module Solargraph
       # @return [Gem::Specification]
       def gemspec_or_preference gemspec
         return gemspec unless preference_map.key?(gemspec.name)
+        # @sg-ignore Unresolved call to version on Gem::Specification, nil
         return gemspec if gemspec.version == preference_map[gemspec.name].version
 
+        # @sg-ignore Unresolved call to version on Gem::Specification, nil
         change_gemspec_version gemspec, preference_map[gemspec.name].version
       end
 

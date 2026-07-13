@@ -61,8 +61,10 @@ module Solargraph
             return
           end
           current = mutex.synchronize { queue.shift }
+          # @sg-ignore Wrong argument type for Array#include?: object expected BasicObject, received generic<X>
           return if queue.include?(current)
           begin
+            # @sg-ignore Wrong argument type for Solargraph::LanguageServer::Host#diagnose: uri expected String, received generic<X>
             host.diagnose current
           rescue InvalidOffsetError
             # @todo This error can occur when the Source is out of sync with

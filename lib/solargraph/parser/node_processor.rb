@@ -18,8 +18,10 @@ module Solargraph
         # @param type [Symbol]
         # @param cls [Class<NodeProcessor::Base>]
         # @return [Array<Class<NodeProcessor::Base>>]
+        # @sg-ignore Solargraph::Parser::NodeProcessor.register return type could not be inferred
         def register type, cls
           @@processors[type] ||= []
+          # @sg-ignore Unresolved call to << on Array<Class<Solargraph::Parser::NodeProcessor::Base>>, nil
           @@processors[type] << cls
         end
 
@@ -28,6 +30,7 @@ module Solargraph
         #
         # @return [void]
         def deregister type, cls
+          # @sg-ignore Unresolved call to delete on Array<Class<Solargraph::Parser::NodeProcessor::Base>>, nil
           @@processors[type].delete(cls)
         end
       end

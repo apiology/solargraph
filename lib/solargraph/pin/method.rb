@@ -211,6 +211,7 @@ module Solargraph
         detail += if signatures.length > 1
                     '(*) '
                   else
+                    # @sg-ignore Unresolved call to parameters on Solargraph::Pin::Signature, nil
                     "(#{signatures.first.parameters.map(&:full).join(', ')}) " unless signatures.first.parameters.empty?
                   end.to_s
         # @sg-ignore Need to add nil check here
@@ -245,9 +246,11 @@ module Solargraph
         end
       end
 
+      # @return [Object]
       def to_rbs
         return nil if signatures.empty?
 
+        # @sg-ignore Unresolved call to to_rbs on Solargraph::Pin::Signature, nil
         rbs = "def #{name}: #{signatures.first.to_rbs}"
         # @sg-ignore Need to add nil check here
         signatures[1..].each do |sig|
@@ -267,12 +270,14 @@ module Solargraph
         name
       end
 
+      # @return [Object]
       def typify api_map
         logger.debug do
           # @sg-ignore Need to add nil check here
           "Method#typify(self=#{self}, binder=#{binder}, closure=#{closure}, context=#{context.rooted_tags}, return_type=#{return_type.rooted_tags}) - starting"
         end
         decl = if macro_names?
+          # @sg-ignore Unresolved call to flat_map on Object
           types = macro_names.flat_map do |mac|
             directive = api_map.named_macro(mac)
             next unless directive
@@ -285,8 +290,10 @@ module Solargraph
         else
           super
         end
+        # @sg-ignore Unresolved call to undefined?
         unless decl.undefined?
           logger.debug do
+            # @sg-ignore Unresolved call to rooted_tags
             "Method#typify(self=#{self}, binder=#{binder}, closure=#{closure}, context=#{context}) => #{decl.rooted_tags.inspect} - decl found"
           end
           return decl
@@ -399,7 +406,9 @@ module Solargraph
             generics: generics,
             # @param src [Array(String, String)]
             parameters: tag.parameters.map do |src|
+              # @sg-ignore Wrong argument type for Solargraph::Pin::Method#parse_overload_param: name expected String, received String, nil
               name, decl = parse_overload_param(src.first)
+              # @sg-ignore Wrong argument type for Solargraph::Pin::Parameter.new: decl expected Symbol, received String
               Pin::Parameter.new(
                 location: location,
                 closure: self,
@@ -407,6 +416,7 @@ module Solargraph
                 name: name,
                 decl: decl,
                 presence: location&.range,
+                # @sg-ignore Wrong argument type for Solargraph::Pin::Method#param_type_from_name: name expected String, received String, nil
                 return_type: param_type_from_name(tag, src.first),
                 source: :overloads
               )
@@ -456,6 +466,8 @@ module Solargraph
 
       attr_writer :block, :signature_help, :documentation, :return_type
 
+      # @return [Boolean]
+      # @sg-ignore Solargraph::Pin::Method#dodgy_visibility_source? return type could not be inferred
       def dodgy_visibility_source?
         # as of 2025-03-12, the RBS generator used for
         # e.g. activesupport did not understand 'private' markings
@@ -496,6 +508,7 @@ module Solargraph
         by_type_arity = {}
         signature_pins.each do |signature_pin|
           by_type_arity[signature_pin.type_arity] ||= []
+          # @sg-ignore Unresolved call to << on Array<Solargraph::Pin::Signature>, nil
           by_type_arity[signature_pin.type_arity] << signature_pin
         end
 
@@ -629,6 +642,7 @@ module Solargraph
       # @return [ComplexType, ComplexType::UniqueType, nil]
       def resolve_reference ref, api_map
         parts = ref.split(/[.#]/)
+        # @sg-ignore Unresolved call to empty? on String, nil
         if parts.first.empty? || parts.one?
           path = "#{namespace}#{ref}"
         else
@@ -648,7 +662,9 @@ module Solargraph
       # @return [Parser::AST::Node, nil]
       def method_body_node
         return nil if node.nil?
+        # @sg-ignore Unresolved call to children on Parser::AST::Node, nil
         return node.children[1].children.last if node.type == :DEFN
+        # @sg-ignore Unresolved call to children on Parser::AST::Node, nil
         return node.children[2].children.last if node.type == :DEFS
         return node.children[2] if %i[def DEFS].include?(node.type)
         return node.children[3] if node.type == :defs
@@ -731,6 +747,7 @@ module Solargraph
       def return_type_from_inline_rbs
         return nil if inline_rbs.empty?
         method_type = RBS::Parser.parse_method_type(inline_rbs)
+        # @sg-ignore Unresolved call to type
         RbsTranslator.to_complex_type(method_type.type.return_type)
       rescue RBS::ParsingError
         nil
@@ -739,6 +756,7 @@ module Solargraph
       # @return [Array<Pin::Signature>]
       def signatures_from_inline_rbs
         method_type = RBS::Parser.parse_method_type(inline_rbs)
+        # @sg-ignore Wrong argument type for Solargraph::RbsTranslator.to_signature: method_type expected RBS::MethodType, received RBS::MethodType, nil
         [RbsTranslator.to_signature(method_type, self, parameter_names)]
       rescue RBS::ParsingError
         signatures_from_yard
@@ -758,6 +776,7 @@ module Solargraph
       def inline_rbs
         comments.lines
                 .select { |line| line.start_with?(': ') }
+                # @sg-ignore Unresolved call to strip on String, nil
                 .map { |line| line[2..].strip }
                 .join("\n")
       end

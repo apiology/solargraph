@@ -14,6 +14,7 @@ module Solargraph
             # If the code object is a namespace, use the namespace's location
             return object_location(code_object.namespace, spec)
           end
+          # @sg-ignore Wrong argument type for Solargraph::Range.from_to: l1 expected Integer, received BigDecimal; Wrong argument type for Integer#-: arg_0 expected BigDecimal, received Integer
           return Solargraph::Location.new(__FILE__, Solargraph::Range.from_to(__LINE__ - 1, 0, __LINE__ - 1, 0))
         end
         # @sg-ignore flow sensitive typing should be able to identify more blocks that always return

@@ -342,6 +342,7 @@ module Solargraph
       # @return [String]
       def rbs_union types
         if types.length == 1
+          # @sg-ignore Unresolved call to to_rbs on Solargraph::ComplexType::UniqueType, Solargraph::ComplexType, nil
           types.first.to_rbs
         else
           "(#{types.map(&:to_rbs).join(' | ')})"
@@ -383,6 +384,7 @@ module Solargraph
       # @param context_type [ComplexType, UniqueType, nil]
       # @param resolved_generic_values [Hash{String => ComplexType, ComplexType::UniqueType}] Added to as types are encountered or resolved
       # @return [UniqueType, ComplexType]
+      # @sg-ignore Declared return type ::Solargraph::ComplexType::UniqueType, ::Solargraph::ComplexType does not match inferred type ::Solargraph::ComplexType::UniqueType, ::Solargraph::ComplexType, nil for Solargraph::ComplexType::UniqueType#resolve_generics_from_context
       def resolve_generics_from_context generics_to_resolve, context_type, resolved_generic_values: {}
         if name == ComplexType::GENERIC_TAG_NAME
           type_param = subtypes.first&.name
@@ -395,6 +397,7 @@ module Solargraph
           end
           if new_binding
             resolved_generic_values.transform_values! do |complex_type|
+              # @sg-ignore Wrong argument type for Solargraph::ComplexType#resolve_generics_from_context: context_type expected Solargraph::ComplexType, Solargraph::ComplexType::UniqueType, nil, received NilClass
               complex_type.resolve_generics_from_context(generics_to_resolve, nil,
                                                          resolved_generic_values: resolved_generic_values)
             end
@@ -419,6 +422,7 @@ module Solargraph
       def resolve_param_generics_from_context generics_to_resolve, context_type, resolved_generic_values
         types = yield self
         types.each_with_index.flat_map do |ct, i|
+          # @sg-ignore Unresolved call to items
           ct.items.flat_map do |ut|
             context_params = yield context_type if context_type
             if context_params && context_params[i]
@@ -547,6 +551,8 @@ module Solargraph
         yield new_type
       end
 
+      # @param named_types [Hash{String => ComplexType, UniqueType}]
+      # @return [ComplexType, UniqueType]
       def expand named_types
         named_types[name] || self
       end

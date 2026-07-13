@@ -21,6 +21,7 @@ module Solargraph
         # @param [Array<Pin::Base>] pins
         # @param [Position] position
         # @return [Pin::Closure]
+        # @sg-ignore Declared return type ::Solargraph::Pin::Closure does not match inferred type ::Solargraph::Pin::Base, nil for Solargraph::YardMap::Directives::OverrideDirective.closure_at; Declared return type ::Solargraph::Pin::Closure does not match inferred type ::Solargraph::Pin::Base, nil for Solargraph::Ya...
         def closure_at pins, position
           pins.select { |pin| pin.is_a?(Pin::Closure) and pin.location&.range&.contain?(position) }.last
         end

@@ -263,6 +263,7 @@ module Solargraph
           next if problems.empty?
           problems.sort! { |a, b| a.location.range.start.line <=> b.location.range.start.line }
           puts problems.map { |prob|
+            # @sg-ignore Wrong argument type for Integer#+: arg_0 expected BigDecimal, received Integer
             "#{prob.location.filename}:#{prob.location.range.start.line + 1}: #{prob.message}"
           }.join("\n")
           filecount += 1
@@ -348,7 +349,6 @@ module Solargraph
                             [:class, *path.split('.', 2)]
                           end
 
-        # @sg-ignore Wrong argument type for
         #   Solargraph::ApiMap#get_method_stack: rooted_tag
         #   expected String, received Array<String>
         pins = api_map.get_method_stack(ns, meth, scope: scope)
@@ -375,6 +375,7 @@ module Solargraph
         if options[:typify] || options[:probe]
           type = ComplexType::UNDEFINED
           type = pin.typify(api_map) if options[:typify]
+          # @sg-ignore Unresolved call to undefined?
           type = pin.probe(api_map) if options[:probe] && type.undefined?
           print_type(type)
           next
@@ -383,6 +384,7 @@ module Solargraph
         print_pin(pin)
       end
       references.each do |key, refpin|
+        # @sg-ignore Unresolved call to to_s
         puts "\n# #{key.to_s.capitalize}:\n\n"
         print_pin(refpin)
       end
@@ -525,6 +527,7 @@ module Solargraph
     desc 'rbs', 'Generate RBS definitions'
     option :filename, type: :string, alias: :f, desc: 'Generated file name', default: 'sig.rbs'
     option :inference, type: :boolean, desc: 'Enhance definitions with type inference', default: true
+    # @return [Object]
     def rbs
       api_map = Solargraph::ApiMap.load('.')
       pins = api_map.source_maps.flat_map(&:pins)
@@ -532,9 +535,12 @@ module Solargraph
       if options[:inference]
         puts 'Inferring untyped methods...'
         store.method_pins.each do |pin|
+          # @sg-ignore Unresolved call to undefined? on Solargraph::ComplexType, nil
           next unless pin.return_type.undefined?
           type = pin.typify(api_map)
+          # @sg-ignore Unresolved call to undefined?
           type = pin.probe(api_map) if type.undefined?
+          # @sg-ignore Wrong argument type for YARD::Tags::Tag.new: text expected String, nil, received NilClass; Unresolved call to items
           pin.docstring.add_tag YARD::Tags::Tag.new('return', nil, type.items.map(&:to_s))
           pin.instance_variable_set(:@return_type, type)
         end
@@ -550,6 +556,7 @@ module Solargraph
           rel_dir = File.join('sig', options[:filename])
           puts "Writing #{rel_dir}..."
           target = File.join(work_dir, rel_dir)
+          # @sg-ignore Wrong argument type for FileUtils.mkdir_p: list expected FileUtils::path, Array<FileUtils::path>, received String
           FileUtils.mkdir_p(File.join(work_dir, 'sig'))
           `sord #{target} --rbs --no-regenerate`
         end

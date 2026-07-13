@@ -45,7 +45,9 @@ module Solargraph
           source.code, position
         )].to_s.match?(/[a-z]/i)
           return SourceChainer.chain(source,
+                                     # @sg-ignore Wrong argument type for Solargraph::Position.new: character expected Integer, received BigDecimal
                                      Position.new(position.line,
+                                                  # @sg-ignore Wrong argument type for Integer#+: arg_0 expected BigDecimal, received Integer
                                                   position.character + 1))
         end
         begin
@@ -103,17 +105,20 @@ module Solargraph
       # @sg-ignore Need to add nil check here
       # @return [String]
       def phrase
+        # @sg-ignore Wrong argument type for Integer#-: arg_0 expected BigDecimal, received Integer
         @phrase ||= source.code[signature_data..(offset - 1)]
       end
 
       # @sg-ignore Need to add nil check here
       # @return [String]
       def fixed_phrase
+        # @sg-ignore Wrong argument type for Integer#+: arg_0 expected BigDecimal, received Integer
         @fixed_phrase ||= phrase[0..-(end_of_phrase.length + 1)]
       end
 
       # @return [Position]
       def fixed_position
+        # @sg-ignore Wrong argument type for Integer#-: arg_0 expected BigDecimal, received Integer; Wrong argument type for Solargraph::Position.from_offset: offset expected Integer, received BigDecimal
         @fixed_position ||= Position.from_offset(source.code, offset - end_of_phrase.length)
       end
 
@@ -157,6 +162,7 @@ module Solargraph
 
       # @param index [Integer]
       # @return [Integer]
+      # @sg-ignore Declared return type ::Integer does not match inferred type ::BigDecimal for Solargraph::Source::SourceChainer#get_signature_data_at
       def get_signature_data_at index
         brackets = 0
         squares = 0
@@ -174,6 +180,7 @@ module Solargraph
           else
             # @sg-ignore Need to add nil check here
             if brackets.zero? && parens.zero? && squares.zero? && in_whitespace && !((char == '.') || @source.code[(index + 1)..].strip.start_with?('.'))
+              # @sg-ignore Wrong argument type for Integer#+: arg_0 expected BigDecimal, received Integer
               @source.code[(index + 1)..]
               # @sg-ignore Need to add nil check here
               @source.code[(index + 1)..].lstrip
@@ -197,6 +204,7 @@ module Solargraph
             end
             if brackets.zero? && parens.zero? && squares.zero?
               break if ['"', "'", ',', ';', '%'].include?(char)
+              # @sg-ignore Wrong argument type for Integer#<: arg_0 expected Numeric, received BigDecimal; Wrong argument type for Integer#-: arg_0 expected BigDecimal, received Integer
               break if ['!', '?'].include?(char) && index < offset - 1
               break if char == '$'
               if char == '@'
@@ -211,6 +219,7 @@ module Solargraph
           end
           index -= 1
         end
+        # @sg-ignore Wrong argument type for Integer#+: arg_0 expected BigDecimal, received Integer
         index + 1
       end
     end

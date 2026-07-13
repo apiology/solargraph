@@ -27,9 +27,11 @@ module Solargraph
           #       s(:send, nil, :bar)))
           #
           # @param node [Parser::AST::Node]
+          # @return [Boolean]
           def match? node
             return false unless node&.type == :class
 
+            # @sg-ignore Wrong argument type for Solargraph::Convention::StructDefinition::StructDefintionNode.struct_definition_node?: struct_node expected Parser::AST::Node, received Parser::AST::Node, nil
             struct_definition_node?(node.children[1])
           end
 
@@ -41,6 +43,7 @@ module Solargraph
             return false unless struct_node.is_a?(::Parser::AST::Node)
             return false unless struct_node&.type == :send
             return false unless struct_node.children[0]&.type == :const
+            # @sg-ignore Unresolved call to children on Parser::AST::Node, nil
             return false unless struct_node.children[0].children[1] == :Struct
             return false unless struct_node.children[1] == :new
 
@@ -66,18 +69,23 @@ module Solargraph
           end.compact
         end
 
+        # @return [Boolean]
         def keyword_init?
           keyword_init_param = struct_attribute_nodes.find do |struct_def_param|
+            # @sg-ignore Unresolved call to type on Parser::AST::Node, nil
             struct_def_param.type == :hash && struct_def_param.children[0].type == :pair &&
+              # @sg-ignore Unresolved call to children on Parser::AST::Node, nil
               struct_def_param.children[0].children[0].children[0] == :keyword_init
           end
 
           return false if keyword_init_param.nil?
 
+          # @sg-ignore Unresolved call to children on Parser::AST::Node, nil
           keyword_init_param.children[0].children[1].type == :true
         end
 
         # @return [Parser::AST::Node]
+        # @sg-ignore Declared return type ::Parser::AST::Node does not match inferred type ::Parser::AST::Node, nil for Solargraph::Convention::StructDefinition::StructDefintionNode#body_node
         def body_node
           node.children[2]
         end
@@ -88,6 +96,7 @@ module Solargraph
         attr_reader :node
 
         # @return [Parser::AST::Node]
+        # @sg-ignore Declared return type ::Parser::AST::Node does not match inferred type ::Parser::AST::Node, nil for Solargraph::Convention::StructDefinition::StructDefintionNode#struct_node
         def struct_node
           node.children[1]
         end
