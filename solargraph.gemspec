@@ -59,7 +59,7 @@ Gem::Specification.new do |s|
   s.add_development_dependency 'public_suffix', '~> 3.1'
   s.add_development_dependency 'rake', '~> 13.2'
   s.add_development_dependency 'rspec', '~> 3.5'
-  # RuboCop / overcommit live in the Gemfile :lint group (Ruby >= 3.3).
+  # RuboCop plugins / overcommit are declared in the Gemfile (version-gated).
   s.add_development_dependency 'simplecov', '~> 0.21'
   s.add_development_dependency 'simplecov-lcov', '~> 0.8'
   s.add_development_dependency 'undercover', '~> 0.7'
