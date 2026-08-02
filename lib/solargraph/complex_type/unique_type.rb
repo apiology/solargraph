@@ -175,7 +175,6 @@ module Solargraph
         return 'NilClass' if name == 'nil'
         return 'Boolean' if %w[true false].include?(name)
         return 'Symbol' if name[0] == ':'
-        # @sg-ignore Need to add nil check here
         return 'String' if ['"', "'"].include?(name[0])
         return 'Integer' if name.match?(/^-?\d+$/)
         name
@@ -236,9 +235,9 @@ module Solargraph
         end
       end
 
-      # Whether this is an RBS interface like _ToAry or _Each.
+      # Whether this is an RBS interface like _ToAry or Hash::_Key.
       def interface?
-        name.start_with?('_')
+        name.start_with?('_') || name.include?('::_')
       end
 
       # @param other [UniqueType]
@@ -302,7 +301,6 @@ module Solargraph
         rooted_tags
       end
 
-      # @sg-ignore Need better if/elseanalysis
       # @return [String]
       def to_rbs
         if duck_type?
@@ -311,8 +309,8 @@ module Solargraph
           'bool'
         elsif name.downcase == 'nil'
           'nil'
-        elsif name == GENERIC_TAG_NAME
-          all_params.first&.name
+        elsif name == GENERIC_TAG_NAME && !all_params.empty?
+          all_params.first.name
         elsif %w[Class Module].include?(name)
           rbs_name
         elsif %w[Tuple Array].include?(name) && fixed_parameters?
@@ -385,7 +383,6 @@ module Solargraph
       def resolve_generics_from_context generics_to_resolve, context_type, resolved_generic_values: {}
         if name == ComplexType::GENERIC_TAG_NAME
           type_param = subtypes.first&.name
-          # @sg-ignore flow sensitive typing needs to eliminate literal from union with [:bar].include?(foo)
           return self unless generics_to_resolve.include? type_param
           # @sg-ignore flow sensitive typing needs to eliminate literal from union with [:bar].include?(foo)
           unless context_type.nil? || !resolved_generic_values[type_param].nil?
@@ -554,6 +551,7 @@ module Solargraph
       #
       # @param api_map [ApiMap] The ApiMap that performs qualification
       # @param gates [Array<String>] The namespaces from which to resolve names
+      #
       # @return [self, ComplexType, UniqueType] The generated ComplexType
       def qualify api_map, *gates
         transform do |t|

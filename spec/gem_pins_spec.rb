@@ -6,23 +6,24 @@ describe Solargraph::GemPins do
   let(:pin) { doc_map.pins.find { |pin| pin.path == path } }
 
   before do
-    doc_map.cache_doc_map_gems!(STDERR) # rubocop:disable Style/GlobalStdStream
+    doc_map.cache_all!(STDERR) # rubocop:disable Style/GlobalStdStream
   end
 
   context 'with a combined method pin' do
-    let(:path) { 'RBS::EnvironmentLoader#core_root' }
-    let(:requires) { ['rbs'] }
+    let(:path) { 'Hashdiff.diff' }
+    let(:requires) { ['hashdiff'] }
 
     it 'can merge YARD and RBS' do
-      expect(pin.source).to eq(:combined)
+      expect(pin.source).to eq(:combined), "Expected to merge YARD and RBS for #{path} in #{workspace.directory}"
     end
 
     it 'finds types from RBS' do
-      expect(pin.return_type.to_s).to eq('Pathname, nil')
+      expect(pin.return_type.to_s).to eq('Array')
     end
 
     it 'finds locations from YARD' do
-      expect(pin.location.filename).to end_with('environment_loader.rb')
+      expect(pin).not_to be_nil, "Expected to find pin for #{path} in #{workspace.directory}"
+      expect(pin.location.filename).to end_with('diff.rb')
     end
   end
 

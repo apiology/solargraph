@@ -33,12 +33,13 @@ module Solargraph
     # @param gates [Array<String>]
     #
     # @return [ComplexType]
+    # @param [Array<String>] gates
     def qualify api_map, *gates
       red = reduce_object
       types = red.items.map do |t|
         next t if %w[nil void undefined].include?(t.name)
         next t if ['::Boolean'].include?(t.rooted_name)
-        t.qualify api_map, *gates
+        api_map.unalias(t.name) || t.qualify(api_map, *gates)
       end
       ComplexType.new(types).reduce_object
     end
@@ -434,6 +435,7 @@ module Solargraph
       #   Chain::Call needs to know the decl type (:arg, :optarg,
       #   :kwarg, etc) of the arguments given, instead of just having
       #   an array of Chains as the arguments.
+      # @param [Boolean] partial
       def parse *strings, partial: false
         # @type [Hash{Array<String> => ComplexType, Array<ComplexType::UniqueType>}]
         @cache ||= {}

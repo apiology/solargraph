@@ -37,6 +37,9 @@ jobs:
       - name: Update to best available RBS
         run: |
           bundle update --pre rbs # use latest available for this Ruby version
+          # Add optional gem to be able to typecheck related code
+          echo "gem 'vernier', '>1.0', '<2'" >> .Gemfile
+          bundle install
 
       - name: Restore cache of gem annotations
         id: dot-cache-restore
@@ -86,7 +89,7 @@ jobs:
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: 3.4
-        bundler-cache: false
+        bundler-cache: true
 
     - name: Install gems
       run: bundle install
@@ -103,7 +106,7 @@ jobs:
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: 3.4
-        bundler-cache: false
+        bundler-cache: true
 
     - name: Install gems
       run: bundle install
