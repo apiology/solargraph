@@ -49,6 +49,30 @@ describe Solargraph::TypeChecker do
         .to eq(['Wrong argument type for #foo: str expected String, received Class<File>'])
     end
 
+    it 'catches a bad #push argument against an inferred Array element type (#1223)' do
+      # Reported by @castwide on PR #1223: https://github.com/castwide/solargraph/pull/1223#issuecomment-3138551901
+      #
+      #   y = [1]
+      #   y.push 'two'
+      #   y # => inferred as Array<Integer>, silently missing the pushed String
+      #
+      # Inference still can't track the mutation (see the "does not
+      # track a plain array through a mutating call" spec in
+      # clip_spec.rb), but type checking can now catch the bad
+      # argument at the call site itself, since Array#push's restarg
+      # is checked against the receiver's element type instead of
+      # being skipped entirely.
+      checker = type_checker(%(
+        y = [1]
+        y.push 'two'
+      ))
+      # The restarg's parameter name (`objects`, `obj`, etc.) varies
+      # across core RBS versions, so match on the substance of the
+      # message rather than the exact name.
+      expect(checker.problems.map(&:message))
+        .to contain_exactly(a_string_matching(/\AWrong argument type for Array#push: \w+ expected Integer, received String\z/))
+    end
+
     it 'handles compatible interfaces with self types on call' do
       checker = type_checker(%(
         # @param a [Enumerable<String>]
@@ -768,7 +792,7 @@ describe Solargraph::TypeChecker do
           foo(123)
         end
         ))
-      expect(checker.problems.map(&:message)).to eq(['Wrong argument type for #foo: bar expected String, received Integer'])
+      expect(checker.problems.map(&:message)).to eq(['Wrong argument type for #foo: bar expected String, received 123'])
     end
 
     it 'validates inferred return types with complex tags' do
@@ -926,7 +950,6 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message)).to eq([])
     end
 
-    # @todo Possibly redundant
     it 'understands tuple superclass' do
       checker = type_checker(%(
         b = ['a', 'b', 123]
@@ -1021,7 +1044,6 @@ describe Solargraph::TypeChecker do
     end
 
     it 'does not complain when passing NilClass to nil parameter' do
-      pending 'should be feasible'
       checker = type_checker(%(
         # @param a [nil]
         def foo(a); end
