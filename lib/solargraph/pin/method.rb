@@ -75,7 +75,7 @@ module Solargraph
 
       # @param other [Pin::Method]
       def == other
-        super && other.node == node && other.signatures == signatures
+        super && other.node == node
       end
 
       def transform_types &transform
