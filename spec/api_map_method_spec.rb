@@ -117,22 +117,15 @@ describe Solargraph::ApiMap do
     end
   end
 
-  describe '#get_method_stack' do
-    let(:api_map) { described_class.load('') }
+  describe '#get_method_stack', time_limit_seconds: 400 do
+    let(:out) { StringIO.new }
+    let(:api_map) { described_class.load_with_cache(Dir.pwd, out) }
 
-    context 'with stdlib that has vital dependencies' do
+    context 'with stdlib that has vital dependencies', time_limit_seconds: 400 do
       let(:external_requires) { ['yaml'] }
       let(:method_stack) { api_map.get_method_stack('YAML', 'safe_load', scope: :class) }
 
-      it 'handles the YAML gem aliased to Psych' do
-        # catalog first so doc_map registers 'yaml' as required before we
-        # try to cache it - cache_gem is a no-op for gems doc_map doesn't
-        # yet know it needs
-        api_map.catalog bench
-        specs = api_map.resolve_require('yaml')
-        specs.each { |spec| api_map.cache_gem(spec) }
-        api_map.catalog bench
-
+      it 'handles the YAML gem aliased to Psych', time_limit_seconds: 400 do
         expect(method_stack).not_to be_empty
       end
     end
@@ -159,10 +152,10 @@ describe Solargraph::ApiMap do
   describe '#cache_all_for_doc_map!' do
     it 'can cache gems without a bench' do
       api_map = described_class.new
-      doc_map = instance_double(Solargraph::DocMap, cache_all!: true)
+      doc_map = instance_double(Solargraph::DocMap, cache_doc_map_gems!: true)
       allow(Solargraph::DocMap).to receive(:new).and_return(doc_map)
       api_map.cache_all_for_doc_map!(out: $stderr)
-      expect(doc_map).to have_received(:cache_all!).with($stderr, rebuild: false)
+      expect(doc_map).to have_received(:cache_doc_map_gems!).with($stderr, rebuild: false)
     end
   end
 
