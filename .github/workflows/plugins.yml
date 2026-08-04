@@ -111,6 +111,8 @@ jobs:
         yq -yi '.plugins += ["solargraph-rspec"]' .solargraph.yml
     - name: Install gem types
       run: bundle exec rbs collection update
+    - name: DEBUG solargraph pin
+      run: bundle exec solargraph pin 'Integer#+'
     - name: Ensure typechecking still works
       run: bundle exec solargraph typecheck --level strong
       # @todo Temporary, expect to revert in 0.60
