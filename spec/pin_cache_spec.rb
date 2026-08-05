@@ -11,6 +11,43 @@ describe Solargraph::PinCache do
                         yard_plugins: ['activesupport-concern'])
   end
 
+  describe '#combined_pins_in_memory' do
+    # @param yard_plugins [Array<String>]
+    # @return [Solargraph::PinCache]
+    def new_pin_cache yard_plugins: ['activesupport-concern']
+      described_class.new(rbs_collection_path: '.gem_rbs_collection',
+                          rbs_collection_config_path: 'rbs_collection.yaml',
+                          directory: Dir.pwd,
+                          yard_plugins: yard_plugins)
+    end
+
+    it 'is shared across PinCache instances with the same yard_plugins, rather than memoized per instance' do
+      cache1 = new_pin_cache
+      cache2 = new_pin_cache
+      key = ['some-gem', Gem::Version.new('1.0.0'), 'some-rbs-cache-key']
+      pins = [instance_double(Solargraph::Pin::Base)]
+
+      cache1.send(:combined_pins_in_memory)[key] = pins
+
+      expect(cache2.send(:combined_pins_in_memory)[key]).to equal(pins)
+    ensure
+      cache1.send(:combined_pins_in_memory).delete(key)
+    end
+
+    it 'is not shared across PinCache instances with different yard_plugins' do
+      cache1 = new_pin_cache(yard_plugins: ['activesupport-concern'])
+      cache2 = new_pin_cache(yard_plugins: [])
+      key = ['some-gem', Gem::Version.new('1.0.0'), 'some-rbs-cache-key']
+      pins = [instance_double(Solargraph::Pin::Base)]
+
+      cache1.send(:combined_pins_in_memory)[key] = pins
+
+      expect(cache2.send(:combined_pins_in_memory)[key]).to be_nil
+    ensure
+      cache1.send(:combined_pins_in_memory).delete(key)
+    end
+  end
+
   describe '#cached?' do
     it 'returns true for a gem that is cached' do
       allow(File).to receive(:file?).with(%r{.*stdlib/backport.ser$}).and_return(false)
