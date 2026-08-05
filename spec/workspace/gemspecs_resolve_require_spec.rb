@@ -160,7 +160,12 @@ describe Solargraph::Workspace::Gemspecs, '#resolve_require' do
       # resolved via Gem::Specification.find_by_path, and only if the
       # require path itself (not "lib/#{require}.rb") is passed to it
       let(:require) { 'active_support' }
-      let(:mismatched_spec) { instance_double(Gem::Specification, name: 'activesupport', files: []) }
+      let(:mismatched_spec) do
+        Gem::Specification.new.tap do |spec|
+          spec.name = 'activesupport'
+          spec.files = []
+        end
+      end
 
       before do
         allow(Gem::Specification).to receive(:find_by_path).and_call_original
