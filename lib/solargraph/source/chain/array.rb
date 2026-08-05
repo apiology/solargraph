@@ -18,7 +18,8 @@ module Solargraph
         # @param api_map [ApiMap]
         # @param name_pin [Pin::Base]
         # @param locals [::Array<Pin::Parameter, Pin::LocalVariable>]
-        def resolve api_map, name_pin, locals
+        # @param _receiver_path [::Array<String>, nil]
+        def resolve api_map, name_pin, locals, _receiver_path = nil
           child_types = @children.map do |child|
             child.infer(api_map, name_pin, locals).simplify_literals
           end
