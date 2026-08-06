@@ -14,7 +14,7 @@ module Solargraph
               here = get_node_start_position(node)
               presence = Range.new(here, closure_location.range.ending)
               FlowSensitiveTyping.new(locals, ivars, enclosing_breakable_pin,
-                                      enclosing_compound_statement_pin).process_or_asgn(node, presence)
+                                      enclosing_compound_statement_pin, region.closure).process_or_asgn(node, presence)
             end
 
             new_node = node.updated(node.children[0].type, node.children[0].children + [node.children[1]])
