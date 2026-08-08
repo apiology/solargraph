@@ -43,8 +43,14 @@ module Solargraph
       out
     end
 
-    # @param yard_pins [Array<Pin::Method>]
-    # @param rbs_pins [Array<Pin::Method>]
+    # `pp`'s `class << ENV ... end` (to add `pretty_print`) makes YARD
+    # misdeclare ENV as a Class, contradicting RBS's correct ENVClass instance type.
+    KNOWN_BAD_YARD_PINS = {
+      'pp' => ['ENV']
+    }.freeze
+
+    # @param yard_pins [Array<Pin::Base>]
+    # @param rbs_pins [Array<Pin::Base>]
     #
     # @return [Array<Pin::Method>]
     def self.combine yard_pins, rbs_pins

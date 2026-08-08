@@ -46,7 +46,10 @@ module Solargraph
     # @return [Array<Pin::Base>]
     def build_pins gem_yardoc_path, gemspec, out: $stderr
       yardoc = load!(gem_yardoc_path)
-      YardMap::Mapper.new(yardoc, gemspec).map
+      pins = YardMap::Mapper.new(yardoc, gemspec).map
+      bad_paths = GemPins::KNOWN_BAD_YARD_PINS[gemspec.name]
+      return pins unless bad_paths
+      pins.reject { |pin| bad_paths.include?(pin.path) }
     end
 
     # True if the gem yardoc is cached.
