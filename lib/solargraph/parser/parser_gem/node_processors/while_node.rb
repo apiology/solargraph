@@ -25,7 +25,7 @@ module Solargraph
               comments: comments_for(node),
               source: :parser
             )
-            process_children region
+            process_children region.update(conditional: true)
           end
         end
       end

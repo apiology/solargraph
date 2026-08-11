@@ -30,7 +30,8 @@ module Solargraph
                 source: :parser
               )
             end
-            NodeProcessor.process(node.children[2], region, pins, locals, ivars)
+            # @sg-ignore Need to add nil check here
+            NodeProcessor.process(node.children[2], region.update(conditional: true), pins, locals, ivars)
           end
         end
       end
