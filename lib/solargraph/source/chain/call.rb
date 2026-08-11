@@ -61,7 +61,6 @@ module Solargraph
           # chain.rb#maybe_nil will add the nil type later, we just
           # need to worry about the not-nil case
 
-          # @sg-ignore Need to handle duck-typed method calls on union types
           binder = binder.without_nil if nullable?
           pins = method_pins_for_binder(binder, api_map)
           return [] if pins.empty?
@@ -226,6 +225,10 @@ module Solargraph
             return nil if resolved.empty?
             # @param p [Pin::Base]
             resolved.flatten.uniq { |p| [p.path, p.return_type.tag] }
+          elsif unique_type.duck_type? && unique_type.name[1..] == word
+            # explicit: false skips arity checking; the duck type
+            # only tells us the method exists, not its signature
+            [Pin::DuckMethod.new(name: word, source: :chain, explicit: false)]
           else
             ns_tag = unique_type.namespace == '' ? '' : unique_type.namespace_type.tag
             stack = api_map.get_method_stack(ns_tag, word, scope: unique_type.scope)
