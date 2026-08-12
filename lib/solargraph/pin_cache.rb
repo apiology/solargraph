@@ -418,7 +418,6 @@ module Solargraph
       out&.puts "Clearing pin cache in #{glob}"
       Dir.glob(glob).each do |file|
         next unless File.file?(file)
-        # @sg-ignore Wrong argument type for FileUtils.rm_rf: list expected FileUtils::path, Array, received String
         FileUtils.rm_rf file, secure: true
         out&.puts "Clearing pin cache in #{file}"
       end
@@ -452,7 +451,6 @@ module Solargraph
       def uncache *path_segments, out: nil
         path = File.join(*path_segments)
         if File.exist?(path)
-          # @sg-ignore Wrong argument type for FileUtils.rm_rf: list expected FileUtils::path, Array, received String
           FileUtils.rm_rf path, secure: true
           out&.puts "Clearing pin cache in #{path}"
         else
@@ -469,7 +467,6 @@ module Solargraph
         out&.puts "Clearing pin cache in #{glob}"
         Dir.glob(glob).each do |file|
           next unless File.file?(file)
-          # @sg-ignore Wrong argument type for FileUtils.rm_rf: list expected FileUtils::path, Array, received String
           FileUtils.rm_rf file, secure: true
           out&.puts "Clearing pin cache in #{file}"
         end
@@ -622,7 +619,6 @@ module Solargraph
 
       # @return [void]
       def clear
-        # @sg-ignore Need a downcast here
         FileUtils.rm_rf base_dir, secure: true
       end
 
@@ -634,7 +630,6 @@ module Solargraph
         Marshal.load(File.read(file, mode: 'rb'))
       rescue StandardError => e
         Solargraph.logger.warn "Failed to load cached file #{file}: [#{e.class}] #{e.message}"
-        # @sg-ignore Need a downcast here
         FileUtils.rm_f file
         nil
       end
@@ -644,7 +639,6 @@ module Solargraph
       # @return [void]
       def save file, pins
         base = File.dirname(file)
-        # @sg-ignore Need a downcast here
         FileUtils.mkdir_p base unless File.directory?(base)
         ser = Marshal.dump(pins)
         File.write file, ser, mode: 'wb'

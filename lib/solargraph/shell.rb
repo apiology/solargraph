@@ -530,7 +530,6 @@ module Solargraph
           rel_dir = File.join('sig', options[:filename])
           puts "Writing #{rel_dir}..."
           target = File.join(work_dir, rel_dir)
-          # @sg-ignore Need a downcast here
           FileUtils.mkdir_p(File.join(work_dir, 'sig'))
           `sord #{target} --rbs --no-regenerate`
         end
