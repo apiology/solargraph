@@ -157,7 +157,6 @@ module Solargraph
 
       # @param index [Integer]
       # @return [Integer]
-      # @sg-ignore Declared return type ::Integer does not match inferred type ::BigDecimal for Solargraph::Source::SourceChainer#get_signature_data_at
       def get_signature_data_at index
         brackets = 0
         squares = 0

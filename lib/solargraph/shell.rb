@@ -422,7 +422,6 @@ module Solargraph
       begin
         puts 'Parsing and mapping source files...'
         prepare_start = Time.now
-        # @sg-ignore Unresolved constant Vernier
         Vernier.profile(out: parse_path, hooks: hooks) do
           puts 'Mapping libraries'
           host.prepare(directory)
@@ -432,7 +431,6 @@ module Solargraph
 
         puts 'Building the catalog...'
         catalog_start = Time.now
-        # @sg-ignore Unresolved constant Vernier
         Vernier.profile(out: catalog_path, hooks: hooks) do
           host.catalog
         end
@@ -461,7 +459,6 @@ module Solargraph
         puts "Position: line #{options[:line]}, column #{options[:column]}"
 
         definition_start = Time.now
-        # @sg-ignore Unresolved constant Vernier
         Vernier.profile(out: definition_path, hooks: hooks) do
           message = Solargraph::LanguageServer::Message::TextDocument::Definition.new(
             host, {
