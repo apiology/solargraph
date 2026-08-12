@@ -239,7 +239,22 @@ module Solargraph
       def == other
         return false unless super
         # @sg-ignore Should add type check on other
-        assignment == other.assignment
+        return false unless assignment == other.assignment
+        # Flow-sensitive typing downcasts (see #equality_fields above)
+        # can produce two variable pins that share name/location/source
+        # but carry different presence/narrowing facts - e.g. two
+        # combine_with results for the same variable, combined over
+        # different numbers of assignments visible at different
+        # locations. Base#== doesn't compare presence, so without this
+        # check those pins looked identical to callers that key off of
+        # #== (e.g. Chain's inference recursion guard), causing one to
+        # be dropped as if it were already being resolved.
+        # @sg-ignore Should add type check on other
+        presence == other.presence &&
+          # @sg-ignore Should add type check on other
+          narrowed_return_type == other.narrowed_return_type &&
+          # @sg-ignore Should add type check on other
+          exclude_return_type == other.exclude_return_type
       end
 
       def type_desc

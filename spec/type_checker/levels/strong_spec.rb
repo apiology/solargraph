@@ -1479,5 +1479,36 @@ describe Solargraph::TypeChecker do
       ))
       expect(checker.problems.map(&:message)).to eq([])
     end
+
+    it 'resolves a repeated core-method call on a var reassigned mid-method after a reopened-class call' do
+      # https://github.com/castwide/solargraph/pull/1288#issuecomment-5273022388
+      #
+      # Two combine_with results for the same local variable (one
+      # spanning from its first assignment, one from its second) share
+      # the same #location - the earliest assignment's - but differ in
+      # #presence. Pin::Base#== compared location but not presence, so
+      # Chain's inference recursion guard (which keys off of #==)
+      # treated the two as the same pin and skipped resolving the
+      # second one, leaving its receiver's type undefined for the
+      # second-to-last statement of a 3+ statement chain.
+      checker = type_checker(%(
+        class String
+          # @return [String]
+          def depunctuate
+            self
+          end
+        end
+
+        # @param str [String]
+        # @param other [String]
+        # @return [String]
+        def go(str, other)
+          str = str.gsub(other.depunctuate, other)
+          str = str.gsub(other, other)
+          str.gsub(other, other)
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq([])
+    end
   end
 end
