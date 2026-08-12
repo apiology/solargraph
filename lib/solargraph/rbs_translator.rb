@@ -227,9 +227,12 @@ module Solargraph
     def self.to_sg_location location
       return nil if location&.name.nil?
 
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1245
       start_pos = Position.new(location.start_line - 1, location.start_column)
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1245
       end_pos = Position.new(location.end_line - 1, location.end_column)
       range = Range.new(start_pos, end_pos)
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1245
       Location.new(location.name.to_s, range)
     end
 

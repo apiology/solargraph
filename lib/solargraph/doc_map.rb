@@ -14,6 +14,7 @@ module Solargraph
     include Logging
 
     # @return [Workspace]
+    # @sg-ignore Declared return type ::Solargraph::Workspace does not match inferred type ::Solargraph::Workspace, nil for Solargraph::DocMap#workspace
     attr_reader :workspace
 
     # @param requires [Array<String>]
@@ -155,10 +156,12 @@ module Solargraph
 
         # try to resolve the stdlib name
         # @type [Array<String>]
+        # @sg-ignore Wrong argument type for Solargraph::Workspace#stdlib_dependencies: stdlib_name expected String, received String, nil
         deps = workspace.stdlib_dependencies(stdlib_name_guess) || []
         [stdlib_name_guess, *deps].compact.each do |potential_stdlib_name|
           # @sg-ignore Need to support splatting in literal array
           rbs_pins = pin_cache.cache_stdlib_rbs_map potential_stdlib_name
+          # @sg-ignore Wrong argument type for Array#concat: other_arrays expected Array<generic<T>>, _ToAry<generic<T>>, received void
           serialized_pins.concat rbs_pins if rbs_pins
         end
       end

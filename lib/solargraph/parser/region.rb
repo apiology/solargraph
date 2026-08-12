@@ -10,6 +10,7 @@ module Solargraph
       attr_reader :closure
 
       # @return [Symbol]
+      # @sg-ignore Need to add nil check here
       attr_reader :scope
 
       # @return [Symbol]
@@ -52,7 +53,6 @@ module Solargraph
       # @return [Pin::Namespace, nil]
       def namespace_pin
         ns = closure
-        # @sg-ignore flow sensitive typing needs to handle while
         ns = ns.closure while ns && !ns.is_a?(Pin::Namespace)
         ns
       end

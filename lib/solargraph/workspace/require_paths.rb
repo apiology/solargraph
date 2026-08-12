@@ -26,6 +26,7 @@ module Solargraph
       def generate
         result = require_paths_from_gemspec_files
         return configured_require_paths if result.empty?
+        # @sg-ignore Wrong argument type for File.join: arg_0 expected String, _ToStr, _ToPath, received String, nil
         result.concat(config.require_paths.map { |p| File.join(directory, p) }) if config
         result
       end
@@ -83,7 +84,7 @@ module Solargraph
             return [] if hash.empty?
             hash['paths'].map { |path| File.join(base, path) }
           rescue StandardError => e
-            # @sg-ignore flow sensitive typing should be able to handle redefinition
+            # @sg-ignore https://github.com/castwide/solargraph/issues/1250
             Solargraph.logger.warn "Error reading #{gemspec_file_path}: [#{e.class}] #{e.message}"
             []
           end

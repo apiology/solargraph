@@ -43,8 +43,10 @@ module Solargraph
                                       @indexes[changed + idx - 1].merge(pins)
                                     end
         end
+        # @sg-ignore Need to add nil check here
         # @type [Index]
         @index = @indexes.last.clone
+        # @sg-ignore Need to add nil check here
         @index = @index.merge(block.call) if block
         constants.clear
         cached_qualify_superclass.clear
@@ -90,6 +92,7 @@ module Solargraph
         return nil if fqns.nil? || fqns.empty?
         return BOOLEAN_SUPERCLASS_PIN if %w[TrueClass FalseClass].include?(fqns)
 
+        # @sg-ignore Need to add nil check here
         superclass_references[fqns].first || try_special_superclasses(fqns)
       end
 
@@ -126,6 +129,7 @@ module Solargraph
 
       # @param path [String]
       # @return [Array<Solargraph::Pin::Base>]
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1245
       def get_path_pins path
         index.path_pin_hash[path]
       end
@@ -205,6 +209,7 @@ module Solargraph
 
       # @param fqns [String, nil]
       # @return [Array<Solargraph::Pin::Namespace>]
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1245
       def fqns_pins fqns
         return [] if fqns.nil?
         if fqns.include?('::')
@@ -248,11 +253,8 @@ module Solargraph
             next if refs.nil?
             # @param ref [String]
             refs.map(&:type).map(&:to_s).each do |ref|
-              # @sg-ignore flow sensitive typing should be able to handle redefinition
               next if ref.nil? || ref.empty? || visited.include?(ref)
-              # @sg-ignore flow sensitive typing should be able to handle redefinition
               ancestors << ref
-              # @sg-ignore flow sensitive typing should be able to handle redefinition
               queue << ref
             end
           end
@@ -279,12 +281,12 @@ module Solargraph
         index.alias_hash[name]
       end
 
-      # @return [Array<String>]
+      # @return [Set<String>]
       def macro_method_names
         index.macro_method_names
       end
 
-      # @return [Hash{String => Array<Pin::Method>}]
+      # @return [Hash{String => Set<Pin::Method>}]
       def macro_method_name_pins
         index.macro_method_name_pins
       end
@@ -311,6 +313,7 @@ module Solargraph
           end
         end
         @index = @indexes.last.clone
+        # @sg-ignore Need to add nil check here
         @index = @index.merge(block.call) if block
         constants.clear
         cached_qualify_superclass.clear
@@ -360,6 +363,7 @@ module Solargraph
 
       # @param name [String]
       # @return [Enumerable<Solargraph::Pin::Base>]
+      # @sg-ignore Need to add nil check here
       def namespace_children name
         return [] unless index.namespace_hash.key?(name)
         index.namespace_hash[name]

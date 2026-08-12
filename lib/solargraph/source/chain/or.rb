@@ -35,7 +35,6 @@ module Solargraph
 
           combined_type = Solargraph::ComplexType.new(types)
           unless types.all?(&:nullable?)
-            # @sg-ignore flow sensitive typing should be able to handle redefinition
             combined_type = combined_type.without_nil
           end
 

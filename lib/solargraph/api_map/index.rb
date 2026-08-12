@@ -5,10 +5,10 @@ module Solargraph
     class Index
       include Logging
 
-      # @return [Array<String>]
+      # @return [Set<String>]
       attr_reader :macro_method_names
 
-      # @return [Hash{String => Array<Pin::Method>}]
+      # @return [Hash{String => Set<Pin::Method>}]
       attr_reader :macro_method_name_pins
 
       # @param pins [Array<Pin::Base>]
@@ -25,6 +25,7 @@ module Solargraph
       def namespace_hash
         # @param h [String]
         # @param k [Array<Pin::Namespace>]
+        # @sg-ignore Wrong argument type for String#[]=: range expected Range<generic<T>>, _Range<generic<T>>, received Array<Solargraph::Pin::Namespace>
         @namespace_hash ||= Hash.new { |h, k| h[k] = [] }
       end
 
@@ -32,6 +33,7 @@ module Solargraph
       def pin_class_hash
         # @param h [String]
         # @param k [Array<Pin::Base>]
+        # @sg-ignore Wrong argument type for String#[]=: range expected Range<generic<T>>, _Range<generic<T>>, received Array<Solargraph::Pin::Base>
         @pin_class_hash ||= Hash.new { |h, k| h[k] = [] }
       end
 
@@ -39,6 +41,7 @@ module Solargraph
       def path_pin_hash
         # @param h [String]
         # @param k [Array<Pin::Base>]
+        # @sg-ignore Wrong argument type for String#[]=: range expected Range<generic<T>>, _Range<generic<T>>, received Array<Solargraph::Pin::Base>
         @path_pin_hash ||= Hash.new { |h, k| h[k] = [] }
       end
 
@@ -61,6 +64,7 @@ module Solargraph
       def include_references
         # @param h [String]
         # @param k [Array<String>]
+        # @sg-ignore Wrong argument type for String#[]=: range expected Range<generic<T>>, _Range<generic<T>>, received Array<String>
         @include_references ||= Hash.new { |h, k| h[k] = [] }
       end
 
@@ -68,6 +72,7 @@ module Solargraph
       def include_reference_pins
         # @param h [String]
         # @param k [Array<Pin::Reference::Include>]
+        # @sg-ignore Wrong argument type for String#[]=: range expected Range<generic<T>>, _Range<generic<T>>, received Array<Solargraph::Pin::Reference::Include>
         @include_reference_pins ||= Hash.new { |h, k| h[k] = [] }
       end
 
@@ -75,6 +80,7 @@ module Solargraph
       def extend_references
         # @param h [String]
         # @param k [Array<String>]
+        # @sg-ignore Wrong argument type for String#[]=: range expected Range<generic<T>>, _Range<generic<T>>, received Array<String>
         @extend_references ||= Hash.new { |h, k| h[k] = [] }
       end
 
@@ -82,6 +88,7 @@ module Solargraph
       def prepend_references
         # @param h [String]
         # @param k [Array<String>]
+        # @sg-ignore Wrong argument type for String#[]=: range expected Range<generic<T>>, _Range<generic<T>>, received Array<String>
         @prepend_references ||= Hash.new { |h, k| h[k] = [] }
       end
 
@@ -89,6 +96,7 @@ module Solargraph
       def superclass_references
         # @param h [String]
         # @param k [Array<String>]
+        # @sg-ignore Wrong argument type for String#[]=: range expected Range<generic<T>>, _Range<generic<T>>, received Array<String>
         @superclass_references ||= Hash.new { |h, k| h[k] = [] }
       end
 
@@ -131,14 +139,17 @@ module Solargraph
         # @param k [String]
         # @param v [Set<Pin::Base>]
         set.classify(&:class)
+           # @sg-ignore Need to add nil check here
            .map { |k, v| pin_class_hash[k].concat v.to_a }
         # @param k [String]
         # @param v [Set<Pin::Namespace>]
         set.classify(&:namespace)
+           # @sg-ignore Need to add nil check here
            .map { |k, v| namespace_hash[k].concat v.to_a }
         # @param k [String]
         # @param v [Set<Pin::Base>]
         set.classify(&:path)
+           # @sg-ignore Need to add nil check here
            .map { |k, v| path_pin_hash[k].concat v.to_a }
         @namespaces = path_pin_hash.keys.compact.to_set
         map_references Pin::Reference::Include, include_references
@@ -173,13 +184,10 @@ module Solargraph
           logger.debug { "ApiMap::Index#map_overrides: Looking at override #{ovr} for #{ovr.name}" }
           pins = path_pin_hash[ovr.name]
           logger.debug { "ApiMap::Index#map_overrides: pins for path=#{ovr.name}: #{pins}" }
+          # @sg-ignore Need to add nil check here
           pins.each do |pin|
             new_pin = (path_pin_hash[pin.path.sub('#initialize', '.new')].first if pin.path.end_with?('#initialize'))
             (ovr.tags.map(&:tag_name) + ovr.delete).uniq.each do |tag|
-              # @sg-ignore Wrong argument type for
-              #   YARD::Docstring#delete_tags: name expected String,
-              #   received String, Symbol - delete_tags is ok with a
-              #   _ToS, but we should fix anyway
               pin.docstring.delete_tags tag
               new_pin&.docstring&.delete_tags tag
             end

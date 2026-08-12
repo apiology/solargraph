@@ -28,6 +28,7 @@ module Solargraph
     attr_reader :current
 
     # @return [LanguageServer::Progress, nil]
+    # @sg-ignore Declared return type ::Solargraph::LanguageServer::Progress, nil does not match inferred type nil, false, ::Solargraph::LanguageServer::Progress for Solargraph::Library#cache_progr
     attr_reader :cache_progress
 
     # @param workspace [Solargraph::Workspace]
@@ -289,7 +290,7 @@ module Solargraph
         # HACK: for language clients that exclude special characters from the start of variable names
         if strip && (match = cursor.word.match(/^[^a-z0-9_]+/i))
           found.map! do |loc|
-            # @sg-ignore Unresolved call to []
+            # @sg-ignore Wrong argument type for Solargraph::Range.from_to: c1 expected Integer, received BigDecimal
             Solargraph::Location.new(loc.filename, Solargraph::Range.from_to(loc.range.start.line, loc.range.start.column + match[0].length, loc.range.ending.line, loc.range.ending.column))
           end
         end
@@ -422,9 +423,9 @@ module Solargraph
         else
           args = line.split(':').map(&:strip)
           name = args.shift
+          # @sg-ignore Need to add nil check here
           reporter = Diagnostics.reporter(name)
           raise DiagnosticsError, "Diagnostics reporter #{name} does not exist" if reporter.nil?
-          # @sg-ignore Hash errors
           repargs[reporter] ||= []
           # @sg-ignore Hash errors
           repargs[reporter].concat args
@@ -449,7 +450,6 @@ module Solargraph
         source_maps: source_map_hash.values,
         workspace: workspace,
         external_requires: external_requires,
-        # @sg-ignore OK if @current.filename is nil
         live_map: @current ? source_map_hash[@current.filename] : nil
       )
     end
@@ -484,15 +484,14 @@ module Solargraph
     end
 
     # @return [SourceMap, Boolean]
+    # @sg-ignore https://github.com/castwide/solargraph/pull/1245
     def next_map
       return false if mapped?
-      # @sg-ignore Need to add nil check here
       src = workspace.sources.find { |s| !source_map_hash.key?(s.filename) }
       if src
         Logging.logger.debug "Mapping #{src.filename}"
         # @sg-ignore OK if src.filename is nil
         source_map_hash[src.filename] = Solargraph::SourceMap.map(src)
-        # @sg-ignore OK if src.filename is nil
         source_map_hash[src.filename]
       else
         false
@@ -588,7 +587,6 @@ module Solargraph
       return unless source
       # @sg-ignore Wrong argument type for Solargraph::Workspace#has_file?: filename expected String, received String, nil
       return unless @current == source || workspace.has_file?(source.filename)
-      # @sg-ignore Need to add nil check here
       if source_map_hash.key?(source.filename)
         new_map = Solargraph::SourceMap.map(source)
         # @sg-ignore OK if source.filename is nil
@@ -666,15 +664,11 @@ module Solargraph
     # @return [void]
     def report_cache_progress gem_name, pending
       @total ||= pending
-      # @sg-ignore Wrong argument type for Integer#>: arg_0 expected Numeric, received Integer, nil
       @total = pending if pending > @total
-      # @sg-ignore Unresolved call to - on Integer, nil
       finished = @total - pending
-      # @sg-ignore @total should always be an Integer
       pct = if @total.zero?
               0
             else
-              # @sg-ignore Unresolved call to to_f
               ((finished.to_f / @total) * 100).to_i
             end
       message = "#{gem_name}#{" (+#{pending})" if pending.positive?}"

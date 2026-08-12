@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-# @sg-ignore Should better support meaning of '&' in RBS
 $LOAD_PATH.unshift "#{File.dirname(__FILE__)}/lib"
 require 'solargraph/version'
 require 'date'
@@ -13,6 +12,7 @@ Gem::Specification.new do |s|
   s.description = 'IDE tools for code completion, inline documentation, and static analysis'
   s.authors     = ['Fred Snyder']
   s.email       = 'admin@castwide.com'
+  # @sg-ignore Wrong argument type for File.expand_path: file_name expected String, _ToStr, _ToPath, received String, nil
   s.files       = Dir.chdir(File.expand_path(__dir__)) do
     # @sg-ignore Need backtick support
     # @type [String]

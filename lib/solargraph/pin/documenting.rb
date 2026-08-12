@@ -82,11 +82,14 @@ module Solargraph
                                                                                                 '  '))).lines.each do |l|
             if l.start_with?('  ')
               # Code block
+              # @sg-ignore Unresolved call to code? on Solargraph::Pin::Documenting::DocSection, nil
               sections.push DocSection.new(true) unless sections.last.code?
+            # @sg-ignore Unresolved call to code? on Solargraph::Pin::Documenting::DocSection, nil
             elsif sections.last.code?
               # Regular documentation
               sections.push DocSection.new(false)
             end
+            # @sg-ignore Unresolved call to concat on Solargraph::Pin::Documenting::DocSection, nil
             sections.last.concat l
           end
           sections.map(&:to_s).join.strip

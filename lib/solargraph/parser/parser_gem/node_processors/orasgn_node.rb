@@ -17,6 +17,7 @@ module Solargraph
                                       enclosing_compound_statement_pin, region.closure).process_or_asgn(node, presence)
             end
 
+            # @sg-ignore Need to add nil check here
             new_node = node.updated(node.children[0].type, node.children[0].children + [node.children[1]])
             # `x ||= y` only assigns when x is falsy/undefined, so
             # it's never a guaranteed override of x's prior type

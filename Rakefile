@@ -45,11 +45,12 @@ task :full_spec do
   warn 'ending spec'
   # move coverage/full-new to coverage/full on success so that we
   # always have the last successful run's 'coverage info
+  # @sg-ignore Need a downcast here
   FileUtils.rm_rf('coverage/full')
+  # @sg-ignore Need a downcast here
   FileUtils.mv('coverage/full-new', 'coverage/full')
 end
 
-# @sg-ignore #undercover return type could not be inferred
 # @return [Process::Status]
 def undercover
   simplecov_collate

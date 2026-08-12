@@ -70,6 +70,7 @@ module Solargraph
       # @param gates [Array<String>]
       # @return [String, nil] fully qualified tag
       def qualify tag, *gates
+        # @sg-ignore Wrong argument type for Solargraph::ComplexType.try_parse: strings expected String, received String, nil
         type = ComplexType.try_parse(tag)
         qualify_type(type, *gates)&.tag
       end
@@ -108,7 +109,7 @@ module Solargraph
 
       # @param name [String]
       # @param gates [Array<String>]
-      # @sg-ignore flow sensitive typing should be able to handle redefinition
+      # @sg-ignore https://github.com/castwide/solargraph/issues/1250
       # @return [String, nil]
       def resolve_and_cache name, gates
         cached_resolve[[name, gates]] = :in_process
@@ -129,7 +130,6 @@ module Solargraph
           if resolved
             base = [resolved]
           else
-            # @sg-ignore flow sensitive typing needs better handling of ||= on lvars
             return resolve(name, first) unless first.empty?
           end
         end

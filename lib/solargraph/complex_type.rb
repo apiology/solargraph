@@ -57,6 +57,7 @@ module Solargraph
     end
 
     # @return [UniqueType]
+    # @sg-ignore Need to add nil check here
     def first
       @items.first
     end
@@ -133,6 +134,7 @@ module Solargraph
 
     # @param index [Integer]
     # @return [UniqueType]
+    # @sg-ignore Need to add nil check here
     def [] index
       @items[index]
     end
@@ -235,7 +237,6 @@ module Solargraph
                      situation,
                      rules = [],
                      variance: erased_variance(situation)
-      # @sg-ignore flow sensitive typing needs to handle a self-referential reassignment (x = x.foo)
       expected = expected.downcast_to_literal_if_possible
       inferred = downcast_to_literal_if_possible
 
@@ -310,6 +311,8 @@ module Solargraph
       ComplexType.new(map { |ut| ut.transform(new_name, &transform_type) })
     end
 
+    # @param named_types [Hash{String => ComplexType::UniqueType}]
+    # @return [ComplexType]
     def expand named_types
       ComplexType.new(map { |ut| ut.expand(named_types) })
     end
@@ -341,7 +344,9 @@ module Solargraph
     end
 
     # @return [Array<ComplexType>]
+    # @sg-ignore Need to add nil check here
     def all_params
+      # @sg-ignore Need to add nil check here
       @items.first.all_params || []
     end
 
@@ -366,6 +371,7 @@ module Solargraph
     def erased_version_of? other
       return false if items.length != 1 || other.items.length != 1
 
+      # @sg-ignore Need to add nil check here
       @items.first.erased_version_of?(other.items.first)
     end
 
@@ -616,6 +622,7 @@ module Solargraph
             next
           elsif char == ',' && top_level?(point_stack, curly_stack, paren_stack, bracket_stack)
             disjuncts.push close_intersection(conjuncts, finish_atom(base, subtype_string))
+            # @sg-ignore Wrong argument type for Array#push: objects expected Solargraph::ComplexType::UniqueType, received Solargraph::ComplexType::UniqueType, Solargraph::ComplexType
             types.push close_disjunction(disjuncts)
             conjuncts = []
             disjuncts = []
@@ -634,6 +641,7 @@ module Solargraph
                 "Unclosed subtype in #{type_string}"
         end
         disjuncts.push close_intersection(conjuncts, finish_atom(base, subtype_string))
+        # @sg-ignore Wrong argument type for Array#push: objects expected Solargraph::ComplexType::UniqueType, received Solargraph::ComplexType::UniqueType, Solargraph::ComplexType
         types.push close_disjunction(disjuncts)
         [types, key_types]
       end
@@ -707,6 +715,7 @@ module Solargraph
         subtype_string = subtype_string.strip
         if base.empty? && subtype_string.start_with?('[')
           raise ComplexTypeError, "Unclosed bracket group in #{subtype_string}" unless subtype_string.end_with?(']')
+          # @sg-ignore Wrong argument type for Solargraph::ComplexType.parse: strings expected String, received String, nil
           return ComplexType.new(ComplexType.parse(subtype_string[1..-2], partial: true))
         end
         UniqueType.parse(base, subtype_string)

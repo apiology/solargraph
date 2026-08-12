@@ -126,7 +126,6 @@ module Solargraph
     # @param sources [Array<Solargraph::Source>]
     # @return [Boolean] True if the source was added to the workspace
     def merge *sources
-      # @sg-ignore Need to add nil check here
       unless directory == '*' || sources.all? { |source| source_hash.key?(source.filename) }
         # Reload the config to determine if a new source should be included
         @config = Solargraph::Workspace::Config.new(directory)
@@ -175,6 +174,7 @@ module Solargraph
     #
     # @param filename [String]
     # @return [Solargraph::Source]
+    # @sg-ignore Need to add nil check here
     def source filename
       source_hash[filename]
     end
@@ -193,7 +193,7 @@ module Solargraph
 
     # True if the workspace has a root Gemfile.
     #
-    # @todo Handle projects with custom Bundler/Gemfile setups (see DocMap#gemspecs_required_from_bundler)
+    # @todo Handle projects with custom Bundler/Gemfile setups
     #
     def gemfile?
       directory && File.file?(File.join(directory, 'Gemfile'))
@@ -270,6 +270,7 @@ module Solargraph
     # @param updater [Source::Updater]
     # @return [void]
     def synchronize! updater
+      # @sg-ignore Unresolved call to synchronize on Solargraph::Source, nil
       source_hash[updater.filename] = source_hash[updater.filename].synchronize(updater)
     end
 

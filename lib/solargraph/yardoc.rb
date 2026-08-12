@@ -92,6 +92,7 @@ module Solargraph
       tweaks = {}
       # @sg-ignore Translate to something flow sensitive typing understands
       if ENV['BUNDLE_GEMFILE'] && !ENV['BUNDLE_GEMFILE'].empty?
+        # @sg-ignore Wrong argument type for File.expand_path: file_name expected String, _ToStr, _ToPath, received String, nil
         tweaks['BUNDLE_GEMFILE'] = File.expand_path(ENV['BUNDLE_GEMFILE'])
       end
       tweaks

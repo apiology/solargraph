@@ -52,6 +52,7 @@ module Solargraph
         subtypes = []
         parameters_type = nil
         unless substring.empty?
+          # @sg-ignore Wrong argument type for Solargraph::ComplexType.parse: strings expected String, received String, nil
           subs = ComplexType.parse(substring[1..-2], partial: true)
           parameters_type = PARAMETERS_TYPE_BY_STARTING_TAG.fetch(substring[0]) do
             raise ComplexTypeError, "Unrecognized parameter delimiter: name=#{name}, substring=#{substring}"
@@ -72,10 +73,10 @@ module Solargraph
             key_types.concat(subs[0].map { |u| ComplexType.new([u]) })
             subtypes.concat(subs[1].map { |u| ComplexType.new([u]) })
           else
+            # @sg-ignore Wrong argument type for Array#concat: other_arrays expected Array<generic<T>>, _ToAry<generic<T>>, received Solargraph::ComplexType
             subtypes.concat subs
           end
         end
-        # @sg-ignore Need to add nil check here
         new(name, key_types, subtypes, rooted: rooted, parameters_type: parameters_type)
       end
 
@@ -424,6 +425,7 @@ module Solargraph
       # @return [String]
       def rbs_union types
         if types.length == 1
+          # @sg-ignore Need to add nil check here
           types.first.to_rbs
         else
           "(#{types.map(&:to_rbs).join(' | ')})"
@@ -464,11 +466,11 @@ module Solargraph
       # @param context_type [ComplexType, UniqueType, nil]
       # @param resolved_generic_values [Hash{String => ComplexType, ComplexType::UniqueType}] Added to as types are encountered or resolved
       # @return [UniqueType, ComplexType]
+      # @sg-ignore Need to add nil check here
       def resolve_generics_from_context generics_to_resolve, context_type, resolved_generic_values: {}
         if name == ComplexType::GENERIC_TAG_NAME
           type_param = subtypes.first&.name
           return self unless generics_to_resolve.include? type_param
-          # @sg-ignore flow sensitive typing needs to eliminate literal from union with [:bar].include?(foo)
           unless context_type.nil? || !resolved_generic_values[type_param].nil?
             new_binding = true
             # @sg-ignore flow sensitive typing needs to eliminate literal from union with [:bar].include?(foo)
@@ -480,7 +482,6 @@ module Solargraph
                                                          resolved_generic_values: resolved_generic_values)
             end
           end
-          # @sg-ignore flow sensitive typing needs to eliminate literal from union with [:bar].include?(foo)
           return resolved_generic_values[type_param] || self
         end
 
@@ -504,6 +505,7 @@ module Solargraph
             context_params = yield context_type if context_type
             if context_params && context_params[i]
               type_arg = context_params[i]
+              # @sg-ignore Unresolved call to map
               type_arg.map do |new_unique_context_type|
                 ut.resolve_generics_from_context generics_to_resolve, new_unique_context_type,
                                                  resolved_generic_values: resolved_generic_values
@@ -559,6 +561,7 @@ module Solargraph
               # as defaults in terms of earlier ones (e.g. C = A | B).
               # Resolve those defaults against the same context instead of
               # returning them as unresolved generic placeholders.
+              # @sg-ignore Unresolved call to resolve_generics on Solargraph::ComplexType, nil
               definitions.generic_defaults[generic_name].resolve_generics(definitions, context_type)
             else
               ComplexType::UNDEFINED
@@ -645,6 +648,8 @@ module Solargraph
         yield new_type
       end
 
+      # @param named_types [Hash{String => UniqueType}]
+      # @return [UniqueType]
       def expand named_types
         named_types[name] || self
       end

@@ -139,7 +139,6 @@ module Solargraph
         spec = workspace.find_gem(gem)
         raise Thor::InvocationError, "Gem '#{gem}' not found" if spec.nil?
 
-        # @sg-ignore flow sensitive typing needs to handle 'raise if'
         workspace.uncache_gem(spec, out: $stdout)
       end
     end
@@ -275,7 +274,7 @@ module Solargraph
       api_map = nil
       time = Benchmark.measure do
         api_map = Solargraph::ApiMap.load_with_cache(directory, $stdout)
-        # @sg-ignore flow sensitive typing should be able to handle redefinition
+        # @sg-ignore https://github.com/castwide/solargraph/issues/1250
         api_map.pins.each do |pin|
           puts pin_description(pin) if options[:verbose]
           pin.typify api_map
@@ -328,9 +327,7 @@ module Solargraph
                             [:class, *path.split('.', 2)]
                           end
 
-        # @sg-ignore Wrong argument type for
-        #   Solargraph::ApiMap#get_method_stack: rooted_tag
-        #   expected String, received Array<String>
+        # @sg-ignore Wrong argument type for Solargraph::ApiMap#get_method_stack: rooted_tag expected String, received Array<String>
         pins = api_map.get_method_stack(ns, meth, scope: scope)
       else
         pins = api_map.get_path_pins path
@@ -344,7 +341,6 @@ module Solargraph
         exit 1
       when Pin::Namespace
         if options[:references]
-          # @sg-ignore Need to add nil check here
           superclass_tag = api_map.qualify_superclass(pin.return_type.tag)
           superclass_pin = api_map.get_path_pins(superclass_tag).first if superclass_tag
           references[:superclass] = superclass_pin if superclass_pin
@@ -426,6 +422,7 @@ module Solargraph
       begin
         puts 'Parsing and mapping source files...'
         prepare_start = Time.now
+        # @sg-ignore Unresolved constant Vernier
         Vernier.profile(out: parse_path, hooks: hooks) do
           puts 'Mapping libraries'
           host.prepare(directory)
@@ -435,6 +432,7 @@ module Solargraph
 
         puts 'Building the catalog...'
         catalog_start = Time.now
+        # @sg-ignore Unresolved constant Vernier
         Vernier.profile(out: catalog_path, hooks: hooks) do
           host.catalog
         end
@@ -456,12 +454,14 @@ module Solargraph
           end
         end
 
+        # @sg-ignore Wrong argument type for File.absolute_path: file_name expected String, _ToStr, _ToPath, received String, nil
         file_uri = Solargraph::LanguageServer::UriHelpers.file_to_uri(File.absolute_path(test_file))
 
         puts "Profiling go-to-definition for #{test_file}"
         puts "Position: line #{options[:line]}, column #{options[:column]}"
 
         definition_start = Time.now
+        # @sg-ignore Unresolved constant Vernier
         Vernier.profile(out: definition_path, hooks: hooks) do
           message = Solargraph::LanguageServer::Message::TextDocument::Definition.new(
             host, {
@@ -505,6 +505,7 @@ module Solargraph
     desc 'rbs', 'Generate RBS definitions'
     option :filename, type: :string, alias: :f, desc: 'Generated file name', default: 'sig.rbs'
     option :inference, type: :boolean, desc: 'Enhance definitions with type inference', default: true
+    # @return [void]
     def rbs
       api_map = Solargraph::ApiMap.load('.')
       pins = api_map.source_maps.flat_map(&:pins)
@@ -514,7 +515,9 @@ module Solargraph
         store.method_pins.each do |pin|
           next unless pin.return_type.undefined?
           type = pin.typify(api_map)
+          # @sg-ignore Need to add nil check here
           type = pin.probe(api_map) if type.undefined?
+          # @sg-ignore Need to add nil check here
           pin.docstring.add_tag YARD::Tags::Tag.new('return', nil, type.items.map(&:to_s))
           pin.instance_variable_set(:@return_type, type)
         end
@@ -530,6 +533,7 @@ module Solargraph
           rel_dir = File.join('sig', options[:filename])
           puts "Writing #{rel_dir}..."
           target = File.join(work_dir, rel_dir)
+          # @sg-ignore Need a downcast here
           FileUtils.mkdir_p(File.join(work_dir, 'sig'))
           `sord #{target} --rbs --no-regenerate`
         end
@@ -544,7 +548,6 @@ module Solargraph
     def pin_description pin
       desc = if pin.path.nil? || pin.path.empty?
                if pin.closure
-                 # @sg-ignore Need to add nil check here
                  "#{pin.closure.path} | #{pin.name}"
                else
                  "#{pin.context.namespace} | #{pin.name}"
@@ -552,7 +555,6 @@ module Solargraph
              else
                pin.path
              end
-      # @sg-ignore Need to add nil check here
       desc += " (#{pin.location.filename} #{pin.location.range.start.line})" if pin.location
       desc
     end

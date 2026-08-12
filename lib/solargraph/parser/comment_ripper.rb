@@ -33,6 +33,7 @@ module Solargraph
             chomped = '#'
           end
           @comments[result[2][0]] =
+            # @sg-ignore Need to add nil check here
             Snippet.new(Range.from_to(result[2][0], result[2][1], result[2][0], result[2][1] + chomped.length), chomped)
         end
         result

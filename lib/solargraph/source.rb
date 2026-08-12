@@ -74,6 +74,7 @@ module Solargraph
     # @param line [Integer]
     # @param column [Integer]
     # @return [AST::Node]
+    # @sg-ignore Need to add nil check here
     def node_at line, column
       tree_at(line, column).first
     end
@@ -252,11 +253,13 @@ module Solargraph
     # @return [Hash{Integer => Array<String>}]
     def associated_comments
       @associated_comments ||= begin
-        # @type [Hash{Integer => String}]
+        # @type [Hash{Integer => Array<String>}]
         result = {}
         buffer = []
         # @type [Integer, nil]
         last = nil
+        # @param num [Integer]
+        # @param snip [Solargraph::Parser::Snippet]
         comments.each_pair do |num, snip|
           if !last || num == last + 1
             buffer.push "#{snip.text}\n"
@@ -277,6 +280,7 @@ module Solargraph
     # @return [Integer]
     def first_not_empty_from line
       cursor = line
+      # @sg-ignore Need to add nil check here
       cursor += 1 while cursor < code_lines.length && code_lines[cursor].strip.empty?
       cursor = line if cursor > code_lines.length - 1
       cursor
@@ -294,6 +298,7 @@ module Solargraph
         range = Range.from_node(top)
         # @sg-ignore Need to add nil check here
         if (result.empty? || range.start.line > result.last.start.line) && range.ending.line - range.start.line >= 2
+          # @sg-ignore Wrong argument type for Array#push: objects expected Solargraph::Range, received Solargraph::Range, nil
           result.push range
         end
       end
@@ -311,6 +316,7 @@ module Solargraph
       ctxt = []
       started = false
       skip = nil
+      # @param l [String]
       comments&.each do |l|
         if l =~ /^#-\R/
           ctxt.clear
@@ -323,7 +329,7 @@ module Solargraph
           ctxt.push p
         else
           here = p.index(/[^ \t]/)
-          # @sg-ignore flow sensitive typing should be able to handle redefinition
+          # @sg-ignore https://github.com/castwide/solargraph/issues/1250
           skip = here if skip.nil? || here < skip
           ctxt.push p[skip..]
         end
@@ -395,6 +401,7 @@ module Solargraph
       # @sg-ignore Need to add nil check here
       return unless here.contain?(position)
       stack.unshift node
+      # @param c [Parser::AST::Node]
       node.children.each do |c|
         next unless Parser.is_ast_node?(c)
         next if c.loc.expression.nil?
@@ -409,7 +416,7 @@ module Solargraph
       @changes ||= []
     end
 
-    # @return [String]
+    # @return [String, nil]
     attr_writer :filename
 
     # @return [Integer]
@@ -476,10 +483,10 @@ module Solargraph
       @repaired
     end
 
-    # @return [Boolean]
+    # @return [Boolean, nil]
     attr_writer :parsed
 
-    # @return [Hash{Integer => String}
+    # @return [Hash{Integer => Solargraph::Parser::Snippet}]
     attr_writer :comments
 
     # @return [Boolean]

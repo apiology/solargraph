@@ -180,6 +180,7 @@ module Solargraph
           end
           return ComplexType::UNDEFINED
         end
+        # @sg-ignore Need to add nil check here
         type = infer_from_definitions(pins, links.last.last_context, api_map, locals)
         out = maybe_nil(type, api_map)
         logger.debug do

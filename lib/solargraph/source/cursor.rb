@@ -122,6 +122,7 @@ module Solargraph
             if rng
               Cursor.new(source, rng.ending)
             else
+              # @sg-ignore Wrong argument type for Solargraph::Position.new: character expected Integer, received Integer, nil
               pos = Position.new(position.line, [position.column - 1, 0].max)
               Cursor.new(source, pos)
             end
