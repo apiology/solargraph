@@ -215,6 +215,18 @@ module Solargraph
             # explicit: false skips arity checking; the duck type
             # only tells us the method exists, not its signature
             [Pin::DuckMethod.new(name: word, source: :chain, explicit: false)]
+          elsif unique_type.bot?
+            # bot is a subtype of every type, so any method call on a
+            # bot-typed receiver is vacuously valid - the code is
+            # unreachable, so there's no real pin to resolve against,
+            # but flagging it as "unresolved" would be a false
+            # positive. A DuckMethod pin (same one used for `#read`-
+            # style duck typing) gives match_overload_type a real
+            # Pin::Method to work with - explicit: false skips arity
+            # checking - while its return type stays bot, so bot keeps
+            # propagating through the rest of the chain instead of
+            # being treated as a real value.
+            [Pin::DuckMethod.new(name: word, source: :chain, explicit: false, return_type: ComplexType::BOT)]
           else
             ns_tag = unique_type.namespace == '' ? '' : unique_type.namespace_type.tag
             stack = api_map.get_method_stack(ns_tag, word, scope: unique_type.scope)

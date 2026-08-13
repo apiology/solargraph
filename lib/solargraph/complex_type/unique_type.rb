@@ -344,8 +344,6 @@ module Solargraph
         expected.any? do |expected_unique_type|
           # :nocov:
           unless expected_unique_type.is_a?(UniqueType)
-            # @sg-ignore is_a? doesn't narrow the negated branch as
-            #   precisely as instance_of? did
             raise "Expected type must be a UniqueType, got #{expected_unique_type.class} in #{expected.inspect}"
           end
           # :nocov:
