@@ -278,10 +278,37 @@ module Solargraph
     # @return [Boolean]
     def duck_type_provides? api_map, inf, quack
       return true if inf.duck_type? && inf.to_s[1..] == quack
+      return intersection_conjunct_quacks?(api_map, quack, inf) if inf.is_a?(UniqueType::Intersection)
 
       !api_map.get_method_stack(inf.namespace, quack, scope: inf.scope).empty?
     end
     private :duck_type_provides?
+
+    # Intersection#namespace/#scope only report the first conjunct,
+    # which loses the "any one conjunct satisfies" semantics an
+    # intersection needs against a duck-typed expectation - e.g. a
+    # mock stubbed to satisfy an interface, typed `SomeMockClass &
+    # #some_method`, has to be checked against every conjunct rather
+    # than the first one. A conjunct is itself a full ComplexType (RBS
+    # allows a union as one member of an intersection), so a union
+    # conjunct only counts as satisfying the duck type if every one of
+    # its own alternatives does.
+    #
+    # @param api_map [ApiMap]
+    # @param quack [String]
+    # @param unique_type [ComplexType::UniqueType]
+    # @return [Boolean]
+    def intersection_conjunct_quacks? api_map, quack, unique_type
+      if unique_type.is_a?(UniqueType::Intersection)
+        return unique_type.conjuncts.any? do |conjunct|
+          conjunct.all? { |ut| intersection_conjunct_quacks?(api_map, quack, ut) }
+        end
+      end
+      # A duck-typed conjunct only vouches for the one method its own
+      # tag names - it has no namespace to look other methods up on.
+      return unique_type.to_s[1..] == quack if unique_type.duck_type?
+      !api_map.get_method_stack(unique_type.namespace, quack, scope: unique_type.scope).empty?
+    end
 
     # @return [String]
     def rooted_tags
