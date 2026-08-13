@@ -103,7 +103,12 @@ module Solargraph
                                   # tells you if the arg is optional or not.  Prefer a
                                   # provided value if we have one here since we can't rely on
                                   # it from RBS so we can infer from it and typecheck on it.
-                                  assignment: choose(other, :assignment),
+                                  #
+                                  # When #combine_assignments supersedes rather than unions,
+                                  # skip this - the constructor prepends `assignment:` to
+                                  # `assignments:` unconditionally, which would re-introduce
+                                  # the dropped node.
+                                  assignment: override_assignments?(other) ? nil : choose(other, :assignment),
                                   assignments: new_assignments,
                                   mass_assignment: combine_mass_assignment(other),
                                   return_type: combine_return_type(other),
@@ -137,6 +142,8 @@ module Solargraph
       #
       # @return [::Array<Parser::AST::Node>]
       def combine_assignments other
+        return other.assignments.dup if override_assignments?(other)
+
         (other.assignments + assignments).uniq
       end
 
@@ -335,7 +342,7 @@ module Solargraph
         super + [presence, narrowed_return_type, exclude_return_type]
       end
 
-      private
+      public
 
       # True if `other_loc` falls inside the source range of one of this
       # pin's own assignment value nodes - i.e., `other_loc` is
@@ -365,6 +372,36 @@ module Solargraph
           # evaluated), not that boundary itself.
           rng.contain?(other_loc.range.start) && other_loc.range.start != rng.ending
         end
+      end
+
+      private
+
+      # True if `other`'s assignment(s) should supersede ours
+      # instead of merely being unioned with them: `other` reassigns
+      # the same variable, in the same scope, via an assignment
+      # guaranteed to have executed, so by the time `other`'s
+      # presence begins our value has definitely been overwritten.
+      #
+      # Excludes self-referential reassignments (`x = x.foo`,
+      # desugared `+=`, etc.) - resolving their right-hand side needs
+      # our assignment(s) as the base case, so dropping them would
+      # leave nothing to resolve against.
+      #
+      # @param other [self]
+      # @return [Boolean]
+      def override_assignments? other
+        other.definite && other.closure == closure &&
+          other.assignments.none? { |node| references_name?(node) }
+      end
+
+      # @param node [Parser::AST::Node, nil]
+      # @return [Boolean]
+      def references_name? node
+        return false unless node.is_a?(::AST::Node)
+
+        return true if %i[lvar ivar].include?(node.type) && node.children[0].to_s == name
+
+        node.children.any? { |child| references_name?(child) }
       end
 
       # @param api_map [ApiMap]

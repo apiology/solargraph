@@ -2793,8 +2793,6 @@ describe Solargraph::SourceMap::Clip do
   end
 
   it 'replaces nil with reassignments' do
-    pending 'sequential assignment support'
-
     source = Solargraph::Source.load_string(%(
       bar = nil
       bar
@@ -2806,12 +2804,10 @@ describe Solargraph::SourceMap::Clip do
     expect(clip.infer.to_s).to eq('nil')
 
     clip = api_map.clip_at('test.rb', [4, 6])
-    expect(clip.infer.to_s).to eq('Integer')
+    expect(clip.infer.to_s).to eq('123')
   end
 
   it 'replaces type with reassignments' do
-    pending 'sequential assignment support'
-
     source = Solargraph::Source.load_string(%(
       bar = 'a'
       bar
@@ -2823,7 +2819,7 @@ describe Solargraph::SourceMap::Clip do
     expect(clip.infer.to_s).to eq('String')
 
     clip = api_map.clip_at('test.rb', [4, 6])
-    expect(clip.infer.to_s).to eq('Integer')
+    expect(clip.infer.to_s).to eq('123')
   end
 
   it 'expands nil type with conditional reassignments' do
