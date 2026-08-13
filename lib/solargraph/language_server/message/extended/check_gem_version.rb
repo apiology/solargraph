@@ -77,12 +77,13 @@ module Solargraph
               @fetched = true
               begin
                 @available ||= begin
-                  # @type [Gem::NameTuple, nil]
+                  # @type [Gem::Dependency, nil]
                   tuple = CheckGemVersion.fetcher.search_for_dependency(Gem::Dependency.new('solargraph')).flatten.first
                   if tuple.nil?
                     @error = 'An error occurred fetching the gem data'
                     GEM_ZERO
                   else
+                    # @sg-ignore Solargraph has no RBS coverage for Gem::NameTuple (the actual runtime type here, not Gem::Dependency)
                     tuple.version
                   end
                 end
