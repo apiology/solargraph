@@ -800,4 +800,122 @@ describe Solargraph::Source::Chain::Call do
   it 'accepts a word with no location, for external callers that omit it' do
     expect { described_class.new('foo') }.not_to raise_error
   end
+
+  context 'with an RBS-declared generic block-form overload accepting a kwrest parameter' do
+    # create a temporary directory with the scope of the spec
+    around do |example|
+      require 'tmpdir'
+      Dir.mktmpdir('rspec-solargraph-') do |dir|
+        @temp_dir = dir
+        example.run
+      end
+    end
+
+    attr_reader :temp_dir
+
+    let(:rbs) do
+      <<~RBS
+        class Box
+          def self.start: (Integer val, ?String opt1, ?String opt2) -> Box
+                         | [T] (Integer val, ?String opt1, ?String opt2, **untyped opts) { (Integer v) -> T } -> T
+        end
+      RBS
+    end
+
+    let(:conversions) do
+      loader = RBS::EnvironmentLoader.new(core_root: nil, repository: RBS::Repository.new(no_stdlib: false))
+      loader.add(path: Pathname(temp_dir))
+      Solargraph::RbsMap::Conversions.new(loader: loader)
+    end
+
+    before do
+      File.write(File.join(temp_dir, 'box.rbs'), rbs)
+    end
+
+    # Simulates a gem/stdlib method (loaded via `convention_pins`, the
+    # same mechanism DocMap uses for a resolved `require`) being called
+    # with a keyword argument that should bind to the overload's kwrest
+    # parameter, not the next positional parameter.
+    #
+    # @param code [String]
+    # @return [Solargraph::ComplexType]
+    # @param [Object] position
+    def infer_at code, position
+      api_map = Solargraph::ApiMap.new
+      source = Solargraph::Source.load_string(code, 'test.rb')
+      source_map = Solargraph::SourceMap.map(source)
+      source_map.send(:convention_pins=, conversions.pins)
+      api_map.catalog(Solargraph::Bench.new(source_maps: [source_map], live_map: source_map))
+      api_map.clip_at('test.rb', position).infer
+    end
+
+    it 'matches a trailing keyword argument to a kwrest parameter instead of the next positional parameter' do
+      type = infer_at(%(
+        Box.start(1, "x", foo: true) do |v|
+          v
+        end
+      ), [2, 10])
+      expect(type.rooted_tags).to eq('::Integer')
+    end
+
+    it 'still resolves the block-form overload when no keyword argument is passed' do
+      type = infer_at(%(
+        Box.start(1, "x") do |v|
+          v
+        end
+      ), [2, 10])
+      expect(type.rooted_tags).to eq('::Integer')
+    end
+  end
+
+  context 'with overloads that differ only in which keyword(s) they accept' do
+    around do |example|
+      require 'tmpdir'
+      Dir.mktmpdir('rspec-solargraph-') do |dir|
+        @temp_dir = dir
+        example.run
+      end
+    end
+
+    attr_reader :temp_dir
+
+    let(:rbs) do
+      <<~RBS
+        class Box
+          def self.add: (path: String) -> Integer
+                       | (library: String, ?resolve_dependencies: untyped) -> String
+        end
+      RBS
+    end
+
+    let(:conversions) do
+      loader = RBS::EnvironmentLoader.new(core_root: nil, repository: RBS::Repository.new(no_stdlib: false))
+      loader.add(path: Pathname(temp_dir))
+      Solargraph::RbsMap::Conversions.new(loader: loader)
+    end
+
+    before do
+      File.write(File.join(temp_dir, 'box.rbs'), rbs)
+    end
+
+    # @param code [String]
+    # @param position [Array(Integer, Integer)]
+    # @return [Solargraph::ComplexType]
+    def infer_at code, position
+      api_map = Solargraph::ApiMap.new
+      source = Solargraph::Source.load_string(code, 'test.rb')
+      source_map = Solargraph::SourceMap.map(source)
+      source_map.send(:convention_pins=, conversions.pins)
+      api_map.catalog(Solargraph::Bench.new(source_maps: [source_map], live_map: source_map))
+      api_map.clip_at('test.rb', position).infer
+    end
+
+    it 'matches a call by the keyword it actually passes, not an earlier overload with an untyped keyword param' do
+      code = %(
+        Box.add(path: "x")
+      )
+      type = infer_at(code, [1, code.lines[1].chomp.length])
+      expect(type.rooted_tags).to eq('::Integer')
+    end
+  end
 end
