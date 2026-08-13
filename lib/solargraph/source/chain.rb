@@ -358,7 +358,6 @@ module Solargraph
 
       protected
 
-      # @sg-ignore Fix "Not enough arguments to Module#protected"
       def equality_fields
         [links, node]
       end
