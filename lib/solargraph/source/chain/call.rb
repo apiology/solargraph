@@ -62,7 +62,7 @@ module Solargraph
           # need to worry about the not-nil case
 
           binder = binder.without_nil if nullable?
-          pins = method_pins_for_binder(binder, api_map)
+          pins = method_pins_for_binder(binder, api_map, name_pin.closure)
           return [] if pins.empty?
           inferred_pins(pins, api_map, name_pin, locals)
         end
@@ -175,10 +175,11 @@ module Solargraph
         #
         # @param binder_type [ComplexType, ComplexType::UniqueType]
         # @param api_map [ApiMap]
+        # @param closure [Pin::Closure, nil] closure for any synthesized DuckMethod pins
         # @return [::Array<Pin::Base>]
-        def method_pins_for_binder binder_type, api_map
+        def method_pins_for_binder binder_type, api_map, closure
           top_level_types = binder_type.is_a?(ComplexType) ? binder_type.to_a : [binder_type]
-          pin_groups = top_level_types.map { |unique_type| method_stack_pins(unique_type, api_map) }
+          pin_groups = top_level_types.map { |unique_type| method_stack_pins(unique_type, api_map, closure) }
           pin_groups = [] if !api_map.loose_unions && pin_groups.any?(&:nil?)
           # Different alternatives can resolve to pins that share a
           # path (e.g. the same generic method looked up against
@@ -201,11 +202,12 @@ module Solargraph
         #
         # @param unique_type [ComplexType::UniqueType]
         # @param api_map [ApiMap]
+        # @param closure [Pin::Closure, nil] closure for any synthesized DuckMethod pins
         # @return [::Array<Pin::Base>, nil] nil when unresolved
-        def method_stack_pins unique_type, api_map
+        def method_stack_pins unique_type, api_map, closure
           if unique_type.is_a?(ComplexType::UniqueType::Intersection)
             resolved = key_verified_conjuncts(unique_type.conjuncts, api_map).filter_map do |conjunct|
-              pins = method_pins_for_binder(conjunct, api_map)
+              pins = method_pins_for_binder(conjunct, api_map, closure)
               pins.empty? ? nil : pins
             end
             return nil if resolved.empty?
@@ -214,7 +216,7 @@ module Solargraph
           elsif unique_type.duck_type? && unique_type.name[1..] == word
             # explicit: false skips arity checking; the duck type
             # only tells us the method exists, not its signature
-            [Pin::DuckMethod.new(name: word, source: :chain, explicit: false)]
+            [Pin::DuckMethod.new(name: word, source: :chain, explicit: false, closure: closure)]
           elsif unique_type.bot?
             # bot is a subtype of every type, so any method call on a
             # bot-typed receiver is vacuously valid - the code is
@@ -225,8 +227,13 @@ module Solargraph
             # Pin::Method to work with - explicit: false skips arity
             # checking - while its return type stays bot, so bot keeps
             # propagating through the rest of the chain instead of
-            # being treated as a real value.
-            [Pin::DuckMethod.new(name: word, source: :chain, explicit: false, return_type: ComplexType::BOT)]
+            # being treated as a real value. closure is threaded
+            # through from the call site's name_pin since DuckMethod
+            # pins have no location of their own to derive one from -
+            # without it, Pin::Base#closure raises under strict
+            # assertions the first time anything downstream (like
+            # match_overload_type) reads it.
+            [Pin::DuckMethod.new(name: word, source: :chain, explicit: false, return_type: ComplexType::BOT, closure: closure)]
           else
             ns_tag = unique_type.namespace == '' ? '' : unique_type.namespace_type.tag
             stack = api_map.get_method_stack(ns_tag, word, scope: unique_type.scope)
