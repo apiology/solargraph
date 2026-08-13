@@ -77,7 +77,7 @@ module Solargraph
               @fetched = true
               begin
                 @available ||= begin
-                  # @type [Gem::Dependency, nil]
+                  # @type [Gem::NameTuple, nil]
                   tuple = CheckGemVersion.fetcher.search_for_dependency(Gem::Dependency.new('solargraph')).flatten.first
                   if tuple.nil?
                     @error = 'An error occurred fetching the gem data'
