@@ -1483,44 +1483,24 @@ describe Solargraph::TypeChecker do
         # passes on RBS >= 4.1 and fails on 3.10.x/4.0.x, which is what
         # apiology/solargraph#49 CI was reporting before that was fixed.
         #
-        # - castwide/solargraph#1223 (restores literal type inference) -
-        #   without it, the literal "Index"/"Triggers" key_types get widened
-        #   to plain String before the narrowing above ever sees them.
-        #   Verified directly: with just this branch's own commits, the
-        #   union already loses the literal keys (`Hash{String => String}`),
-        #   independent of anything else.
-        # - castwide/solargraph#1266 (structurally verifies RBS
-        #   interface-typed expectations) - needed only on RBS >= 4.1.x,
-        #   where `Hash#fetch`'s exact-arity overload gets nominally (not
-        #   structurally) rejected against `Hash::_Key` and falls through to
-        #   an unresolved `generic<X>`. Confirmed this branch alone is clean
-        #   on RBS 3.10.x but leaks `generic<X>` on RBS 4.1.x without #1266.
+        # Both castwide/solargraph#1223 (restores literal type inference,
+        # without which the literal "Index"/"Triggers" key_types get widened
+        # to plain String before the narrowing above ever sees them) and
+        # castwide/solargraph#1266 are merged into this branch. Neither is
+        # specific to intersections; #1223 is a genuine prerequisite for this
+        # spec to observe the fix working, #1266 is not involved at all.
         #
-        # Neither is specific to intersections or to this fix - both are
-        # independent, already-scoped PRs that just happen to be
-        # prerequisites for this spec to observe the fix above working, and
-        # both are already merged into this branch.
-        #
-        # Still not reliable, though - and not simply per Ruby/RBS version.
-        # apiology/solargraph#49 CI run 1 (commit 82f464e0e, pending
-        # dropped outright) failed this spec on every rspec matrix leg but
-        # one (`rspec (3.2, 4.1.1)` passed). CI run 2 (commit 92b638667,
-        # pending gated to Ruby 3.2.x + RBS 4.1.x) then showed the exact
-        # opposite on the identical `rspec (4.0, 4.1.1)` leg: an
-        # unexpected "FIXED" pass, on a Ruby/RBS combination the first run
-        # had genuinely failed. Same code, same Ruby, same RBS version,
-        # opposite result between runs - this is flaky/order-dependent,
-        # not a stable per-version split (ruled out simple cross-test
-        # pollution too: a full local `bundle exec rspec` run, 1812
-        # examples matching CI's count, passed with 0 failures on Ruby
-        # 3.2.6/RBS 4.1.2). `pending` can't express "flaky either
-        # direction" - it fails the build whichever way the flake lands
-        # (unexpected pass = "FIXED" failure, unexpected failure = normal
-        # failure only if not pending). Using `skip` instead, which never
-        # fails the build regardless of outcome. Root cause of the
-        # flakiness in key_verified_conjuncts's narrowing not yet
-        # identified.
-        skip 'flaky - fails or unexpectedly passes depending on run, not a stable per-Ruby/RBS-version split; root cause not yet identified'
+        # This spec was `skip`ped for a while as "flaky - fails or
+        # unexpectedly passes depending on run". That was a misreading of CI,
+        # not a real flake. apiology/solargraph#49 run 1 (commit 82f464e0e)
+        # was reported as failing every matrix leg but one; in fact exactly
+        # one leg failed (`rspec (4.0, 4.0.3)`) and the other twelve were
+        # `cancelled` by fail-fast. Run 2 (commit 92b638667) was reported as
+        # an unexplained opposite result on `rspec (4.0, 4.1.1)`; in fact
+        # that leg's only "failure" was two `FIXED` markers - the specs
+        # passed, but that run's pending guard was gated to Ruby 3.2, so a
+        # pass on Ruby 4.0 registered as unexpected. The behavior was
+        # deterministic throughout, splitting purely on RBS version.
         checker = type_checker(%(
           class Repro
             # @param period [Hash{"Index" => Float} & Hash{"Triggers" => Array<Hash{"Name" => String}>}]
@@ -1544,11 +1524,9 @@ describe Solargraph::TypeChecker do
         # dedup-key fix described in the sibling spec above makes this
         # order-independent now - same per-key-narrowed result either way,
         # dispatched via the same literal-key matching described there.
-        # Same two independent, already-scoped prerequisites as that spec:
-        # castwide/solargraph#1223 and, on RBS >= 4.1.x, castwide/solargraph#1266.
-        # Both are already merged into this branch. Same not-yet-root-caused
-        # flakiness as the sibling spec above - see its comment.
-        skip 'flaky - fails or unexpectedly passes depending on run, not a stable per-Ruby/RBS-version split; root cause not yet identified'
+        # Same prerequisite as that spec, already merged into this branch:
+        # castwide/solargraph#1223. Was `skip`ped alongside its sibling for a
+        # flake that turned out not to exist - see that spec's comment.
         checker = type_checker(%(
           class Repro
             # @param period [Hash{"Triggers" => Array<Hash{"Name" => String}>} & Hash{"Index" => Float}]
