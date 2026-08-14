@@ -17,6 +17,14 @@ module Solargraph
       # @return [Boolean]
       attr_reader :definite
 
+      # The CompoundStatement pin this variable's (re)assignment was
+      # made within - i.e. Region#compound_statement at the point of
+      # assignment. Used by #definite_reaches? to decide whether a
+      # non-definite assignment still dominates a given reference.
+      #
+      # @return [Pin::CompoundStatement, nil]
+      attr_reader :compound_statement
+
       # @param return_type [ComplexType, nil]
       # @param assignment [Parser::AST::Node, nil] First assignment
       #   that was made to this variable
@@ -57,11 +65,18 @@ module Solargraph
       #   reassignment's type may safely override a variable's
       #   previously declared/inferred type instead of merely being
       #   unioned with it.
+      # @param compound_statement [Pin::CompoundStatement, nil] The
+      #   CompoundStatement this variable's (re)assignment was made
+      #   within. When `definite` is false, a reference whose location
+      #   falls within this pin's own range may still treat the
+      #   assignment as an override rather than merely unioning it
+      #   with earlier possible types - see #definite_reaches?.
       # @param [Hash{Symbol => Object}] splat
       def initialize assignment: nil, assignments: [], mass_assignment: nil,
                      presence: nil, return_type: nil,
                      narrowed_return_type: nil, exclude_return_type: nil,
                      definite: true,
+                     compound_statement: nil,
                      **splat
         super(**splat)
         @assignments = (assignment.nil? ? [] : [assignment]) + assignments
@@ -72,6 +87,7 @@ module Solargraph
         @exclude_return_type = exclude_return_type
         @presence = presence
         @definite = definite
+        @compound_statement = compound_statement
       end
 
       # @param presence [Range]
@@ -96,8 +112,14 @@ module Solargraph
         super
       end
 
-      def combine_with other, attrs = {}
-        new_assignments = combine_assignments(other)
+      # @param other [self]
+      # @param attrs [Hash]
+      # @param location [Location, nil] The position being resolved,
+      #   if known - used to decide whether a not-globally-definite
+      #   `other` should still override us because the position falls
+      #   within `other`'s compound_statement.
+      def combine_with other, attrs = {}, location: nil
+        new_assignments = combine_assignments(other, location)
         new_attrs = attrs.merge({
                                   # default values don't exist in RBS parameters; it just
                                   # tells you if the arg is optional or not.  Prefer a
@@ -108,7 +130,7 @@ module Solargraph
                                   # skip this - the constructor prepends `assignment:` to
                                   # `assignments:` unconditionally, which would re-introduce
                                   # the dropped node.
-                                  assignment: override_assignments?(other) ? nil : choose(other, :assignment),
+                                  assignment: override_assignments?(other, location) ? nil : choose(other, :assignment),
                                   assignments: new_assignments,
                                   mass_assignment: combine_mass_assignment(other),
                                   return_type: combine_return_type(other),
@@ -140,9 +162,11 @@ module Solargraph
 
       # @param other [self]
       #
+      # @param other [self]
+      # @param location [Location, nil]
       # @return [::Array<Parser::AST::Node>]
-      def combine_assignments other
-        return other.assignments.dup if override_assignments?(other)
+      def combine_assignments other, location = nil
+        return other.assignments.dup if override_assignments?(other, location)
 
         (other.assignments + assignments).uniq
       end
@@ -402,11 +426,40 @@ module Solargraph
       # leave nothing to resolve against.
       #
       # @param other [self]
+      # @param location [Location, nil] The position being resolved,
+      #   if known - lets a conditional `other` still override us when
+      #   `location` falls within `other`'s compound_statement.
       # @return [Boolean]
-      def override_assignments? other
-        other.definite && other.closure == closure &&
+      def override_assignments? other, location = nil
+        (other.definite || other.definite_reaches?(location)) && other.closure == closure &&
           other.assignments.none? { |node| references_name?(node) }
       end
+
+      public
+
+      # True if this pin's assignment, though not globally definite,
+      # is still guaranteed to dominate `location` - i.e., `location`
+      # falls within the CompoundStatement body (an if/while/until/
+      # rescue/&&/||/||= branch) this assignment was made in, so no
+      # earlier branch exit could have skipped it by the time
+      # `location` is reached. A nested CompoundStatement's location
+      # is always a subrange of its parent's, so this single
+      # containment check already accounts for arbitrarily nested
+      # branches without walking the compound_statement chain further.
+      #
+      # @param location [Location, nil]
+      # @return [Boolean]
+      def definite_reaches? location
+        cs = compound_statement
+        return false unless location && cs&.location&.range
+
+        # @sg-ignore flow sensitive typing needs to handle attrs
+        cs.location.filename == location.filename &&
+          # @sg-ignore flow sensitive typing needs to handle attrs
+          cs.location.range.contain?(location.range.start)
+      end
+
+      private
 
       # @param node [Parser::AST::Node, nil]
       # @return [Boolean]

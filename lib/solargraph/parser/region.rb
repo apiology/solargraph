@@ -22,27 +22,32 @@ module Solargraph
       # @return [Array<Symbol>]
       attr_reader :lvars
 
-      # True if the current position may be skipped at runtime (e.g.,
-      # inside an if/while/until body), meaning an assignment made
-      # here isn't guaranteed to have executed at a later position.
+      # The nearest enclosing CompoundStatement pin (an if/when/while/
+      # rescue/&&/||/||= body, a method/block body, or a namespace
+      # body) - a series of statements/expressions where a later one
+      # executing implies the earlier ones in the same series
+      # executed too. Every Closure is also a CompoundStatement, so
+      # this is a superset of the `closure` chain: it additionally
+      # includes branch bodies that aren't scopes.
       #
-      # @return [Boolean]
-      attr_reader :conditional
+      # @return [Pin::CompoundStatement]
+      attr_reader :compound_statement
 
       # @param source [Source]
       # @param closure [Pin::Closure, nil]
       # @param scope [Symbol, nil]
       # @param visibility [Symbol]
       # @param lvars [Array<Symbol>]
-      # @param conditional [Boolean]
+      # @param compound_statement [Pin::CompoundStatement, nil]
       def initialize source: Solargraph::Source.load_string(''), closure: nil,
-                     scope: nil, visibility: :public, lvars: [], conditional: false
+                     scope: nil, visibility: :public, lvars: [],
+                     compound_statement: nil
         @source = source
         @closure = closure || Pin::Namespace.new(name: '', location: source.location, source: :parser)
+        @compound_statement = compound_statement || @closure
         @scope = scope
         @visibility = visibility
         @lvars = lvars
-        @conditional = conditional
       end
 
       # @return [String, nil]
@@ -63,16 +68,17 @@ module Solargraph
       # @param scope [Symbol, nil]
       # @param visibility [Symbol, nil]
       # @param lvars [Array<Symbol>, nil]
-      # @param conditional [Boolean, nil]
+      # @param compound_statement [Pin::CompoundStatement, nil]
       # @return [Region]
-      def update closure: nil, scope: nil, visibility: nil, lvars: nil, conditional: nil
+      def update closure: nil, scope: nil, visibility: nil, lvars: nil,
+                 compound_statement: nil
         Region.new(
           source: source,
           closure: closure || self.closure,
           scope: scope || self.scope,
           visibility: visibility || self.visibility,
           lvars: lvars || self.lvars,
-          conditional: conditional.nil? ? self.conditional : conditional
+          compound_statement: compound_statement || self.compound_statement
         )
       end
 

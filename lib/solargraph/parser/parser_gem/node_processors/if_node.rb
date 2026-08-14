@@ -18,33 +18,38 @@ module Solargraph
               pins.push Solargraph::Pin::CompoundStatement.new(
                 location: get_node_location(condition_node),
                 closure: region.closure,
+                compound_statement: region.compound_statement,
                 node: condition_node,
                 source: :parser
               )
               NodeProcessor.process(condition_node, region, pins, locals, ivars)
             end
-            conditional_region = region.update(conditional: true)
-
             then_node = node.children[1]
             if then_node
-              pins.push Solargraph::Pin::CompoundStatement.new(
+              then_cs = Solargraph::Pin::CompoundStatement.new(
                 location: get_node_location(then_node),
                 closure: region.closure,
+                compound_statement: region.compound_statement,
+                conditional: true,
                 node: then_node,
                 source: :parser
               )
-              NodeProcessor.process(then_node, conditional_region, pins, locals, ivars)
+              pins.push then_cs
+              NodeProcessor.process(then_node, region.update(compound_statement: then_cs), pins, locals, ivars)
             end
 
             else_node = node.children[2]
             if else_node
-              pins.push Solargraph::Pin::CompoundStatement.new(
+              else_cs = Solargraph::Pin::CompoundStatement.new(
                 location: get_node_location(else_node),
                 closure: region.closure,
+                compound_statement: region.compound_statement,
+                conditional: true,
                 node: else_node,
                 source: :parser
               )
-              NodeProcessor.process(else_node, conditional_region, pins, locals, ivars)
+              pins.push else_cs
+              NodeProcessor.process(else_node, region.update(compound_statement: else_cs), pins, locals, ivars)
             end
 
             true
