@@ -82,14 +82,19 @@ module Solargraph
         # @param locals [::Array<Solargraph::Pin::LocalVariable, Solargraph::Pin::Parameter>]
         # @param type [ComplexType]
         # @param new_signature_pin [Pin::Signature, nil]
+        # @param require_literal [Boolean] see Pin::Parameter#compatible_arg?
         # @return [::Array(ComplexType, Pin::Signature)]
-        def match_overload_type overload, pin, api_map, name_pin, locals, type, new_signature_pin
+        def match_overload_type overload, pin, api_map, name_pin, locals, type, new_signature_pin, require_literal: true
           return [type, new_signature_pin] unless overload.arity_matches?(arguments, with_block?)
 
           positional_arguments, keyword_argument = split_keyword_argument(arguments, overload)
           atypes = []
-          match = positional_arguments_match?(positional_arguments, overload, api_map, name_pin, locals, atypes)
-          match &&= keyword_argument_matches?(keyword_argument, overload, api_map, name_pin, locals) if match
+          match = positional_arguments_match?(positional_arguments, overload, api_map, name_pin, locals, atypes,
+                                              require_literal: require_literal)
+          if match
+            match &&= keyword_argument_matches?(keyword_argument, overload, api_map, name_pin, locals,
+                                                require_literal: require_literal)
+          end
           return [type, new_signature_pin] unless match
 
           if overload.block && with_block?
@@ -359,11 +364,25 @@ module Solargraph
             sorted_overloads = with_block + without_block
             # @type [Pin::Signature, nil]
             new_signature_pin = nil
-            # @sg-ignore flow sensitive typing should handle is_a? and next
-            # @param ol [Pin::Signature]
-            sorted_overloads.each do |ol|
-              type, new_signature_pin = match_overload_type(ol, p, api_map, name_pin, locals, type, new_signature_pin)
+            # Two passes: first require an exact-literal match on any
+            # literal-typed overload parameter (so a real sibling
+            # catch-all, e.g. tuple's non-literal fallback, wins over a
+            # literal overload for a non-literal argument). If nothing
+            # matches at all, retry without that requirement - a
+            # literal-typed parameter with no non-literal sibling
+            # overload (e.g. Hash#fetch's key resolved to a literal
+            # from the receiver's declared type) would otherwise reject
+            # every candidate and fall through to the union of all
+            # overloads' return types instead of the one real match.
+            [true, false].each do |require_literal|
               break if type.defined?
+              # @sg-ignore flow sensitive typing should handle is_a? and next
+              # @param ol [Pin::Signature]
+              sorted_overloads.each do |ol|
+                type, new_signature_pin = match_overload_type(ol, p, api_map, name_pin, locals, type, new_signature_pin,
+                                                              require_literal: require_literal)
+                break if type.defined?
+              end
             end
             p = p.with_single_signature(new_signature_pin) unless new_signature_pin.nil?
             next p.proxy(type) if type.defined?
@@ -483,8 +502,9 @@ module Solargraph
         # @param name_pin [Pin::Base]
         # @param locals [::Array<Pin::LocalVariable>]
         # @param atypes [::Array<ComplexType>] populated with the inferred type of each positional argument
+        # @param require_literal [Boolean] see Pin::Parameter#compatible_arg?
         # @return [Boolean]
-        def positional_arguments_match? positional_arguments, overload, api_map, name_pin, locals, atypes
+        def positional_arguments_match? positional_arguments, overload, api_map, name_pin, locals, atypes, require_literal: true
           positional_params = overload.parameters.reject { |param| param.keyword? || param.kwrestarg? }
           positional_arguments.each_with_index do |arg, idx|
             param = positional_params[idx]
@@ -495,7 +515,7 @@ module Solargraph
                                                     gates: name_pin.gates,
                                                     source: :chain)
             atype = atypes[idx] ||= arg.infer(api_map, arg_name_pin, locals)
-            return false unless param.compatible_arg?(atype, api_map) || param.restarg?
+            return false unless param.compatible_arg?(atype, api_map, require_literal: require_literal) || param.restarg?
           end
           true
         end
@@ -505,8 +525,9 @@ module Solargraph
         # @param api_map [ApiMap]
         # @param name_pin [Pin::Base]
         # @param locals [::Array<Pin::LocalVariable>]
+        # @param require_literal [Boolean] see Pin::Parameter#compatible_arg?
         # @return [Boolean]
-        def keyword_argument_matches? keyword_argument, overload, api_map, name_pin, locals
+        def keyword_argument_matches? keyword_argument, overload, api_map, name_pin, locals, require_literal: true
           return true if keyword_argument.nil?
 
           # @type [::Hash{::Symbol => Chain}]
@@ -526,7 +547,7 @@ module Solargraph
               next
             end
             atype = value_chain.infer(api_map, kw_arg_name_pin, locals)
-            return false unless param.compatible_arg?(atype, api_map)
+            return false unless param.compatible_arg?(atype, api_map, require_literal: require_literal)
           end
           named_params.none? { |param| param.decl == :kwarg && !kwargs.key?(param.name.to_sym) }
         end
