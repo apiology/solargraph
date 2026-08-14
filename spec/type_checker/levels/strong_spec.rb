@@ -1476,8 +1476,12 @@ describe Solargraph::TypeChecker do
         # conservatively falling back to today's full union whenever even one
         # conjunct can't be verified one way or the other.
         #
-        # Still pending on two independent prerequisites neither present on
-        # this branch:
+        # Key-parameter detection has to handle two shapes, because RBS's
+        # own core/hash.rbs changed in 4.1.0: `(_Key key)` from 4.1.0 on,
+        # `(K arg0)` before it. Pin::Signature#key_param_index recognizes
+        # both - see its comment. Without the pre-4.1 shape this spec
+        # passes on RBS >= 4.1 and fails on 3.10.x/4.0.x, which is what
+        # apiology/solargraph#49 CI was reporting before that was fixed.
         #
         # - castwide/solargraph#1223 (restores literal type inference) -
         #   without it, the literal "Index"/"Triggers" key_types get widened
@@ -1555,6 +1559,37 @@ describe Solargraph::TypeChecker do
 
               # @type [Float]
               index = period.fetch("Index")
+            end
+          end
+      ))
+        expect(checker.problems.map(&:message)).to be_empty
+      end
+
+      it 'dispatches generic methods per-conjunct for symbol keys (#1231)' do
+        # Symbol keys take a different path to the same bug than the string
+        # keys above: symbols already infer as literal types, so per-overload
+        # matching correctly rejects the non-matching conjunct - but a pin
+        # whose overloads all fail to match is not dropped, it just falls
+        # through to its declared return type, so the union survives anyway.
+        # Only key_verified_conjuncts can actually remove a conjunct. Before
+        # Pin::Signature#key_param_index learned RBS < 4.1's `(K arg0)`
+        # shape, this reported the union plus an unresolved generic<X> plus
+        # three spurious "Wrong argument type for Hash#fetch: arg0 expected
+        # :Index, received :Triggers" errors on RBS 3.10.x/4.0.x - the arg
+        # check was resolving against the conjunct that narrowing should
+        # have dropped. castwide/solargraph#1223 (restores literal type
+        # inference) is a prerequisite too, already merged into this
+        # branch.
+        checker = type_checker(%(
+          class Repro
+            # @param period [Hash{:Index => Float} & Hash{:Triggers => Array<Hash{:Name => String}>}]
+            # @return [void]
+            def process(period)
+              # @type [Float]
+              index = period.fetch(:Index)
+
+              # @type [Array<Hash{:Name => String}>]
+              triggers = period.fetch(:Triggers)
             end
           end
       ))
