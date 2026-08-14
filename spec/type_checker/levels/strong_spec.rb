@@ -1282,31 +1282,23 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message)).not_to include('Unresolved call to bar on Base')
     end
 
-    it 'leaks an unresolved generic<X> from Hash#fetch even with no intersection involved' do
+    it 'resolves Hash#fetch to the value type with no intersection involved' do
+      # Regression coverage for a leak that used to make this report
+      # 'Declared type Float does not match inferred type Float, generic<X>'.
       # Not #1231-specific: https://github.com/castwide/solargraph/pull/1231#issuecomment-5207523909
-      # reported this against an intersection of two Hash instantiations, but it
-      # reproduces identically for a single, non-intersected generic Hash - the
-      # intersection is not the trigger, so the fix for #1231 should not be expected
-      # to resolve this on its own.
+      # reported it against an intersection of two Hash instantiations, but it
+      # reproduced identically for a single, non-intersected generic Hash.
       #
-      # Root cause: Pin::Parameter#compatible_arg? rejects Hash#fetch's exact-arity
-      # `(key: Hash::_Key) -> V` overload because Hash::_Key (an ad-hoc RBS
-      # interface) is checked nominally, not structurally, against the String
-      # argument - so it falls through to the pin's raw combined signature type,
-      # which still carries the unresolved generic X from the other overloads.
+      # Pin::Parameter#compatible_arg? rejected Hash#fetch's exact-arity
+      # overload, so inference fell through to the pin's raw combined
+      # signature type, which still carried the unresolved generic X from
+      # fetch's default-value and block overloads.
       #
-      # https://github.com/castwide/solargraph/pull/1266 (structurally verify
-      # RBS interface-typed expectations, already merged into this branch)
-      # fixes this under RBS 4.1.x - confirmed locally (RBS 4.1.2) and in CI's
-      # `rspec (4.0, 4.1.1)` matrix leg. It does NOT fix it under RBS 3.10.0:
-      # CI's `rspec (4.0, 3.10.0)` leg still fails with "Declared type Float
-      # does not match inferred type Float, generic<X>", so Hash::_Key's
-      # structural shape (or Hash#fetch's overload set) must differ enough
-      # between RBS 3.10.0 and 4.1.x that #1266's structural check doesn't
-      # bridge the gap on the older RBS. Matches the same RBS 4.1.0 cutover
-      # already tracked in spec/rbs_map/conversions_spec.rb and
-      # spec/convention/activesupport_concern_spec.rb.
-      require 'rbs'
+      # castwide/solargraph#1266 fixed that for RBS >= 4.1.x, and
+      # castwide/solargraph#1223's non-literal overload fallback
+      # (a1e844414) closed the remaining pre-4.1 case, so this now holds on
+      # every supported RBS version. Both are merged into this branch; the
+      # assertion was version-conditional until then.
       checker = type_checker(%(
         class Repro
           # @param period [Hash{"Index" => Float}]
@@ -1317,12 +1309,7 @@ describe Solargraph::TypeChecker do
           end
         end
     ))
-      if Gem::Version.new(RBS::VERSION) >= Gem::Version.new('4.1.0')
-        expect(checker.problems.map(&:message)).to be_empty
-      else
-        expect(checker.problems.map(&:message))
-          .to eq(['Declared type Float does not match inferred type Float, generic<X> for variable index'])
-      end
+      expect(checker.problems.map(&:message)).to be_empty
     end
 
     it 'always dispatches a same-class generic method through the first union member, not #1231-specific' do
