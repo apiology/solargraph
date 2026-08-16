@@ -666,8 +666,6 @@ module Solargraph
                   result.concat reduce_to_value_nodes(node.children[1..])
                 elsif ONLY_ONE_CHILD.include?(node.type) || ENSURE.include?(node.type)
                   result.concat reduce_to_value_nodes([node.children[0]])
-                elsif node.type == :or
-                  result.concat reduce_to_value_nodes(node.children)
                 elsif node.type == :block
                   # @sg-ignore Wrong argument type for Solargraph::Parser::ParserGem::NodeMethods::DeepInference.explicit_return_values_from_compound_statement: parent expected Parser::AST::Node, received Parser
                   result.concat explicit_return_values_from_compound_statement(node.children[2])
