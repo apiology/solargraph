@@ -854,6 +854,37 @@ describe Solargraph::SourceMap::Clip do
     expect(clip.infer.tag).to eq('Class')
   end
 
+  it 'infers the symbolic generic from Class<generic<T>>#new' do
+    source = Solargraph::Source.load_string(%(
+      # @generic T
+      # @param clazz [Class<generic<T>>]
+      # @return [generic<T>]
+      def create_object(clazz)
+        clazz.new
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+    clip = api_map.clip_at('test.rb', [5, 15])
+    expect(clip.infer.tag).to eq('generic<T>')
+  end
+
+  it 'binds the generic at call sites of a Class<generic<T>>#new factory' do
+    source = Solargraph::Source.load_string(%(
+      # @generic T
+      # @param clazz [Class<generic<T>>]
+      # @return [generic<T>]
+      def create_object(clazz)
+        clazz.new
+      end
+      create_object(String)
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+    clip = api_map.clip_at('test.rb', [7, 8])
+    expect(clip.infer.tag).to eq('String')
+  end
+
   it 'completes class instance variables in the namespace' do
     source = Solargraph::Source.load_string(%(
       class Foo

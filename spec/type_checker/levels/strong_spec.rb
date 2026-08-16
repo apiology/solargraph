@@ -941,5 +941,30 @@ describe Solargraph::TypeChecker do
       ))
       expect(checker.problems).to be_empty
     end
+
+    it 'infers a generic return through Class<generic<T>>#new' do
+      checker = type_checker(%(
+        # @generic T
+        # @param clazz [Class<generic<T>>]
+        # @return [generic<T>]
+        def create_object(clazz)
+          clazz.new
+        end
+      ))
+      expect(checker.problems).to be_empty
+    end
+
+    it 'accepts arguments through Class<generic<T>>#new' do
+      checker = type_checker(%(
+        # @generic T
+        # @param clazz [Class<generic<T>>]
+        # @param opts [Hash{Symbol => Object}]
+        # @return [generic<T>]
+        def create_object_with_args(clazz, opts)
+          clazz.new(:sym, **opts)
+        end
+      ))
+      expect(checker.problems).to be_empty
+    end
   end
 end
