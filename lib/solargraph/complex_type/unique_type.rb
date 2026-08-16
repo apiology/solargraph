@@ -464,7 +464,6 @@ module Solargraph
       # @param context_type [ComplexType, UniqueType, nil]
       # @param resolved_generic_values [Hash{String => ComplexType, ComplexType::UniqueType}] Added to as types are encountered or resolved
       # @return [UniqueType, ComplexType]
-      # @sg-ignore Need to add nil check here
       def resolve_generics_from_context generics_to_resolve, context_type, resolved_generic_values: {}
         if name == ComplexType::GENERIC_TAG_NAME
           type_param = subtypes.first&.name
@@ -602,7 +601,6 @@ module Solargraph
         new_key_types ||= @key_types
         new_subtypes ||= @subtypes
         make_rooted = @rooted if make_rooted.nil?
-        # @sg-ignore flow sensitive typing needs better handling of ||= on lvars
         UniqueType.new(new_name, new_key_types, new_subtypes, rooted: make_rooted, parameters_type: parameters_type)
       end
 

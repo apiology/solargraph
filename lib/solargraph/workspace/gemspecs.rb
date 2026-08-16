@@ -76,7 +76,6 @@ module Solargraph
             # @sg-ignore Translate to something flow sensitive typing understands
             spec&.files&.any? { |gemspec_file| file == gemspec_file }
           end
-          # @sg-ignore https://github.com/castwide/solargraph/issues/1250
           return [gemspec_or_preference(gemspec)] if gemspec
         end
 
