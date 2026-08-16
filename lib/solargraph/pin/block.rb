@@ -63,6 +63,8 @@ module Solargraph
         locals = clip.locals - [self]
         # @sg-ignore Need to add nil check here
         meths = chain.define(api_map, closure, locals)
+        # @type [::Array<ComplexType>, nil]
+        partial = nil
         # @todo Convert logic to use signatures
         # @param meth [Pin::Method]
         meths.each do |meth|
@@ -87,8 +89,13 @@ module Solargraph
             end
           end
           return param_types if param_types.all?(&:defined?)
+
+          # remember the best partial result so a single unresolvable
+          # yield type (e.g. an unbound generic) doesn't discard the
+          # positions that did resolve
+          partial ||= param_types if param_types.any? { |t| t&.defined? }
         end
-        parameters.map { ComplexType::UNDEFINED }
+        partial&.map { |t| t || ComplexType::UNDEFINED } || parameters.map { ComplexType::UNDEFINED }
       end
 
       private
