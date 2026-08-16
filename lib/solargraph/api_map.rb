@@ -470,7 +470,19 @@ module Solargraph
         result.concat inner_get_methods('Kernel', :instance, visibility, deep, skip)
       else
         result.concat inner_get_methods(rooted_tag, scope, visibility, deep, skip)
-        unless %w[Class Class<Class>].include?(rooted_tag)
+        if %w[Class Class<Class>].include?(rooted_tag)
+          # RBS declares Class#new as untyped because it cannot
+          # parameterize Class. We know more: Class.new returns a new
+          # class whose instances are (at least) Objects, and calling
+          # .new on an unparameterized Class-typed receiver returns
+          # some instance of it - an Object.
+          result.map! do |pin|
+            next pin unless pin.path == 'Class#new'
+
+            return_tag = scope == :class ? 'Class<Object>' : 'Object'
+            pin.proxy_with_signatures ComplexType.try_parse(return_tag)
+          end
+        else
           result.map! do |pin|
             next pin unless pin.path == 'Class#new'
             init_pin = get_method_stack(rooted_tag, 'initialize').first

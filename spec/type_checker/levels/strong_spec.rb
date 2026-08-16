@@ -925,5 +925,21 @@ describe Solargraph::TypeChecker do
       # an error when trying to declare sub as Subclass
       expect(checker.problems.map(&:message)).not_to include('Unresolved call to bar on Base')
     end
+
+    it 'infers a return through .new on an unparameterized Class' do
+      checker = type_checker(%(
+        # @return [Object]
+        def plain_class_new
+          Class.new.new
+        end
+
+        # @return [Object]
+        def local_class_new
+          k = Class.new
+          k.new
+        end
+      ))
+      expect(checker.problems).to be_empty
+    end
   end
 end
