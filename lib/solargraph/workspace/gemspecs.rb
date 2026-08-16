@@ -61,7 +61,6 @@ module Solargraph
 
           begin
             gemspec = Gem::Specification.find_by_name(gem_name)
-            # @sg-ignore https://github.com/castwide/solargraph/issues/1250
             return [gemspec_or_preference(gemspec)] if gemspec
           rescue Gem::MissingSpecError
             logger.debug do
@@ -102,7 +101,6 @@ module Solargraph
         return to_gem_specification specish if specish
 
         specish = all_gemspecs_from_bundle.find { |specish| specish.name == name }
-        # @sg-ignore flow sensitive typing needs to create separate ranges for postfix if
         return to_gem_specification specish if specish
 
         resolve_gem_ignoring_local_bundle name, version, out: out
