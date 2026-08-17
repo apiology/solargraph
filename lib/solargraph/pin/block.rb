@@ -69,6 +69,10 @@ module Solargraph
 
       # @param api_map [ApiMap]
       # @return [::Array<ComplexType>]
+      # @sg-ignore Declared return type does not match inferred - three-way
+      #   merge interaction: the `partial&.map || parameters.map` tail's
+      #   or-expression now routes through Chain::Or (castwide/solargraph#1309)
+      #   and widens with the partial-result union from apiology/solargraph#60
       def typify_parameters api_map
         chain = Parser.chain(receiver, filename, node)
         # @sg-ignore Need to add nil check here
@@ -76,6 +80,8 @@ module Solargraph
         locals = clip.locals - [self]
         # @sg-ignore Need to add nil check here
         meths = chain.define(api_map, closure, locals)
+        # @type [::Array<ComplexType>, nil]
+        partial = nil
         # @todo Convert logic to use signatures
         # @param meth [Pin::Method]
         meths.each do |meth|
@@ -101,8 +107,13 @@ module Solargraph
             end
           end
           return param_types if param_types.all?(&:defined?)
+
+          # remember the best partial result so a single unresolvable
+          # yield type (e.g. an unbound generic) doesn't discard the
+          # positions that did resolve
+          partial ||= param_types if param_types.any? { |t| t&.defined? }
         end
-        parameters.map { ComplexType::UNDEFINED }
+        partial&.map { |t| t || ComplexType::UNDEFINED } || parameters.map { ComplexType::UNDEFINED }
       end
 
       private

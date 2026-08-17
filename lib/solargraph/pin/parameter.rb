@@ -6,22 +6,30 @@ module Solargraph
       # @return [::Symbol]
       attr_reader :decl
 
-      # @return [String]
-      # @sg-ignore Need to add nil check here
+      # @return [String, nil]
       attr_reader :asgn_code
 
       # allow this to be set to the method after the method itself has
       # been created
       attr_writer :closure
 
-      # @param decl [::Symbol] :arg, :optarg, :kwarg, :kwoptarg, :restarg, :kwrestarg, :block, :blockarg
+      # @param decl [::Symbol] :arg, :optarg, :kwarg, :kwoptarg, :restarg, :kwrestarg, :block, :blockarg, :mlhs
       # @param asgn_code [String, nil]
+      # @param mlhs_path [::Array<Integer>, nil] for a variable inside a
+      #   destructured block parameter group (`|(a, b), c|`): the group's
+      #   position in the block signature followed by the element index at
+      #   each nesting level (`a` -> [0, 0], `b` -> [0, 1])
       # @param [Hash{Symbol => Object}] splat
-      def initialize decl: :arg, asgn_code: nil, **splat
+      def initialize decl: :arg, asgn_code: nil, mlhs_path: nil, **splat
         super(**splat)
         @asgn_code = asgn_code
         @decl = decl
+        @mlhs_path = mlhs_path
       end
+
+      # @return [::Array<Integer>, nil]
+      # @return [::Array<Integer>, nil]
+      attr_reader :mlhs_path
 
       def type_location
         super || closure&.type_location
@@ -220,6 +228,11 @@ module Solargraph
         new_type = super
         return new_type if new_type.defined?
 
+        if mlhs_path && closure.is_a?(Pin::Block)
+          projected = typify_mlhs_element(api_map)
+          return adjust_type api_map, projected.self_to_type(full_context) if projected.defined?
+        end
+
         # sniff based on param tags
         new_type = closure.is_a?(Pin::Block) ? typify_block_param(api_map) : typify_method_param(api_map)
 
@@ -315,12 +328,42 @@ module Solargraph
         params[index] if index && params[index] && (params[index].name.nil? || params[index].name.empty?)
       end
 
+      # Project this variable's type out of its destructured parameter
+      # group's tuple type, one element index per nesting level.
+      #
       # @param api_map [ApiMap]
       # @return [ComplexType]
-      # @sg-ignore Need to add nil check here
+      # @sg-ignore Declared return type does not match inferred - loop-reassigned
+      #   `type` union widens under this branch's newer or/branch inference
+      #   (castwide/solargraph#1309); apiology/solargraph#60 predates it. Specs green.
+      def typify_mlhs_element api_map
+        block_pin = closure
+        path = mlhs_path
+        return ComplexType::UNDEFINED unless path && block_pin.is_a?(Pin::Block) && block_pin.receiver
+
+        # @sg-ignore Array#[] arg Integer, nil - path.first is nilable in general
+        #   but an mlhs_path always has at least one element
+        type = block_pin.typify_parameters(api_map)[path.first]
+        path.drop(1).each do |idx|
+          # @sg-ignore Unresolved call to tuple? - loop-reassignment of `type`
+          #   not narrowed (known loop-reassignment family); post-merge dogfood only
+          return ComplexType::UNDEFINED if type.nil? || !type.tuple?
+
+          # @sg-ignore Unresolved call to all_params / Array#[] idx Integer, nil -
+          #   same loop-reassignment gap as above; mlhs_path elements are Integers
+          type = type.all_params[idx]
+        end
+        type || ComplexType::UNDEFINED
+      end
+
+      # @param api_map [ApiMap]
+      # @return [ComplexType]
       def typify_block_param api_map
         block_pin = closure
-        return block_pin.typify_parameters(api_map)[index] if block_pin.is_a?(Pin::Block) && block_pin.receiver && index
+        if block_pin.is_a?(Pin::Block) && block_pin.receiver && index
+          typed = block_pin.typify_parameters(api_map)[index]
+          return typed unless typed.nil?
+        end
         ComplexType::UNDEFINED
       end
 
@@ -338,9 +381,9 @@ module Solargraph
             found = p
             break
           end
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1245
-          if found.nil? && !index.nil? && params[index] && (params[index].name.nil? || params[index].name.empty?)
-            found = params[index]
+          if found.nil? && !index.nil?
+            positional = params[index]
+            found = positional if positional && (positional.name.nil? || positional.name.empty?)
           end
           unless found.nil? || found.types.nil?
             return ComplexType.try_parse(*found.types).qualify(api_map,
@@ -377,8 +420,7 @@ module Solargraph
         return nil if skip.include?(ref)
         skip.push ref
         parts = ref.split(/[.#]/)
-        # @sg-ignore Need to add nil check here
-        if parts.first.empty?
+        if parts.first.to_s.empty?
           path = "#{namespace}#{ref}"
         else
           fqns = api_map.qualify(parts.first, namespace)
