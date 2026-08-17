@@ -73,7 +73,6 @@ module Solargraph
           gemspec = all_gemspecs.find do |spec|
             spec = to_gem_specification(spec) unless spec.respond_to?(:files)
 
-            # @sg-ignore Translate to something flow sensitive typing understands
             spec&.files&.any? { |gemspec_file| file == gemspec_file }
           end
           return [gemspec_or_preference(gemspec)] if gemspec

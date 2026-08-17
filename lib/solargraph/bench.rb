@@ -31,7 +31,6 @@ module Solargraph
     end
 
     # @return [Hash{String => SourceMap}]
-    # @sg-ignore Declared return type ::Hash{::String => ::Solargraph::SourceMap} does not match inferred type ::Hash{::String => ::NilClass} for Solargraph::Bench#source_map_hash
     def source_map_hash
       # @todo Work around #to_h bug in current Ruby head (3.5) with #map#to_h
       @source_map_hash ||= source_maps.to_h { |s| [s.filename, s] }
