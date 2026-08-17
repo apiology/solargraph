@@ -113,6 +113,22 @@ describe Solargraph::Shell do
         expect(output).to include("Gem 'nonexistentgem' not found")
       end
 
+      it 'complains even with Ruby warnings disabled, as under bin/solargraph' do
+        # bin/solargraph sets $VERBOSE = nil, which turns Kernel#warn into a
+        # no-op - a warn-based message would never reach the user.
+        old_verbose = $VERBOSE
+        $VERBOSE = nil
+        begin
+          output = capture_both do
+            shell.gems('nonexistentgem')
+          end
+        ensure
+          $VERBOSE = old_verbose
+        end
+
+        expect(output).to include("Gem 'nonexistentgem' not found")
+      end
+
       it 'caches core without erroring out' do
         capture_both do
           shell.uncache('core')
@@ -300,17 +316,89 @@ describe Solargraph::Shell do
     end
 
     context 'with no pin' do
-      it 'prints error' do
+      before do
         allow(api_map).to receive(:get_path_pins).with('Not#found').and_return([])
+        allow(api_map).to receive(:get_method_stack).with('Not', 'found', scope: :instance).and_return([])
         allow(Solargraph::Pin::Method).to receive(:===).with(nil).and_return(false)
+      end
 
+      it 'prints error' do
         out = capture_both do
-          shell.options = {}
+          shell.options = { resolve: true }
           shell.pin('Not#found')
         rescue SystemExit
           # Ignore the SystemExit raised by the shell when no pin is found
         end
         expect(out).to include("Pin not found for path 'Not#found'")
+      end
+
+      it 'prints the error even with Ruby warnings disabled, as under bin/solargraph' do
+        # bin/solargraph sets $VERBOSE = nil, which turns Kernel#warn into a
+        # no-op - a warn-based message would never reach the user.
+        old_verbose = $VERBOSE
+        $VERBOSE = nil
+        begin
+          out = capture_both do
+            shell.options = { resolve: true }
+            shell.pin('Not#found')
+          rescue SystemExit
+            # Ignore the SystemExit raised by the shell when no pin is found
+          end
+        ensure
+          $VERBOSE = old_verbose
+        end
+        expect(out).to include("Pin not found for path 'Not#found'")
+      end
+    end
+
+    context 'when the path names no pin of its own' do
+      let(:mixin_pin) do
+        instance_double(Solargraph::Pin::Method, path: 'Mixin#helper')
+      end
+
+      before do
+        allow(api_map).to receive(:get_path_pins).with('Child#helper').and_return([])
+        allow(api_map).to receive(:get_method_stack)
+          .with('Child', 'helper', scope: :instance).and_return([mixin_pin])
+        allow(mixin_pin).to receive(:inspect).and_return('helper pin inspect')
+      end
+
+      it 'describes the inherited definition by default, printing nothing else' do
+        out = capture_both do
+          shell.options = { resolve: true }
+          shell.pin('Child#helper')
+        end
+        # Just the pin: resolution is the documented default, not an event
+        # worth annotating.
+        expect(out).to eq("helper pin inspect\n")
+      end
+
+      it 'describes only the exact path with --no-resolve' do
+        out = capture_both do
+          shell.options = { resolve: false }
+          shell.pin('Child#helper')
+        rescue SystemExit
+          # Ignore the SystemExit raised by the shell when no pin is found
+        end
+        expect(out).to include("Pin not found for path 'Child#helper'")
+        expect(out).not_to include('helper pin inspect')
+        expect(api_map).not_to have_received(:get_method_stack)
+      end
+    end
+
+    context 'when the path names a pin of its own' do
+      it 'describes it without consulting method lookup' do
+        allow(to_s_pin).to receive(:inspect).and_return('pin inspect result')
+        allow(api_map).to receive(:get_method_stack)
+
+        out = capture_both do
+          shell.options = { resolve: true }
+          shell.pin('String#to_s')
+        end
+
+        # Byte-identical to the pre-resolution output for an exact hit.
+        expect(out).to eq("pin inspect result\n")
+        expect(api_map).not_to have_received(:get_method_stack)
       end
     end
   end

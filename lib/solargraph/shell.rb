@@ -177,7 +177,7 @@ module Solargraph
       if names.empty?
         workspace.cache_all_for_workspace!($stdout, rebuild: options[:rebuild])
       else
-        warn("Caching these gems: #{names}")
+        $stderr.puts("Caching these gems: #{names}")
         names.each do |name|
           if name == 'core'
             PinCache.cache_core(out: $stdout) if !PinCache.core? || options[:rebuild]
@@ -186,19 +186,19 @@ module Solargraph
 
           gemspec = workspace.find_gem(*name.split('='))
           if gemspec.nil?
-            warn "Gem '#{name}' not found"
+            $stderr.puts "Gem '#{name}' not found"
           else
             workspace.cache_gem(gemspec, rebuild: options[:rebuild], out: $stdout)
           end
         rescue Gem::MissingSpecError
-          warn "Gem '#{name}' not found"
+          $stderr.puts "Gem '#{name}' not found"
         rescue Gem::Requirement::BadRequirementError => e
-          warn "Gem '#{name}' failed while loading"
-          warn e.message
+          $stderr.puts "Gem '#{name}' failed while loading"
+          $stderr.puts e.message
           # @sg-ignore Need to add nil check here
-          warn e.backtrace.join("\n")
+          $stderr.puts e.backtrace.join("\n")
         end
-        warn "Documentation cached for #{names.count} gems."
+        $stderr.puts "Documentation cached for #{names.count} gems."
       end
     end
 
@@ -282,13 +282,13 @@ module Solargraph
         rescue StandardError => e
           # @todo to add nil check here
           # @todo should warn on nil dereference below
-          warn "Error testing #{pin_description(pin)} #{if pin.location
+          $stderr.puts "Error testing #{pin_description(pin)} #{if pin.location
                                                           "at #{pin.location.filename}:#{pin.location.range.start.line + 1}"
                                                         end}"
-          warn "[#{e.class}]: #{e.message}"
+          $stderr.puts "[#{e.class}]: #{e.message}"
           # @todo Need to add nil check here
           # @todo flow sensitive typing should be able to handle redefinition
-          warn e.backtrace.join("\n")
+          $stderr.puts e.backtrace.join("\n")
           exit 1
         end
       end
@@ -315,30 +315,37 @@ module Solargraph
                    default: false
     option :stack, type: :boolean, desc: 'Show entire stack of a method pin by including definitions in superclasses',
                    default: false
+    option :resolve, type: :boolean, default: true,
+                     desc: 'Follow Ruby method lookup when the path names no pin of its own, describing the ' \
+                           'definition a call would reach; --no-resolve describes only the exact path'
     # @param path [String] The path to the method pin, e.g. 'Class#method' or 'Class.method'
     # @return [void]
     def pin path
       api_map = Solargraph::ApiMap.load_with_cache('.', $stderr)
-      is_method = path.include?('#') || path.include?('.')
-      if is_method && options[:stack]
-        scope, ns, meth = if path.include? '#'
-                            [:instance, *path.split('#', 2)]
-                          else
-                            [:class, *path.split('.', 2)]
-                          end
-
-        # @sg-ignore Wrong argument type for Solargraph::ApiMap#get_method_stack: rooted_tag expected String, received Array<String>
-        pins = api_map.get_method_stack(ns, meth, scope: scope)
-      else
-        pins = api_map.get_path_pins path
-      end
+      pins = if options[:stack] && path.match?(/[#.]/)
+               method_stack_for_path(api_map, path)
+             else
+               api_map.get_path_pins path
+             end
       # @type [Hash{Symbol => Pin::Base}]
       references = {}
       pin = pins.first
+      if pin.nil?
+        # --stack already walks the ancestry, so resolution applies only to
+        # the single-pin default.
+        resolved = options[:stack] || !options[:resolve] ? nil : method_stack_for_path(api_map, path).first
+        if resolved.nil?
+          # $stderr.puts instead of Kernel#warn: bin/solargraph disables Ruby
+          # warnings ($VERBOSE = nil), which also silences Kernel#warn, so
+          # warn-based CLI messages never reach the user.
+          $stderr.puts "Pin not found for path '#{path}'"
+          exit 1
+        else
+          pins = [resolved]
+          pin = resolved
+        end
+      end
       case pin
-      when nil
-        warn "Pin not found for path '#{path}'"
-        exit 1
       when Pin::Namespace
         if options[:references]
           superclass_tag = api_map.qualify_superclass(pin.return_type.tag)
@@ -563,6 +570,19 @@ module Solargraph
       else
         puts type.rooted_tag
       end
+    end
+
+    # Resolve a method path through the receiver's ancestry, for suggesting
+    # (e.g.) 'Comparable#between?' when 'Integer#between?' has no pin of its
+    # own.
+    #
+    # @param api_map [Solargraph::ApiMap]
+    # @param path [String]
+    # @return [Array<Solargraph::Pin::Method>]
+    def method_stack_for_path api_map, path
+      ns, meth = path.split(/[#.]/, 2)
+      return [] if meth.nil?
+      api_map.get_method_stack(ns, meth, scope: path.include?('#') ? :instance : :class)
     end
 
     # @param pin [Solargraph::Pin::Base]
