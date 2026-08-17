@@ -137,5 +137,81 @@ describe Solargraph::TypeChecker do
       expect(key.typify(api_map).to_s).to eq('String, Symbol')
       expect(count.typify(api_map).to_s).to eq('Integer')
     end
+
+    it 'destructures a Hash#each pair across two plain block parameters' do
+      checker = type_checker(%(
+        class PlainHashEach
+          # @return [Hash{String, Symbol => Array<Integer>}]
+          def dict
+            { 'a' => [1] }
+          end
+
+          # @return [void]
+          def each_pair
+            dict.each { |key, vals| puts "\#{key.to_s} \#{vals.length}" }
+          end
+        end
+      ))
+      expect(checker.problems).to be_empty
+    end
+
+    it 'destructures an Array of tuples across two plain block parameters' do
+      checker = type_checker(%(
+        class PlainTuplePair
+          # @return [Array<Array(String, Integer)>]
+          def pairs
+            [['a', 1]]
+          end
+
+          # @return [Array<String>]
+          def described
+            pairs.map { |name, count| "\#{name.upcase} \#{count.succ}" }
+          end
+        end
+      ))
+      expect(checker.problems).to be_empty
+    end
+
+    it 'leaves parameters undefined rather than assigning a whole auto-splatted value' do
+      # A 4-parameter proc yields no per-position types; position 0 must
+      # not be handed the whole yielded value (which produced bogus
+      # "Wrong argument type ... received Array" errors)
+      source = Solargraph::Source.load_string(%(
+        class SplatFallback
+          # @return [Proc]
+          def on_retry
+            proc { |exception, try, elapsed, next_int| [exception, try, elapsed, next_int] }
+          end
+        end
+      ), 'test.rb')
+      api_map = Solargraph::ApiMap.new
+      api_map.map source
+      locals = api_map.source_map('test.rb').locals
+      %w[exception try elapsed next_int].each do |name|
+        pin = locals.find { |l| l.name == name }
+        expect(pin.typify(api_map)).to be_undefined
+      end
+    end
+
+    it 'does not hand a non-matching-arity yielded value to the first parameter' do
+      checker = type_checker(%(
+        class ArityMismatch
+          # @return [Array<Array<String, nil>>]
+          def loose_pairs
+            [['a', nil]]
+          end
+
+          # @return [Hash{String => String}]
+          def collect
+            # @type [Hash{String => String}]
+            hash = {}
+            loose_pairs.each { |key, value| hash[key] = value.to_s }
+            hash
+          end
+        end
+      ))
+      # key must not be typed as the whole Array<String, nil>
+      expect(checker.problems.map(&:message)).not_to(include(a_string_matching(/Wrong argument type.*key/)))
+    end
   end
 end
