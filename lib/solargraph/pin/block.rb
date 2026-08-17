@@ -66,10 +66,12 @@ module Solargraph
       # @return [Boolean]
       def per_position_yield_types? yield_types, parameters
         return true if yield_types.length == parameters.length
+        return false unless yield_types.length == 1
 
-        yield_types.length == 1 &&
-          yield_types.first.tuple? &&
-          yield_types.first.all_params.length == parameters.length
+        only_type = yield_types.first
+        return false if only_type.nil?
+
+        only_type.tuple? && only_type.all_params.length == parameters.length
       end
 
       # @param api_map [ApiMap]
