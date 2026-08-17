@@ -62,9 +62,29 @@ module Solargraph
           # need to worry about the not-nil case
 
           binder = binder.without_nil if nullable?
-          pins = method_pins_for_binder(binder, api_map, name_pin.closure)
-          return [] if pins.empty?
-          inferred_pins(pins, api_map, name_pin, locals)
+          # Resolve each arm of a union receiver against that arm alone. A
+          # method whose declared return type is `self` must resolve to the
+          # arm that supplied the method pin, not to the entire union - e.g.
+          # for a String, Symbol receiver, Symbol#to_sym (RBS `-> self`) is
+          # Symbol, not String, Symbol.
+          top_level_types = binder.is_a?(ComplexType) ? binder.to_a : [binder]
+          # @type [::Array<Pin::Base>]
+          resolved = []
+          unresolved_arm = false
+          top_level_types.each do |context|
+            arm_pins = method_stack_pins(context, api_map, name_pin.closure)
+            if arm_pins.nil?
+              unresolved_arm = true
+              next
+            end
+            resolved.concat inferred_pins(arm_pins, api_map, name_pin, locals, context)
+          end
+          return [] if unresolved_arm && !api_map.loose_unions
+          return [] if resolved.empty?
+          # Different arms can resolve to the same pin path (a method
+          # inherited from a shared ancestor); dedup on the resolved return
+          # type too, so a real union doesn't lose every arm but the first.
+          resolved.uniq { |pin| [pin.path, pin.return_type.tag] }
         end
 
         private
@@ -82,9 +102,13 @@ module Solargraph
         # @param locals [::Array<Solargraph::Pin::LocalVariable, Solargraph::Pin::Parameter>]
         # @param type [ComplexType]
         # @param new_signature_pin [Pin::Signature, nil]
+        # @param self_binder [ComplexType, ComplexType::UniqueType] The type that
+        #   `self` refers to in the overload's declaration. For a union receiver
+        #   this is the single arm which supplied `pin`, not the whole union.
         # @param require_literal [Boolean] see Pin::Parameter#compatible_arg?
         # @return [::Array(ComplexType, Pin::Signature)]
-        def match_overload_type overload, pin, api_map, name_pin, locals, type, new_signature_pin, require_literal: true
+        def match_overload_type overload, pin, api_map, name_pin, locals, type, new_signature_pin, self_binder:,
+                                require_literal: true
           return [type, new_signature_pin] unless overload.arity_matches?(arguments, with_block?)
 
           positional_arguments, keyword_argument = split_keyword_argument(arguments, overload)
@@ -132,7 +156,7 @@ module Solargraph
                         # declaration - we can't just use the type of the
                         # method pin, as this might be a subclass of the
                         # place where the method is defined
-                        name_pin.binder
+                        self_binder
                       end
           # This same logic applies to the YARD work done by
           # 'with_params()'.
@@ -347,8 +371,13 @@ module Solargraph
         # @param api_map [ApiMap]
         # @param name_pin [Pin::Base]
         # @param locals [::Array<Solargraph::Pin::LocalVariable, Solargraph::Pin::Parameter>]
+        # @param self_binder [ComplexType, ComplexType::UniqueType, nil] The
+        #   type that `self` refers to in the resolved pins' declarations. For a
+        #   union receiver this is the single arm which supplied `pins`, not the
+        #   whole union.
         # @return [::Array<Pin::Base>]
-        def inferred_pins pins, api_map, name_pin, locals
+        def inferred_pins pins, api_map, name_pin, locals, self_binder = nil
+          self_binder ||= name_pin.binder
           result = pins.map do |p|
             next p unless p.is_a?(Pin::Method)
             overloads = p.signatures
@@ -381,6 +410,7 @@ module Solargraph
               # @param ol [Pin::Signature]
               sorted_overloads.each do |ol|
                 type, new_signature_pin = match_overload_type(ol, p, api_map, name_pin, locals, type, new_signature_pin,
+                                                              self_binder: self_binder,
                                                               require_literal: require_literal)
                 break if type.defined?
               end
@@ -407,7 +437,7 @@ module Solargraph
               # @sg-ignore Need to add nil check here
               next pin if pin.return_type.undefined?
               # @sg-ignore Need to add nil check here
-              selfy = pin.return_type.self_to_type(name_pin.binder)
+              selfy = pin.return_type.self_to_type(self_binder)
               # @sg-ignore Need to add nil check here
               selfy == pin.return_type ? pin : pin.proxy(selfy)
             end
