@@ -2172,6 +2172,8 @@ describe Solargraph::TypeChecker do
         end
       ))
       expect(checker.problems.map(&:message)).to eq([])
+    end
+
     it 'rebinds self to the new class in Class.new blocks' do
       checker = type_checker(%(
         # @return [void]
