@@ -468,7 +468,14 @@ module Solargraph
       # try to find common types via conformance
       items.each do |ut|
         narrowing_type.each do |candidate|
-          if candidate.conforms_to?(api_map, ut, :assignment)
+          if candidate.duck_type?
+            # A duck-type fact (e.g. from a respond_to? guard) selects
+            # the union arms that already provide the method; arms that
+            # don't are excluded by the guard, not replaced by the duck
+            # type. If no arm provides it (an opaque receiver like
+            # Object), the fall-through below keeps the bare duck type.
+            types << ut if duck_types_match?(api_map, candidate, ComplexType.new([ut]))
+          elsif candidate.conforms_to?(api_map, ut, :assignment)
             types << candidate
           elsif ut.conforms_to?(api_map, candidate, :assignment)
             types << ut
@@ -477,7 +484,10 @@ module Solargraph
           end
         end
       end
-      types = [ComplexType::UniqueType::UNDEFINED] if types.empty?
+      if types.empty?
+        duck_candidates = narrowing_type.select(&:duck_type?)
+        types = duck_candidates.empty? ? [ComplexType::UniqueType::UNDEFINED] : duck_candidates
+      end
       ComplexType.new(types)
     end
 
