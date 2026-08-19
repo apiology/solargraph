@@ -88,9 +88,19 @@ module Solargraph
             # reject it regardless
 
             with_block, without_block = overloads.partition(&:block?)
+            # A signature whose block declares no yielded parameters
+            # (e.g. a `&block` parameter documented with no @yieldparam,
+            # which yields `{ () -> }`) says nothing about what the block
+            # receives. When a sibling signature declares yielded
+            # parameters, try that one first: the block's parameters
+            # resolve from whichever signature is selected here, and Ruby
+            # blocks accept fewer arguments than are yielded, so the
+            # parameterized signature is the strictly more informative
+            # match whenever both are otherwise equally applicable.
+            yielding, non_yielding = with_block.partition { |sig| !sig.block.parameters.empty? }
             # @sg-ignore flow sensitive typing should handle is_a? and next
             # @type Array<Pin::Signature>
-            sorted_overloads = with_block + without_block
+            sorted_overloads = yielding + non_yielding + without_block
             # @type [Pin::Signature, nil]
             new_signature_pin = nil
             # @sg-ignore flow sensitive typing should handle is_a? and next
