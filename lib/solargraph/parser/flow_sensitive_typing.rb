@@ -5,6 +5,12 @@ module Solargraph
     class FlowSensitiveTyping
       include Solargraph::Parser::NodeMethods
 
+      # `kind_of?` is an alias of `is_a?`, with the same semantics on
+      # both paths: a true result proves class membership, and a false
+      # result rules out the class and every subclass of it. Both are
+      # handled by #parse_isa.
+      ISA_METHOD_NAMES = %i[is_a? kind_of?].freeze
+
       # @param locals [Array<Solargraph::Pin::LocalVariable>]
       # @param ivars [Array<Solargraph::Pin::InstanceVariable>]
       # @param enclosing_breakable_pin [Solargraph::Pin::Breakable, nil]
@@ -109,6 +115,7 @@ module Solargraph
 
         process_isa(node, true_presences, false_presences)
         process_respond_to(node, true_presences, false_presences)
+        process_instance_of(node, true_presences, false_presences)
         process_nilp(node, true_presences, false_presences)
         process_bang(node, true_presences, false_presences)
         process_eq(node, true_presences, false_presences)
@@ -571,11 +578,13 @@ module Solargraph
       # @param isa_node [Parser::AST::Node]
       # @return [Array(String, ::Array<String>), nil]
       def parse_isa isa_node
-        call_type_name, chain_words = parse_call(isa_node, :is_a?)
+        ISA_METHOD_NAMES.each do |method_name|
+          call_type_name, chain_words = parse_call(isa_node, method_name)
 
-        return unless call_type_name
+          return [call_type_name, chain_words] if call_type_name
+        end
 
-        [call_type_name, chain_words]
+        nil
       end
 
       # @param variable_name [String]
@@ -737,6 +746,44 @@ module Solargraph
         if_false[pin] ||= []
         if_false[pin] << { not_type: ComplexType.parse(isa_type_name) }
         process_facts(if_false, false_presences)
+      end
+
+      # A true `x.instance_of?(T)` proves x is a T on the guarded path,
+      # so the same positive fact `is_a?` asserts applies.
+      #
+      # The false path is deliberately left alone. `is_a?` can assert
+      # `not_type: T` when false, because `!x.is_a?(T)` rules out T and
+      # every subclass of T. `instance_of?` compares `x.class` to T by
+      # identity, so `!x.instance_of?(T)` is also satisfied by a
+      # subclass instance - which is still a T as far as the declared
+      # type is concerned. Asserting `not_type: T` there would remove an
+      # arm that can still be present, so no false-path fact is
+      # recorded.
+      #
+      # Narrowing to exactly T (excluding subclasses of T) on the true
+      # path is a separate, harder problem and is not attempted: the
+      # narrowed type may still include a subclass arm, which is a sound
+      # upper bound of the real value.
+      #
+      # @param node [Parser::AST::Node]
+      # @param true_presences [Array<Range>]
+      # @param _false_presences [Array<Range>]
+      #
+      # @return [void]
+      def process_instance_of node, true_presences, _false_presences
+        instance_of_type_name, chain_words = parse_call(node, :instance_of?)
+        return if instance_of_type_name.nil? || chain_words.nil? || chain_words.empty?
+
+        # @sg-ignore Need to add nil check here
+        position = Range.from_node(node).start
+
+        # @sg-ignore chain_pin's tuple-destructured args typecheck oddly
+        pin = chain_pin(chain_words, node.children[0], position)
+        return unless pin
+
+        # @type Hash{Pin::BaseVariable => Array<Hash{Symbol => ComplexType}>}
+        if_true = { pin => [{ type: ComplexType.parse(instance_of_type_name) }] }
+        process_facts(if_true, true_presences)
       end
 
       # @param node [Parser::AST::Node, nil]

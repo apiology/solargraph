@@ -1604,4 +1604,164 @@ describe Solargraph::Parser::FlowSensitiveTyping do
     clip = api_map.clip_at('test.rb', [5, 10])
     expect(clip.infer.to_s).to eq('Object')
   end
+
+  it 'uses instance_of? in a simple if() to refine a bare Object' do
+    source = Solargraph::Source.load_string(%(
+      # @param arg [Object]
+      def convert(arg)
+        if arg.instance_of?(Hash)
+          arg
+        else
+          arg
+        end
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [4, 10])
+    expect(clip.infer.to_s).to eq('Hash')
+
+    # the false path of instance_of? is not a sound exclusion - a
+    # subclass instance fails instance_of?(Hash) while still being a
+    # Hash - so the declared type is left alone there
+    clip = api_map.clip_at('test.rb', [6, 10])
+    expect(clip.infer.to_s).to eq('Object')
+  end
+
+  it 'uses instance_of? in a modifier-unless guard clause to refine the fall-through' do
+    source = Solargraph::Source.load_string(%(
+      # @param arg [Object]
+      def convert(arg)
+        return arg unless arg.instance_of? String
+
+        arg
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [5, 8])
+    expect(clip.infer.to_s).to eq('String')
+  end
+
+  it 'uses instance_of? in a modifier-if to refine within the guarded expression' do
+    source = Solargraph::Source.load_string(%(
+      # @param arg [Object]
+      # @return [Object]
+      def convert(arg)
+        return arg.map { |item| item } if arg.instance_of? Array
+
+        arg
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    expect(Solargraph::TypeChecker.new('test.rb', api_map: api_map, level: :strong)
+      .problems.map(&:message)).to eq([])
+  end
+
+  it 'uses instance_of? to select an arm of a union' do
+    source = Solargraph::Source.load_string(%(
+      class ReproBase; end
+      class Repro < ReproBase; end
+      # @param repr [ReproBase, String]
+      def verify_repro(repr)
+        if repr.instance_of?(ReproBase)
+          repr
+        end
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [6, 10])
+    expect(clip.infer.to_s).to eq('ReproBase')
+  end
+
+  it 'leaves the declared type in place when instance_of? has no static class name' do
+    source = Solargraph::Source.load_string(%(
+      # @param arg [String]
+      # @param other [Object]
+      def convert(arg, other)
+        if arg.instance_of?(other.class)
+          arg
+        end
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [5, 10])
+    expect(clip.infer.to_s).to eq('String')
+  end
+
+  it 'does not narrow a different variable than the one guarded' do
+    source = Solargraph::Source.load_string(%(
+      # @param arg [Object]
+      # @param other [Object]
+      def convert(arg, other)
+        if arg.instance_of?(String)
+          other
+        end
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [5, 10])
+    expect(clip.infer.to_s).to eq('Object')
+  end
+
+  it 'uses kind_of? in a simple if() to refine types like is_a?' do
+    source = Solargraph::Source.load_string(%(
+      # @param arg [String, Integer]
+      def convert(arg)
+        if arg.kind_of?(String)
+          arg
+        else
+          arg
+        end
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [4, 10])
+    expect(clip.infer.to_s).to eq('String')
+
+    clip = api_map.clip_at('test.rb', [6, 10])
+    expect(clip.infer.to_s).to eq('Integer')
+  end
+
+  it 'uses kind_of? in a modifier-unless guard clause to refine the fall-through' do
+    source = Solargraph::Source.load_string(%(
+      # @param arg [Object]
+      def convert(arg)
+        return arg unless arg.kind_of? String
+
+        arg
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [5, 8])
+    expect(clip.infer.to_s).to eq('String')
+  end
+
+  it 'keeps the guarded arm on the false path of instance_of?, unlike is_a?' do
+    # a Repro value declared as ReproBase fails instance_of?(ReproBase)
+    # while still being a ReproBase, so the false path cannot exclude
+    # the ReproBase arm the way is_a? can
+    isa_source = %(
+      class ReproBase; end
+      class Repro < ReproBase; end
+      # @param repr [ReproBase, String]
+      def verify_repro(repr)
+        if repr.%s(ReproBase)
+          repr
+        else
+          repr
+        end
+      end
+  )
+
+    source = Solargraph::Source.load_string(format(isa_source, 'instance_of?'), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    expect(api_map.clip_at('test.rb', [6, 10]).infer.to_s).to eq('ReproBase')
+    expect(api_map.clip_at('test.rb', [8, 10]).infer.to_s).to eq('ReproBase, String')
+
+    %w[is_a? kind_of?].each do |method_name|
+      source = Solargraph::Source.load_string(format(isa_source, method_name), 'test.rb')
+      api_map = Solargraph::ApiMap.new.map(source)
+      expect(api_map.clip_at('test.rb', [6, 10]).infer.to_s).to eq('ReproBase')
+      expect(api_map.clip_at('test.rb', [8, 10]).infer.to_s).to eq('String')
+    end
+  end
 end
