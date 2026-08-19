@@ -22,6 +22,20 @@ module Solargraph
       # ComplexType.parse. YARD has no official intersection syntax
       # yet; `&` is Solargraph's extension pending upstream guidance.
       #
+      # An intersection is a type, not an operation, which is the
+      # distinction worth holding onto next to ComplexType::Narrowing.
+      # Most intersections reaching this class were *written* - `A & B`
+      # in an annotation or an RBS signature, describing a value the
+      # author already knows is both. Narrowing is separately allowed
+      # to construct one when a guard proves two facts hold at once,
+      # but that is one outcome of narrowing among five, and narrowing
+      # decides it using rules that have no place here: whether either
+      # side can pick the other up as a mix-in, and whether anything at
+      # all inhabits both. This class takes an intersection as given
+      # and answers what it means - what it conforms to, what methods
+      # it has, how it renders. It does not decide whether one should
+      # have been built.
+      #
       # @see https://en.wikipedia.org/wiki/Intersection_type
       # @see https://github.com/ruby/rbs/blob/master/docs/syntax.md#intersection-type
       # @see https://github.com/lsegal/yard/issues/1644

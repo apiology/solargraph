@@ -12,6 +12,8 @@ module Solargraph
     #   include TypeMethods
     include Equality
 
+    autoload :Classification, 'solargraph/complex_type/classification'
+    autoload :Narrowing, 'solargraph/complex_type/narrowing'
     autoload :Conformance, 'solargraph/complex_type/conformance'
     autoload :TypeMethods, 'solargraph/complex_type/type_methods'
     autoload :UniqueType,  'solargraph/complex_type/unique_type'
@@ -417,8 +419,9 @@ module Solargraph
     # the more specific of each compatible pair. When neither side
     # subtypes the other but one is confirmed to be a mix-in, both
     # facts hold at once, so the pair becomes an Intersection; any
-    # other pair is dropped (see #mixin_pairing?). UNDEFINED results
-    # only when every pair is dropped or empty.
+    # other pair is dropped. Narrowing decides which of those
+    # applies. UNDEFINED results only when every pair is dropped or
+    # empty.
     #
     # @see https://www.typescriptlang.org/docs/handbook/2/narrowing.html
     #
@@ -429,16 +432,17 @@ module Solargraph
       return self if narrowing_type.nil?
       return narrowing_type if undefined?
       types = []
-      # try to find common types via conformance
       items.each do |ut|
         narrowing_type.each do |candidate|
-          if candidate.conforms_to?(api_map, ut, :assignment)
-            types << candidate
-          elsif ut.conforms_to?(api_map, candidate, :assignment)
+          case Narrowing.new(api_map, ut, candidate).verdict
+          when :left
             types << ut
-          elsif mixin_pairing?(api_map, ut, candidate)
+          when :right
+            types << candidate
+          when :intersect
             types << UniqueType::Intersection.new([ComplexType.new([ut]), ComplexType.new([candidate])])
           end
+          # :bot and :incomparable both drop the pair
         end
       end
       types = [ComplexType::UniqueType::UNDEFINED] if types.empty?
@@ -462,30 +466,6 @@ module Solargraph
 
     def bottom?
       @items.all?(&:bot?)
-    end
-
-    # Whether combining these two into an intersection is safe. Only
-    # true when at least one side is *positively confirmed* to be a
-    # mix-in, since any class can pick up any module. Two concrete
-    # classes are impossible (an object has exactly one class), and a
-    # namespace with no pin is unverifiable, so both are false and
-    # narrow_with drops the pair.
-    #
-    # @param api_map [ApiMap]
-    # @param declared [ComplexType::UniqueType]
-    # @param candidate [ComplexType::UniqueType]
-    # @return [Boolean]
-    def mixin_pairing? api_map, declared, candidate
-      namespace_kind(api_map, declared) == :module || namespace_kind(api_map, candidate) == :module
-    end
-
-    # @param api_map [ApiMap]
-    # @param unique_type [ComplexType::UniqueType]
-    # @return [:class, :module, nil] nil when the namespace has no pin
-    def namespace_kind api_map, unique_type
-      # @type [Pin::Namespace, nil]
-      pin = api_map.get_path_pins(unique_type.namespace).find { |p| p.is_a?(Pin::Namespace) }
-      pin&.type
     end
 
     class << self
