@@ -16,6 +16,10 @@ module Solargraph
     #     rooted?()
     #     can_root_name?()
     module TypeMethods
+      autoload :ParameterShape, 'solargraph/complex_type/type_methods/parameter_shape'
+
+      include ParameterShape
+
       # @!method transform(new_name = nil, &transform_type)
       #   @param new_name [String, nil]
       #   @yieldparam t [UniqueType]
@@ -103,41 +107,6 @@ module Solargraph
         end
       end
 
-      # @return [Symbol, nil]
-      attr_reader :parameters_type
-
-      # @type [Hash{String => Symbol}]
-      PARAMETERS_TYPE_BY_STARTING_TAG = {
-        '{' => :hash,
-        '(' => :fixed,
-        '<' => :list
-      }.freeze
-
-      # @return [Boolean]
-      def list_parameters?
-        parameters_type == :list
-      end
-
-      # @return [Boolean]
-      def fixed_parameters?
-        parameters_type == :fixed
-      end
-
-      # @return [Boolean]
-      def hash_parameters?
-        parameters_type == :hash
-      end
-
-      # @return [Array<ComplexType>]
-      def value_types
-        @subtypes
-      end
-
-      # @return [Array<ComplexType>]
-      def key_types
-        @key_types
-      end
-
       # @return [String]
       def namespace
         # if priority higher than ||=, old implements cause unnecessary check
@@ -166,34 +135,6 @@ module Solargraph
       def rooted_name
         return name unless @rooted && can_root_name?
         "::#{name}"
-      end
-
-      # @return [String]
-      def substring
-        @substring ||= generate_substring_from(&:tags)
-      end
-
-      # @return [String]
-      def rooted_substring
-        @rooted_substring = generate_substring_from(&:rooted_tags)
-      end
-
-      # @return [String]
-      def generate_substring_from &to_str
-        key_types_str = key_types.map(&to_str).join(', ')
-        subtypes_str = subtypes.map(&to_str).join(', ')
-        if (key_types.none?(&:defined?) && subtypes.none?(&:defined?)) ||
-           (key_types.empty? && subtypes.empty?)
-          ''
-        elsif hash_parameters?
-          "{#{key_types_str} => #{subtypes_str}}"
-        elsif fixed_parameters?
-          "(#{subtypes_str})"
-        elsif name == 'Hash'
-          "<#{key_types_str}, #{subtypes_str}>"
-        else
-          "<#{key_types_str}#{subtypes_str}>"
-        end
       end
 
       # @return [::Symbol] :class or :instance
