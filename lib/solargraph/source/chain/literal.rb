@@ -14,9 +14,12 @@ module Solargraph
           super("<#{type}>")
 
           if node.is_a?(::Parser::AST::Node)
+            # rubocop:disable Lint/BooleanSymbol -- :true and :false are
+            # Parser::AST::Node type names, not booleans
             if node.type == :true
               @value = true
             elsif node.type == :false
+              # rubocop:enable Lint/BooleanSymbol
               @value = false
             elsif %i[int sym].include?(node.type)
               @value = node.children.first
