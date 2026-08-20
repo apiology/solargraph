@@ -2048,6 +2048,45 @@ describe Solargraph::SourceMap::Clip do
     expect(clip.infer.tag).to eq('Widgetbox::Collection')
   end
 
+  it 'keeps the matched block signature when a blockless sibling signature also matches' do
+    # Neither signature declares a return type, so no signature can end
+    # the search by producing one. The blockless `def build; end` matches
+    # the call as well - Ruby accepts a block for any method - and is
+    # tried after the block-carrying signature from the @!parse stub.
+    plain_impl = Solargraph::SourceMap.load_string(%(
+      module Widgetbox
+        class Collection
+          # @return [String]
+          def name
+            'collection'
+          end
+        end
+
+        class << self
+          def build; end
+        end
+      end
+    ), 'widgetbox.rb')
+    parse_stub = Solargraph::SourceMap.load_string(%(
+      # @!parse
+      #   module Widgetbox
+      #     class << self
+      #       # @yieldparam config [Widgetbox::Collection]
+      #       def build(&block); end
+      #     end
+      #   end
+    ), 'annotations.rb')
+    caller_source = Solargraph::Source.load_string(%(
+      Widgetbox.build do |config|
+        config
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.catalog Solargraph::Bench.new(source_maps: [plain_impl, parse_stub, Solargraph::SourceMap.map(caller_source)])
+    clip = api_map.clip_at('test.rb', [2, 14])
+    expect(clip.infer.tag).to eq('Widgetbox::Collection')
+  end
+
   it 'uses simple return value of block to infer return value of Enumerable#map' do
     source = Solargraph::Source.load_string(%(
       a = ['a'].map { 123 }

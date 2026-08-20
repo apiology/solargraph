@@ -102,7 +102,7 @@ module Solargraph
             # @type Array<Pin::Signature>
             sorted_overloads = yielding + non_yielding + without_block
             # @type [Pin::Signature, nil]
-            new_signature_pin = nil
+            selected_signature_pin = nil
             # @sg-ignore flow sensitive typing should handle is_a? and next
             # @param ol [Pin::Signature]
             sorted_overloads.each do |ol|
@@ -171,10 +171,14 @@ module Solargraph
                   type = with_params(new_return_type.self_to_type(self_type), self_type).qualify(api_map, *p.gates)
                 end
                 type ||= ComplexType::UNDEFINED
+                # Signatures are tried in preference order, so the first to
+                # match is the best available match. A later one may replace
+                # it only by supplying the return type it could not.
+                selected_signature_pin = new_signature_pin if selected_signature_pin.nil? || type.defined?
               end
               break if type.defined?
             end
-            p = p.with_single_signature(new_signature_pin) unless new_signature_pin.nil?
+            p = p.with_single_signature(selected_signature_pin) unless selected_signature_pin.nil?
             next p.proxy(type) if type.defined?
             p
           end
