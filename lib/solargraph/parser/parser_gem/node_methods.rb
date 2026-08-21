@@ -43,7 +43,7 @@ module Solargraph
         # @return [String, nil]
         def infer_literal_node_type node
           return nil unless node.is_a?(AST::Node)
-          if %i[str dstr].include?(node.type)
+          if %i[str dstr xstr].include?(node.type)
             return '::String'
           elsif node.type == :array
             return '::Array'
@@ -239,7 +239,7 @@ module Solargraph
         def call_nodes_from node
           return [] unless node.is_a?(::Parser::AST::Node)
           result = []
-          if node.type == :block
+          if %i[block numblock].include?(node.type)
             result.push node
             # @sg-ignore https://github.com/castwide/solargraph/issues/1251
             if Parser.is_ast_node?(node.children[0]) && node.children[0].children.length > 2
@@ -495,7 +495,7 @@ module Solargraph
             ENSURE = [:ensure].freeze
             COMPOUND_STATEMENTS = %i[begin kwbegin].freeze
             SKIPPABLE = %i[def defs class sclass module].freeze
-            FUNCTION_VALUE = [:block].freeze
+            FUNCTION_VALUE = %i[block numblock].freeze
             CASE_STATEMENT = [:case].freeze
 
             # @param node [AST::Node] a method body compound statement
@@ -592,7 +592,7 @@ module Solargraph
               result = []
               nodes = parent.children.select { |n| n.is_a?(AST::Node) }
               nodes.each_with_index do |node, idx|
-                if node.type == :block
+                if FUNCTION_VALUE.include?(node.type)
                   # @sg-ignore Need to add nil check here
                   result.concat explicit_return_values_from_compound_statement(node.children[2])
                 elsif node.type == :rescue
@@ -666,8 +666,8 @@ module Solargraph
                   result.concat reduce_to_value_nodes(node.children[1..])
                 elsif ONLY_ONE_CHILD.include?(node.type) || ENSURE.include?(node.type)
                   result.concat reduce_to_value_nodes([node.children[0]])
-                elsif node.type == :block
-                  # @sg-ignore Wrong argument type for Solargraph::Parser::ParserGem::NodeMethods::DeepInference.explicit_return_values_from_compound_statement: parent expected Parser::AST::Node, received Parser
+                elsif FUNCTION_VALUE.include?(node.type)
+                  # @sg-ignore flow sensitive typing needs to narrow down type with an if is_a? check
                   result.concat explicit_return_values_from_compound_statement(node.children[2])
                 elsif node.type == :resbody
                   result.concat reduce_to_value_nodes([node.children[2]])
