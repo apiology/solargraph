@@ -49,8 +49,8 @@ module Solargraph
       'pp' => ['ENV']
     }.freeze
 
-    # @param yard_pins [Array<Pin::Base>]
-    # @param rbs_pins [Array<Pin::Base>]
+    # @param yard_pins [Array<Pin::Method>]
+    # @param rbs_pins [Array<Pin::Method>]
     #
     # @return [Array<Pin::Method>]
     def self.combine yard_pins, rbs_pins
