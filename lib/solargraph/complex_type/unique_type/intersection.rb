@@ -7,33 +7,20 @@ module Solargraph
       # more conjunct types, e.g., the RBS type `A & B`.
       #
       # Unlike ComplexType's comma-separated items (a union, where any
-      # one member describes the value), every conjunct of an
-      # Intersection must independently describe the value. That
-      # means the subtyping rules are the mirror image of a union's:
+      # one member describes the value), every conjunct must describe
+      # the value independently, so the subtyping rules are a union's
+      # mirror image: A & B <: A and A & B <: B, but a value satisfies
+      # A & B only if it satisfies every conjunct.
       #
-      #   A & B <: A
-      #   A & B <: B
+      # Each conjunct is a full ComplexType, not a plain UniqueType, as
+      # RBS allows a union as one member of an intersection
+      # (`(A | B) & C`) - and so a conjunct may itself be an
+      # Intersection.
       #
-      # i.e., a value typed as the intersection can be used wherever
-      # *any* conjunct is expected, but a value can only be used
-      # where the intersection itself is expected if it satisfies
-      # *every* conjunct.
-      #
-      # Each conjunct is a full ComplexType, not a plain UniqueType -
-      # the same way UniqueType#subtypes and #key_types already hold
-      # ComplexTypes rather than UniqueTypes. RBS itself allows a
-      # union as one member of an intersection (`(A | B) & C`), so a
-      # conjunct needs to be able to represent more than one
-      # alternative; a single type is just the common case of a
-      # one-item ComplexType. This also means a conjunct can itself be
-      # (or contain) another Intersection, since Intersection is a
-      # UniqueType and ComplexType already holds UniqueTypes.
-      #
-      # `A & B` is parsed the same way from plain YARD type tags
-      # (`@param`, `@return`, `@type`, etc.) as it is from inline RBS
-      # signatures, since both funnel through ComplexType.parse. YARD
-      # itself has no official intersection type syntax yet; `&` is
-      # Solargraph's extension pending upstream guidance.
+      # `A & B` parses the same from plain YARD type tags as from
+      # inline RBS signatures, since both funnel through
+      # ComplexType.parse. YARD has no official intersection syntax
+      # yet; `&` is Solargraph's extension pending upstream guidance.
       #
       # @see https://en.wikipedia.org/wiki/Intersection_type
       # @see https://github.com/ruby/rbs/blob/master/docs/syntax.md#intersection-type
@@ -45,17 +32,17 @@ module Solargraph
         # @param conjuncts [Array<ComplexType>]
         def initialize conjuncts
           @conjuncts = conjuncts
-          super(conjuncts.map(&:tags).join(' & '), rooted: true)
+          super(intersection_tag(:tags), rooted: true)
         end
 
         # @return [String]
         def tag
-          @tag ||= conjuncts.map(&:tags).join(' & ')
+          @tag ||= intersection_tag(:tags)
         end
 
         # @return [String]
         def rooted_tag
-          @rooted_tag ||= conjuncts.map(&:rooted_tags).join(' & ')
+          @rooted_tag ||= intersection_tag(:rooted_tags)
         end
 
         # @return [String]
@@ -108,16 +95,17 @@ module Solargraph
         # that's itself a union (from `(A | B) & C`) gets real union
         # semantics (every member of that union must conform).
         #
-        # When expected is *also* an intersection, that simple "any
-        # one conjunct" rule breaks down: a single one of our
-        # conjuncts, checked alone, would have to satisfy every
-        # conjunct expected of it - which fails whenever our conjuncts
-        # don't already relate to each other, even when checking an
-        # intersection against an identical copy of itself. The
-        # correct rule for A & B <: C & D is that every conjunct of
-        # the expected side must be satisfied by *some* conjunct of
-        # this one (not necessarily the same one each time), so that
-        # case is handled separately below.
+        # When expected is *also* an intersection, the rule instead is
+        # that every conjunct of the expected side must be satisfied by
+        # *some* conjunct of this one, not necessarily the same one each
+        # time - handled separately below.
+        #
+        # A union on the expected side is tried one alternative at a
+        # time first, so that an intersection buried in a union is
+        # still compared as an intersection. Checking the conjuncts
+        # against the whole union instead asks a single conjunct to
+        # carry the match on its own, which `A & false` cannot do
+        # against a union that contains `A & false` itself.
         #
         # @param api_map [ApiMap]
         # @param expected [ComplexType, ComplexType::UniqueType]
@@ -127,6 +115,8 @@ module Solargraph
         # @return [Boolean]
         def conforms_to? api_map, expected, situation, rules = [],
                          variance: erased_variance(situation)
+          return true if any_union_alternative_conforms?(api_map, expected, situation, rules, variance)
+
           expected_intersection = sole_intersection(expected)
           if expected_intersection
             return expected_intersection.conjuncts.all? do |expected_conjunct|
@@ -138,6 +128,29 @@ module Solargraph
           conjuncts.any? do |conjunct|
             conjunct.conforms_to?(api_map, expected, situation, rules, variance: variance)
           end
+        end
+
+        # Every conjunct describes the same value, so each is resolved
+        # against the same context type, and a generic bound by one
+        # conjunct is visible to the rest through the shared
+        # resolved_generic_values hash. UniqueType's implementation
+        # looks for generics in #subtypes and #key_types, which an
+        # intersection does not use - its type parameters live inside
+        # the conjuncts - so `Class<generic<T>> & #new` never bound T.
+        #
+        # Conjuncts resolve left to right, so a generic that only
+        # becomes bindable through a later conjunct stays unresolved in
+        # an earlier one's output.
+        #
+        # @param generics_to_resolve [Enumerable<String>]
+        # @param context_type [ComplexType, UniqueType, nil]
+        # @param resolved_generic_values [Hash{String => ComplexType, UniqueType}]
+        # @return [Intersection]
+        def resolve_generics_from_context generics_to_resolve, context_type, resolved_generic_values: {}
+          Intersection.new(conjuncts.map do |conjunct|
+            conjunct.resolve_generics_from_context(generics_to_resolve, context_type,
+                                                   resolved_generic_values: resolved_generic_values)
+          end)
         end
 
         # Applies the transformation to each conjunct independently
@@ -166,14 +179,45 @@ module Solargraph
 
         private
 
+        # Renders the conjuncts as a tag, bracketing any conjunct that
+        # holds more than one type. `&` binds tighter than the `,`/`|`
+        # of a union, so without the brackets `[A | B] & C` would
+        # render as `A, B & C` and parse back as `A | (B & C)` - a
+        # different type.
+        #
+        # @param tags_method [:tags, :rooted_tags]
+        # @return [String]
+        def intersection_tag tags_method
+          conjuncts.map do |conjunct|
+            tags = conjunct.send(tags_method)
+            conjunct.items.length > 1 ? "[#{tags}]" : tags
+          end.join(' & ')
+        end
+
         # Returns expected itself when it's a bare Intersection, or
         # its one item when it's a ComplexType consisting of nothing
-        # but a single Intersection. Anything else - including a
-        # union with an intersection as just one of several
-        # alternatives - returns nil, leaving that (rarer, untested)
-        # case on the simpler existing "any conjunct" path rather
-        # than guessing at its semantics here.
+        # but a single Intersection. A union with an intersection as
+        # one of several alternatives returns nil; #conforms_to? has
+        # already tried each alternative on its own by then, so what
+        # reaches here is the fallback "any conjunct" path.
         #
+        # True when expected is a union and this intersection conforms
+        # to one of its alternatives taken on its own.
+        #
+        # @param api_map [ApiMap]
+        # @param expected [ComplexType, ComplexType::UniqueType]
+        # @param situation [:method_call, :assignment, :return_type]
+        # @param rules [Array<Symbol>]
+        # @param variance [:invariant, :covariant, :contravariant]
+        # @return [Boolean]
+        def any_union_alternative_conforms? api_map, expected, situation, rules, variance
+          return false unless expected.is_a?(ComplexType) && expected.length > 1
+
+          expected.items.any? do |item|
+            conforms_to?(api_map, ComplexType.new([item]), situation, rules, variance: variance)
+          end
+        end
+
         # @param expected [ComplexType, ComplexType::UniqueType]
         # @return [Intersection, nil]
         def sole_intersection expected

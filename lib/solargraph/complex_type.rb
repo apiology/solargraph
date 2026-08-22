@@ -5,6 +5,9 @@ module Solargraph
   #
   class ComplexType
     GENERIC_TAG_NAME = 'generic'
+
+    # the quote characters that open and close a string literal type
+    QUOTE_CHARACTERS = ['"', "'"].freeze
     # @!parse
     #   include TypeMethods
     include Equality
@@ -444,17 +447,11 @@ module Solargraph
 
     # Flow-sensitive type narrowing: given a type learned from a
     # runtime guard (e.g. `x.is_a?(Foo)`), refines this type down to
-    # the more specific of each compatible pair between the two
-    # sides. When neither side is already known to be a subtype of
-    # the other but one is positively confirmed to be a mix-in (e.g.
-    # a declared class and an unrelated module), both facts are still
-    # true at once, so the pair is combined into a
-    # ComplexType::UniqueType::Intersection rather than discarded.
-    # Everything else - two different concrete classes (impossible;
-    # an object has exactly one class), or either side being a
-    # namespace we can't positively identify - falls back to the
-    # original behavior of dropping the pair; only if every pair is
-    # either dropped or empty does the result fall back to UNDEFINED.
+    # the more specific of each compatible pair. When neither side
+    # subtypes the other but one is confirmed to be a mix-in, both
+    # facts hold at once, so the pair becomes an Intersection; any
+    # other pair is dropped (see #mixin_pairing?). UNDEFINED results
+    # only when every pair is dropped or empty.
     #
     # @see https://www.typescriptlang.org/docs/handbook/2/narrowing.html
     #
@@ -515,15 +512,10 @@ module Solargraph
 
     # Whether combining these two into an intersection is safe. Only
     # true when at least one side is *positively confirmed* to be a
-    # mix-in: any class can pick up any module, so a class-and-module
-    # pairing is always plausible. Everything else - two different
-    # concrete classes (impossible; an object has exactly one class),
-    # or a namespace we have no pin for (synthetic names like
-    # `Boolean`, generics, literals, duck types, or simply unresolved)
-    # - defaults to false, preserving the original drop-the-pair
-    # behavior. This is deliberately conservative: it only recognizes
-    # the specific case it was added for rather than guessing about
-    # everything narrow_with might be asked to combine.
+    # mix-in, since any class can pick up any module. Two concrete
+    # classes are impossible (an object has exactly one class), and a
+    # namespace with no pin is unverifiable, so both are false and
+    # narrow_with drops the pair.
     #
     # @param api_map [ApiMap]
     # @param declared [ComplexType::UniqueType]
@@ -535,7 +527,7 @@ module Solargraph
 
     # @param api_map [ApiMap]
     # @param unique_type [ComplexType::UniqueType]
-    # @return [Symbol, nil] :class, :module, or nil if unknown
+    # @return [:class, :module, nil] nil when the namespace has no pin
     def namespace_kind api_map, unique_type
       # @type [Pin::Namespace, nil]
       pin = api_map.get_path_pins(unique_type.namespace).find { |p| p.is_a?(Pin::Namespace) }
@@ -574,7 +566,120 @@ module Solargraph
         types = []
         key_types = nil
         strings.each do |type_string|
-          types, key_types = parse_type_string(type_string, types, key_types)
+          point_stack = 0
+          curly_stack = 0
+          paren_stack = 0
+          bracket_stack = 0
+          base = String.new
+          subtype_string = String.new
+          # conjuncts of an intersection type (`A & B`) seen so far in
+          # the current `|`-disjunct of the segment being parsed
+          # @type [Array<ComplexType>]
+          conjuncts = []
+          # disjuncts of a union type (`A | B`) seen so far in the
+          # segment currently being parsed
+          # @type [Array<ComplexType, ComplexType::UniqueType>]
+          disjuncts = []
+          # the open quote character of the string literal being read
+          # (e.g. `"Index"`), or nil outside one
+          # @type [String, nil]
+          quote = nil
+          # @param char [String]
+          type_string&.each_char do |char|
+            if quote
+              # inside a string literal every character is content, so
+              # separators and brackets carry no syntactic meaning
+              quote = nil if char == quote
+            elsif QUOTE_CHARACTERS.include?(char)
+              quote = char
+            elsif char == '='
+              # raise ComplexTypeError, "Invalid = in type #{type_string}" unless curly_stack > 0
+            elsif char == '<'
+              point_stack += 1
+            elsif char == '>'
+              if subtype_string.end_with?('=') && curly_stack.positive?
+                subtype_string += char
+              elsif base.end_with?('=')
+                raise ComplexTypeError, 'Invalid hash thing' unless key_types.nil?
+                # @sg-ignore Need to add nil check here
+                disjuncts.push close_intersection(conjuncts, finish_atom(base[0..-2], subtype_string))
+                types.push close_disjunction(disjuncts)
+                # @todo this should either expand key_type's type
+                #   automatically or complain about not being
+                #   compatible with key_type's type in type checking
+                key_types = types
+                types = []
+                conjuncts = []
+                disjuncts = []
+                base.clear
+                subtype_string.clear
+                next
+              else
+                raise ComplexTypeError, "Invalid close in type #{type_string}" if point_stack.zero?
+                point_stack -= 1
+                subtype_string += char
+              end
+              next
+            elsif char == '{'
+              curly_stack += 1
+            elsif char == '}'
+              curly_stack -= 1
+              subtype_string += char
+              raise ComplexTypeError, "Invalid close in type #{type_string}" if curly_stack.negative?
+              next
+            elsif char == '('
+              paren_stack += 1
+            elsif char == ')'
+              paren_stack -= 1
+              subtype_string += char
+              raise ComplexTypeError, "Invalid close in type #{type_string}" if paren_stack.negative?
+              next
+            elsif char == '[' &&
+                  (bracket_stack.positive? ||
+                   (base.strip.empty? && point_stack.zero? && curly_stack.zero? && paren_stack.zero?))
+              # Only a fresh atom (blank base, not already nested in
+              # <>/{}/()) can start a `[...]` group - matching
+              # finish_atom's own precondition. Otherwise `[` is just an
+              # ordinary character, e.g. part of a literal type like
+              # `"[]"`, which has no concept of grouping.
+              bracket_stack += 1
+            elsif char == ']' && bracket_stack.positive?
+              bracket_stack -= 1
+              subtype_string += char
+              next
+            elsif char == '&' && top_level?(point_stack, curly_stack, paren_stack, bracket_stack)
+              conjuncts.push ComplexType.new([finish_atom(base, subtype_string)])
+              base.clear
+              subtype_string.clear
+              next
+            elsif char == '|' && top_level?(point_stack, curly_stack, paren_stack, bracket_stack)
+              disjuncts.push close_intersection(conjuncts, finish_atom(base, subtype_string))
+              conjuncts = []
+              base.clear
+              subtype_string.clear
+              next
+            elsif char == ',' && top_level?(point_stack, curly_stack, paren_stack, bracket_stack)
+              disjuncts.push close_intersection(conjuncts, finish_atom(base, subtype_string))
+              types.push close_disjunction(disjuncts)
+              conjuncts = []
+              disjuncts = []
+              base.clear
+              subtype_string.clear
+              next
+            end
+            if top_level?(point_stack, curly_stack, paren_stack, bracket_stack)
+              base.concat char
+            else
+              subtype_string.concat char
+            end
+          end
+          raise ComplexTypeError, "Unclosed string literal in #{type_string}" if quote
+          if point_stack != 0 || curly_stack != 0 || paren_stack != 0 || bracket_stack != 0
+            raise ComplexTypeError,
+                  "Unclosed subtype in #{type_string}"
+          end
+          disjuncts.push close_intersection(conjuncts, finish_atom(base, subtype_string))
+          types.push close_disjunction(disjuncts)
         end
         unless key_types.nil?
           raise ComplexTypeError, 'Invalid use of key/value parameters' unless partial
@@ -763,10 +868,9 @@ module Solargraph
       # or a standalone `[...]` grouping with no leading name, used to
       # override the default order of operations (e.g. `[Foo | Bar] &
       # Baz`, where `[...]` is the only way to mark where the union
-      # ends). A bracket group's content is parsed the same way any
-      # other parameter substring is - recursively, via
-      # ComplexType.parse - and its result substituted directly, since
-      # it can itself be a multi-item union (or an intersection).
+      # ends). A bracket group's content is parsed recursively via
+      # ComplexType.parse and substituted directly, since it can
+      # itself be a union or an intersection.
       #
       # @param base [String]
       # @param subtype_string [String]
@@ -797,23 +901,17 @@ module Solargraph
       end
 
       # Collapses the disjuncts of a union type (`A | B`) seen so far
-      # in the segment currently being parsed into a single value to
-      # push into the enclosing types/subtypes list - a bare type when
-      # there was only one (the common case, `|` never used), or a
-      # real multi-item ComplexType union otherwise. This is also
-      # exactly what a top-level `,` in an already-implicit-union
-      # context (Array<...>, Set<...>, hash key/value lists, the
-      # top-level types list itself) reduces to, since each of those
-      # contexts flattens every comma-separated type into one union
-      # regardless of how it's grouped here - so `,` and `|` land on
-      # the same result there, matching RBS's own tag design.
+      # into a single value to push into the enclosing types/subtypes
+      # list - a bare type when `|` was never used, a multi-item
+      # ComplexType union otherwise. A top-level `,` in an
+      # already-implicit-union context (Array<...>, hash key/value
+      # lists, the top-level types list) reduces to the same thing,
+      # since those contexts flatten commas into one union anyway.
       #
       # @param disjuncts [Array<ComplexType, ComplexType::UniqueType>]
       # @return [ComplexType::UniqueType, ComplexType]
-      # @sg-ignore #first is only nil for an empty array, and this is
-      #   never called with one
       def close_disjunction disjuncts
-        return disjuncts.first if disjuncts.length == 1
+        return disjuncts.fetch(0) if disjuncts.length == 1
         ComplexType.new(disjuncts)
       end
     end
