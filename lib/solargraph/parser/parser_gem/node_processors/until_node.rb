@@ -8,6 +8,12 @@ module Solargraph
           include ParserGem::NodeMethods
 
           def process
+            FlowSensitiveTyping.new(locals,
+                                    ivars,
+                                    enclosing_breakable_pin,
+                                    enclosing_compound_statement_pin,
+                                    region.closure).process_until(node)
+
             location = get_node_location(node)
             # Note - this should not be considered a block, as the
             # until statement doesn't create a closure - e.g.,
