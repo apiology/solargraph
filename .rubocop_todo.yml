@@ -23,17 +23,6 @@ Layout/ElseAlignment:
     - 'lib/solargraph/pin/method.rb'
 
 # This cop supports safe autocorrection (--autocorrect).
-# Configuration parameters: EmptyLineBetweenMethodDefs, EmptyLineBetweenClassDefs, EmptyLineBetweenModuleDefs, DefLikeMacros, AllowAdjacentOneLineDefs, NumberOfEmptyLines.
-Layout/EmptyLineBetweenDefs:
-  Exclude:
-    - 'lib/solargraph/rbs_map/conversions.rb'
-
-# This cop supports safe autocorrection (--autocorrect).
-Layout/EmptyLines:
-  Exclude:
-    - 'lib/solargraph/rbs_map/conversions.rb'
-
-# This cop supports safe autocorrection (--autocorrect).
 # Configuration parameters: EnforcedStyleAlignWith.
 # SupportedStylesAlignWith: keyword, variable, start_of_line
 Layout/EndAlignment:
@@ -129,7 +118,7 @@ Metrics/AbcSize:
 # Configuration parameters: CountComments, CountAsOne, AllowedMethods, AllowedPatterns, inherit_mode.
 # AllowedMethods: refine
 Metrics/BlockLength:
-  Max: 92
+  Max: 59
 
 # Configuration parameters: CountBlocks, CountModifierForms.
 Metrics/BlockNesting:
@@ -137,12 +126,16 @@ Metrics/BlockNesting:
 
 # Configuration parameters: CountComments, Max, CountAsOne.
 Metrics/ClassLength:
-  Enabled: false
+  Exclude:
+    - 'lib/solargraph/api_map.rb'
+    - 'lib/solargraph/language_server/host.rb'
+    - 'lib/solargraph/pin/method.rb'
+    - 'lib/solargraph/rbs_map/conversions.rb'
+    - 'lib/solargraph/type_checker.rb'
 
 # Configuration parameters: AllowedMethods, AllowedPatterns, Max.
 Metrics/CyclomaticComplexity:
   Exclude:
-    - 'lib/solargraph/complex_type.rb'
     - 'lib/solargraph/type_checker.rb'
 
 # Configuration parameters: CountComments, Max, CountAsOne, AllowedMethods, AllowedPatterns.
@@ -155,7 +148,7 @@ Metrics/MethodLength:
 
 # Configuration parameters: CountComments, CountAsOne.
 Metrics/ModuleLength:
-  Max: 175
+  Max: 169
 
 # Configuration parameters: Max, CountKeywordArgs, MaxOptionalParameters.
 Metrics/ParameterLists:
@@ -169,7 +162,6 @@ Metrics/ParameterLists:
 # Configuration parameters: AllowedMethods, AllowedPatterns, Max.
 Metrics/PerceivedComplexity:
   Exclude:
-    - 'lib/solargraph/complex_type.rb'
     - 'lib/solargraph/parser/parser_gem/node_chainer.rb'
     - 'lib/solargraph/type_checker.rb'
 
