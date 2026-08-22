@@ -266,6 +266,7 @@ module Solargraph
             # exclude it from candidates to resolve `steps` against here,
             # discarding its narrowing. Compare by identity instead.
             self_excluded_locals = clip.locals.reject do |candidate|
+              # @sg-ignore Unresolved call to equal? - respond_to?(:assignments) doesn't narrow candidate's type the way is_a? would
               candidate.respond_to?(:assignments) && candidate.assignments.any? { |a| a.equal?(parent_node) }
             end
             # @sg-ignore Need to add nil check here
