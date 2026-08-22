@@ -254,8 +254,19 @@ module Solargraph
             # (e.g. `a = a`, or `index += 1` desugared to `index = index +
             # 1`) must resolve against the variable's *other* assignments,
             # not against the not-yet-computed value being derived here.
+            #
+            # Array#include? compares with #==, and Parser::AST::Node#==
+            # is structural (type + children), not identity - two
+            # unrelated call nodes with the same shape (e.g. two separate
+            # bare `steps` calls at different source locations) compare
+            # equal. Using #include? here would wrongly treat an
+            # unrelated candidate - e.g. a flow-sensitive-typing pin
+            # synthesized from an earlier, textually-identical guard call
+            # like `steps.nil?` - as this assignment's own pin, and
+            # exclude it from candidates to resolve `steps` against here,
+            # discarding its narrowing. Compare by identity instead.
             self_excluded_locals = clip.locals.reject do |candidate|
-              candidate.respond_to?(:assignments) && candidate.assignments.include?(parent_node)
+              candidate.respond_to?(:assignments) && candidate.assignments.any? { |a| a.equal?(parent_node) }
             end
             # @sg-ignore Need to add nil check here
             result = chain.infer(api_map, closure, self_excluded_locals).self_to_type(closure.context)
