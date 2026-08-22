@@ -389,11 +389,23 @@ module Solargraph
             # reject it regardless
 
             with_block, without_block = overloads.partition(&:block?)
+            # A signature whose block declares no yielded parameters
+            # (e.g. a `&block` parameter documented with no @yieldparam,
+            # which yields `{ () -> }`) says nothing about what the block
+            # receives. When a sibling signature declares yielded
+            # parameters, try that one first: the block's parameters
+            # resolve from whichever signature is selected here, and Ruby
+            # blocks accept fewer arguments than are yielded, so the
+            # parameterized signature is the strictly more informative
+            # match whenever both are otherwise equally applicable.
+            yielding, non_yielding = with_block.partition { |sig| !sig.block.parameters.empty? }
             # @sg-ignore flow sensitive typing should handle is_a? and next
             # @type Array<Pin::Signature>
-            sorted_overloads = with_block + without_block
+            sorted_overloads = yielding + non_yielding + without_block
             # @type [Pin::Signature, nil]
             new_signature_pin = nil
+            # @type [Pin::Signature, nil]
+            selected_signature_pin = nil
             # Two passes: first require an exact-literal match on any
             # literal-typed overload parameter (so a real sibling
             # catch-all, e.g. tuple's non-literal fallback, wins over a
@@ -412,10 +424,14 @@ module Solargraph
                 type, new_signature_pin = match_overload_type(ol, p, api_map, name_pin, locals, type, new_signature_pin,
                                                               self_binder: self_binder,
                                                               require_literal: require_literal)
+                # Signatures are tried in preference order, so the first to
+                # match is the best available match. A later one may replace
+                # it only by supplying the return type it could not.
+                selected_signature_pin = new_signature_pin if selected_signature_pin.nil? || type.defined?
                 break if type.defined?
               end
             end
-            p = p.with_single_signature(new_signature_pin) unless new_signature_pin.nil?
+            p = p.with_single_signature(selected_signature_pin) unless selected_signature_pin.nil?
             next p.proxy(type) if type.defined?
             if !p.macros.empty?
               macro_pin = process_macro(p, api_map, name_pin.context, locals)
