@@ -1902,7 +1902,10 @@ describe Solargraph::SourceMap::Clip do
     api_map = Solargraph::ApiMap.new.map(source)
     clip = api_map.clip_at('test.rb', [4, 8])
     type = clip.infer
-    expect(type.to_s).to eq('Integer')
+    # Literal type inference (castwide/solargraph#1223) resolves the
+    # `0` argument to its literal type rather than widening it to
+    # Integer.
+    expect(type.to_s).to eq('0')
   end
 
   it 'still infers the receiver-level generic block parameter for each_with_index' do
