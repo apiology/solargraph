@@ -423,7 +423,6 @@ module Solargraph
         else
           args = line.split(':').map(&:strip)
           name = args.shift
-          # @sg-ignore Need to add nil check here
           reporter = Diagnostics.reporter(name)
           raise DiagnosticsError, "Diagnostics reporter #{name} does not exist" if reporter.nil?
           repargs[reporter] ||= []

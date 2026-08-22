@@ -429,7 +429,15 @@ module Solargraph
     def exclude exclude_types, api_map
       return self if exclude_types.nil?
 
-      types = items - exclude_types.items
+      # a member is excluded when it (or a narrower form of it) conforms to
+      # one of the types being excluded - e.g. excluding Array removes
+      # Array<Symbol, Array> too, since every Array<Symbol, Array> is an
+      # Array. The reverse is not true: excluding Array<Integer> does not
+      # remove a plain, unparameterized Array, since not every Array is an
+      # Array<Integer>.
+      types = items.reject do |ut|
+        exclude_types.any? { |exclude_type| ut.conforms_to?(api_map, exclude_type, :assignment) }
+      end
       if types.empty?
         # An exhausted exclusion (e.g., a `x.nil? || x.is_a?(Foo)`
         # guard that together covers every member of the declared

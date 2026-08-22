@@ -31,7 +31,6 @@ module Solargraph
                   parts += pack_name(n)
                 end
               else
-                # @sg-ignore Wrong argument type for Array#push: objects expected String, received Parser::AST::Node
                 parts.push n unless n.nil?
               end
             end
