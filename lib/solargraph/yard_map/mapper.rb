@@ -7,6 +7,7 @@ module Solargraph
       autoload :ToNamespace, 'solargraph/yard_map/mapper/to_namespace'
       autoload :ToConstant, 'solargraph/yard_map/mapper/to_constant'
       autoload :ToClassDefinition, 'solargraph/yard_map/mapper/to_class_definition'
+      autoload :ToStructInitializer, 'solargraph/yard_map/mapper/to_struct_initializer'
 
       # @param code_objects [Array<YARD::CodeObjects::Base>]
       # @param spec [Gem::Specification, nil]
@@ -41,6 +42,8 @@ module Solargraph
           nspin = ToNamespace.make(code_object, @spec, @namespace_pins[code_object.namespace.to_s])
           @namespace_pins[code_object.path] = nspin
           result.push nspin
+          # See ToStructInitializer for why a Struct.new definition needs this.
+          result.concat ToStructInitializer.make(code_object, nspin, @spec)
           # @sg-ignore Unresolved call to superclass on YARD::CodeObjects::NamespaceObject, YARD::CodeObjects::ClassObject
           if code_object.is_a?(YARD::CodeObjects::ClassObject) && !code_object.superclass.nil?
             # This method of superclass detection is a bit of a hack. If
