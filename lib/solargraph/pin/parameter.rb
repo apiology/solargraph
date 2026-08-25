@@ -235,10 +235,18 @@ module Solargraph
         ptype = typify api_map
         return true if ptype.undefined?
 
+        # :allow_unmatched_interface is required here (not just for
+        # the final TypeChecker verdict) because an RBS interface
+        # parameter (e.g. Hash#fetch's `_Key` on RBS >= 4.1) has no
+        # structural conformance check available yet - without this
+        # rule, any interface-typed parameter rejects every argument
+        # outright, so no overload ever matches and inference falls
+        # back to the union of every overload's return type instead
+        # of the one real match.
         return false unless atype.conforms_to?(api_map,
                                                ptype,
                                                :method_call,
-                                               %i[allow_empty_params allow_undefined]) || ptype.generic?
+                                               %i[allow_empty_params allow_undefined allow_unmatched_interface]) || ptype.generic?
 
         return true unless require_literal
 

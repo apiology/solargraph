@@ -91,17 +91,20 @@ describe Solargraph::TypeChecker do
 
     it 'does not leak an unresolved generic from a literal-keyed Hash#fetch (#1223)' do
       # Reported at https://github.com/castwide/solargraph/pull/1223#issuecomment-5296594623 -
-      # on RBS 4.0.x, a single-argument Hash#fetch call resolved K to the
-      # receiver's literal key type (e.g. "Index" from a
-      # `Hash{"Index" => Float}` @param tag), giving Hash#fetch a single
-      # candidate overload with no non-literal sibling to fall back to.
-      # The overload-selection gate that requires an exact-literal match
-      # (added to make tuple's literal-indexed overloads win over its
-      # safe catch-all) rejected that candidate outright, since the
-      # call's plain string argument isn't itself literal-typed - so no
-      # overload matched at all, and inference fell back to the union of
-      # every overload's declared return type instead of the one real
-      # match.
+      # RBS >= 4.1 declares `Hash#fetch`'s key parameter as the interface
+      # type `_Key` rather than the receiver's own generic `K`
+      # (rbs-4.1.3/core/hash.rbs: `def fetch: (_Key key) -> V | ...`).
+      # `Pin::Parameter#compatible_arg?` checked that parameter's
+      # conformance without the `:allow_unmatched_interface` rule, so
+      # *any* argument - literal key or not - was rejected against the
+      # interface-typed overload (no structural check for `_Key` exists
+      # yet; that's #1266, a separate change). With no overload matching
+      # at all, inference fell back to the union of every overload's
+      # declared return type, leaking `generic<X>` from #fetch's
+      # default-value and block overloads. On RBS 4.0.x the key
+      # parameter is the receiver's own generic `K`, not an interface, so
+      # only the narrower case (a literal key with no non-literal
+      # sibling overload) tripped the same exact-literal-match gate.
       checker = type_checker(%(
         class ReproLeak
           # @param period [Hash{"Index" => Float}]
