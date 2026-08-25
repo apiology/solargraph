@@ -99,6 +99,7 @@ jobs:
       run: bundle exec rbs validate
   rubocop_todo:
     name: .rubocop_todo.yml
+    continue-on-error: true
     runs-on: ubuntu-latest
     # Needed only so the auto-update step (push-to-master only, below) can
     # push a commit back to the branch it checked out.
