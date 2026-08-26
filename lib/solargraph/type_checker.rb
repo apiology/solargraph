@@ -733,6 +733,7 @@ module Solargraph
       tags.each do |tag|
         next if param_details.key? tag.name.to_s
         next if tag.types.nil?
+        # @type [Hash{:tagged => String} & Hash{:qualified => ComplexType}]
         details = {
           tagged: tag.types.join(', '),
           qualified: Solargraph::ComplexType.try_parse(*tag.types).qualify(api_map, pin.full_context.namespace)
