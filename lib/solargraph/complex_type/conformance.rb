@@ -63,14 +63,16 @@ module Solargraph
 
         return false unless erased_type_conforms?
 
-        # Hash[K, V] is 2-arity (key_types, subtypes), but the
-        # Enumerable/_Each ancestor it satisfies structurally is
-        # 1-arity: Hash#each yields [key, value] pairs, so Hash
-        # includes Enumerable[Array[K, V]], not Enumerable[V]. Compare
-        # against that pair shape instead of Hash's raw key_types/
-        # subtypes once erased_type_conforms? has already established
-        # Hash <: expected via inheritance.
-        return with_new_types(hash_as_pairs, expected).conforms_to_unique_type? if hash_viewed_as_pairs?
+        # A hash-shaped type (parameters_type == :hash; Hash[K, V] is
+        # the only stdlib/RBS example, but the YARD `{K => V}` tag
+        # syntax admits any class name) is 2-arity (key_types,
+        # subtypes), while an Enumerable/_Each ancestor it satisfies
+        # structurally can be 1-arity: #each yields [key, value]
+        # pairs, so the type includes Enumerable[Array[K, V]], not
+        # Enumerable[V]. Compare against that pair shape instead of
+        # the raw key_types/subtypes once erased_type_conforms? has
+        # already established inferred <: expected via inheritance.
+        return with_new_types(pair_shaped_as_pairs, expected).conforms_to_unique_type? if pair_shaped_viewed_as_pairs?
 
         return true if inferred.all_params.empty? && rules.include?(:allow_empty_params)
 
@@ -136,18 +138,19 @@ module Solargraph
         true
       end
 
-      # @return [Boolean] true if `inferred` is a Hash being checked
-      #   against a non-Hash-shaped expectation (e.g. Enumerable), so
+      # @return [Boolean] true if `inferred` is a 2-arity, hash-shaped
+      #   type (key_types/subtypes, e.g. `Hash{K => V}`) being checked
+      #   against a non-hash-shaped expectation (e.g. Enumerable), so
       #   its key/value pair shape — not its raw key_types/subtypes —
       #   is what needs to conform
-      def hash_viewed_as_pairs?
-        inferred.name == 'Hash' && inferred.parameters_type == :hash && expected.parameters_type != :hash
+      def pair_shaped_viewed_as_pairs?
+        inferred.parameters_type == :hash && expected.parameters_type != :hash
       end
 
-      # @return [UniqueType] `inferred` (a Hash) reshaped as
-      #   `expected`'s name parametrized with the [key, value] tuple
-      #   Hash actually yields when enumerated
-      def hash_as_pairs
+      # @return [UniqueType] `inferred` (a hash-shaped type) reshaped
+      #   as `expected`'s name parametrized with the [key, value]
+      #   tuple it actually yields when enumerated
+      def pair_shaped_as_pairs
         pair = UniqueType.new('Array', [], [ComplexType.new(inferred.key_types), ComplexType.new(inferred.subtypes)],
                               rooted: true, parameters_type: :fixed)
         UniqueType.new(expected.name, [], [pair], rooted: inferred.rooted?, parameters_type: :list)

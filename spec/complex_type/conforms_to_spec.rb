@@ -127,6 +127,32 @@ describe Solargraph::ComplexType do
     expect(match).to be(true)
   end
 
+  it 'reshapes a Hash into key/value pairs to conform to a lower-arity Enumerable ancestor' do
+    exp = described_class.parse('Enumerable<Array(Symbol, String)>')
+    inf = described_class.parse('Hash{Symbol => String}')
+    match = inf.conforms_to?(api_map, exp, :method_call)
+    expect(match).to be(true)
+  end
+
+  it 'reshapes any hash-shaped (parameters_type == :hash) type into pairs, not just Hash' do
+    # `PairBag` proves the pair-reshaping in Conformance is a
+    # structural check on parameters_type, not a check on the literal
+    # class name 'Hash': the YARD `{K => V}` tag syntax produces
+    # parameters_type == :hash for any class name, so any 2-arity
+    # type that structurally includes a lower-arity Enumerable
+    # ancestor needs the same reshape Hash does.
+    source = Solargraph::Source.load_string(%(
+      class PairBag
+        include Enumerable
+      end
+    ))
+    api_map.map source
+    exp = described_class.parse('Enumerable<Array(Symbol, String)>')
+    inf = described_class.parse('PairBag{Symbol => String}')
+    match = inf.conforms_to?(api_map, exp, :method_call)
+    expect(match).to be(true)
+  end
+
   it 'matches multiple types' do
     exp = described_class.parse('String, Integer')
     inf = described_class.parse('String, Integer')
