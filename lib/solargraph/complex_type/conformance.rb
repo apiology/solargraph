@@ -63,6 +63,15 @@ module Solargraph
 
         return false unless erased_type_conforms?
 
+        # Hash[K, V] is 2-arity (key_types, subtypes), but the
+        # Enumerable/_Each ancestor it satisfies structurally is
+        # 1-arity: Hash#each yields [key, value] pairs, so Hash
+        # includes Enumerable[Array[K, V]], not Enumerable[V]. Compare
+        # against that pair shape instead of Hash's raw key_types/
+        # subtypes once erased_type_conforms? has already established
+        # Hash <: expected via inheritance.
+        return with_new_types(hash_as_pairs, expected).conforms_to_unique_type? if hash_viewed_as_pairs?
+
         return true if inferred.all_params.empty? && rules.include?(:allow_empty_params)
 
         # at this point we know the erased type is fine - time to look at parameters
@@ -125,6 +134,23 @@ module Solargraph
           # :nocov:
         end
         true
+      end
+
+      # @return [Boolean] true if `inferred` is a Hash being checked
+      #   against a non-Hash-shaped expectation (e.g. Enumerable), so
+      #   its key/value pair shape — not its raw key_types/subtypes —
+      #   is what needs to conform
+      def hash_viewed_as_pairs?
+        inferred.name == 'Hash' && inferred.parameters_type == :hash && expected.parameters_type != :hash
+      end
+
+      # @return [UniqueType] `inferred` (a Hash) reshaped as
+      #   `expected`'s name parametrized with the [key, value] tuple
+      #   Hash actually yields when enumerated
+      def hash_as_pairs
+        pair = UniqueType.new('Array', [], [ComplexType.new(inferred.key_types), ComplexType.new(inferred.subtypes)],
+                              rooted: true, parameters_type: :fixed)
+        UniqueType.new(expected.name, [], [pair], rooted: inferred.rooted?, parameters_type: :list)
       end
 
       def key_types_conform?
