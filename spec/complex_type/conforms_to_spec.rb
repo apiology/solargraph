@@ -153,6 +153,90 @@ describe Solargraph::ComplexType do
     expect(match).to be(true)
   end
 
+  it 'reshapes a :list-parameterized (ordinary <A, B> generic) 2-arity type into a tuple ' \
+     'to conform to a lower-arity Enumerable ancestor' do
+    # `Pair` proves the same reshape Hash/PairBag get for
+    # parameters_type == :hash is also needed for parameters_type
+    # == :list: a class documented with ordinary `<A, B>` generic
+    # syntax (rather than YARD's `{K => V}` hash-tag syntax) that
+    # structurally includes a lower-arity Enumerable ancestor,
+    # because #each yields the two params together as a tuple.
+    source = Solargraph::Source.load_string(%(
+      # @generic A, B
+      class Pair
+        include Enumerable
+
+        # @param a [generic<A>]
+        # @param b [generic<B>]
+        def initialize(a, b)
+          @a = a
+          @b = b
+        end
+
+        # @yieldparam [Array(generic<A>, generic<B>)]
+        def each
+          yield [@a, @b]
+        end
+      end
+    ))
+    api_map.map source
+    exp = described_class.parse('Enumerable<Array(Symbol, String)>')
+    inf = described_class.parse('Pair<Symbol, String>')
+    match = inf.conforms_to?(api_map, exp, :method_call)
+    expect(match).to be(true)
+  end
+
+  it 'does not reshape a 2-arity :list type that does not include Enumerable' do
+    source = Solargraph::Source.load_string(%(
+      # @generic A, B
+      class NotEnumerablePair
+        # @param a [generic<A>]
+        # @param b [generic<B>]
+        def initialize(a, b)
+          @a = a
+          @b = b
+        end
+      end
+    ))
+    api_map.map source
+    exp = described_class.parse('Enumerable<Array(Symbol, String)>')
+    inf = described_class.parse('NotEnumerablePair<Symbol, String>')
+    match = inf.conforms_to?(api_map, exp, :method_call)
+    expect(match).to be(false)
+  end
+
+  it 'reshapes a 3-arity :list type into a 3-tuple to conform to a lower-arity Enumerable ancestor' do
+    source = Solargraph::Source.load_string(%(
+      # @generic A, B, C
+      class Triple
+        include Enumerable
+
+        # @param a [generic<A>]
+        # @param b [generic<B>]
+        # @param c [generic<C>]
+        def initialize(a, b, c)
+          @a = a
+          @b = b
+          @c = c
+        end
+
+        # @yieldparam [Array(generic<A>, generic<B>, generic<C>)]
+        def each
+          yield [@a, @b, @c]
+        end
+      end
+    ))
+    api_map.map source
+    exp = described_class.parse('Enumerable<Array(Symbol, String, Integer)>')
+    inf = described_class.parse('Triple<Symbol, String, Integer>')
+    match = inf.conforms_to?(api_map, exp, :method_call)
+    expect(match).to be(true)
+
+    # a 2-arity tuple expectation should not match a 3-arity inferred type
+    exp2 = described_class.parse('Enumerable<Array(Symbol, String)>')
+    expect(inf.conforms_to?(api_map, exp2, :method_call)).to be(false)
+  end
+
   it 'matches multiple types' do
     exp = described_class.parse('String, Integer')
     inf = described_class.parse('String, Integer')

@@ -63,15 +63,19 @@ module Solargraph
 
         return false unless erased_type_conforms?
 
-        # A hash-shaped type (parameters_type == :hash; Hash[K, V] is
-        # the only stdlib/RBS example, but the YARD `{K => V}` tag
-        # syntax admits any class name) is 2-arity (key_types,
-        # subtypes), while an Enumerable/_Each ancestor it satisfies
-        # structurally can be 1-arity: #each yields [key, value]
-        # pairs, so the type includes Enumerable[Array[K, V]], not
-        # Enumerable[V]. Compare against that pair shape instead of
-        # the raw key_types/subtypes once erased_type_conforms? has
-        # already established inferred <: expected via inheritance.
+        # A type with 2+ ordered generic params - a hash-shaped type
+        # (parameters_type == :hash; Hash[K, V] is the only
+        # stdlib/RBS example, but the YARD `{K => V}` tag syntax
+        # admits any class name) always has 2 (key_types, subtypes),
+        # and an ordinary `<A, B, ...>`-generic type
+        # (parameters_type == :list) can have any number - may
+        # satisfy a lower-arity Enumerable/_Each ancestor
+        # structurally: #each yields all of its params together as
+        # a tuple, so the type includes Enumerable[Array[K, V]] (or
+        # Array[A, B, ...]), not Enumerable[V] (or Enumerable[A]).
+        # Compare against that tuple shape instead of the raw
+        # per-param types once erased_type_conforms? has already
+        # established inferred <: expected via inheritance.
         return with_new_types(pair_shaped_as_pairs, expected).conforms_to_unique_type? if pair_shaped_viewed_as_pairs?
 
         return true if inferred.all_params.empty? && rules.include?(:allow_empty_params)
@@ -138,21 +142,32 @@ module Solargraph
         true
       end
 
-      # @return [Boolean] true if `inferred` is a 2-arity, hash-shaped
-      #   type (key_types/subtypes, e.g. `Hash{K => V}`) being checked
-      #   against a non-hash-shaped expectation (e.g. Enumerable), so
-      #   its key/value pair shape — not its raw key_types/subtypes —
-      #   is what needs to conform
+      # @return [Boolean] true if `inferred` has 2+ ordered generic
+      #   params (a hash-shaped type's key/value types, e.g.
+      #   `Hash{K => V}`, or a `<A, B, ...>`-generic type's ordered
+      #   params) being checked against an expectation of a
+      #   different arity (e.g. a 1-arity Enumerable), so its
+      #   params need to be viewed as a single tuple - not compared
+      #   one-for-one - to conform
       def pair_shaped_viewed_as_pairs?
-        inferred.parameters_type == :hash && expected.parameters_type != :hash
+        return false unless inferred.all_params.size >= 2
+
+        return expected.parameters_type != :hash if inferred.parameters_type == :hash
+
+        inferred.parameters_type == :list && inferred.all_params.size != expected.all_params.size
       end
 
-      # @return [UniqueType] `inferred` (a hash-shaped type) reshaped
-      #   as `expected`'s name parametrized with the [key, value]
-      #   tuple it actually yields when enumerated
+      # @return [UniqueType] `inferred` reshaped as `expected`'s name
+      #   parametrized with the tuple its params form when yielded
+      #   together - [key, value] for a hash-shaped type, or its
+      #   ordered params for a `<A, B, ...>`-generic type
       def pair_shaped_as_pairs
-        pair = UniqueType.new('Array', [], [ComplexType.new(inferred.key_types), ComplexType.new(inferred.subtypes)],
-                              rooted: true, parameters_type: :fixed)
+        ordered_params = if inferred.parameters_type == :hash
+                           [ComplexType.new(inferred.key_types), ComplexType.new(inferred.subtypes)]
+                         else
+                           inferred.all_params
+                         end
+        pair = UniqueType.new('Array', [], ordered_params, rooted: true, parameters_type: :fixed)
         UniqueType.new(expected.name, [], [pair], rooted: inferred.rooted?, parameters_type: :list)
       end
 
