@@ -2245,6 +2245,36 @@ describe Solargraph::TypeChecker do
       ))
         expect(checker.problems.map(&:message)).to be_empty
       end
+
+      it 'accepts a Hash literal that only sets some of a declared record type keys' do
+        # A `# @type [Hash{:k1 => V1} & Hash{:k2 => V2} & ...]` on a local
+        # variable declares the full eventual shape a Hash will grow into
+        # via later `[]=` calls - see
+        # lib/solargraph/language_server/message/base.rb#send_response,
+        # which sets :jsonrpc and :id up front and adds :result/:error
+        # afterward. The literal only has to satisfy the conjuncts for the
+        # keys it already has.
+        checker = type_checker(%(
+          # @type [Hash{:jsonrpc => String} & Hash{:id => Integer} & Hash{:result => Hash | Array | nil} & Hash{:error => Hash}]
+          response = {
+            jsonrpc: '2.0',
+            id: 5
+          }
+      ))
+        expect(checker.problems.map(&:message)).to be_empty
+      end
+
+      it 'still rejects a Hash literal with the wrong value type for a key the declared record type does have' do
+        checker = type_checker(%(
+          # @type [Hash{:jsonrpc => String} & Hash{:id => Integer} & Hash{:result => Hash | Array | nil} & Hash{:error => Hash}]
+          response = {
+            jsonrpc: 5,
+            id: 5
+          }
+      ))
+        expect(checker.problems.map(&:message))
+          .to include(a_string_including('does not match inferred type'))
+      end
     end
 
     it 'resolves Hash#fetch return type on Hash{Symbol => Class<X>} without leaking a generic placeholder' do

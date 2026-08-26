@@ -261,6 +261,26 @@ module Solargraph
       @ignored_pins ||= []
     end
 
+    # Retries a failed variable-assignment conformance check using
+    # Pin::BaseVariable#record_type - a per-key inference of a Hash
+    # literal that #probe's merged Hash{K => V} result can't express -
+    # so a Hash literal that only sets some of a declared record type's
+    # keys still typechecks. Only applies to pins whose assignment is a
+    # single Hash literal; anything else returns false, leaving the
+    # original failure in place.
+    #
+    # @param pin [Pin::Base]
+    # @param declared [ComplexType, ComplexType::UniqueType]
+    # @return [Boolean]
+    def record_assignment_conforms_to? pin, declared
+      return false unless pin.respond_to?(:record_type)
+
+      record_inferred = pin.record_type(api_map)
+      return false if record_inferred.nil?
+
+      assignment_conforms_to?(record_inferred, declared)
+    end
+
     # @return [Array<Problem>]
     def variable_type_tag_problems
       result = []
@@ -280,7 +300,7 @@ module Solargraph
                   result.push Problem.new(pin.location, "Variable type could not be inferred for #{pin.name}", pin: pin)
                 end
               else
-                unless assignment_conforms_to?(inferred, declared)
+                unless assignment_conforms_to?(inferred, declared) || record_assignment_conforms_to?(pin, declared)
                   result.push Problem.new(pin.location,
                                           "Declared type #{declared} does not match inferred type #{inferred} for variable #{pin.name}", pin: pin)
                 end

@@ -129,6 +129,8 @@ module Solargraph
                          variance: erased_variance(situation)
           expected_intersection = sole_intersection(expected)
           if expected_intersection
+            return conforms_to_record_subset?(api_map, expected_intersection, rules, variance) if situation == :assignment
+
             return expected_intersection.conjuncts.all? do |expected_conjunct|
               conjuncts.any? do |conjunct|
                 conjunct.conforms_to?(api_map, expected_conjunct, situation, rules, variance: variance)
@@ -188,6 +190,62 @@ module Solargraph
         end
 
         private
+
+        # An assignment's declared `A & B & C` (e.g. `# @type [Hash{:k1
+        # => V1} & Hash{:k2 => V2} & Hash{:k3 => V3}]` on a local
+        # variable) states the full eventual shape a Hash literal will
+        # grow into via later `[]=`/`merge!` calls, not a set of keys
+        # the initializer must already carry. So for each expected
+        # conjunct that is itself a single-key Hash record: if this
+        # intersection has no conjunct for that key yet, that's fine -
+        # it isn't declared missing, just not populated yet. If it does
+        # have one, that conjunct's value still has to conform.
+        #
+        # Any expected conjunct that isn't a single-key Hash record
+        # falls back to the ordinary "some conjunct of ours satisfies
+        # it" rule - this leniency is specific to the Hash-record
+        # accretion pattern, not a general loosening of intersection
+        # assignment.
+        #
+        # @param api_map [ApiMap]
+        # @param expected_intersection [Intersection]
+        # @param rules [Array<Symbol>]
+        # @param variance [:invariant, :covariant, :contravariant]
+        # @return [Boolean]
+        def conforms_to_record_subset? api_map, expected_intersection, rules, variance
+          expected_intersection.conjuncts.all? do |expected_conjunct|
+            unless single_key_hash_record?(expected_conjunct)
+              next conjuncts.any? do |conjunct|
+                conjunct.conforms_to?(api_map, expected_conjunct, :assignment, rules, variance: variance)
+              end
+            end
+
+            matching = conjuncts.select { |conjunct| same_hash_record_key?(conjunct, expected_conjunct) }
+            next true if matching.empty?
+
+            matching.any? do |conjunct|
+              conjunct.conforms_to?(api_map, expected_conjunct, :assignment, rules, variance: variance)
+            end
+          end
+        end
+
+        # @param complex_type [ComplexType]
+        # @return [Boolean]
+        def single_key_hash_record? complex_type
+          return false unless complex_type.is_a?(ComplexType) && complex_type.length == 1
+
+          unique_type = complex_type.first
+          unique_type.name == 'Hash' && unique_type.key_types.length == 1
+        end
+
+        # @param conjunct [ComplexType]
+        # @param expected_conjunct [ComplexType]
+        # @return [Boolean]
+        def same_hash_record_key? conjunct, expected_conjunct
+          return false unless single_key_hash_record?(conjunct)
+
+          conjunct.first.key_types.first == expected_conjunct.first.key_types.first
+        end
 
         # Returns expected itself when it's a bare Intersection, or
         # its one item when it's a ComplexType consisting of nothing

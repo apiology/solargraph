@@ -277,6 +277,37 @@ module Solargraph
         types
       end
 
+      # The literal-key-preserving "record" inference of this variable's
+      # single assignment, used only to re-check an initial Hash-literal
+      # assignment against a declared record-type expectation
+      # (Hash{:k1 => V1} & Hash{:k2 => V2} & ...) that #probe's merged
+      # Hash{K => V} result can't express - see
+      # Source::Chain::Hash#record_type and
+      # ComplexType::UniqueType::Intersection#conforms_to_record_subset?.
+      #
+      # @param api_map [ApiMap]
+      # @return [ComplexType, nil]
+      def record_type api_map
+        return nil unless assignments.length == 1
+
+        node = assignments.first
+        return nil if node.nil?
+
+        rng = Range.from_node(node)
+        return nil if rng.nil?
+
+        pin_location = location
+        pin_closure = closure
+        return nil if pin_location.nil? || pin_closure.nil?
+
+        clip = api_map.clip_at(pin_location.filename, rng.ending)
+        chain = Parser.chain(node, nil, nil)
+        link = chain.links.last
+        return nil unless link.is_a?(Solargraph::Source::Chain::Hash)
+
+        link.record_type(api_map, pin_closure, clip.locals)
+      end
+
       # @param api_map [ApiMap]
       # @return [ComplexType, ComplexType::UniqueType]
       def probe api_map
