@@ -90,6 +90,16 @@ describe Solargraph::Pin::Base do
     end
   end
 
+  describe '#choose' do
+    it 'logs and re-raises when the results are not comparable' do
+      pin1 = Solargraph::Pin::Base.new(name: 'foo', closure: Solargraph::Pin::Base.new(name: 'a'))
+      pin2 = Solargraph::Pin::Base.new(name: 'foo', closure: Solargraph::Pin::Base.new(name: 'b'))
+      allow(pin1).to receive(:logger).and_call_original
+      expect { pin1.choose(pin2, :closure) }.to raise_error(ArgumentError, /comparison of/)
+      expect(pin1).to have_received(:logger)
+    end
+  end
+
   describe '#nearly?' do
     it 'avoids recursion when two pins have the same closure' do
       pin1 = Solargraph::Pin::Base.new(name: 'foo')
