@@ -68,8 +68,11 @@ module Solargraph
             jsonrpc: '2.0',
             id: id
           }
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1231
           response[:result] = result unless result.nil?
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1231
           response[:error] = error unless error.nil?
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1231
           response[:result] = nil if result.nil? && error.nil?
           json = response.to_json
           envelope = "Content-Length: #{json.bytesize}\r\n\r\n#{json}"
