@@ -237,6 +237,101 @@ describe Solargraph::ComplexType do
     expect(inf.conforms_to?(api_map, exp2, :method_call)).to be(false)
   end
 
+  it 'does not reshape a :list type into a tuple for a lower-arity ancestor whose own ' \
+     'generic param is unrelated to the inferred type\'s params' do
+    # `Taggable`'s `X` has nothing to do with `Pair`'s `A`/`B` - the
+    # include doesn't parametrize Taggable with Pair's own generic
+    # params at all (unlike Enumerable, which RBS declares as
+    # `include Enumerable[[K, V]]` on Hash - bound to K and V
+    # directly). pair_shaped_viewed_as_pairs? triggers purely on
+    # arity mismatch (2 inferred params vs 1 expected), so it must
+    # not wrap [A, B] into a tuple and claim that tuple is what
+    # Taggable's X means.
+    source = Solargraph::Source.load_string(%(
+      # @generic X
+      module Taggable
+      end
+
+      # @generic A, B
+      class Pair
+        include Taggable
+
+        # @param a [generic<A>]
+        # @param b [generic<B>]
+        def initialize(a, b)
+          @a = a
+          @b = b
+        end
+      end
+    ))
+    api_map.map source
+    exp = described_class.parse('Taggable<Array(Symbol, String)>')
+    inf = described_class.parse('Pair<Symbol, String>')
+    match = inf.conforms_to?(api_map, exp, :method_call)
+    expect(match).to be(false)
+  end
+
+  it 'does not reshape a 3-arity :list type into a tuple for a 2-arity non-Enumerable ancestor' do
+    source = Solargraph::Source.load_string(%(
+      # @generic X, Y
+      module Labeled
+      end
+
+      # @generic A, B, C
+      class Triple2
+        include Labeled
+
+        # @param a [generic<A>]
+        # @param b [generic<B>]
+        # @param c [generic<C>]
+        def initialize(a, b, c)
+          @a = a
+          @b = b
+          @c = c
+        end
+      end
+    ))
+    api_map.map source
+    exp = described_class.parse('Labeled<Array(Symbol, String, Integer), Integer>')
+    inf = described_class.parse('Triple2<Symbol, String, Integer>')
+    match = inf.conforms_to?(api_map, exp, :method_call)
+    expect(match).to be(false)
+  end
+
+  it 'does not reshape a hash-shaped type into a tuple for a lower-arity, non-Enumerable ' \
+     'ancestor whose own generic param is unrelated to the inferred type\'s key/value types' do
+    pending 'pre-existing conflation in key_types_conform?/subtypes_conform?, not introduced ' \
+            'by pair_shaped_viewed_as_pairs? - see comment below'
+    # Blocking the reshape here (expected.name isn't Enumerable/_Each)
+    # correctly stops pair_shaped_as_pairs from firing, but
+    # conforms_to_unique_type? then falls through to
+    # key_types_conform?/subtypes_conform?, which was comparing a
+    # hash-shaped inferred's value type against a list-shaped
+    # expected's single param positionally before this PR existed -
+    # `git diff <merge-base>..273c7e6e7 -- conformance.rb` shows the
+    # pair_shaped_* methods are the *entire* diff this PR makes to
+    # this file, so that fallback path is unchanged baseline
+    # behavior. The same false positive is reproducible on the
+    # pre-PR fallback alone (Hash{Symbol => String} vs a 1-arity
+    # ancestor whose param happens to equal the value type), with
+    # no pair-shaping logic involved at all. Out of scope for this
+    # PR's correctness fix.
+    source = Solargraph::Source.load_string(%(
+      # @generic X
+      module Taggable
+      end
+
+      class PairBag2
+        include Taggable
+      end
+    ))
+    api_map.map source
+    exp = described_class.parse('Taggable<String>')
+    inf = described_class.parse('PairBag2{Symbol => String}')
+    match = inf.conforms_to?(api_map, exp, :method_call)
+    expect(match).to be(false)
+  end
+
   it 'matches multiple types' do
     exp = described_class.parse('String, Integer')
     inf = described_class.parse('String, Integer')

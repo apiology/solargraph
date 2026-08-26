@@ -91,6 +91,19 @@ module Solargraph
         subtypes_conform?
       end
 
+      # Names of ancestors whose single generic param is known, by
+      # RBS/YARD convention, to mean "all of my own params yielded
+      # together as one tuple" - Hash's own RBS core signature
+      # declares `include Enumerable[[K, V]]`, and `_Each` is the
+      # duck-typed interface backing the same `#each` shape (see
+      # RbsMap::CoreFills::INCLUDES). Any other ancestor's generic
+      # param means whatever that ancestor declares it to mean, and
+      # erased_type_conforms? having already matched `expected.name`
+      # via inheritance says nothing about that meaning - it only
+      # says `inferred` is-a `expected`, not that `expected`'s own
+      # generic param is derived from `inferred`'s params at all.
+      TUPLE_YIELDING_ANCESTOR_NAMES = %w[Enumerable _Each].freeze
+
       private
 
       def only_inferred_parameters?
@@ -151,6 +164,7 @@ module Solargraph
       #   one-for-one - to conform
       def pair_shaped_viewed_as_pairs?
         return false unless inferred.all_params.size >= 2
+        return false unless TUPLE_YIELDING_ANCESTOR_NAMES.include?(expected.name)
 
         return expected.parameters_type != :hash if inferred.parameters_type == :hash
 
