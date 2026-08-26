@@ -710,6 +710,18 @@ describe 'YARD type specifier list parsing' do
       end.to raise_error(Solargraph::ComplexTypeError)
     end
 
+    # UniqueType.parse's PARAMETERS_TYPE_BY_STARTING_TAG only recognizes
+    # '{', '(' and '<' as parameter delimiters. A name followed by
+    # square brackets (real YARD syntax some gems use, e.g. `Name[...]`)
+    # isn't a valid Solargraph tag - this must raise the same
+    # ComplexTypeError try_parse rescues, not crash with an uncaught
+    # KeyError.
+    it 'raises ComplexTypeError for an unrecognized parameter delimiter' do
+      expect do
+        Solargraph::ComplexType::UniqueType.parse('Foo', '[bar]')
+      end.to raise_error(Solargraph::ComplexTypeError, /Unrecognized parameter delimiter/)
+    end
+
     it 'raises ComplexTypeError for hash parameters without key => value syntax' do
       expect do
         Solargraph::ComplexType.parse('Hash{Foo}')

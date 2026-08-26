@@ -2275,6 +2275,28 @@ describe Solargraph::TypeChecker do
         expect(checker.problems.map(&:message))
           .to include(a_string_including('does not match inferred type'))
       end
+
+      it 'falls back to plain conformance for a declared conjunct that is not a single-key record' do
+        # conforms_to_record_subset? only pairs conjuncts up by key when
+        # the *expected* conjunct is itself a single-key Hash record
+        # (see Intersection#single_key_hash_record?). A `Comparable`
+        # conjunct isn't one, so it falls back to asking whether any of
+        # our per-key conjuncts satisfies it via ordinary structural
+        # conformance - which none of our Hash conjuncts do, so the
+        # record fallback still rejects this (same as the primary,
+        # non-record check would), but only after actually exercising
+        # the "not a single-key record" branch rather than the
+        # key-matching one every other record-type spec here uses.
+        checker = type_checker(%(
+          # @type [Hash{:jsonrpc => String} & Hash{:id => Integer} & Comparable]
+          response = {
+            jsonrpc: '2.0',
+            id: 5
+          }
+      ))
+        expect(checker.problems.map(&:message))
+          .to include(a_string_including('does not match inferred type'))
+      end
     end
 
     it 'resolves Hash#fetch return type on Hash{Symbol => Class<X>} without leaking a generic placeholder' do
