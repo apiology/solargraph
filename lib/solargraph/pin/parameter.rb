@@ -257,14 +257,9 @@ module Solargraph
         ptype = typify api_map
         return true if ptype.undefined?
 
-        # :allow_unmatched_interface is included so that an
-        # RBS-interface-typed parameter (e.g. Hash#fetch's `_Key`) doesn't
-        # reject every argument that isn't nominally included in that
-        # interface via CoreFills::INCLUDES. Without it, no overload of a
-        # method like Hash#fetch ever matches a plain argument, and
-        # Pin::Method#return_type falls back to unioning every overload's
-        # return type together - including unbound generics from
-        # overloads that were never actually selected.
+        # :allow_unmatched_interface lets an RBS-interface-typed
+        # parameter (e.g. Hash#fetch's `_Key`) accept an argument not
+        # nominally included in that interface via CoreFills::INCLUDES.
         return false unless atype.conforms_to?(api_map,
                                                ptype,
                                                :method_call,
