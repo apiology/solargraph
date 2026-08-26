@@ -71,6 +71,32 @@ describe Solargraph::TypeChecker do
       expect(count_pin.typify(api_map).tag).to eq('Integer')
     end
 
+    it 'creates locals for a nested destructured parameter group' do
+      source = Solargraph::Source.load_string(%(
+        class NestedMlhsGroup
+          # @return [Array<Array((Array(String, Integer)), Symbol)>]
+          def nested_pairs
+            [[['a', 1], :x]]
+          end
+
+          # @return [void]
+          def grouped
+            nested_pairs.each do |((name, count), tag)|
+              puts "\#{name} \#{count} \#{tag}"
+            end
+          end
+        end
+      ), 'test.rb')
+      api_map = Solargraph::ApiMap.new
+      api_map.map source
+      locals = api_map.source_map('test.rb').locals
+      # the recursive mlhs branch must create locals for the doubly-nested
+      # group, not just the top-level one
+      expect(locals.find { |l| l.name == 'name' }).not_to be_nil
+      expect(locals.find { |l| l.name == 'count' }).not_to be_nil
+      expect(locals.find { |l| l.name == 'tag' }).not_to be_nil
+    end
+
     it 'keeps a union-typed pair element in one tuple position (Hash#each with union key)' do
       checker = type_checker(%(
         class UnionKeyDict
