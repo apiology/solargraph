@@ -82,25 +82,9 @@ module Solargraph
             overloads = p.signatures
             # next p if overloads.empty?
             type = ComplexType::UNDEFINED
-            # start with overloads that require blocks; if we are
-            # passing a block, we want to find a signature that will
-            # use it.  If we didn't pass a block, the logic below will
-            # reject it regardless
-
-            with_block, without_block = overloads.partition(&:block?)
-            # A signature whose block declares no yielded parameters
-            # (e.g. a `&block` parameter documented with no @yieldparam,
-            # which yields `{ () -> }`) says nothing about what the block
-            # receives. When a sibling signature declares yielded
-            # parameters, try that one first: the block's parameters
-            # resolve from whichever signature is selected here, and Ruby
-            # blocks accept fewer arguments than are yielded, so the
-            # parameterized signature is the strictly more informative
-            # match whenever both are otherwise equally applicable.
-            yielding, non_yielding = with_block.partition { |sig| !sig.block.parameters.empty? }
             # @sg-ignore flow sensitive typing should handle is_a? and next
             # @type Array<Pin::Signature>
-            sorted_overloads = yielding + non_yielding + without_block
+            sorted_overloads = dispatch_order(overloads)
             # @type [Pin::Signature, nil]
             selected_signature_pin = nil
             # @sg-ignore flow sensitive typing should handle is_a? and next
@@ -141,11 +125,11 @@ module Solargraph
                                                                                     blocktype)
                 # @todo It shouldn't be necessary to choose either generics or macros
                 new_return_type = if new_signature_pin.return_type.defined?
-                  new_signature_pin.return_type
-                else
-                  named_types = p.parameter_names.zip(arguments.map { |arg| ComplexType.try_parse(simple_convert(arg.node).to_s) }).to_h
-                  p.typify(api_map).expand(named_types)
-                end
+                                    new_signature_pin.return_type
+                                  else
+                                    named_types = p.parameter_names.zip(arguments.map { |arg| ComplexType.try_parse(simple_convert(arg.node).to_s) }).to_h
+                                    p.typify(api_map).expand(named_types)
+                                  end
                 self_type = if head?
                               # If we're at the head of the chain, we called a
                               # method somewhere that marked itself as returning
@@ -197,6 +181,45 @@ module Solargraph
               # @sg-ignore Need to add nil check here
               selfy == pin.return_type ? pin : pin.proxy(selfy)
             end
+          end
+        end
+
+        # Orders overload signatures for dispatch.
+        #
+        # If we are passing a block, we want to find a signature
+        # that will use it, so block-taking overloads go first.
+        #
+        # If we did NOT pass a block, a block-taking YARD overload
+        # is not guaranteed to be rejected by arity_matches?: YARD
+        # signatures have no way to express a required block, so
+        # Pin::Callable#block_required? defaults false for them,
+        # and arity_matches? only rejects a missing block when
+        # block_required? is true. Without a block at the call
+        # site, try the non-block overloads first instead, so a
+        # sibling overload that differs only by block presence
+        # (e.g. two @overload tags with identical explicit params,
+        # one plain and one block-taking) resolves to the plain
+        # one rather than to the block overload's possibly-
+        # unresolved block-bound generic.
+        #
+        # @param overloads [::Array<Pin::Signature>]
+        # @return [::Array<Pin::Signature>]
+        def dispatch_order overloads
+          with_block, without_block = overloads.partition(&:block?)
+          # A signature whose block declares no yielded parameters
+          # (e.g. a `&block` parameter documented with no @yieldparam,
+          # which yields `{ () -> }`) says nothing about what the block
+          # receives. When a sibling signature declares yielded
+          # parameters, try that one first: the block's parameters
+          # resolve from whichever signature is selected here, and Ruby
+          # blocks accept fewer arguments than are yielded, so the
+          # parameterized signature is the strictly more informative
+          # match whenever both are otherwise equally applicable.
+          yielding, non_yielding = with_block.partition { |sig| !sig.block.parameters.empty? }
+          if with_block?
+            yielding + non_yielding + without_block
+          else
+            without_block + non_yielding + yielding
           end
         end
 
