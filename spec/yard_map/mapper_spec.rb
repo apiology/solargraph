@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'tmpdir'
+
 describe Solargraph::YardMap::Mapper do
   before :all do # rubocop:disable RSpec/BeforeAfterAll
     @api_map = Solargraph::ApiMap.load('.')
@@ -97,5 +99,15 @@ describe Solargraph::YardMap::Mapper do
     end
     expect(pin).to be_a(Solargraph::Pin::Method)
     expect(pin.macros.map(&:name)).to include('my_attribute')
+  end
+
+  it 'adjusts YARD namespaces that conflict with core constants' do
+    gemspec = Gem::Specification.find_by_name('pp')
+    gem_yardoc_path = File.join(Dir.mktmpdir, 'pp.yardoc')
+    Solargraph::Yardoc.build_docs(gem_yardoc_path, [], gemspec)
+    code_objects = Solargraph::Yardoc.load!(gem_yardoc_path)
+    mapper = described_class.new(code_objects)
+    pins = mapper.map
+    expect(pins.map(&:path)).to include('RBS::Unnamed::ENVClass#pretty_print')
   end
 end
