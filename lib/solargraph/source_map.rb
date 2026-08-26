@@ -152,6 +152,20 @@ module Solargraph
       locals.select { |pin| pin.visible_at?(closure, location) }
     end
 
+    # @return [Array<Parser::AST::Node>]
+    def method_call_nodes
+      # @sg-ignore node expected Parser::AST::Node, received Parser::AST::Node, nil
+      @method_call_nodes ||= Solargraph::Parser::ParserGem::NodeMethods.call_nodes_from(source.node)
+    end
+
+    # @param macro_method_names [Array<String>]
+    # @return [Array<Parser::AST::Node>]
+    def macro_method_candidates macro_method_names
+      return @macro_method_candidates if @macro_method_names == macro_method_names
+      @macro_method_names = macro_method_names
+      @macro_method_candidates = method_call_nodes.select { |node| macro_method_names.include?(node.children[1].to_s) }
+    end
+
     class << self
       # @param filename [String]
       # @return [SourceMap]
@@ -181,7 +195,7 @@ module Solargraph
     # @return [Array<Pin::Base>]
     attr_writer :convention_pins
 
-    # @return [Hash{Class<Pin::Base> => Array<Pin::Base>}]
+    # @return [Hash{Class, Pin::Base => Array<Pin::Base>}]
     def pin_class_hash
       # @todo Need to support generic resolution in classify and transform_values
       @pin_class_hash ||= pins.to_set.classify(&:class).transform_values(&:to_a)

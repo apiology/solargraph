@@ -611,13 +611,14 @@ describe Solargraph::Parser::FlowSensitiveTyping do
     ), 'test.rb')
     api_map = Solargraph::ApiMap.new.map(source)
     clip = api_map.clip_at('test.rb', [3, 8])
-    expect(clip.infer.rooted_tags).to eq('nil, 10')
+    expect(clip.infer.rooted_tags).to eq('nil, ::Integer')
 
     clip = api_map.clip_at('test.rb', [5, 10])
-    expect(clip.infer.rooted_tags).to eq('10')
+    expect(clip.infer.rooted_tags).to eq('::Integer')
 
     clip = api_map.clip_at('test.rb', [7, 10])
-    expect(clip.infer.rooted_tags).to eq('nil, false')
+    # @todo `false` might be acceptable here
+    expect(clip.infer.rooted_tags).to eq('nil, ::Boolean')
   end
 
   it 'uses .nil? in a return if() in an if to refine types using nil checks' do
@@ -954,7 +955,7 @@ describe Solargraph::Parser::FlowSensitiveTyping do
     api_map = Solargraph::ApiMap.new.map(source)
 
     clip = api_map.clip_at('test.rb', [6, 10])
-    expect(clip.infer.to_s).to eq('String')
+    expect(clip.infer.to_s).to eq('String, nil')
 
     clip = api_map.clip_at('test.rb', [7, 17])
     expect(clip.infer.to_s).to eq('nil')

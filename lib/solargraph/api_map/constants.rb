@@ -155,7 +155,7 @@ module Solargraph
             mixin = resolve(ref.name, ref.reference_gates)
             next unless mixin
 
-            resolved = simple_resolve(name, mixin, internal)
+            resolved = resolve(name, mixin)
             return [resolved, gates[(idx + 1)..]] if resolved
           end
         end
@@ -188,12 +188,12 @@ module Solargraph
         end
       end
 
-      # @return [Hash{Array(String, Array<String>) => String, :in_process, nil}]
+      # @return [Hash{Array, String, Array, String => String, :in_process, nil}]
       def cached_resolve
         @cached_resolve ||= {}
       end
 
-      # @return [Hash{Array<String> => Array<Solargraph::Pin::Namespace, Solargraph::Pin::Constant>}]
+      # @return [Hash{Array, String => Array<Solargraph::Pin::Namespace, Solargraph::Pin::Constant>}]
       def cached_collect
         @cached_collect ||= {}
       end

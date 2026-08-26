@@ -63,4 +63,29 @@ describe Solargraph::Pin::Base do
     expect(return_type).to be_defined
     expect(parser_method_pin.typify(api_map).rooted_tags).to eq('::YARD::DocstringParser')
   end
+
+  describe '#typify' do
+    it 'resolves RBS type aliases' do
+      skip 'This test fails on CI but not locally'
+      api_map = Solargraph::ApiMap.load_with_cache('.', $stderr)
+      pin = api_map.get_path_pins('RBS::MethodType#type').first
+      expect(pin.typify(api_map).to_s).to eq('RBS::Types::Function, RBS::Types::UntypedFunction')
+    end
+  end
+
+  describe '#macro_names' do
+    it 'returns names' do
+      pin = described_class.new(name: 'Example', comments: "@macro addcomment\n@macro returnself")
+      expect(pin.macro_names).to eq(['addcomment', 'returnself'])
+    end
+  end
+
+  describe '#nearly?' do
+    it 'avoids recursion when two pins have the same closure' do
+      pin1 = Solargraph::Pin::Base.new(name: 'foo')
+      pin1.closure = pin1
+      pin2 = Solargraph::Pin::Base.new(name: 'foo', closure: pin1)
+      expect { pin1.nearly?(pin2) }.not_to raise_error
+    end
+  end
 end

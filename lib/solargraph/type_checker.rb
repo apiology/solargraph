@@ -162,10 +162,19 @@ module Solargraph
           result.push Problem.new(pin.location, "Untyped method #{pin.path} could not be inferred")
         end
       elsif rules.validate_tags?
-        unless pin.node.nil? || declared.void? || virtual_pin?(pin) || abstract?(pin)
+        # Attribute pins never have a node (attr_reader/attr_writer/attr_accessor are
+        # synthesized, not parsed method bodies), but their inferred type is still
+        # meaningful: #probe walks the backing ivar's assignments via infer_from_iv.
+        # Without this carve-out, a manually-written @return tag on an attribute is
+        # never cross-checked against how the ivar is actually assigned (e.g. a nilable
+        # default in the constructor), so a bad tag silently passes at every level.
+        unless (pin.node.nil? && !pin.attribute?) || declared.void? || virtual_pin?(pin) || abstract?(pin)
           inferred = pin.probe(api_map).self_to_type(pin.full_context)
           if inferred.undefined?
-            unless rules.ignore_all_undefined? || external?(pin)
+            # An attribute with no locally-discoverable ivar assignment (set via a
+            # mixin, metaprogramming, etc.) isn't a tag/inference mismatch - just
+            # unproven. Only methods with an actual body get flagged for this.
+            unless rules.ignore_all_undefined? || external?(pin) || pin.attribute?
               result.push Problem.new(pin.location, "#{pin.path} return type could not be inferred", pin: pin)
             end
           else
@@ -283,7 +292,7 @@ module Solargraph
 
     # @return [Array<Pin::BaseVariable>]
     def all_variables
-      source_map.pins_by_class(Pin::BaseVariable) + source_map.locals.select { |pin| pin.is_a?(Pin::LocalVariable) }
+      source_map.pins_by_class(Pin::BaseVariable) + source_map.locals.grep(Pin::LocalVariable)
     end
 
     # @return [Array<Problem>]
@@ -351,7 +360,6 @@ module Solargraph
           all_closest = all_found.map { |pin| pin.typify(api_map) }
           closest = ComplexType.new(all_closest.flat_map(&:items).uniq)
           # @todo remove the internal_or_core? check at a higher-than-strict level
-          # @sg-ignore Need to add nil check here
           if (!found || found.is_a?(Pin::BaseVariable) || (closest.defined? && internal_or_core?(found))) && !(closest.generic? || ignored_pins.include?(found))
             if closest.defined?
               result.push Problem.new(location, "Unresolved call to #{missing.links.last.word} on #{closest}")
@@ -479,7 +487,7 @@ module Solargraph
             ptype = params.key?(par.name) ? params[par.name][:qualified] : ComplexType::UNDEFINED
             ptype = ptype.self_to_type(par.context)
             if ptype.nil?
-            # @todo Some level (strong, I guess) should require the param here
+              # @todo Some level (strong, I guess) should require the param here
             else
               argtype = argchain.infer(api_map, closure_pin, locals)
               argtype = argtype.self_to_type(closure_pin.context)
@@ -774,9 +782,9 @@ module Solargraph
         return [] if parameters.any?(&:rest?)
         opt = optional_param_count(parameters)
         return [] if unchecked.length <= req + opt
-        if req + add_params + 1 == unchecked.length && any_splatted_call?(unchecked.map(&:node)) && (parameters.map(&:decl) & %i[
-          kwarg kwoptarg kwrestarg
-        ]).any?
+        if req + add_params + 1 == unchecked.length && any_splatted_call?(unchecked.map(&:node)) && parameters.map(&:decl).intersect?(%i[
+                                                                                                                                        kwarg kwoptarg kwrestarg
+                                                                                                                                      ])
           return []
         end
         return [] if arguments.length - req == parameters.select { |p| %i[optarg kwoptarg].include?(p.decl) }.length
@@ -849,7 +857,7 @@ module Solargraph
     def all_sg_ignore_lines
       source.associated_comments.select do |_line, text|
         # @sg-ignore Need to add nil check here
-        text.include?('@sg-ignore')
+        text.any? { |t| t.include?('@sg-ignore') }
       end.keys.to_set
     end
 

@@ -143,10 +143,10 @@ describe Solargraph::ApiMap do
   describe '#cache_all_for_doc_map!' do
     it 'can cache gems without a bench' do
       api_map = described_class.new
-      doc_map = instance_double(Solargraph::DocMap, cache_doc_map_gems!: true)
+      doc_map = instance_double(Solargraph::DocMap, cache_all!: true)
       allow(Solargraph::DocMap).to receive(:new).and_return(doc_map)
       api_map.cache_all_for_doc_map!(out: $stderr)
-      expect(doc_map).to have_received(:cache_doc_map_gems!).with($stderr, rebuild: false)
+      expect(doc_map).to have_received(:cache_all!).with($stderr, rebuild: false)
     end
   end
 
@@ -182,6 +182,46 @@ describe Solargraph::ApiMap do
       api_map.map source
       pins = api_map.get_methods('Foo::Includer')
       expect(pins.map(&:path)).to include('Foo::Bar#baz')
+    end
+  end
+
+  describe '#typify' do
+    it 'expands named macros' do
+      source = Solargraph::Source.load_string(%(
+        # @!macro [new] klassify
+        #   @return [Array<$1>]
+        class Example
+          # @macro klassify
+          def foo(klass)
+          end  
+        end
+      ))
+      api_map = Solargraph::ApiMap.new.map(source)
+      pin = api_map.get_path_pins('Example#foo').first
+      expect(pin.typify(api_map).to_s).to eq('Array<klass>')
+    end
+  end
+
+  describe '#process_macros' do
+    it 'processes macro directives from extended modules' do
+      source = Solargraph::Source.load_string(%(
+        module Extension
+          # @!macro
+          #   @!method $1
+          #   @return [$2]
+          def make_method(name, klass)
+          end  
+        end
+
+        class Example
+          extend Extension
+
+          make_method :macro_method, String
+        end
+      ))
+      api_map = Solargraph::ApiMap.new.map(source)
+      pin = api_map.get_path_pins('Example#macro_method').first
+      expect(pin.return_type.to_s).to eq('String')
     end
   end
 end

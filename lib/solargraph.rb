@@ -49,6 +49,7 @@ module Solargraph
   autoload :RbsMap,           'solargraph/rbs_map'
   autoload :GemPins,          'solargraph/gem_pins'
   autoload :PinCache,         'solargraph/pin_cache'
+  autoload :RbsTranslator,    'solargraph/rbs_translator'
 
   dir = File.dirname(__FILE__)
   VIEWS_PATH = File.join(dir, 'solargraph', 'views')
@@ -83,6 +84,8 @@ module Solargraph
       return if type == :alias_target_missing && msg.include?('highline/compatibility.rb')
       # @sg-ignore flow sensitive typing needs to handle 'raise if'
       return if type == :alias_target_missing && msg.include?('lib/json/add/date.rb')
+      # @sg-ignore flow sensitive typing needs to handle 'raise if'
+      return if type == :alias_target_missing && msg.include?('rubocop-ast.rbs')
       # @todo :combine_with_visibility is not ready for prime time -
       #  lots of disagreements found in practice that heuristics need
       #  to be created for and/or debugging needs to resolve in pin
@@ -111,13 +114,13 @@ module Solargraph
   # @yieldreturn [generic<T>]
   # @sg-ignore dynamic call, but both functions behave the same
   # @return [generic<T>]
-  def self.with_clean_env &block
+  def self.with_clean_env(&)
     meth = if Bundler.respond_to?(:with_original_env)
              :with_original_env
            else
              :with_clean_env
            end
-    Bundler.send meth, &block
+    Bundler.send(meth, &)
   end
 end
 

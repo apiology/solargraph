@@ -17,9 +17,10 @@ AllCops:
     - "spec/fixtures/invalid_byte.rb"
     - "spec/fixtures/invalid_node_comment.rb"
     - "spec/fixtures/invalid_utf8.rb"
+    - "spec/fixtures/gem-with-yard-macros/**/*"
     - "vendor/**/*"
     - "vendor/**/.*"
-  TargetRubyVersion: 3.0
+  TargetRubyVersion: 3.1
 
 Gemspec/RequiredRubyVersion:
   Exclude:
@@ -67,6 +68,11 @@ Metrics/ParameterLists:
 
 # we tend to use @@ and the risk doesn't seem high
 Style/ClassVars:
+  Enabled: false
+
+# Allow $stderr.puts for communication with users as 'warn' can be
+# suppressed for unrelated reasons.
+Style/StderrPuts:
   Enabled: false
 
 #

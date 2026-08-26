@@ -143,17 +143,18 @@ module Solargraph
       end
 
       def return_type
-        @return_type ||= ComplexType.new(signatures.map(&:return_type).flat_map(&:items))
+        @return_type ||= return_type_from_inline_rbs || ComplexType.new(signatures.map(&:return_type).flat_map(&:items))
       end
 
       # @param parameters [::Array<Parameter>]
       # @param return_type [ComplexType, nil]
+      # @param tag_docstring [YARD::Docstring] source of @yieldparam/@yieldreturn tags; pass an @overload tag's own docstring here
       # @return [Signature]
-      def generate_signature parameters, return_type
+      def generate_signature parameters, return_type, tag_docstring = docstring
         # @type [Pin::Signature, nil]
         block = nil
-        yieldparam_tags = docstring.tags(:yieldparam)
-        yieldreturn_tags = docstring.tags(:yieldreturn)
+        yieldparam_tags = tag_docstring.tags(:yieldparam)
+        yieldreturn_tags = tag_docstring.tags(:yieldreturn)
         generics = docstring.tags(:generic).map(&:name)
         needs_block_param_signature =
           parameters.last&.block? || !yieldreturn_tags.empty? || !yieldparam_tags.empty?
@@ -188,18 +189,11 @@ module Solargraph
 
       # @return [::Array<Signature>]
       def signatures
-        @signatures ||= begin
-          top_type = generate_complex_type
-          result = []
-          result.push generate_signature(parameters, top_type) if top_type.defined?
-          unless overloads.empty?
-            result.concat(overloads.map do |meth|
-              generate_signature(meth.parameters, meth.return_type)
-            end)
-          end
-          result.push generate_signature(parameters, @return_type || ComplexType::UNDEFINED) if result.empty?
-          result
-        end
+        @signatures ||= if inline_rbs.empty?
+                          signatures_from_yard
+                        else
+                          signatures_from_inline_rbs
+                        end
       end
 
       # @param return_type [ComplexType]
@@ -279,7 +273,19 @@ module Solargraph
           # @sg-ignore Need to add nil check here
           "Method#typify(self=#{self}, binder=#{binder}, closure=#{closure}, context=#{context.rooted_tags}, return_type=#{return_type.rooted_tags}) - starting"
         end
-        decl = super
+        decl = if macro_names?
+          types = macro_names.flat_map do |mac|
+            directive = api_map.named_macro(mac)
+            next unless directive
+            macro = Solargraph::YardMap::Macro.from_directive(directive, self)
+            expanded = macro.macro_object.expand([name, *parameter_names])
+            docstring = Solargraph::Source.parse_docstring(expanded).to_docstring
+            docstring.tags(:return).flat_map(&:types)
+          end
+          ComplexType.try_parse(*types)
+        else
+          super
+        end
         unless decl.undefined?
           logger.debug do
             "Method#typify(self=#{self}, binder=#{binder}, closure=#{closure}, context=#{context}) => #{decl.rooted_tags.inspect} - decl found"
@@ -512,7 +518,9 @@ module Solargraph
         # @param new_signature [Pin::Signature]
         same_type_arity_signatures.reduce([]) do |old_signatures, new_signature|
           next old_signatures + [new_signature] if old_signatures.empty?
-          old_signatures.flat_map do |old_signature|
+
+          merged = false
+          combined = old_signatures.map do |old_signature|
             potential_new_signature = old_signature.combine_with(new_signature)
 
             if potential_new_signature.type_arity == old_signature.type_arity
@@ -525,11 +533,13 @@ module Solargraph
               # based on types, not just arity, allowing for type
               # information describing how methods behave based on
               # their input types)
-              old_signatures - [old_signature] + [potential_new_signature]
+              merged = true
+              potential_new_signature
             else
-              old_signatures + [new_signature]
+              old_signature
             end
           end
+          merged ? combined : old_signatures + [new_signature]
         end
       end
 
@@ -715,6 +725,43 @@ module Solargraph
         end
         .join("\n")
         .concat("```\n")
+      end
+
+      # @return [ComplexType, nil]
+      def return_type_from_inline_rbs
+        return nil if inline_rbs.empty?
+        method_type = RBS::Parser.parse_method_type(inline_rbs)
+        RbsTranslator.to_complex_type(method_type.type.return_type)
+      rescue RBS::ParsingError
+        nil
+      end
+
+      # @return [Array<Pin::Signature>]
+      def signatures_from_inline_rbs
+        method_type = RBS::Parser.parse_method_type(inline_rbs)
+        [RbsTranslator.to_signature(method_type, self, parameter_names)]
+      rescue RBS::ParsingError
+        signatures_from_yard
+      end
+
+      # @return [Array<Pin::Signature>]
+      def signatures_from_yard
+        top_type = generate_complex_type
+        result = []
+        result.push generate_signature(parameters, top_type) if top_type.defined?
+        # @param meth [Pin::Signature]
+        # @param tag [YARD::Tags::OverloadTag]
+        result.concat(overloads.zip(docstring.tags(:overload).select(&:parameters)).map { |meth, tag| generate_signature(meth.parameters, meth.return_type, tag.docstring) }) unless overloads.empty?
+        result.push generate_signature(parameters, @return_type || ComplexType::UNDEFINED) if result.empty?
+        result
+      end
+
+      # @return [String]
+      def inline_rbs
+        comments.lines
+                .select { |line| line.start_with?(': ') }
+                .map { |line| line[2..].strip }
+                .join("\n")
       end
     end
   end

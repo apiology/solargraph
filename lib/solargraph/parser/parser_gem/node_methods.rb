@@ -4,6 +4,7 @@ require 'parser'
 require 'ast'
 
 # https://github.com/whitequark/parser
+# rubocop:disable Metrics/ModuleLength
 module Solargraph
   module Parser
     module ParserGem
@@ -99,6 +100,48 @@ module Solargraph
             signature += node.children[1].to_s
           end
           signature
+        end
+
+        # Convert a DSL method call argument with directly inferrable simple params.
+        # @param node [Parser::AST::Node]
+        # @return [String, Integer, Float, Symbol, Array, Hash, Source::Chain, nil]
+        # @sg-ignore "does not match inferred type ::String, ::Parser::AST::Node" - this probably comes from the
+        # `.children[0]` call, which is not recognized as returning a literal value.
+        def simple_convert node
+          return nil unless Parser.is_ast_node?(node)
+
+          case node.type
+          when :const
+            unpack_name(node)
+          when :str, :dstr, :int, :float, :sym, true, false
+            node.children[0]
+          when :array
+            simple_convert_array(node)
+          when :hash
+            simple_convert_hash(node)
+          else
+            Solargraph::Parser.chain(node)
+          end
+        end
+
+        # @param node [Parser::AST::Node]
+        # @return [Array]
+        def simple_convert_array node
+          return [] unless Parser.is_ast_node?(node) && node.type == :array
+          node.children.compact.map { |c| simple_convert(c) }
+        end
+
+        # @param node [Parser::AST::Node]
+        # @return [Hash]
+        def simple_convert_hash node
+          return {} unless Parser.is_ast_node?(node) && node.type == :hash
+          result = {}
+          # @param pair [Parser::AST::Node]
+          node.children.each do |pair|
+            next unless Parser.is_ast_node?(pair) && pair.children[0]
+            result[pair.children[0].children[0]] = simple_convert(pair.children[1])
+          end
+          result
         end
 
         # @param node [Parser::AST::Node, nil]
@@ -246,15 +289,100 @@ module Solargraph
             end
             prev = node
           end
-          nil
+          find_recipient_node_by_text(source, offset)
+        end
+
+        # Text-based fallback for finding a method call recipient when the AST
+        # is unavailable (e.g., unparseable source with syntax errors).
+        #
+        # Scans backward from cursor offset to find '(' and the method name
+        # before it, then creates a minimal :send node.
+        #
+        # @param source [Solargraph::Source]
+        # @param offset [Integer]
+        # @return [Parser::AST::Node, nil]
+        def find_recipient_node_by_text source, offset
+          code = source.code
+          return nil if offset.nil? || offset <= 0 || offset > code.length
+
+          # The '(' could be at offset-1 (cursor after '(') or at offset (cursor on '(')
+          start_pos = offset - 1
+          if start_pos.positive? && code[start_pos] != '(' && code[offset] == '('
+            start_pos = offset
+          end
+
+          # Scan backward to find the matching '(' (handle nested parens)
+          depth = 0
+          paren_pos = nil
+          pos = start_pos
+          while pos >= 0
+            case code[pos]
+            when ')'
+              depth += 1
+            when '('
+              if depth.zero?
+                paren_pos = pos
+                break
+              end
+              depth -= 1
+            end
+            pos -= 1
+          end
+          return nil if paren_pos.nil?
+
+          # Skip whitespace before '(' to find method name
+          idx = paren_pos - 1
+          idx -= 1 while idx >= 0 && code[idx] =~ /\s/
+          return nil if idx.negative?
+
+          # Read method name (including ? and !)
+          name_end = idx + 1
+          idx -= 1 while idx >= 0 && code[idx] =~ /[a-zA-Z0-9_?!]/
+          name_start = idx + 1
+          return nil if name_start >= name_end
+          method_name = code[name_start...name_end]
+          return nil if method_name.empty?
+
+          # Check for receiver pattern: receiver.method( or receiver::method(
+          idx = name_start - 1
+          idx -= 1 while idx >= 0 && code[idx] =~ /\s/
+          if idx >= 0 && code[idx] == '.'
+            idx -= 1
+            idx -= 1 while idx >= 0 && code[idx] =~ /\s/
+            recv_end = idx + 1
+            idx -= 1 while idx >= 0 && code[idx] =~ /[a-zA-Z0-9_@$]/
+            recv_start = idx + 1
+            if recv_start < recv_end
+              recv_name = code[recv_start...recv_end]
+              unless recv_name.empty?
+                receiver_node = ::Parser::AST::Node.new(:send, [nil, recv_name.to_sym])
+                return ::Parser::AST::Node.new(:send, [receiver_node, method_name.to_sym])
+              end
+            end
+          elsif idx >= 0 && idx.positive? && code[idx - 1] == ':' && code[idx] == ':'
+            const_end = idx - 1
+            const_start = const_end
+            const_start -= 1 while const_start.positive? && code[const_start - 1] =~ /[a-zA-Z0-9_]/
+            const_name = code[const_start...const_end]
+            unless const_name.empty? || method_name.empty?
+              const_node = ::Parser::AST::Node.new(:const, [nil, const_name.to_sym])
+              return ::Parser::AST::Node.new(:send, [const_node, method_name.to_sym])
+            end
+          end
+
+          # Simple method call without receiver
+          ::Parser::AST::Node.new(:send, [nil, method_name.to_sym])
         end
 
         # @param cursor [Solargraph::Source::Cursor]
         # @return [Parser::AST::Node, nil]
         def repaired_find_recipient_node cursor
-          cursor = cursor.source.cursor_at([cursor.position.line, cursor.position.column - 1])
-          node = cursor.source.tree_at(cursor.position.line, cursor.position.column).first
-          node if node && node.type == :send
+          c = cursor.source.cursor_at([cursor.position.line, cursor.position.column - 1])
+          tree = c.source.tree_at(c.position.line, c.position.column)
+          tree.each do |node|
+            return node if node.type == :send
+          end
+          find_recipient_node_by_text(cursor.source, cursor.offset)
         end
 
         #
@@ -505,3 +633,4 @@ module Solargraph
     end
   end
 end
+# rubocop:enable Metrics/ModuleLength

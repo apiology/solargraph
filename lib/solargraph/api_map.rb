@@ -107,6 +107,7 @@ module Solargraph
     # @return [self]
     def catalog bench
       @source_map_hash = bench.source_map_hash
+      # @type [Array<Pin::Base>]
       iced_pins = bench.icebox.flat_map(&:pins)
       live_pins = bench.live_map&.all_pins || []
       conventions_environ.clear
@@ -115,16 +116,48 @@ module Solargraph
       end
       unresolved_requires = (bench.external_requires + conventions_environ.requires + bench.workspace.config.required).to_a.compact.uniq
       recreate_docmap = @unresolved_requires != unresolved_requires ||
+                        # @sg-ignore Unresolved call to rbs_collection_path on Solargraph::Workspace, nil
                         workspace.rbs_collection_path != bench.workspace.rbs_collection_path ||
-                        @doc_map.any_uncached?
+                        @doc_map.uncached_gemspecs.any?
 
       if recreate_docmap
         @doc_map = DocMap.new(unresolved_requires, bench.workspace, out: nil) # @todo Implement gem preferences
         @unresolved_requires = @doc_map.unresolved_requires
       end
-      @cache.clear if store.update(@@core_map.pins, @doc_map.pins, conventions_environ.pins, iced_pins, live_pins)
+      start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      Solargraph.logger.info 'Cataloging ApiMap started'
+      @cache.clear if store.update(@@core_map.pins, @doc_map.pins, conventions_environ.pins, iced_pins, live_pins) { process_macros }
       @missing_docs = [] # @todo Implement missing docs
+      Solargraph.logger.info "Cataloging ApiMap finished in #{Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time} seconds"
       self
+    end
+
+    # @return [Array<Pin::Base>]
+    def process_macros
+      macro_pins = []
+      Solargraph.logger.debug { "ApiMap#process_macros: processing macros for #{source_maps.size} source maps" }
+      Solargraph.logger.debug { "ApiMap#process_macros: store has #{store.macro_method_name_pins.size} macro method name pins" }
+      Solargraph.logger.debug { "ApiMap#process_macros: named macros: #{store.named_macros.keys.join(', ')}" }
+      source_maps.each do |source_map|
+        method_candidates = source_map.macro_method_candidates(store.macro_method_names)
+        Solargraph.logger.debug { "ApiMap#process_macros: processing source map for #{source_map.filename} with #{method_candidates.size} macro method candidates" }
+        method_candidates.each do |node|
+          closure = source_map.locate_closure_pin(node.location.line, node.location.column)
+          chain = Solargraph::Parser::ParserGem::NodeChainer.chain(node)
+          if node.children[0].nil? && store.macro_method_name_pins.key?(node.children[1].to_s)
+            match = store.macro_method_name_pins[node.children[1].to_s].find do |pin|
+              get_complex_type_methods(closure.return_type).include?(pin)
+            end
+            if match
+              match.macros.each do |macro|
+                macro_pins.concat macro.generate_pins_from(chain, match, source_map)
+              end
+              next
+            end
+          end
+        end
+      end
+      macro_pins
     end
 
     # @return [DocMap]
@@ -137,13 +170,23 @@ module Solargraph
       doc_map.uncached_gemspecs || []
     end
 
+    # @return [::Array<Gem::Specification>]
+    def uncached_rbs_collection_gemspecs
+      @doc_map.uncached_rbs_collection_gemspecs
+    end
+
+    # @return [::Array<Gem::Specification>]
+    def uncached_yard_gemspecs
+      @doc_map.uncached_yard_gemspecs
+    end
+
     # @return [Enumerable<Pin::Base>]
     def core_pins
       @@core_map.pins
     end
 
     # @param name [String, nil]
-    # @return [YARD::Tags::MacroDirective, nil]
+    # @return [Solargraph::YardMap::Macro, nil]
     def named_macro name
       # @sg-ignore Need to add nil check here
       store.named_macros[name]
@@ -198,7 +241,7 @@ module Solargraph
     # @param rebuild [Boolean] whether to rebuild the pins even if they are cached
     # @return [void]
     def cache_all_for_doc_map! out: $stderr, rebuild: false
-      doc_map.cache_doc_map_gems!(out, rebuild: rebuild)
+      doc_map.cache_all!(out, rebuild: rebuild)
     end
 
     # @param gemspec [Gem::Specification]
@@ -243,6 +286,12 @@ module Solargraph
     # @return [Enumerable<Solargraph::Pin::Keyword>]
     def keyword_pins
       store.pins_by_class(Pin::Keyword)
+    end
+
+    # @param name [String]
+    # @return [ComplexType, nil]
+    def unalias name
+      store.unalias(name)
     end
 
     # True if the namespace exists.
@@ -354,10 +403,12 @@ module Solargraph
     # @param candidates [Array<Pin::BaseVariable>]
     # @param name [String]
     # @param closure [Pin::Closure]
-    # @param location [Location]
+    # @param location [Location, nil]
     #
     # @return [Pin::BaseVariable, nil]
     def var_at_location candidates, name, closure, location
+      return unless location
+
       with_correct_name = candidates.select { |pin| pin.name == name }
       vars_at_location = with_correct_name.reject do |pin|
         # visible_at? excludes the starting position, but we want to
@@ -399,11 +450,6 @@ module Solargraph
     # @param deep [Boolean] True to include superclasses, mixins, etc.
     # @return [Array<Solargraph::Pin::Method>]
     def get_methods rooted_tag, scope: :instance, visibility: [:public], deep: true
-      if rooted_tag.start_with? 'Array('
-        # Array() are really tuples - use our fill, as the RBS repo
-        # does not give us definitions for it
-        rooted_tag = "Solargraph::Fills::Tuple(#{rooted_tag[6..-2]})"
-      end
       rooted_type = ComplexType.try_parse(rooted_tag)
       fqns = rooted_type.namespace
       namespace_pin = store.get_path_pins(fqns).select { |p| p.is_a?(Pin::Namespace) }.first
@@ -705,10 +751,10 @@ module Solargraph
       logger.debug do
         "ApiMap#resolve_method_aliases(pins=#{pins.map(&:name)}, visibility=#{visibility}) => #{with_resolved_aliases.map(&:name)}"
       end
-      GemPins.combine_method_pins_by_path(with_resolved_aliases)
+      with_resolved_aliases
     end
 
-    # @return [Workspace]
+    # @return [Workspace, nil]
     def workspace
       doc_map.workspace
     end

@@ -7,7 +7,7 @@ describe Solargraph::YardMap::Mapper do
 
   def pins_with require
     doc_map = Solargraph::DocMap.new([require], @api_map.workspace, out: nil)
-    doc_map.cache_doc_map_gems!(nil)
+    doc_map.cache_all!(nil)
     doc_map.pins
   end
 
@@ -58,6 +58,20 @@ describe Solargraph::YardMap::Mapper do
     expect(pin.closure.path).to eq('YARD::CodeObjects::ClassObject')
   end
 
+  it 'skips the Object superclass YARD records when no clause was seen' do
+    dir = File.absolute_path(File.join('spec', 'fixtures', 'yard_map'))
+    pins = Dir.chdir dir do
+      YARD::Registry.load([File.join(dir, 'superclass.rb')], true)
+      described_class.new(YARD::Registry.all).map
+    end
+    FileUtils.remove_entry_secure File.join(dir, '.yardoc')
+    refs = pins.select do |pin|
+      pin.is_a?(Solargraph::Pin::Reference::Superclass) && pin.closure.path.start_with?('Superclass')
+    end
+    expect(refs.map { |ref| [ref.closure.path, ref.name] })
+      .to eq([%w[SuperclassDeclared SuperclassBase]])
+  end
+
   it 'adds include references' do
     # Asssuming the ast gem exists because it's a known dependency
     inc = pins_with('ast').find do |pin|
@@ -80,5 +94,23 @@ describe Solargraph::YardMap::Mapper do
       pin.is_a?(Solargraph::Pin::Reference::Extend) && pin.name == 'Enumerable' && pin.closure.path == 'YARD::Registry'
     end
     expect(ext).to be_a(Solargraph::Pin::Reference::Extend)
+  end
+
+  it 'loads macros from gems' do
+    # Using gem-with-yard-macros fixture, which declares `@!macro my_attribute`
+    # on `Gem::With::Yard::Macros::MyStruct.my_attribute`.
+    pin = pins_with('gem-with-yard-macros').find do |pin|
+      pin.is_a?(Solargraph::Pin::Method) && pin.path == 'Gem::With::Yard::Macros::MyStruct.my_attribute'
+    end
+    expect(pin).to be_a(Solargraph::Pin::Method)
+    expect(pin.macros.map(&:name)).to include('my_attribute')
+  end
+
+  it 'adjusts YARD namespaces that conflict with core constants' do
+    gemspec = Gem::Specification.find_by_name('pp')
+    code_objects = Solargraph::Yardoc.load!(gemspec)
+    mapper = described_class.new(code_objects)
+    pins = mapper.map
+    expect(pins.map(&:path)).to include('RBS::Unnamed::ENVClass#pretty_print')
   end
 end

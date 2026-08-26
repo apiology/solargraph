@@ -21,11 +21,11 @@ module Solargraph
       #   - pinsets[0] = core Ruby pins
       #   - pinsets[1] = documentation/gem pins
       #   - pinsets[2] = convention pins
-      #   - pinsets[3] = workspace source pins
+      #   - pinsets[3] = workspace source pins (aka. "iced_pins")
       #   - pinsets[4] = currently open file pins
       # @return [Boolean] True if the index was updated
-      def update *pinsets
-        return catalog(pinsets) if pinsets.length != @pinsets.length
+      def update *pinsets, &block
+        return catalog(pinsets, &block) if pinsets.length != @pinsets.length
 
         changed = pinsets.find_index.with_index { |pinset, idx| @pinsets[idx] != pinset }
         return false unless changed
@@ -43,6 +43,9 @@ module Solargraph
                                       @indexes[changed + idx - 1].merge(pins)
                                     end
         end
+        # @type [Index]
+        @index = @indexes.last.clone
+        @index = @index.merge(block.call) if block
         constants.clear
         cached_qualify_superclass.clear
         true
@@ -71,10 +74,9 @@ module Solargraph
       # @param visibility [Array<Symbol>]
       # @return [Enumerable<Solargraph::Pin::Method>]
       def get_methods fqns, scope: :instance, visibility: [:public]
-        all_pins = namespace_children(fqns).select do |pin|
+        namespace_children(fqns).select do |pin|
           pin.is_a?(Pin::Method) && pin.scope == scope && visibility.include?(pin.visibility)
         end
-        GemPins.combine_method_pins_by_path(all_pins)
       end
 
       BOOLEAN_SUPERCLASS_PIN = Pin::Reference::Superclass.new(name: 'Boolean', closure: Pin::ROOT_PIN,
@@ -175,7 +177,7 @@ module Solargraph
         result
       end
 
-      # @return [Hash{String => YARD::Tags::MacroDirective}]
+      # @return [Hash{String => YardMap::Macro}]
       def named_macros
         @named_macros ||= begin
           result = {}
@@ -271,17 +273,33 @@ module Solargraph
         @constants ||= Constants.new(self)
       end
 
+      # @param name [String]
+      # @return [ComplexType, nil]
+      def unalias name
+        index.alias_hash[name]
+      end
+
+      # @return [Array<String>]
+      def macro_method_names
+        index.macro_method_names
+      end
+
+      # @return [Hash{String => Array<Pin::Method>}]
+      def macro_method_name_pins
+        index.macro_method_name_pins
+      end
+
       private
 
       # @return [Index]
       def index
-        @indexes.last
+        @index ||= Index.new
       end
 
       # @param pinsets [Array<Array<Pin::Base>>]
       #
       # @return [true]
-      def catalog pinsets
+      def catalog pinsets, &block
         @pinsets = pinsets
         # @type [Array<Index>]
         @indexes = []
@@ -292,14 +310,16 @@ module Solargraph
             @indexes.push(@indexes.last&.merge(pins) || Solargraph::ApiMap::Index.new(pins))
           end
         end
+        @index = @indexes.last.clone
+        @index = @index.merge(block.call) if block
         constants.clear
         cached_qualify_superclass.clear
         true
       end
 
-      # @return [Hash{::Array(String, String) => ::Array<Pin::Namespace>}]
+      # @return [Hash{::Array, String, String => ::Array<Pin::Namespace>}]
       def fqns_pins_map
-        # @param h [Hash{::Array(String, String) => ::Array<Pin::Namespace>}]
+        # @param h [Hash{::Array, String, String => ::Array<Pin::Namespace>}]
         # @param base [String]
         # @param name [String]
         @fqns_pins_map ||= Hash.new do |h, (base, name)|

@@ -129,35 +129,6 @@ describe Solargraph::Shell do
         expect(output).to include("Gem 'solargraph123' not found")
       end
     end
-
-    context 'with mocked Workspace' do
-      let(:workspace) { instance_double(Solargraph::Workspace) }
-      let(:gemspec) { instance_double(Gem::Specification, name: 'backport') }
-
-      before do
-        allow(Solargraph::Workspace).to receive(:new).and_return(workspace)
-      end
-
-      it 'caches all without erroring out' do
-        allow(workspace).to receive(:cache_all_for_workspace!)
-
-        _output = capture_both { shell.gems }
-
-        expect(workspace).to have_received(:cache_all_for_workspace!)
-      end
-
-      it 'caches single gem without erroring out' do
-        allow(workspace).to receive(:find_gem).with('backport').and_return(gemspec)
-        allow(workspace).to receive(:cache_gem)
-
-        capture_both do
-          shell.options = { rebuild: false }
-          shell.gems('backport')
-        end
-
-        expect(workspace).to have_received(:cache_gem).with(gemspec, out: an_instance_of(StringIO), rebuild: false)
-      end
-    end
   end
 
   describe 'cache' do
@@ -311,6 +282,83 @@ describe Solargraph::Shell do
           # Ignore the SystemExit raised by the shell when no pin is found
         end
         expect(out).to include("Pin not found for path 'Not#found'")
+      end
+    end
+  end
+
+  context 'with unbundled environments' do
+    let!(:command_path) { File.realpath(File.join('spec', 'fixtures', 'shim.rb')) }
+    let!(:unbundled_env) { Bundler.unbundled_env.merge({ 'BUNDLE_GEMFILE' => nil }) }
+
+    describe '#cache' do
+      it 'succeeds' do
+        Dir.mktmpdir do |tmpdir|
+          File.write(File.join(tmpdir, 'test.rb'), 'foo')
+          _o, e, s = Open3.capture3(unbundled_env, 'ruby', command_path, 'cache', 'rspec', chdir: tmpdir)
+          expect(s).to be_success, "expected success, got error with message #{e.inspect}"
+        end
+      end
+    end
+
+    describe '#gems' do
+      it 'succeeds' do
+        Dir.mktmpdir do |tmpdir|
+          File.write(File.join(tmpdir, 'test.rb'), 'foo')
+          _o, e, s = Open3.capture3(unbundled_env, 'ruby', command_path, 'gems', 'rspec', chdir: tmpdir)
+          expect(s).to be_success, "expected success, got error with message #{e.inspect}"
+        end
+      end
+    end
+
+    describe 'rbs' do
+      let(:api_map) { instance_double(Solargraph::ApiMap) }
+
+      before do
+        allow(shell).to receive(:`)
+        allow(Solargraph::ApiMap).to receive(:load).and_return(api_map)
+        allow(api_map).to receive(:source_maps).and_return(source_maps)
+      end
+
+      context 'without inference' do
+        let(:source_maps) { [] }
+
+        it 'invokes sord' do
+          capture_both do
+            shell.options = { filename: 'foo.rbs' }
+            shell.rbs
+          end
+          expect(shell)
+            .to have_received(:`)
+            .with("sord #{Dir.pwd}/sig/foo.rbs --rbs --no-regenerate")
+        end
+      end
+
+      context 'with inference' do
+        let(:source_maps) { [source_map] }
+        let(:source_map) { instance_double(Solargraph::SourceMap) }
+        let(:pin) do
+          instance_double(Solargraph::Pin::Method,
+                          namespace: 'My::Namespace', path: 'My::Namespace#foo',
+                          visibility: :public,
+                          parameters: [],
+                          scope: :instance,
+                          location: nil,
+                          name: 'foo',
+                          class: Solargraph::Pin::Method,
+                          return_type: Solargraph::ComplexType::UNDEFINED)
+        end
+
+        it 'infers unknown types on pins' do
+          allow(source_map).to receive(:pins).and_return([pin])
+          allow(pin).to receive_messages(typify: Solargraph::ComplexType.parse('String'),
+                                         docstring: YARD::Docstring.new(''), macros: [])
+          allow(pin).to receive(:code_object).and_return(nil)
+          capture_both do
+            shell.options = { filename: 'foo.rbs', inference: true }
+            shell.rbs
+          end
+          expect(pin).to have_received(:typify)
+        end
       end
     end
   end
