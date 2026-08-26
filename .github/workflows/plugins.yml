@@ -128,7 +128,7 @@ jobs:
        # pending https://github.com/lekemula/solargraph-rspec/pull/31
        git clone https://github.com/apiology/solargraph-rspec.git
        cd solargraph-rspec
-       git checkout fix-stale-hash-literal-assertions
+       git checkout tolerate-hash-literal-inference-versions
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
       with:
