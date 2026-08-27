@@ -1220,12 +1220,6 @@ module Solargraph
         clause_node&.type == :break
       end
 
-      # @param clause_node [Parser::AST::Node, nil]
-      def always_leaves_compound_statement? clause_node
-        # https://docs.ruby-lang.org/en/2.2.0/keywords_rdoc.html
-        %i[return raise next redo retry].include?(clause_node&.type)
-      end
-
       attr_reader :locals, :ivars, :enclosing_breakable_pin, :enclosing_compound_statement_pin, :closure,
                   :restricted_names
     end
