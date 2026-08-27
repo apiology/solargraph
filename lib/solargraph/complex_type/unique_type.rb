@@ -714,10 +714,17 @@ module Solargraph
           # qualification: widening `:a` to Symbol in `Hash{:a => String}`
           # would erase which key the type is talking about. Literals
           # elsewhere still widen to their class.
-          new_key_types = @key_types.flat_map do |ct|
-            ct.items.map { |ut| ut.literal_tag? ? ut : ut.qualify(api_map, *gates) }
+          #
+          # map (not flat_map) over @key_types/@subtypes: each entry is one
+          # parameter position, and must stay one position - flat_map would
+          # splice a union position's qualified members in as extra
+          # positions instead of keeping them together in one ComplexType.
+          new_key_types = @key_types.map do |ct|
+            ComplexType.new(ct.items.map { |ut| ut.literal_tag? ? ut : ut.qualify(api_map, *gates) })
           end
-          new_subtypes = @subtypes.flat_map { |ct| ct.items.map { |ut| ut.qualify(api_map, *gates) } }
+          new_subtypes = @subtypes.map do |ct|
+            ComplexType.new(ct.items.map { |ut| ut.qualify(api_map, *gates) })
+          end
         end
         qualified = recreate(new_key_types: new_key_types, new_subtypes: new_subtypes)
         return qualified if name == GENERIC_TAG_NAME || duck_type? || void? || undefined? || literal? || bot?
