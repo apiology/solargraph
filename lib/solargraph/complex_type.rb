@@ -496,7 +496,9 @@ module Solargraph
         end
       end
       if types.empty?
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1297
         duck_candidates = narrowing_type.select(&:duck_type?)
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1297
         types = duck_candidates.empty? ? [ComplexType::UniqueType::UNDEFINED] : duck_candidates
       end
       ComplexType.new(types)
