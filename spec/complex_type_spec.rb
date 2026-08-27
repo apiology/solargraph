@@ -474,6 +474,51 @@ describe 'YARD type specifier list parsing' do
       expect(types.to_rbs).to eq('Array[String & Comparable]')
     end
 
+    describe 'delegating to the first conjunct' do
+      let(:intersection) { Solargraph::ComplexType.parse('String & Comparable').first }
+
+      it 'reports the scope of its first conjunct' do
+        expect(intersection.scope).to eq(:instance)
+      end
+
+      it 'reports rooted for #namespace via the first conjunct' do
+        expect(intersection.namespace).to eq('String')
+      end
+    end
+
+    describe '#all_rooted?' do
+      it 'is true when every conjunct is rooted' do
+        intersection = Solargraph::ComplexType.parse('::String & ::Comparable').first
+        expect(intersection.all_rooted?).to be true
+      end
+
+      it 'is false when any conjunct is unrooted' do
+        intersection = Solargraph::ComplexType.parse('::String & Comparable').first
+        expect(intersection.all_rooted?).to be false
+      end
+    end
+
+    describe '#each_unique_type' do
+      it 'yields the unique type from every conjunct' do
+        intersection = Solargraph::ComplexType.parse('String & Comparable').first
+        yielded = []
+        intersection.each_unique_type { |ut| yielded << ut.tag }
+        expect(yielded).to eq(%w[String Comparable])
+      end
+
+      it 'returns an enumerator when no block is given' do
+        intersection = Solargraph::ComplexType.parse('String & Comparable').first
+        expect(intersection.each_unique_type.map(&:tag)).to eq(%w[String Comparable])
+      end
+    end
+
+    describe '#erase_parameters' do
+      it 'returns itself unchanged' do
+        intersection = Solargraph::ComplexType.parse('Hash{"a" => String} & Comparable').first
+        expect(intersection.erase_parameters).to equal(intersection)
+      end
+    end
+
     # `&` binds tighter than the top-level `,` (union), matching RBS's
     # documented precedence: "A & B | C is (A & B) | C". Our
     # single-pass parser doesn't implement precedence via grouping -
@@ -1175,6 +1220,22 @@ describe 'YARD type specifier list parsing' do
       ptype = Solargraph::ComplexType.parse('Array<Integer>')
       atype = Solargraph::ComplexType.parse('Array<Integer>')
       expect(atype.conforms_to?(api_map, ptype, :method_call)).to be(true)
+    end
+
+    it 'recognizes a union of intersections conforms with itself' do
+      # Regression test: when an inferred union has a member that is
+      # itself an intersection (e.g. `Class<Foo> & false`), comparing
+      # the union to itself must not fall back to asking that single
+      # conjunct to satisfy the whole union on its own - `false` can't
+      # conform to `Class<Foo> & nil, Class<Foo> & false, nil` by
+      # itself, even though the union as a whole conforms to itself.
+      # This depends on
+      # Intersection#any_union_alternative_conforms? trying each
+      # union alternative individually before falling back to the
+      # "every conjunct must satisfy the whole union" comparison.
+      api_map = Solargraph::ApiMap.new
+      type = Solargraph::ComplexType.parse('Class<Foo> & nil, Class<Foo> & false, nil')
+      expect(type.conforms_to?(api_map, type, :method_call)).to be(true)
     end
 
     it 'recognizes a literal conforms with its type' do

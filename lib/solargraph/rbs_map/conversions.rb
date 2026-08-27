@@ -819,9 +819,10 @@ module Solargraph
       # @param [Object] implicit_nil
       def extract_method_type_return_type type, implicit_nil
         # @sg-ignore Wrong argument type for to_complex_type: type expected RBS::Types::Bases::Base, received union of concrete subtypes
-        tag = RbsTranslator.to_complex_type(type.type.return_type, type_alias_decls: type_alias_decls)
-        return ComplexType.parse("#{tag}, nil") if tag && implicit_nil
-        tag
+        return_type = RbsTranslator.to_complex_type(type.type.return_type, type_alias_decls: type_alias_decls)
+        return ComplexType.new(return_type.items + [ComplexType::UniqueType::NIL]) if return_type && implicit_nil
+
+        return_type
       end
 
       # @param type_name [RBS::TypeName]
