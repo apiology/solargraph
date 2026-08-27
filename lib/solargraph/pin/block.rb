@@ -55,14 +55,35 @@ module Solargraph
 
       # @param yield_types [::Array<ComplexType>]
       # @param parameters [::Array<Parameter>]
+      # @param yield_params [::Array<Parameter>, nil] the yielding method's
+      #   own block signature parameters that produced yield_types - used to
+      #   tell a genuine single yielded value apart from a splat
+      #   ("*arg") standing in for an unknown number of values (e.g. a
+      #   dynamically-dispatched `.send(...) { ... }` block, whose RBS
+      #   signature is `(*arg ::Array) -> untyped`)
       #
       # @return [::Array<ComplexType>]
-      def destructure_yield_types yield_types, parameters
+      # @sg-ignore Declared return type does not match inferred - adding the
+      #   splat-detection return below changes how Solargraph merges this
+      #   method's multiple return paths, and it now infers Enumerator
+      #   instead of Array for the tail expression even though that
+      #   expression is unchanged from before this method had more than
+      #   one return path, when it typechecked cleanly.
+      def destructure_yield_types yield_types, parameters, yield_params = nil
         # yielding a tuple into a block will destructure the tuple
         if yield_types.length == 1
           yield_type = yield_types.first
           # @sg-ignore Need to add nil check here
           return yield_type.all_params if yield_type.tuple? && yield_type.all_params.length == parameters.length
+        end
+        # A lone splat block parameter on the yielding method means "an
+        # unknown number of values will be yielded," not "one value,
+        # typed as an Array, was yielded." Binding that whole Array type
+        # to the block's own first parameter is wrong whenever that
+        # parameter isn't itself a splat - Ruby truncates to the first
+        # yielded value there, it doesn't collect them into an Array.
+        if single_unknown_arity_splat?(yield_params) && !(parameters.length == 1 && parameters.first&.restarg?)
+          return parameters.map { ComplexType::UNDEFINED }
         end
         parameters.map.with_index { |_, idx| yield_types[idx] || ComplexType::UNDEFINED }
       end
@@ -87,12 +108,16 @@ module Solargraph
         only_type.tuple? && only_type.all_params.length == parameters.length
       end
 
+      # @param yield_params [::Array<Parameter>, nil]
+      # @return [Boolean]
+      def single_unknown_arity_splat? yield_params
+        return false if yield_params.nil? || yield_params.length != 1
+
+        yield_params.first&.restarg? == true
+      end
+
       # @param api_map [ApiMap]
       # @return [::Array<ComplexType>]
-      # @sg-ignore Declared return type does not match inferred - three-way
-      #   merge interaction: the `partial&.map || parameters.map` tail's
-      #   or-expression now routes through Chain::Or (castwide/solargraph#1309)
-      #   and widens with the partial-result union from apiology/solargraph#60
       def typify_parameters api_map
         chain = Parser.chain(receiver, filename, node)
         # @sg-ignore Need to add nil check here
@@ -107,10 +132,11 @@ module Solargraph
         meths.each do |meth|
           next if meth.block.nil?
 
-          yield_types = meth.block.parameters.map(&:return_type)
+          yield_params = meth.block.parameters
+          yield_types = yield_params.map(&:return_type)
           # 'arguments' is what the method says it will yield to the
           # block; 'parameters' is what the block accepts
-          argument_types = destructure_yield_types(yield_types, parameters)
+          argument_types = destructure_yield_types(yield_types, parameters, yield_params)
           param_types = argument_types.each_with_index.map do |arg_type, idx|
             param = parameters[idx]
             # @sg-ignore Need to add nil check here
