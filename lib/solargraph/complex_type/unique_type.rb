@@ -575,7 +575,15 @@ module Solargraph
               # @sg-ignore Unresolved call to resolve_generics on Solargraph::ComplexType, nil
               definitions.generic_defaults[generic_name].resolve_generics(definitions, context_type)
             else
-              ComplexType::UNDEFINED
+              # No concrete value was supplied for this type param (e.g.
+              # a bare reference to a generic class/superclass with no
+              # type arguments) and it has no default. Leave it as an
+              # unbound generic placeholder rather than erasing it to
+              # untyped -- the same type param queried directly on its
+              # declaring class (with no reference/superclass involved)
+              # is never substituted at all and stays unbound the same
+              # way.
+              t
             end
           else
             t
