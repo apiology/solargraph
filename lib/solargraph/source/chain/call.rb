@@ -122,16 +122,6 @@ module Solargraph
           end
           new_signature_pin = overload.resolve_generics_from_context_until_complete(overload.generics, atypes, nil, nil,
                                                                                     blocktype)
-          # @todo It shouldn't be necessary to choose either generics or macros
-          # @sg-ignore Need to add nil check here
-          new_return_type = if new_signature_pin.return_type.defined?
-                              # @sg-ignore Need to add nil check here
-                              new_signature_pin.return_type
-                            else
-                              # @sg-ignore Need to add nil check here
-                              named_types = pin.parameter_names.zip(arguments.map { |arg| ComplexType.try_parse(simple_convert(arg.node).to_s) }).to_h
-                              pin.typify(api_map).expand(named_types)
-                            end
           self_type = if head?
                         # If we're at the head of the chain, we called a
                         # method somewhere that marked itself as returning
@@ -147,6 +137,18 @@ module Solargraph
                         # place where the method is defined
                         name_pin.binder
                       end
+          # @todo It shouldn't be necessary to choose either generics or macros
+          # @sg-ignore Need to add nil check here
+          new_return_type = if new_signature_pin.return_type.defined?
+                              # @sg-ignore Need to add nil check here
+                              new_signature_pin.return_type
+                            else
+                              # @sg-ignore Need to add nil check here
+                              named_types = pin.parameter_names.zip(arguments.map { |arg| ComplexType.try_parse(simple_convert(arg.node).to_s) }).to_h
+                              # self_type carries the receiver's own type args, needed to
+                              # resolve a class generic inherited via typify_from_super
+                              pin.typify(api_map, context_type: self_type).expand(named_types)
+                            end
           # This same logic applies to the YARD work done by
           # 'with_params()'.
           #

@@ -401,6 +401,31 @@ describe Solargraph::Source::Chain::Call do
     expect(type.tag).to eq('String')
   end
 
+  it 'resolves a class generic inherited through the ancestor stack' do
+    source = Solargraph::Source.load_string(%(
+      # @generic A
+      class Base
+        # @return [generic<A>]
+        def bar; end
+      end
+
+      class Sub < Base
+        def bar; end
+      end
+
+      # @type [Sub<String>]
+      f = Sub.new
+      a = f.bar
+      a
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+
+    chain = Solargraph::Source::SourceChainer.chain(source, Solargraph::Position.new(14, 7))
+    type = chain.infer(api_map, Solargraph::Pin::ROOT_PIN, api_map.source_map('test.rb').locals)
+    expect(type.tag).to eq('String')
+  end
+
   it 'denies calls off of nilable objects when loose union mode is off' do
     source = Solargraph::Source.load_string(%(
       # @type [String, nil]

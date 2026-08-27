@@ -268,7 +268,13 @@ module Solargraph
         name
       end
 
-      def typify api_map
+      # @param api_map [ApiMap]
+      # @param context_type [ComplexType, ComplexType::UniqueType, nil] The
+      #   receiver's own type, with any concrete type arguments it carries -
+      #   used to resolve a class generic (e.g. `generic<T>`) inherited from
+      #   an ancestor whose declaration is otherwise out of scope here
+      # @return [ComplexType, ComplexType::UniqueType]
+      def typify api_map, context_type: nil
         logger.debug do
           # @sg-ignore Need to add nil check here
           "Method#typify(self=#{self}, binder=#{binder}, closure=#{closure}, context=#{context.rooted_tags}, return_type=#{return_type.rooted_tags}) - starting"
@@ -284,7 +290,7 @@ module Solargraph
           end
           ComplexType.try_parse(*types)
         else
-          super
+          super(api_map)
         end
         unless decl.undefined?
           logger.debug do
@@ -292,7 +298,7 @@ module Solargraph
           end
           return decl
         end
-        type = see_reference(api_map) || typify_from_super(api_map)
+        type = see_reference(api_map) || typify_from_super(api_map, context_type: context_type)
         logger.debug { "Method#typify(self=#{self}) - type=#{type&.rooted_tags.inspect}" }
         unless type.nil?
           # @sg-ignore Need to add nil check here
@@ -300,7 +306,7 @@ module Solargraph
           logger.debug { "Method#typify(self=#{self}) => #{qualified.rooted_tags.inspect}" }
           return qualified
         end
-        super
+        super(api_map)
       end
 
       def documentation
@@ -612,13 +618,21 @@ module Solargraph
       end
 
       # @param api_map [ApiMap]
+      # @param context_type [ComplexType, ComplexType::UniqueType, nil] The
+      #   receiver's own type, with any concrete type arguments it carries -
+      #   resolves a class generic (e.g. `generic<T>`) declared by the
+      #   ancestor pin that owns the return type, since that pin's own
+      #   #typify has no way to see the original receiver
       # @return [ComplexType, nil]
-      def typify_from_super api_map
+      def typify_from_super api_map, context_type: nil
         stack = rest_of_stack api_map
         return nil if stack.empty?
         stack.each do |pin|
+          ancestor_type = pin.return_type
+          next if ancestor_type.nil? || ancestor_type.undefined?
+          return ancestor_type unless context_type && ancestor_type.generic?
           # @sg-ignore Need to add nil check here
-          return pin.return_type unless pin.return_type.undefined?
+          return ancestor_type.resolve_generics(pin.closure, context_type)
         end
         nil
       end
