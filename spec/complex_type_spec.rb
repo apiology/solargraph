@@ -1133,6 +1133,24 @@ describe 'YARD type specifier list parsing' do
       expect(qualified.to_rbs).to eq('::Hash[::String, ::Foo::Bar]')
     end
 
+    it 'keeps the literal keys of a record type when qualifying' do
+      original = Solargraph::ComplexType.parse('Hash{:a => Bar}').first
+      qualified = original.qualify(foo_bar_api_map, 'Foo')
+      expect(qualified.tag).to eq('Hash{:a => Foo::Bar}')
+    end
+
+    it 'keeps the literal keys of each conjunct of a record intersection when qualifying' do
+      original = Solargraph::ComplexType.parse('Hash{:a => Bar} & Hash{:b => String}').first
+      qualified = original.qualify(foo_bar_api_map, 'Foo')
+      expect(qualified.rooted_tag).to eq('::Hash{:a => ::Foo::Bar} & ::Hash{:b => ::String}')
+    end
+
+    it 'still widens a literal that is not a key when qualifying' do
+      original = Solargraph::ComplexType.parse('Array<:a>').first
+      qualified = original.qualify(foo_bar_api_map, 'Foo')
+      expect(qualified.rooted_tag).to eq('::Array<::Symbol>')
+    end
+
     it 'parses tuples of tuples with same type twice in a row' do
       type = Solargraph::ComplexType.parse('Array(Symbol, String, Array(Integer, Integer))')
       expect(type.tag).to eq('Array(Symbol, String, Array(Integer, Integer))')
