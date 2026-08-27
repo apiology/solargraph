@@ -72,7 +72,7 @@ module Solargraph
           resolved = []
           unresolved_arm = false
           top_level_types.each do |context|
-            arm_pins = method_stack_pins(context, api_map, name_pin.closure)
+            arm_pins = method_stack_pins(context, api_map, name_pin.closure, name_pin)
             if arm_pins.nil?
               unresolved_arm = true
               next
@@ -205,10 +205,11 @@ module Solargraph
         # @param binder_type [ComplexType, ComplexType::UniqueType]
         # @param api_map [ApiMap]
         # @param closure [Pin::Closure, nil] closure for any synthesized DuckMethod pins
+        # @param name_pin [Pin::Base] the call site, for visibility_for
         # @return [::Array<Pin::Base>]
-        def method_pins_for_binder binder_type, api_map, closure
+        def method_pins_for_binder binder_type, api_map, closure, name_pin
           top_level_types = binder_type.is_a?(ComplexType) ? binder_type.to_a : [binder_type]
-          pin_groups = top_level_types.map { |unique_type| method_stack_pins(unique_type, api_map, closure) }
+          pin_groups = top_level_types.map { |unique_type| method_stack_pins(unique_type, api_map, closure, name_pin) }
           pin_groups = [] if !api_map.loose_unions && pin_groups.any?(&:nil?)
           # Different alternatives can resolve to pins that share a
           # path (e.g. the same generic method looked up against
@@ -232,11 +233,12 @@ module Solargraph
         # @param unique_type [ComplexType::UniqueType]
         # @param api_map [ApiMap]
         # @param closure [Pin::Closure, nil] closure for any synthesized DuckMethod pins
+        # @param name_pin [Pin::Base] the call site, for visibility_for
         # @return [::Array<Pin::Base>, nil] nil when unresolved
-        def method_stack_pins unique_type, api_map, closure
+        def method_stack_pins unique_type, api_map, closure, name_pin
           if unique_type.is_a?(ComplexType::UniqueType::Intersection)
             resolved = key_verified_conjuncts(unique_type.conjuncts, api_map).filter_map do |conjunct|
-              pins = method_pins_for_binder(conjunct, api_map, closure)
+              pins = method_pins_for_binder(conjunct, api_map, closure, name_pin)
               pins.empty? ? nil : pins
             end
             return nil if resolved.empty?
@@ -265,7 +267,8 @@ module Solargraph
             [Pin::DuckMethod.new(name: word, source: :chain, explicit: false, return_type: ComplexType::BOT, closure: closure)]
           else
             ns_tag = unique_type.namespace == '' ? '' : unique_type.namespace_type.tag
-            stack = api_map.get_method_stack(ns_tag, word, scope: unique_type.scope)
+            visibility = visibility_for(api_map, unique_type, name_pin)
+            stack = api_map.get_method_stack(ns_tag, word, scope: unique_type.scope, visibility: visibility)
             return nil if stack.first.nil?
             [stack.first]
           end
@@ -365,6 +368,26 @@ module Solargraph
           # @sg-ignore tool-limitation:is_a-narrowing:predicate-wrapper
           when :int then node.children.first.to_s
           end
+        end
+
+        # Which visibilities a call at this position can reach. A
+        # receiverless call - head? - reaches private and protected
+        # methods whatever self is. A call with an explicit receiver
+        # only reaches them from inside the receiver's own namespace or
+        # a subclass of it, mirroring ApiMap#get_complex_type_methods.
+        #
+        # @param api_map [ApiMap]
+        # @param context [ComplexType::UniqueType] the receiver's type
+        # @param name_pin [Pin::Base]
+        # @return [::Array<Symbol>]
+        def visibility_for api_map, context, name_pin
+          return %i[private protected public] if head?
+
+          from = name_pin.context.namespace
+          to = context.namespace
+          return %i[private protected public] if to == from || api_map.super_and_sub?(to, from)
+
+          [:public]
         end
 
         # @param pins [::Enumerable<Pin::Base>]
