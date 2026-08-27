@@ -336,25 +336,15 @@ module Solargraph
                    default: false
     option :stack, type: :boolean, desc: 'Show entire stack of a method pin by including definitions in superclasses',
                    default: false
+    option :context, type: :string,
+                     desc: 'Receiver type for a generic<X> an ancestor PATH cannot name, ' \
+                           'e.g. "Array<String>", or "Hash{K => V}" not "Hash<K, V>".'
     # @param path [String] The path to the method pin, e.g. 'Class#method' or 'Class.method'
     # @return [void]
     def pin path
       api_map = Solargraph::ApiMap.load_with_cache('.', $stderr)
       is_method = path.include?('#') || path.include?('.')
-      if is_method && options[:stack]
-        scope, ns, meth = if path.include? '#'
-                            [:instance, *path.split('#', 2)]
-                          else
-                            [:class, *path.split('.', 2)]
-                          end
-
-        # @sg-ignore Wrong argument type for
-        #   Solargraph::ApiMap#get_method_stack: rooted_tag
-        #   expected String, received Array<String>
-        pins = api_map.get_method_stack(ns, meth, scope: scope)
-      else
-        pins = api_map.get_path_pins path
-      end
+      pins = is_method && options[:stack] ? method_stack_for_path(api_map, path) : api_map.get_path_pins(path)
       # @type [Hash{Symbol => Pin::Base}]
       references = {}
       pin = pins.first
@@ -371,11 +361,16 @@ module Solargraph
         end
       end
 
+      # --context needs the ancestor whose closure declares the generic a
+      # fallback left unresolved, independent of whether --stack was passed
+      # to print it -- see resolve_against_context.
+      generic_search_stack = options[:context] && is_method ? method_stack_for_path(api_map, path) : pins
       pins.each do |pin|
         if options[:typify] || options[:probe]
           type = ComplexType::UNDEFINED
           type = pin.typify(api_map) if options[:typify]
           type = pin.probe(api_map) if options[:probe] && type.undefined?
+          type = resolve_against_context(type, options[:context], generic_search_stack, api_map) if options[:context]
           print_type(type)
           next
         end
@@ -585,6 +580,61 @@ module Solargraph
       else
         puts type.rooted_tag
       end
+    end
+
+    # @param api_map [Solargraph::ApiMap]
+    # @param path [String] a method path (contains '#' or '.') -- callers
+    #   check this before calling
+    # @return [Array<Solargraph::Pin::Method>]
+    def method_stack_for_path api_map, path
+      api_map.get_method_stack(*path.split(/[#.]/, 2), scope: path.include?('#') ? :instance : :class)
+    end
+
+    # `Pin::Method#typify`'s fallback through an ancestor (`typify_from_super`)
+    # calls the ancestor pin's own #typify in isolation -- with no receiver
+    # context -- so a class-generic placeholder the ancestor declares (e.g.
+    # Hash#[]'s `generic<V>`) comes back unsubstituted even when `pins`
+    # resolved against a receiver with concrete type arguments. This mimics
+    # what the real call-site substitution (Source::Chain::Call) would have
+    # done, by finding which pin's closure actually declares the leftover
+    # generic name and resolving it against the supplied context type.
+    #
+    # Embedding type args directly in PATH's namespace already resolves
+    # generics reached only through a *declared* superclass reference --
+    # `--stack` against `Thread::SizedQueue<String>#pop` (RBS: `SizedQueue[E]
+    # < Queue[E]`) already prints `String` today, via
+    # ApiMap#inner_get_methods_from_reference, independent of this method.
+    # It cannot help HashWithIndifferentAccess#[]: HashWithIndifferentAccess
+    # declares zero generics of its own (confirmed: its namespace pin's
+    # `generics` is `[]`, and `qualify_superclass` returns bare "Hash", no
+    # type args), so there is no type parameter on the *subclass* for
+    # "Symbol, String" in PATH to bind to -- the receiver type has to be
+    # supplied separately, shaped for whatever ancestor
+    # `method_stack_for_path` finds actually declares the generic.
+    #
+    # @param type [ComplexType, ComplexType::UniqueType] the type `--typify`/
+    #   `--probe` produced, possibly still carrying an unresolved generic<X>
+    # @param context_tag [String] the receiver type to resolve against --
+    #   for a Hash-shaped declaring ancestor, UniqueType#resolve_generics
+    #   only matches the "Hash{K => V}" literal-map ComplexType syntax, not
+    #   the generic "Hash<K, V>" form (which silently resolves to
+    #   `undefined` instead of raising)
+    # @param pins [::Array<Pin::Base>] the candidate pins `pin` resolved,
+    #   nearest ancestor first -- see `--stack`
+    # @param api_map [ApiMap]
+    # @return [ComplexType, ComplexType::UniqueType]
+    def resolve_against_context type, context_tag, pins, api_map
+      context_type = ComplexType.try_parse(context_tag)
+      return type if context_type.undefined?
+      # @sg-ignore Unresolved call to is_a? -- Pin::Closure, nil (from
+      #   pins.map(&:closure)) doesn't resolve #is_a? at all
+      closures = pins.map(&:closure).select { |closure| closure.is_a?(Pin::Namespace) || closure.is_a?(Pin::Method) }
+      resolved = type.map do |unique_type|
+        next unique_type unless unique_type.generic?
+        generic_name = unique_type.name == ComplexType::GENERIC_TAG_NAME ? unique_type.subtypes.first&.name : nil
+        closures.find { |closure| closure.generics.include?(generic_name) }&.then { |d| unique_type.resolve_generics(d, context_type) } || unique_type
+      end
+      ComplexType.new(resolved.flat_map { |t| t.is_a?(ComplexType) ? t.items : [t] })
     end
 
     # @param pin [Solargraph::Pin::Base]
