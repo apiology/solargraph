@@ -117,6 +117,27 @@ module Solargraph
                      [path] + @open_gates
                    end
       end
+
+      # @param other [self]
+      # @param attrs [Hash{Symbol => Object}]
+      # @return [self]
+      def combine_with other, attrs = {}
+        new_attrs = {
+          type: assert_same(other, :type),
+          visibility: choose(other, :visibility),
+          gates: open_gates == [''] ? other.open_gates : open_gates
+        }.merge(attrs)
+        super(other, new_attrs)
+      end
+
+      protected
+
+      # The gates this namespace itself opens up for name resolution,
+      # as passed to the constructor - not to be confused with #gates,
+      # which additionally prepends this namespace's own #path.
+      #
+      # @return [::Array<String>]
+      attr_reader :open_gates
     end
   end
 end
