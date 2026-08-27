@@ -63,12 +63,6 @@ module Solargraph
       #   signature is `(*arg ::Array) -> untyped`)
       #
       # @return [::Array<ComplexType>]
-      # @sg-ignore Declared return type does not match inferred - adding the
-      #   splat-detection return below changes how Solargraph merges this
-      #   method's multiple return paths, and it now infers Enumerator
-      #   instead of Array for the tail expression even though that
-      #   expression is unchanged from before this method had more than
-      #   one return path, when it typechecked cleanly.
       def destructure_yield_types yield_types, parameters, yield_params = nil
         # yielding a tuple into a block will destructure the tuple
         if yield_types.length == 1
@@ -118,6 +112,10 @@ module Solargraph
 
       # @param api_map [ApiMap]
       # @return [::Array<ComplexType>]
+      # @sg-ignore Declared return type does not match inferred - three-way
+      #   merge interaction: the `partial&.map || parameters.map` tail's
+      #   or-expression now routes through Chain::Or (castwide/solargraph#1309)
+      #   and widens with the partial-result union from apiology/solargraph#60
       def typify_parameters api_map
         chain = Parser.chain(receiver, filename, node)
         # @sg-ignore Need to add nil check here
