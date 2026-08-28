@@ -1013,5 +1013,24 @@ describe Solargraph::TypeChecker do
       ))
       expect(checker.problems).to be_empty
     end
+
+    it 'infers a return through .new on an anonymous Class.new block' do
+      checker = type_checker(%(
+        # @param interface_methods [Array<Symbol>]
+        # @return [Object]
+        def typed_let_mock_duck_responder(interface_methods)
+          Class.new do
+            interface_methods.each { |m| define_method(m) { nil } }
+          end.new
+        end
+      ))
+
+      # define_method inside the block is unresolved regardless of this
+      # fix (block self-binding is #1310's territory) - only assert the
+      # return-inference error this fix addresses is gone.
+      expect(checker.problems.map(&:message)).not_to include(
+        '#typed_let_mock_duck_responder return type could not be inferred'
+      )
+    end
   end
 end
