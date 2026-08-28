@@ -183,6 +183,12 @@ describe Solargraph::ApiMap do
     expect(pins.map(&:path)).to include('Foo#priv')
   end
 
+  it 'finds public Kernel methods on an unresolvable namespace tag' do
+    api_map = described_class.new
+    pins = api_map.get_methods('void', scope: :instance, visibility: [:public])
+    expect(pins.map(&:path)).to include('Kernel#inspect')
+  end
+
   it 'finds methods for duck types' do
     @api_map.index []
     type = Solargraph::ComplexType.parse('#foo, #bar')

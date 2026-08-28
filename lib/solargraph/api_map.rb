@@ -508,7 +508,14 @@ module Solargraph
             new_pin
           end
         end
-        result.concat inner_get_methods('Kernel', :instance, [:public], deep, skip) if visibility.include?(:private)
+        # Kernel is mixed into every object, but a tag with no real
+        # ancestry (an unresolvable/synthetic tag such as 'void')
+        # never reaches it through the include/superclass walk above,
+        # so inject its public methods on any deep lookup. For a
+        # namespace that reaches Kernel through that walk with the
+        # same requested visibility, the 'skip' set prevents adding it
+        # twice.
+        result.concat inner_get_methods('Kernel', :instance, [:public], deep, skip) if deep
         result.concat inner_get_methods('Module', scope, visibility, deep, skip) if scope == :module
       end
       result = resolve_method_aliases(result, visibility)
