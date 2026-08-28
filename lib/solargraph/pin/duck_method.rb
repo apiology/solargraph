@@ -6,6 +6,25 @@ module Solargraph
     # use duck typing, e.g., `@param file [#read]`.
     #
     class DuckMethod < Pin::Method
+      # A duck-type tag like `#new` has no syntax to declare the arguments
+      # the real method takes, so leaving #parameters at Callable's default
+      # of [] synthesizes a zero-arg signature - any real call with
+      # arguments fails to match it and falls through unresolved instead of
+      # reaching the type the call would actually produce.
+      #
+      # @param splat [Hash{Symbol => Object}]
+      def initialize **splat
+        super(parameters: accepts_any_arguments, **splat)
+      end
+
+      # @return [::Array<Pin::Parameter>]
+      def accepts_any_arguments
+        [
+          Pin::Parameter.new(decl: :restarg, name: 'args', closure: self, source: :api_map),
+          Pin::Parameter.new(decl: :kwrestarg, name: 'kwargs', closure: self, source: :api_map)
+        ]
+      end
+
       # A DuckMethod is a synthetic placeholder for "whatever type responds
       # to this method" - it isn't a real method in #closure's namespace, so
       # it has no ancestor chain of its own. #typify_from_super otherwise
