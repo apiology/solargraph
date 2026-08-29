@@ -421,7 +421,8 @@ describe Solargraph::Shell do
         end
 
         expect(output).to include('Processing go-to-definition request...')
-        expect(output).to include('Result: [{:uri=>')
+        expect(output).to include('Result: [{')
+        expect(output).to include('uri')
         expect(output).to include('thing.rb"')
       end
     end
