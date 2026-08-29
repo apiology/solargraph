@@ -37,6 +37,24 @@ describe Solargraph::Yardoc do
     end
   end
 
+  describe '#build_pins' do
+    let(:gemspec) { instance_double(Gem::Specification, name: 'pp') }
+    let(:good_pin) { instance_double(Solargraph::Pin::Base, path: 'PP') }
+    let(:bad_pin) { instance_double(Solargraph::Pin::Base, path: 'ENV') }
+
+    before do
+      allow(described_class).to receive(:load!).with(gem_yardoc_path).and_return([])
+      allow(Solargraph::YardMap::Mapper).to receive(:new)
+        .and_return(instance_double(Solargraph::YardMap::Mapper, map: [good_pin, bad_pin]))
+    end
+
+    it 'drops pins on the gem\'s known-bad YARD path list' do
+      pins = described_class.build_pins(gem_yardoc_path, gemspec)
+
+      expect(pins.map(&:path)).to eq(['PP'])
+    end
+  end
+
   describe '#build_docs' do
     let(:workspace) { Solargraph::Workspace.new(Dir.pwd) }
     let(:gemspec) { workspace.find_gem('rubocop') }
