@@ -263,7 +263,7 @@ module Solargraph
 
       result = []
       files = if only
-                [api_map.source_map(filename)]
+                [api_map.source_map(filename)].compact
               else
                 (workspace.sources + (@current ? [@current] : []))
               end
@@ -483,15 +483,15 @@ module Solargraph
     end
 
     # @return [SourceMap, Boolean]
-    # @sg-ignore https://github.com/castwide/solargraph/pull/1245
     def next_map
       return false if mapped?
       src = workspace.sources.find { |s| !source_map_hash.key?(s.filename) }
       if src
         Logging.logger.debug "Mapping #{src.filename}"
+        mapped_source = Solargraph::SourceMap.map(src)
         # @sg-ignore OK if src.filename is nil
-        source_map_hash[src.filename] = Solargraph::SourceMap.map(src)
-        source_map_hash[src.filename]
+        source_map_hash[src.filename] = mapped_source
+        mapped_source
       else
         false
       end

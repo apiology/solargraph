@@ -59,9 +59,10 @@ module Solargraph
             match = source[offset...eol].to_s.match(/\A\s*#\[([^\]]*)\]/)
             return unless match
 
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1245
-            code = match[1].strip
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1245
+            captured = match[1]
+            return unless captured
+
+            code = captured.strip
             return if code.empty?
 
             "<#{code}>"

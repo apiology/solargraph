@@ -129,9 +129,8 @@ module Solargraph
 
       # @param path [String]
       # @return [Array<Solargraph::Pin::Base>]
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1245
       def get_path_pins path
-        index.path_pin_hash[path]
+        index.path_pin_hash[path] || []
       end
 
       # @param fqns [String, nil]
@@ -209,7 +208,6 @@ module Solargraph
 
       # @param fqns [String, nil]
       # @return [Array<Solargraph::Pin::Namespace>]
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1245
       def fqns_pins fqns
         return [] if fqns.nil?
         if fqns.include?('::')
@@ -220,7 +218,7 @@ module Solargraph
           base = ''
           name = fqns
         end
-        fqns_pins_map[[base, name]]
+        fqns_pins_map[[base, name]] || []
       end
 
       # Get all ancestors (superclasses, includes, prepends, extends) for a namespace

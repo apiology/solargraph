@@ -693,6 +693,8 @@ module Solargraph
       #   inferred type Solargraph::Pin::Parameter, nil for variable par"
       # @type [Pin::Parameter]
       par = sig.parameters[idx]
+      return result if par.nil?
+
       if par.decl == :kwrestarg || (par.decl == :optarg && idx == pin.parameters.length - 1 && par.asgn_code == '{}')
         return kwrestarg_problems_for(api_map, closure_pin, locals, location, pin, params, kwargs)
       end
@@ -1011,14 +1013,13 @@ module Solargraph
     # @param arguments [Array<Source::Chain>]
     # @param location [Location]
     # @return [Array<Problem>]
-    # @sg-ignore https://github.com/castwide/solargraph/pull/1245
     def arity_problems_for pin, arguments, location
       results = pin.signatures.map do |sig|
         r = parameterized_arity_problems_for(pin, sig.parameters, arguments, location)
         return [] if r.empty?
         r
       end
-      results.first
+      results.first || []
     end
 
     # @param pin [Pin::Method]
