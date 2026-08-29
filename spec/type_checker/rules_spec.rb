@@ -36,4 +36,14 @@ describe Solargraph::TypeChecker::Rules do
     expect(rules.validate_calls?).to be(true)
     expect(rules.validate_tags?).to be(true)
   end
+
+  it 'lowers a rule below its default level via override' do
+    rules = described_class.new(:normal, validate_calls: :normal)
+    expect(rules.validate_calls?).to be(true)
+  end
+
+  it 'raises a rule above its default level via override' do
+    rules = described_class.new(:strict, validate_tags: :strong)
+    expect(rules.validate_tags?).to be(false)
+  end
 end

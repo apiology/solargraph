@@ -752,6 +752,41 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.first.message).to include('Not enough arguments')
     end
 
+    it 'verifies arity of chained zsuper calls with a kwarg on the caller' do
+      checker = type_checker(%(
+        class Foo
+          def something arg, opt:
+          end
+        end
+        class Bar < Foo
+          def something arg, opt:
+            super + 2
+          end
+        end
+      ))
+      expect(checker.problems).to be_empty
+    end
+
+    # fake_args_for's `pin.decl == :block` branch never matches a real
+    # block parameter (Pin::Method always assigns it decl :blockarg, see
+    # lib/solargraph/pin/method.rb), so the block parameter falls through
+    # to the else branch and is treated as an extra positional argument.
+    it 'verifies arity of chained zsuper calls with a block on the caller',
+       pending: 'false "Too many arguments" from fake_args_for misclassifying :blockarg' do
+      checker = type_checker(%(
+        class Foo
+          def something arg, &blk
+          end
+        end
+        class Bar < Foo
+          def something arg, &blk
+            super + 2
+          end
+        end
+      ))
+      expect(checker.problems).to be_empty
+    end
+
     it 'verifies splatted kwargs' do
       checker = type_checker(%(
         def xxx(from:, to:); end
