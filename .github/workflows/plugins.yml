@@ -125,7 +125,7 @@ jobs:
        cd ..
        git clone https://github.com/lekemula/solargraph-rspec.git
        cd solargraph-rspec
-       # git checkout tolerate-hash-literal-inference-versions
+       git checkout tolerate-hash-literal-inference-versions
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
       with:
