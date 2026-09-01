@@ -403,11 +403,10 @@ module Solargraph
     # @param candidates [Array<Pin::BaseVariable>]
     # @param name [String]
     # @param closure [Pin::Closure]
-    # @param location [Location]
+    # @param location [Location, nil]
     #
     # @return [Pin::BaseVariable, nil]
     def var_at_location candidates, name, closure, location
-      # @todo Location can be nil if clips have trouble finding node recipients
       return unless location
 
       with_correct_name = candidates.select { |pin| pin.name == name }
@@ -578,7 +577,10 @@ module Solargraph
     # @return [Array<Solargraph::Pin::Method>]
     def get_method_stack rooted_tag, name, scope: :instance, visibility: %i[private protected public],
                          preserve_generics: false
-      rooted_type = ComplexType.parse(rooted_tag)
+      # rooted_tag is inference-derived, so an unparseable tag means
+      # "no methods here", the same way #get_methods already treats it,
+      # rather than an exception that aborts the whole request.
+      rooted_type = ComplexType.try_parse(rooted_tag)
       fqns = rooted_type.namespace
       namespace_pin = store.get_path_pins(fqns).first
       methods = if namespace_pin.is_a?(Pin::Constant)
@@ -824,7 +826,7 @@ module Solargraph
     # @param no_core [Boolean] Skip core classes if true
     # @return [Array<Pin::Base>]
     def inner_get_methods rooted_tag, scope, visibility, deep, skip, no_core = false
-      rooted_type = ComplexType.parse(rooted_tag).force_rooted
+      rooted_type = ComplexType.try_parse(rooted_tag).force_rooted
       fqns = rooted_type.namespace
       rooted_type.all_params
       namespace_pin = store.get_path_pins(fqns).select { |p| p.is_a?(Pin::Namespace) }.first
