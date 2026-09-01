@@ -33,6 +33,39 @@ describe Solargraph::ComplexType::UniqueType do
     end
   end
 
+  describe '#exclude' do
+    let(:api_map) { Solargraph::ApiMap.new }
+
+    let(:source) do
+      Solargraph::Source.load_string(%(
+        class Sup; end
+        class Sub < Sup; end
+        class Unrelated; end
+      ))
+    end
+
+    before { api_map.map source }
+
+    it 'returns self when exclude_types is nil' do
+      type = described_class.parse('Sub')
+      expect(type.exclude(nil, api_map)).to be(type)
+    end
+
+    it 'excludes a type that conforms to the excluded type' do
+      type = described_class.parse('Sub')
+      exclude_types = Solargraph::ComplexType.parse('Sup')
+      result = type.exclude(exclude_types, api_map)
+      expect(result.tags).to eq('undefined')
+    end
+
+    it 'keeps a type that does not conform to the excluded type' do
+      type = described_class.parse('Unrelated')
+      exclude_types = Solargraph::ComplexType.parse('Sup')
+      result = type.exclude(exclude_types, api_map)
+      expect(result.tags).to eq('Unrelated')
+    end
+  end
+
   describe '#key_type_tag?' do
     it 'matches a single literal key type' do
       type = Solargraph::ComplexType.parse('Hash{"Index" => Float}').first
