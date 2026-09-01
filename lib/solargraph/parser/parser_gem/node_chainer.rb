@@ -168,12 +168,9 @@ module Solargraph
           true
         end
 
-        # Chains each key/value pair of a literal hash so Chain::Hash
-        # can infer Hash{K => V} from its actual contents, the same
-        # way Chain::Array infers Array<T> from its elements. Returns
-        # nil (falling back to a bare, unparameterized Hash) when any
-        # entry isn't a plain `key => value` pair - a `**splat` entry
-        # contributes key/value types we have no node to chain.
+        # Chains each key/value pair so Chain::Hash can infer
+        # Hash{K => V}, mirroring how Chain::Array infers Array<T>.
+        # Returns nil for a `**splat` entry, which has no node to chain.
         #
         # @param node [Parser::AST::Node]
         # @return [::Array<::Array(Chain, Chain)>, nil]

@@ -7,10 +7,9 @@ module Solargraph
         # @param type [String]
         # @param node [Parser::AST::Node]
         # @param splatted [Boolean]
-        # @param pairs [::Array<::Array(Chain, Chain)>, nil] Each key/value
-        #   pair's key and value chained separately, or nil if the literal
-        #   isn't just a plain list of `key => value` pairs (e.g. it
-        #   contains a `**splat`) - see NodeChainer#hash_pairs.
+        # @param pairs [::Array<::Array(Chain, Chain)>, nil] Chained key/value
+        #   pairs, or nil for a splatted or non-plain-pairs literal - see
+        #   NodeChainer#hash_pairs.
         def initialize type, node, splatted = false, pairs = nil
           super(type, node)
           @splatted = splatted
@@ -43,12 +42,9 @@ module Solargraph
 
         private
 
-        # Infers Hash{K => V} from the literal's actual key/value pairs,
-        # the same way Chain::Array infers Array<T> from its elements
-        # (see Chain::Array#resolve). Falls back to the bare, generic-less
-        # ::Hash type - the only type a splatted hash or one that fails to
-        # infer any pair concretely ever had - rather than reporting a
-        # partial/incorrect Hash{K => V}.
+        # Infers Hash{K => V} from the literal's pairs, mirroring
+        # Chain::Array's element inference. Falls back to bare ::Hash
+        # when splatted or any pair fails to infer.
         #
         # @param api_map [ApiMap]
         # @param name_pin [Pin::Base]
