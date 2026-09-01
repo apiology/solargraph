@@ -11,11 +11,8 @@ module Solargraph
       include Logging
     end
 
-    # Pin classes whose YARD- and RBS-derived pins for the same path
-    # should be merged via combine_with, rather than one side simply
-    # winning. Both Pin::Method and Pin::Namespace have combine_with
-    # overrides that know how to preserve their own attributes (see
-    # Pin::Namespace#combine_with for generics/type/visibility/gates).
+    # Pin types whose YARD/RBS pins should merge via #combine_with
+    # instead of one side simply winning.
     COMBINABLE_PIN_TYPES = [Pin::Method, Pin::Namespace].freeze
 
     # @param pins [Array<Pin::Base>]

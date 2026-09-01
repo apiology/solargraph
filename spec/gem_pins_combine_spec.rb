@@ -2,12 +2,9 @@
 
 describe Solargraph::GemPins, '.combine' do
   context 'with a namespace pin split across YARD and RBS' do
-    # A real YARD-derived namespace pin always carries a location (the
-    # .rb file it was parsed from), while a real RBS-derived one only
-    # ever sets type_location - so the two are never Pin::Base#==
-    # equal, and combine_pins always actually merges them rather than
-    # taking its identical-pin shortcut. Set location here so this
-    # fixture matches that.
+    # location: makes this fixture match a real YARD pin (a real RBS
+    # pin only sets type_location), so the two aren't Pin::Base#==
+    # and combine_pins actually merges them.
     let(:yard_pin) do
       Solargraph::Pin::Namespace.new(
         name: 'Foo::Bar',
