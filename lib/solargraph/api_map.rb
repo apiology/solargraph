@@ -508,13 +508,9 @@ module Solargraph
             new_pin
           end
         end
-        # Kernel is mixed into every object, but a tag with no real
-        # ancestry (an unresolvable/synthetic tag such as 'void')
-        # never reaches it through the include/superclass walk above,
-        # so inject its public methods on any deep lookup. For a
-        # namespace that reaches Kernel through that walk with the
-        # same requested visibility, the 'skip' set prevents adding it
-        # twice.
+        # Kernel has no ancestry link for a synthetic tag like 'void', so
+        # inject it directly on any deep lookup; 'skip' still blocks a
+        # double-add when the walk above already reached it normally.
         result.concat inner_get_methods('Kernel', :instance, [:public], deep, skip) if deep
         result.concat inner_get_methods('Module', scope, visibility, deep, skip) if scope == :module
       end
