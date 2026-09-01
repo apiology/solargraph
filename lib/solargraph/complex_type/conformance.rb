@@ -63,19 +63,9 @@ module Solargraph
 
         return false unless erased_type_conforms?
 
-        # A type with 2+ ordered generic params - a hash-shaped type
-        # (parameters_type == :hash; Hash[K, V] is the only
-        # stdlib/RBS example, but the YARD `{K => V}` tag syntax
-        # admits any class name) always has 2 (key_types, subtypes),
-        # and an ordinary `<A, B, ...>`-generic type
-        # (parameters_type == :list) can have any number - may
-        # satisfy a lower-arity Enumerable/_Each ancestor
-        # structurally: #each yields all of its params together as
-        # a tuple, so the type includes Enumerable[Array[K, V]] (or
-        # Array[A, B, ...]), not Enumerable[V] (or Enumerable[A]).
-        # Compare against that tuple shape instead of the raw
-        # per-param types once erased_type_conforms? has already
-        # established inferred <: expected via inheritance.
+        # Hash{K=>V} and <A,B>-generic types yield their params together as
+        # one tuple via #each, not one at a time - compare against that
+        # tuple shape, not raw per-param types, for a lower-arity ancestor.
         return with_new_types(pair_shaped_as_pairs, expected).conforms_to_unique_type? if pair_shaped_viewed_as_pairs?
 
         return true if inferred.all_params.empty? && rules.include?(:allow_empty_params)
@@ -91,17 +81,9 @@ module Solargraph
         subtypes_conform?
       end
 
-      # Names of ancestors whose single generic param is known, by
-      # RBS/YARD convention, to mean "all of my own params yielded
-      # together as one tuple" - Hash's own RBS core signature
-      # declares `include Enumerable[[K, V]]`, and `_Each` is the
-      # duck-typed interface backing the same `#each` shape (see
-      # RbsMap::CoreFills::INCLUDES). Any other ancestor's generic
-      # param means whatever that ancestor declares it to mean, and
-      # erased_type_conforms? having already matched `expected.name`
-      # via inheritance says nothing about that meaning - it only
-      # says `inferred` is-a `expected`, not that `expected`'s own
-      # generic param is derived from `inferred`'s params at all.
+      # Ancestors whose single generic param means "all params yielded as
+      # one tuple" (Hash's RBS: `include Enumerable[[K, V]]`; `_Each` backs
+      # the same #each shape). Any other ancestor's param means its own thing.
       TUPLE_YIELDING_ANCESTOR_NAMES = %w[Enumerable _Each].freeze
 
       private
@@ -155,13 +137,9 @@ module Solargraph
         true
       end
 
-      # @return [Boolean] true if `inferred` has 2+ ordered generic
-      #   params (a hash-shaped type's key/value types, e.g.
-      #   `Hash{K => V}`, or a `<A, B, ...>`-generic type's ordered
-      #   params) being checked against an expectation of a
-      #   different arity (e.g. a 1-arity Enumerable), so its
-      #   params need to be viewed as a single tuple - not compared
-      #   one-for-one - to conform
+      # @return [Boolean] true if `inferred`'s 2+ ordered params need to be
+      #   viewed as one tuple, not compared one-for-one, against a
+      #   mismatched-arity Enumerable/_Each expectation
       def pair_shaped_viewed_as_pairs?
         return false unless inferred.all_params.size >= 2
         return false unless TUPLE_YIELDING_ANCESTOR_NAMES.include?(expected.name)
@@ -171,10 +149,9 @@ module Solargraph
         inferred.parameters_type == :list && inferred.all_params.size != expected.all_params.size
       end
 
-      # @return [UniqueType] `inferred` reshaped as `expected`'s name
-      #   parametrized with the tuple its params form when yielded
-      #   together - [key, value] for a hash-shaped type, or its
-      #   ordered params for a `<A, B, ...>`-generic type
+      # @return [UniqueType] `inferred` reshaped as `expected`'s name,
+      #   parametrized with a single tuple of its own params - [key, value]
+      #   for hash-shaped, or its ordered params for a list-generic type
       def pair_shaped_as_pairs
         ordered_params = if inferred.parameters_type == :hash
                            [ComplexType.new(inferred.key_types), ComplexType.new(inferred.subtypes)]

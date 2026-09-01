@@ -135,12 +135,9 @@ describe Solargraph::ComplexType do
   end
 
   it 'reshapes any hash-shaped (parameters_type == :hash) type into pairs, not just Hash' do
-    # `PairBag` proves the pair-reshaping in Conformance is a
-    # structural check on parameters_type, not a check on the literal
-    # class name 'Hash': the YARD `{K => V}` tag syntax produces
-    # parameters_type == :hash for any class name, so any 2-arity
-    # type that structurally includes a lower-arity Enumerable
-    # ancestor needs the same reshape Hash does.
+    # YARD's `{K => V}` tag syntax produces parameters_type == :hash for
+    # any class name, not just Hash - PairBag proves the reshape is
+    # structural, not name-based.
     source = Solargraph::Source.load_string(%(
       class PairBag
         include Enumerable
@@ -155,12 +152,9 @@ describe Solargraph::ComplexType do
 
   it 'reshapes a :list-parameterized (ordinary <A, B> generic) 2-arity type into a tuple ' \
      'to conform to a lower-arity Enumerable ancestor' do
-    # `Pair` proves the same reshape Hash/PairBag get for
-    # parameters_type == :hash is also needed for parameters_type
-    # == :list: a class documented with ordinary `<A, B>` generic
-    # syntax (rather than YARD's `{K => V}` hash-tag syntax) that
-    # structurally includes a lower-arity Enumerable ancestor,
-    # because #each yields the two params together as a tuple.
+    # `Pair` uses ordinary `<A, B>` generic syntax (parameters_type ==
+    # :list), not YARD's `{K => V}` hash tag - the same reshape must
+    # apply to both param shapes.
     source = Solargraph::Source.load_string(%(
       # @generic A, B
       class Pair
@@ -232,21 +226,15 @@ describe Solargraph::ComplexType do
     match = inf.conforms_to?(api_map, exp, :method_call)
     expect(match).to be(true)
 
-    # a 2-arity tuple expectation should not match a 3-arity inferred type
     exp2 = described_class.parse('Enumerable<Array(Symbol, String)>')
     expect(inf.conforms_to?(api_map, exp2, :method_call)).to be(false)
   end
 
   it 'does not reshape a :list type into a tuple for a lower-arity ancestor whose own ' \
      'generic param is unrelated to the inferred type\'s params' do
-    # `Taggable`'s `X` has nothing to do with `Pair`'s `A`/`B` - the
-    # include doesn't parametrize Taggable with Pair's own generic
-    # params at all (unlike Enumerable, which RBS declares as
-    # `include Enumerable[[K, V]]` on Hash - bound to K and V
-    # directly). pair_shaped_viewed_as_pairs? triggers purely on
-    # arity mismatch (2 inferred params vs 1 expected), so it must
-    # not wrap [A, B] into a tuple and claim that tuple is what
-    # Taggable's X means.
+    # Taggable's X has no relation to Pair's A/B (unlike Enumerable, RBS-
+    # bound to Hash's K/V via `include Enumerable[[K, V]]`) - an arity
+    # mismatch alone must not wrap [A, B] into a tuple and call it X.
     source = Solargraph::Source.load_string(%(
       # @generic X
       module Taggable
@@ -302,20 +290,9 @@ describe Solargraph::ComplexType do
      'ancestor whose own generic param is unrelated to the inferred type\'s key/value types' do
     pending 'pre-existing conflation in key_types_conform?/subtypes_conform?, not introduced ' \
             'by pair_shaped_viewed_as_pairs? - see comment below'
-    # Blocking the reshape here (expected.name isn't Enumerable/_Each)
-    # correctly stops pair_shaped_as_pairs from firing, but
-    # conforms_to_unique_type? then falls through to
-    # key_types_conform?/subtypes_conform?, which was comparing a
-    # hash-shaped inferred's value type against a list-shaped
-    # expected's single param positionally before this PR existed -
-    # `git diff <merge-base>..273c7e6e7 -- conformance.rb` shows the
-    # pair_shaped_* methods are the *entire* diff this PR makes to
-    # this file, so that fallback path is unchanged baseline
-    # behavior. The same false positive is reproducible on the
-    # pre-PR fallback alone (Hash{Symbol => String} vs a 1-arity
-    # ancestor whose param happens to equal the value type), with
-    # no pair-shaping logic involved at all. Out of scope for this
-    # PR's correctness fix.
+    # key_types_conform?/subtypes_conform? compares a hash-shaped inferred's
+    # value type against a list-shaped expected's param positionally - the
+    # same false positive reproduces with no pair-shaping logic involved.
     source = Solargraph::Source.load_string(%(
       # @generic X
       module Taggable
