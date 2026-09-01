@@ -464,11 +464,8 @@ module Solargraph
         # https://docs.ruby-lang.org/en/2.2.0/keywords_rdoc.html
         return true if %i[return next redo retry].include?(clause_node&.type)
 
-        # unlike return/next/redo/retry, 'raise' is not its own node
-        # type - the parser gem represents it as a plain method call
-        # (:send), e.g. `raise 'no'` parses as
-        # s(:send, nil, :raise, s(:str, "no")), so it has to be
-        # recognized by name instead of by node type
+        # 'raise' has no node type of its own - the parser gem represents
+        # it as a plain :send call, so it must be matched by name.
         raise_call?(clause_node)
       end
 
