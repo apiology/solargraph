@@ -170,7 +170,7 @@ module Solargraph
             # 1`) must resolve against the variable's *other* assignments,
             # not against the not-yet-computed value being derived here.
             self_excluded_locals = clip.locals.reject do |candidate|
-              candidate.respond_to?(:assignments) && candidate.assignments.include?(parent_node)
+              candidate.assignments.include?(parent_node)
             end
             # @sg-ignore Need to add nil check here
             result = chain.infer(api_map, closure, self_excluded_locals).self_to_type(closure.context)
@@ -187,7 +187,7 @@ module Solargraph
         unless assignment_types.empty?
           # @type [Array<ComplexType::UniqueType>]
           items = assignment_types.flat_map(&:items).uniq
-          # A later, wider assignment (e.g. `index += 1`) can leave a
+          # A later, wider assignment (e.g. `index += n`) can leave a
           # stale literal (e.g. `0`) alongside its own non-literal
           # base type in the union - drop the redundant literal.
           type_from_assignment = ComplexType.new(items).without_redundant_literals
@@ -236,6 +236,17 @@ module Solargraph
         raw_return_type = super
 
         adjust_type(api_map, raw_return_type)
+      end
+
+      # A merged multi-assignment variable pin and its earliest constituent
+      # assignment pin share the same #choose-d (earliest) location but differ
+      # in presence, so discriminating on it keeps Chain's recursion guard from
+      # conflating "resolving the merged pin" with "resolving one of its
+      # narrower assignments" and dropping a legitimate recursive lookup.
+      #
+      # @return [String, nil]
+      def identity_discriminator
+        presence&.hash&.to_s
       end
 
       # @sg-ignore need boolish support for ? methods
