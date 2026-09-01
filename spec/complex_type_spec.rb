@@ -130,6 +130,18 @@ describe 'YARD type specifier list parsing' do
       expect(qualified.to_rbs).to eq('bool')
     end
 
+    # A `bot` type (e.g. the inferred return of a method that only
+    # raises) never reaches an actual namespace to qualify - #qualify
+    # must skip it rather than asking the ApiMap to resolve 'bot' as
+    # a namespace name.
+    it 'leaves a bot type unqualified' do
+      api_map = instance_double(Solargraph::ApiMap, qualify: nil)
+      type = Solargraph::ComplexType::BOT
+      qualified = type.qualify(api_map)
+      expect(qualified.tag).to eq('bot')
+      expect(api_map).not_to have_received(:qualify)
+    end
+
     # Parametrized Types
     #
     # In addition to basic types (like String or Array), YARD
@@ -741,6 +753,27 @@ describe 'YARD type specifier list parsing' do
       api_map = Solargraph::ApiMap.new
       ptype = Solargraph::ComplexType.parse('Symbol')
       atype = Solargraph::ComplexType.parse(':foo')
+      expect(atype.conforms_to?(api_map, ptype, :method_call)).to be(true)
+    end
+
+    it 'recognizes a duck type conforms with an identical duck type' do
+      api_map = Solargraph::ApiMap.new
+      ptype = Solargraph::ComplexType.parse('#foo')
+      atype = Solargraph::ComplexType.parse('#foo')
+      expect(atype.conforms_to?(api_map, ptype, :method_call)).to be(true)
+    end
+
+    it 'recognizes a duck type does not conform with a different duck type' do
+      api_map = Solargraph::ApiMap.new
+      ptype = Solargraph::ComplexType.parse('#bar')
+      atype = Solargraph::ComplexType.parse('#foo')
+      expect(atype.conforms_to?(api_map, ptype, :method_call)).to be(false)
+    end
+
+    it 'recognizes a duck type conforms to a duck type method it inherits from Object' do
+      api_map = Solargraph::ApiMap.new
+      ptype = Solargraph::ComplexType.parse('#to_s')
+      atype = Solargraph::ComplexType.parse('#foo')
       expect(atype.conforms_to?(api_map, ptype, :method_call)).to be(true)
     end
   end
