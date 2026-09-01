@@ -198,6 +198,34 @@ describe Solargraph::TypeChecker do
       expect(checker.problems).to be_empty
     end
 
+    it 'keeps a resolved position when a sibling position is an unbound generic' do
+      # Bag is used unparameterized, so Elem never binds - the second
+      # yielded position stays undefined while the first (a plain
+      # String) still resolves. Since the positions genuinely
+      # correspond one-to-one (per_position_yield_types? true) and at
+      # least one resolved, typify_parameters must keep that partial
+      # result instead of discarding it.
+      checker = type_checker(%(
+        # @generic Elem
+        class Bag
+          include Enumerable
+          # @yieldparam [String]
+          # @yieldparam [generic<Elem>]
+          # @return [void]
+          def each_pair; end
+        end
+
+        class Repro
+          # @param bag [Bag]
+          # @return [void]
+          def call(bag)
+            bag.each_pair { |label, item| label.upcase }
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).not_to include('Unresolved call to upcase')
+    end
+
     it 'leaves parameters undefined rather than assigning a whole auto-splatted value' do
       # A 4-parameter proc yields no per-position types; position 0 must
       # not be handed the whole yielded value (which produced bogus
