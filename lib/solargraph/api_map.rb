@@ -471,11 +471,8 @@ module Solargraph
       else
         result.concat inner_get_methods(rooted_tag, scope, visibility, deep, skip)
         if %w[Class Class<Class>].include?(rooted_tag)
-          # RBS declares Class#new as untyped because it cannot
-          # parameterize Class. We know more: Class.new returns a new
-          # class whose instances are (at least) Objects, and calling
-          # .new on an unparameterized Class-typed receiver returns
-          # some instance of it - an Object.
+          # RBS types Class#new untyped since Class isn't parameterized;
+          # .new on an unparameterized Class-typed receiver is at least an Object.
           result.map! do |pin|
             next pin unless pin.path == 'Class#new'
 

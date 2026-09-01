@@ -1025,9 +1025,8 @@ describe Solargraph::TypeChecker do
         end
       ))
 
-      # define_method inside the block is unresolved regardless of this
-      # fix (block self-binding is #1310's territory) - only assert the
-      # return-inference error this fix addresses is gone.
+      # define_method inside the block is unresolved, unrelated to this fix:
+      # https://github.com/castwide/solargraph/pull/1310
       expect(checker.problems.map(&:message)).not_to include(
         '#typed_let_mock_duck_responder return type could not be inferred'
       )
