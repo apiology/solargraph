@@ -11,10 +11,8 @@ module Solargraph
       # The workspace's .solargraph.yml can override this value.
       MAX_FILES = 5000
 
-      # Doc comment written above each top-level key when `solargraph
-      # config` generates a .solargraph.yml - see .commented_yaml. A
-      # key with no entry here (or not present in the config at all)
-      # is rendered without a comment.
+      # Per-key doc comment for `solargraph config`'s generated YAML
+      # (see .commented_yaml) - a key missing here gets no comment.
       #
       # @return [Hash{String => Array<String>}]
       CONFIG_DOCS = {
@@ -175,11 +173,7 @@ module Solargraph
         def commented_yaml conf
           conf.map do |key, value|
             comment = CONFIG_DOCS.fetch(key, []).map { |line| "# #{line}" }.join("\n")
-            # @sg-ignore Psych.dump's RBS also declares optional kwargs
-            # (indentation:, line_width:, ...), so a positional Hash
-            # argument built with => gets misread as an attempt at
-            # those kwargs - literal error: "Unrecognized keyword
-            # argument key to Psych.dump"
+            # @sg-ignore Psych.dump's RBS also misreads a positional Hash arg as kwargs
             yaml = YAML.dump({ key => value }).sub(/\A---\n/, '')
             [comment, yaml].reject(&:empty?).join("\n")
           end.join("\n")
