@@ -77,7 +77,7 @@ module Solargraph
       # @todo 26: Translate to something flow sensitive typing understands
       # @todo 17: Need a downcast here
       #
-      # flow sensitive typing could handle (161):
+      # flow sensitive typing could handle (162):
       #
       # @todo 30: https://github.com/castwide/solargraph/issues/1249
       # @todo 28: https://github.com/castwide/solargraph/issues/1241
@@ -114,6 +114,7 @@ module Solargraph
       # @todo 1: flow sensitive typing needs to handle constants
       # @todo 1: Need to handle duck-typed method calls on union types
       # @todo 1: flow sensitive typing needs to remove literal with
+      # @todo 1: https://github.com/castwide/solargraph/pull/1297
       def require_all_unique_types_match_expected?
         report?(:require_all_unique_types_match_expected, :strong)
       end
