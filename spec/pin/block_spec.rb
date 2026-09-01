@@ -11,13 +11,8 @@ describe Solargraph::Pin::Block do
   end
 
   it 'leaves a block parameter undefined when dispatched via #send' do
-    # Kernel#send's own block signature is a real splat -
-    # `(*arg ::Array) -> untyped` - representing "however many values
-    # the dynamically-dispatched method yields," not "one value, typed
-    # as an Array, was yielded." A direct call to the same method with
-    # the same block infers the declared @yieldparam type; the #send
-    # call must not fall back to typing the block parameter as the
-    # whole Array.
+    # Kernel#send's own block signature is a real splat (`(*arg ::Array) -> untyped`),
+    # not a promise that one Array-typed value was yielded.
     source = Solargraph::Source.load_string(%(
       class SendDispatch
         # @param items [Array<String>]

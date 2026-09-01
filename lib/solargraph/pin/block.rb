@@ -43,32 +43,18 @@ module Solargraph
 
       # @param yield_types [::Array<ComplexType>]
       # @param parameters [::Array<Parameter>]
-      # @param yield_params [::Array<Parameter>, nil] the yielding method's
-      #   own block signature parameters that produced yield_types - used to
-      #   tell a genuine single yielded value apart from a splat
-      #   ("*arg") standing in for an unknown number of values (e.g. a
-      #   dynamically-dispatched `.send(...) { ... }` block, whose RBS
-      #   signature is `(*arg ::Array) -> untyped`)
+      # @param yield_params [::Array<Parameter>, nil] the yielding method's own block parameters
       #
       # @return [::Array<ComplexType>]
-      # @sg-ignore Declared return type does not match inferred - adding the
-      #   splat-detection return below changes how Solargraph merges this
-      #   method's multiple return paths, and it now infers Enumerator
-      #   instead of Array for the tail expression even though that
-      #   expression is unchanged from before this method had more than
-      #   one return path, when it typechecked cleanly.
+      # @sg-ignore Adding the splat-detection return path changes the merged return type Solargraph infers for the unchanged tail expression
       def destructure_yield_types yield_types, parameters, yield_params = nil
         # yielding a tuple into a block will destructure the tuple
         if yield_types.length == 1
           yield_type = yield_types.first
           return yield_type.all_params if yield_type.tuple? && yield_type.all_params.length == parameters.length
         end
-        # A lone splat block parameter on the yielding method means "an
-        # unknown number of values will be yielded," not "one value,
-        # typed as an Array, was yielded." Binding that whole Array type
-        # to the block's own first parameter is wrong whenever that
-        # parameter isn't itself a splat - Ruby truncates to the first
-        # yielded value there, it doesn't collect them into an Array.
+        # A lone splat yield param means unknown arity was yielded, not one
+        # Array value - don't bind the whole Array to a non-splat block param.
         if single_unknown_arity_splat?(yield_params) && !(parameters.length == 1 && parameters.first&.restarg?)
           return parameters.map { ComplexType::UNDEFINED }
         end
