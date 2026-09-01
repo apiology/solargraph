@@ -15,6 +15,14 @@ describe Solargraph::ComplexType::UniqueType do
     end
   end
 
+  describe '.parse' do
+    it 'raises for a substring whose delimiter is not {, ( or <' do
+      expect do
+        described_class.parse('Foo', '[bar]')
+      end.to raise_error(Solargraph::ComplexTypeError, /Unrecognized parameter delimiter/)
+    end
+  end
+
   describe '#any?' do
     let(:type) { described_class.parse('String') }
 
