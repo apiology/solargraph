@@ -470,7 +470,41 @@ module Solargraph
         result.concat inner_get_methods('Kernel', :instance, visibility, deep, skip)
       else
         result.concat inner_get_methods(rooted_tag, scope, visibility, deep, skip)
-        unless %w[Class Class<Class>].include?(rooted_tag)
+        if %w[Class Class<Class>].include?(rooted_tag)
+          # RBS declares Class#new as untyped because it cannot
+          # parameterize Class. We know more: Class.new returns a new
+          # class whose instances are (at least) Objects, and calling
+          # .new on an unparameterized Class-typed receiver returns
+          # some instance of it - an Object.
+          result.map! do |pin|
+            next pin unless pin.path == 'Class#new'
+
+            return_tag = scope == :class ? 'Class<Object>' : 'Object'
+            pin.proxy_with_signatures ComplexType.try_parse(return_tag)
+          end
+        else
+          if scope == :class && rooted_type.name == ComplexType::GENERIC_TAG_NAME
+            # A Class<generic<T>> receiver: the namespace lookup on the
+            # unresolved generic finds no singleton methods (there is no
+            # 'generic' namespace), so no Class#new pin ever appears and
+            # .new goes undefined. The instance type is knowable, though -
+            # it is the generic itself, which the caller binds. Synthesize
+            # a permissive new pin that keeps it symbolic; argument
+            # checking stays lenient because the real initializer is
+            # unknown here.
+            generic_new = Pin::Method.new(
+              name: 'new',
+              scope: :class,
+              return_type: rooted_type,
+              closure: Pin::Namespace.new(name: 'Class', source: :api_map),
+              source: :api_map
+            )
+            generic_new.parameters = [
+              Pin::Parameter.new(decl: :restarg, name: 'args', closure: generic_new, source: :api_map),
+              Pin::Parameter.new(decl: :kwrestarg, name: 'kwargs', closure: generic_new, source: :api_map)
+            ].freeze
+            result.push generic_new
+          end
           result.map! do |pin|
             next pin unless pin.path == 'Class#new'
             init_pin = get_method_stack(rooted_tag, 'initialize').first
