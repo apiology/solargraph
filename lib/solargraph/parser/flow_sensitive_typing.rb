@@ -65,10 +65,8 @@ module Solargraph
         # false, so provide false ranges to assert facts on
 
         # can't assume if an or is true that every single condition is
-        # true, so don't provide true ranges to assert facts on to
-        # each side individually - however, if both sides are
-        # `is_a?` checks on the same variable, we can narrow that
-        # variable to the union of the checked types
+        # true, so don't provide true ranges to assert facts on -
+        # except when both sides are `is_a?` on the same variable.
         process_or_isa_union(or_node, lhs, rhs, true_ranges)
 
         process_expression(lhs, [], false_ranges + [rhs_presence])
@@ -338,13 +336,7 @@ module Solargraph
         process_facts(if_false, false_presences)
       end
 
-      # Handles the one case where an `||`-joined pair of conditions
-      # can still narrow the true branch: both sides are plain
-      # `is_a?` checks on the *same* variable. In that case the
-      # variable's type can be narrowed to the union of the two
-      # checked types. Any other shape (different variables, or
-      # either side not a plain `is_a?` call) is left alone rather
-      # than guessing at an unsound narrowing.
+      # Narrows `x.is_a?(A) || x.is_a?(B)` to the union of A and B.
       #
       # @param or_node [Parser::AST::Node]
       # @param lhs [Parser::AST::Node]
