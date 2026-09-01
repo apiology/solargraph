@@ -1,4 +1,5 @@
 require 'yard-activesupport-concern'
+require 'digest'
 require 'fileutils'
 require 'pathname' # @todo Required by RBS but not loaded in some use cases
 require 'rbs'
@@ -19,13 +20,36 @@ module Solargraph
           File.join(Dir.home, '.cache', 'solargraph')
       end
 
+      # A digest of solargraph's own lib/ contents. Marshal silently
+      # tolerates loading pins serialized by a class definition with
+      # fewer ivars than the one currently loaded (missing ivars just
+      # read back as nil), so a `Solargraph::VERSION`-only cache key
+      # isn't enough to protect against a gem source swap that changes
+      # Pin behavior without bumping VERSION -- e.g. switching a
+      # bundler `path:`/`git:` install to a different commit, common
+      # in fork-based development. Folding this digest into work_dir
+      # busts the cache whenever the library code actually changes.
+      #
+      # @sg-ignore flow sensitive typing doesn't narrow @lib_digest past the nil guard below
+      # @return [String]
+      def lib_digest
+        return @lib_digest unless @lib_digest.nil?
+        lib_dir = File.expand_path('..', __dir__)
+        digest = Digest::SHA256.new
+        Dir.glob(File.join(lib_dir, '**', '*.rb')).each do |file|
+          stat = File.stat(file)
+          digest << file << stat.mtime.to_i.to_s << stat.size.to_s
+        end
+        @lib_digest = digest.hexdigest[0, 12]
+      end
+
       # The working directory for the current Ruby, RBS, and Solargraph versions.
       #
       # @return [String]
       def work_dir
         # The directory is not stored in a variable so it can be overridden
         # in specs.
-        File.join(base_dir, "ruby-#{RUBY_VERSION}", "rbs-#{RBS::VERSION}", "solargraph-#{Solargraph::VERSION}")
+        File.join(base_dir, "ruby-#{RUBY_VERSION}", "rbs-#{RBS::VERSION}", "solargraph-#{Solargraph::VERSION}-#{lib_digest}")
       end
 
       # @param gemspec [Gem::Specification]
