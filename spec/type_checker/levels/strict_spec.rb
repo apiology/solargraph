@@ -73,6 +73,76 @@ describe Solargraph::TypeChecker do
         .to contain_exactly(a_string_matching(/\AWrong argument type for Array#push: \w+ expected Integer, received String\z/))
     end
 
+    it 'does not report a bogus problem for a restarg typed as RBS `untyped` (#1223)' do
+      # Reported at https://github.com/castwide/solargraph/pull/1223#issuecomment-5198820509 -
+      # BasicObject#instance_exec is declared `(*untyped, **untyped)`, so its
+      # restarg has no per-element type to check arguments against.
+      # #restarg_problems_for used to unwrap that down to a
+      # ComplexType with zero items, which #undefined? failed to
+      # recognize (ComplexType#method_missing only delegates to
+      # #items.first, so it returns nil - not true - when #items is
+      # empty), so the empty type fell through to the error message
+      # instead of being skipped, rendering as "expected , received".
+      checker = type_checker(%(
+        1.instance_exec(2) { }
+      ))
+      expect(checker.problems.map(&:message)).to eq([])
+    end
+
+    it 'does not leak an unresolved generic from a literal-keyed Hash#fetch (#1223)' do
+      # Reported at https://github.com/castwide/solargraph/pull/1223#issuecomment-5296594623 -
+      # on RBS 4.0.x, a single-argument Hash#fetch call resolved K to the
+      # receiver's literal key type (e.g. "Index" from a
+      # `Hash{"Index" => Float}` @param tag), giving Hash#fetch a single
+      # candidate overload with no non-literal sibling to fall back to.
+      # The overload-selection gate that requires an exact-literal match
+      # (added to make tuple's literal-indexed overloads win over its
+      # safe catch-all) rejected that candidate outright, since the
+      # call's plain string argument isn't itself literal-typed - so no
+      # overload matched at all, and inference fell back to the union of
+      # every overload's declared return type instead of the one real
+      # match.
+      checker = type_checker(%(
+        class ReproLeak
+          # @param period [Hash{"Index" => Float}]
+          # @return [Float]
+          def literal_key(period)
+            period.fetch('Index')
+          end
+
+          # @param period [Hash{String => Float}]
+          # @return [Float]
+          def class_key(period)
+            period.fetch('Index')
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq([])
+    end
+
+    it 'catches a bad #<< argument against a fixed-arity generic parameter resolved against the receiver (#1242)' do
+      # Array#<< has a single fixed-arity parameter typed as the
+      # generic `E`. Before this fix, only restarg parameters (like
+      # Array#push's, above) had their generic types resolved against
+      # the receiver's actual element type - fixed-arity params like
+      # this one still typed themselves from the unresolved generic
+      # declaration and never flagged a mismatch.
+      checker = type_checker(%(
+        y = [1]
+        y << 'two'
+      ))
+      expect(checker.problems.map(&:message))
+        .to contain_exactly(a_string_matching(/\AWrong argument type for Array#<<: \w+ expected Integer, received String\z/))
+    end
+
+    it 'does not flag a #<< argument matching the receiver element type (#1242)' do
+      checker = type_checker(%(
+        y = [1]
+        y << 5
+      ))
+      expect(checker.problems.map(&:message)).to eq([])
+    end
+
     it 'handles compatible interfaces with self types on call' do
       checker = type_checker(%(
         # @param a [Enumerable<String>]

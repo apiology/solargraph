@@ -162,10 +162,19 @@ module Solargraph
           result.push Problem.new(pin.location, "Untyped method #{pin.path} could not be inferred")
         end
       elsif rules.validate_tags?
-        unless pin.node.nil? || declared.void? || virtual_pin?(pin) || abstract?(pin)
+        # Attribute pins never have a node (attr_reader/attr_writer/attr_accessor are
+        # synthesized, not parsed method bodies), but their inferred type is still
+        # meaningful: #probe walks the backing ivar's assignments via infer_from_iv.
+        # Without this carve-out, a manually-written @return tag on an attribute is
+        # never cross-checked against how the ivar is actually assigned (e.g. a nilable
+        # default in the constructor), so a bad tag silently passes at every level.
+        unless (pin.node.nil? && !pin.attribute?) || declared.void? || virtual_pin?(pin) || abstract?(pin)
           inferred = pin.probe(api_map).self_to_type(pin.full_context)
           if inferred.undefined?
-            unless rules.ignore_all_undefined? || external?(pin)
+            # An attribute with no locally-discoverable ivar assignment (set via a
+            # mixin, metaprogramming, etc.) isn't a tag/inference mismatch - just
+            # unproven. Only methods with an actual body get flagged for this.
+            unless rules.ignore_all_undefined? || external?(pin) || pin.attribute?
               result.push Problem.new(pin.location, "#{pin.path} return type could not be inferred", pin: pin)
             end
           else
@@ -426,6 +435,26 @@ module Solargraph
       result
     end
 
+    # Resolves any remaining generics in a fixed-arity parameter's
+    # already-qualified declared type (e.g. `Elem` for a made-up
+    # `Array#insert_first(v: Elem): void`) against the receiver's
+    # actual generic parameters (e.g. `Integer` for an
+    # `Array<Integer>` receiver). This is the fixed-arity counterpart
+    # to the unwrap-and-resolve done in #restarg_problems_for for
+    # restargs.
+    #
+    # @param ptype [ComplexType, ComplexType::UniqueType] the
+    #   parameter's declared type, as found via
+    #   #signature_param_details
+    # @param pin [Pin::Method]
+    # @param receiver_type [ComplexType]
+    # @return [ComplexType, ComplexType::UniqueType]
+    def resolve_param_type_against_receiver ptype, pin, receiver_type
+      return ptype if ptype.nil? || ptype.undefined?
+      # @sg-ignore pin.closure is a Pin::Namespace for a top-level method pin
+      ptype.resolve_generics(pin.closure, receiver_type)
+    end
+
     # @param location [Location]
     # @param locals [Array<Pin::LocalVariable>]
     # @param closure_pin [Pin::Closure]
@@ -434,15 +463,11 @@ module Solargraph
     # @param sig [Pin::Signature]
     # @param pin [Pin::Method]
     # @param receiver_type [ComplexType] the type of the object the
-    #   method is being called on. Resolving a signature's generics
-    #   (e.g. `Elem`) against the receiver's actual generic
-    #   parameters (e.g. `Integer` for an `Array<Integer>` receiver)
-    #   is a general problem, but this is currently only plumbed
-    #   through to the restarg path below (see #restarg_problems_for)
-    #   - fixed-arity params still get their types from `params`
-    #   (built by #param_details_from_stack), which doesn't resolve
-    #   against the receiver. Generalizing that is tracked as a
-    #   follow-up, not attempted here.
+    #   method is being called on. Used to resolve a signature's
+    #   generics (e.g. `Elem`) against the receiver's actual generic
+    #   parameters (e.g. `Integer` for an `Array<Integer>` receiver),
+    #   for both fixed-arity params (below, and in #kwarg_problems_for)
+    #   and restargs (see #restarg_problems_for).
     #
     # @return [Array<Problem>]
     def signature_argument_problems_for location, locals, closure_pin, params, arguments, sig, pin, receiver_type
@@ -495,6 +520,7 @@ module Solargraph
               return errors
             end
             ptype = params.key?(par.name) ? params[par.name][:qualified] : ComplexType::UNDEFINED
+            ptype = resolve_param_type_against_receiver(ptype, pin, receiver_type)
             ptype = ptype.self_to_type(par.context)
             if ptype.nil?
               # @todo Some level (strong, I guess) should require the param here
@@ -508,7 +534,8 @@ module Solargraph
               end
             end
           else
-            errors.concat kwarg_problems_for sig, argchain, api_map, closure_pin, locals, location, pin, params, idx
+            errors.concat kwarg_problems_for(sig, argchain, api_map, closure_pin, locals, location, pin, params, idx,
+                                             receiver_type)
             next
           end
         elsif par.decl == :kwarg
@@ -550,7 +577,18 @@ module Solargraph
       # must conform to.
       # @sg-ignore pin.closure is a Pin::Namespace for a top-level method pin
       wrapped_ptype = par.return_type.resolve_generics(pin.closure, receiver_type)
-      ptype = ComplexType.new(wrapped_ptype.items.flat_map(&:subtypes).flat_map(&:items))
+      subtypes = wrapped_ptype.items.flat_map(&:subtypes)
+      # RbsTranslator#to_restarg_return_type falls back to a bare,
+      # unparameterized Array (no subtypes) when the RBS element type
+      # is untyped (e.g. `(*untyped)`) - there's no per-element type
+      # to check arguments against in that case. A ComplexType built
+      # from an empty item list isn't caught by the ptype.undefined?
+      # check below (ComplexType#method_missing only delegates to
+      # #items.first, so #undefined? comes back nil, not true, when
+      # #items is empty) so it has to be handled explicitly here.
+      return errors if subtypes.empty?
+
+      ptype = ComplexType.new(subtypes.flat_map(&:items))
       # @sg-ignore pin.closure is a Pin::Namespace for a top-level method pin
       ptype = ptype.qualify(api_map, *pin.closure.gates).self_to_type(par.context)
       return errors if ptype.nil? || ptype.undefined?
@@ -575,8 +613,7 @@ module Solargraph
     # @param idx [Integer] the restarg's index within sig.parameters
     # @return [Array<Source::Chain>] the call-site arguments absorbed
     #   by the restarg at idx
-    # @sg-ignore flow sensitive typing incorrectly includes an
-    #   intermediate local variable's type in the inferred return type
+    # @sg-ignore flow sensitive typing incorrectly includes an intermediate local variable's type in the inferred return type
     def restarg_arguments sig, arguments, idx
       # A restarg can be followed by trailing positional parameters
       # (`def foo(*path, baz)`) - those consume the last N call-site
@@ -613,9 +650,13 @@ module Solargraph
     # @param pin [Pin::Method]
     # @param params [Hash{String => Hash{Symbol => undefined}}]
     # @param idx [Integer]
+    # @param receiver_type [ComplexType] the type of the object the
+    #   method is being called on, used to resolve a generic keyword
+    #   parameter's declared type (e.g. `Elem`) against the
+    #   receiver's actual generic parameters
     #
     # @return [Array<Problem>]
-    def kwarg_problems_for sig, argchain, api_map, closure_pin, locals, location, pin, params, idx
+    def kwarg_problems_for sig, argchain, api_map, closure_pin, locals, location, pin, params, idx, receiver_type
       result = []
       kwargs = convert_hash(argchain.node)
       par = sig.parameters[idx]
@@ -630,6 +671,7 @@ module Solargraph
         else
           # @type [ComplexType, ComplexType::UniqueType]
           ptype = data[:qualified]
+          ptype = resolve_param_type_against_receiver(ptype, pin, receiver_type)
           ptype = ptype.self_to_type(pin.context)
           unless ptype.undefined?
             # @type [ComplexType]
@@ -952,7 +994,7 @@ module Solargraph
     def all_sg_ignore_lines
       source.associated_comments.select do |_line, text|
         # @sg-ignore Need to add nil check here
-        text.include?('@sg-ignore')
+        text.any? { |t| t.include?('@sg-ignore') }
       end.keys.to_set
     end
 
