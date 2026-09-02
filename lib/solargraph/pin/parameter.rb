@@ -243,6 +243,7 @@ module Solargraph
 
       # @param atype [ComplexType]
       # @param api_map [ApiMap]
+      # @param require_literal [Boolean] require an exact literal match against a literal-typed parameter
       def compatible_arg? atype, api_map, require_literal: true
         # make sure we get types from up the method
         # inheritance chain if we don't have them on this pin
