@@ -5,6 +5,9 @@ module Solargraph
   #
   class ComplexType
     GENERIC_TAG_NAME = 'generic'
+
+    # the quote characters that open and close a string literal type
+    QUOTE_CHARACTERS = ['"', "'"].freeze
     # @!parse
     #   include TypeMethods
     include Equality
@@ -285,14 +288,7 @@ module Solargraph
     private :duck_type_provides?
 
     # Intersection#namespace/#scope only report the first conjunct,
-    # which loses the "any one conjunct satisfies" semantics an
-    # intersection needs against a duck-typed expectation - e.g. a
-    # mock stubbed to satisfy an interface, typed `SomeMockClass &
-    # #some_method`, has to be checked against every conjunct rather
-    # than the first one. A conjunct is itself a full ComplexType (RBS
-    # allows a union as one member of an intersection), so a union
-    # conjunct only counts as satisfying the duck type if every one of
-    # its own alternatives does.
+    # so this checks every conjunct against the duck type directly.
     #
     # @param api_map [ApiMap]
     # @param quack [String]
@@ -304,8 +300,7 @@ module Solargraph
           conjunct.all? { |ut| intersection_conjunct_quacks?(api_map, quack, ut) }
         end
       end
-      # A duck-typed conjunct only vouches for the one method its own
-      # tag names - it has no namespace to look other methods up on.
+      # A duck-typed conjunct only vouches for its own named method.
       return unique_type.to_s[1..] == quack if unique_type.duck_type?
       !api_map.get_method_stack(unique_type.namespace, quack, scope: unique_type.scope).empty?
     end
@@ -545,9 +540,9 @@ module Solargraph
 
     # @param api_map [ApiMap]
     # @param unique_type [ComplexType::UniqueType]
-    # @return [Symbol, nil] :class, :module, or nil if unknown
+    # @sg-ignore flow sensitive typing needs to infer Enumerable#find's block return type from an is_a? check
+    # @return [:class, :module, nil] nil when the namespace has no pin
     def namespace_kind api_map, unique_type
-      # @type [Pin::Namespace, nil]
       pin = api_map.get_path_pins(unique_type.namespace).find { |p| p.is_a?(Pin::Namespace) }
       pin&.type
     end
@@ -638,9 +633,19 @@ module Solargraph
         # segment currently being parsed
         # @type [Array<ComplexType, ComplexType::UniqueType>]
         disjuncts = []
+        # the open quote character of the string literal being read
+        # (e.g. `"Index"`), or nil outside one
+        # @type [String, nil]
+        quote = nil
         # @param char [String]
         type_string&.each_char do |char|
-          if char == '='
+          if quote
+            # inside a string literal every character is content, so
+            # separators and brackets carry no syntactic meaning
+            quote = nil if char == quote
+          elsif QUOTE_CHARACTERS.include?(char)
+            quote = char
+          elsif char == '='
             # raise ComplexTypeError, "Invalid = in type #{type_string}" unless curly_stack > 0
           elsif char == '<'
             point_stack += 1
@@ -707,6 +712,7 @@ module Solargraph
             subtype_string.concat char
           end
         end
+        raise ComplexTypeError, "Unclosed string literal in #{type_string}" if quote
         if point_stack != 0 || curly_stack != 0 || paren_stack != 0 || bracket_stack != 0
           raise ComplexTypeError,
                 "Unclosed subtype in #{type_string}"

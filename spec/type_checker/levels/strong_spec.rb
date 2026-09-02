@@ -2116,34 +2116,7 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message)).to be_empty
     end
 
-    it 'always dispatches a same-class generic method through the first union member, not #1231-specific' do
-      # Not an intersection-types bug at all: a *union* of two Hash
-      # instantiations shows the identical "always the first one, regardless
-      # of order or argument" dispatch bug that the same-class intersection
-      # specs below track. Confirmed on unmodified castwide/solargraph
-      # master (8fda63384, no & or | involved) with a minimal @generic
-      # class (no Hash, no literal keys, no #1266 dependency):
-      #
-      #   # @generic T
-      #   class Box
-      #     # @return [generic<T>]
-      #     def get; end
-      #   end
-      #
-      #   # @param b [Box<Integer>, Box<String>]
-      #   b.get  # infers Integer
-      #   # @param b [Box<String>, Box<Integer>]
-      #   b.get  # infers String - order picked the type, not the call
-      #
-      # Root cause: Call#inferred_pins resolves the class's generic
-      # parameter against `self_type = name_pin.binder` - the *whole*
-      # union/intersection type - rather than per-member, so it binds
-      # against whichever member it structurally matches first.
-      #
-      # Filing this as its own issue/PR against master, independent of
-      # #1231 and #1266, so the Hash intersection specs below inherit the
-      # fix whichever order the PRs land in rather than stacking one PR on
-      # top of another.
+    it 'always dispatches a same-class generic method through the first union member' do
       pending 'Call#inferred_pins binds a generic against the first union/intersection member only'
       checker = type_checker(%(
         class Repro
@@ -2410,6 +2383,45 @@ describe Solargraph::TypeChecker do
         expect(checker.problems.map(&:message)).to be_empty
       end
 
+      it 'dispatches to the conjunct whose parameter type actually accepts the argument' do
+        # Same problem as the Hash-record specs above, generalized:
+        # narrowing an intersection's conjuncts by argument fit isn't
+        # Hash-key-specific, it's ordinary overload matching applied
+        # per conjunct instead of per signature.
+        checker = type_checker(%(
+          class A
+            # @param x [String]
+            # @return [Integer]
+            def pick(x)
+              1
+            end
+          end
+
+          class B
+            # @param x [Symbol]
+            # @return [Float]
+            def pick(x)
+              1.0
+            end
+          end
+
+          class Factory
+            # @sg-ignore A.new duck-types as A & B for this repro
+            # @return [A & B]
+            def make
+              A.new
+            end
+          end
+
+          # @type [Integer]
+          from_a = Factory.new.make.pick("hello")
+
+          # @type [Float]
+          from_b = Factory.new.make.pick(:hello)
+      ))
+        expect(checker.problems.map(&:message)).to be_empty
+      end
+
       it 'resolves a call to a method inherited from a common ancestor of both conjuncts' do
         checker = type_checker(%(
           class A
@@ -2436,9 +2448,7 @@ describe Solargraph::TypeChecker do
         expect(checker.problems.map(&:message)).to be_empty
       end
 
-      it 'resolves a conjunct method on an intersection-typed local variable, not just a call chain (#1231)' do
-        # Same fix as the sibling spec above applies to any intersection-typed
-        # value, not just method-return-value call chains.
+      it 'resolves a conjunct method on an intersection-typed local variable, not just a call chain' do
         checker = type_checker(%(
           class A
             # @return [void]
@@ -2461,8 +2471,6 @@ describe Solargraph::TypeChecker do
       end
 
       it 'resolves conjunct methods on a three-way intersection' do
-        # Same fix as the sibling specs above; each conjunct is checked
-        # independently regardless of how many there are.
         checker = type_checker(%(
           class A
             # @return [void]

@@ -31,10 +31,8 @@ module Solargraph
       # @return [UniqueType]
       def self.parse name, substring = '', make_rooted: nil
         raise ComplexTypeError, "Illegal prefix: #{name}" if name.start_with?(':::')
-        # Anonymous shorthand - `<A>`, `(A)`, `{A=>B}` - omits the
-        # leading type name, defaulting it to Array or Hash. Resolved
-        # before the rooted/can_root_name? check below so an anonymous
-        # `<A>` behaves exactly like the equivalent `Array<A>`.
+        # Anonymous shorthand (`<A>`, `(A)`, `{A=>B}`) defaults the
+        # omitted type name to Array or Hash, before the rooted check below.
         name = ANONYMOUS_NAME_BY_STARTING_TAG.fetch(substring[0]) if name.empty? && !substring.empty?
         if name.start_with?('::')
           name = name[2..]
@@ -227,20 +225,16 @@ module Solargraph
         @non_literal_name ||= determine_non_literal_name
       end
 
-      # Whether every one of this type's key_types is a literal type
-      # (e.g. `Hash{"Index" => Float}`'s key_types is `["Index"]`, a
-      # literal String) - a Hash-like type whose keys are specific
-      # values rather than a general key class.
+      # Whether every key_type is a literal, e.g. `Hash{"Index" =>
+      # Float}`'s key is the literal `"Index"`, not a general class.
       #
       # @return [Boolean]
       def literal_keyed?
         key_types.any? && key_types.all? { |kt| kt.items.all?(&:literal?) }
       end
 
-      # Whether any of this type's key_types has the given literal tag
-      # (e.g. `'"Index"'`, `':foo'`, `'1'`). A key_type is itself a
-      # ComplexType, so a union key (`Hash{"A" | "B" => V}`) has more
-      # than one item to check - `kt.tag` alone only sees the first.
+      # Whether any key_type has the given literal tag (e.g.
+      # `'"Index"'`) - checks every item, since a key_type may be a union.
       #
       # @param tag [String]
       # @return [Boolean]

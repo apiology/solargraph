@@ -45,17 +45,17 @@ module Solargraph
         # @param conjuncts [Array<ComplexType>]
         def initialize conjuncts
           @conjuncts = conjuncts
-          super(conjuncts.map(&:tags).join(' & '), rooted: true)
+          super(intersection_tag(:tags), rooted: true)
         end
 
         # @return [String]
         def tag
-          @tag ||= conjuncts.map(&:tags).join(' & ')
+          @tag ||= intersection_tag(:tags)
         end
 
         # @return [String]
         def rooted_tag
-          @rooted_tag ||= conjuncts.map(&:rooted_tags).join(' & ')
+          @rooted_tag ||= intersection_tag(:rooted_tags)
         end
 
         # @return [String]
@@ -151,17 +151,9 @@ module Solargraph
           end
         end
 
-        # Every conjunct describes the same value, so each is resolved
-        # against the same context type, and a generic bound by one
-        # conjunct is visible to the rest through the shared
-        # resolved_generic_values hash. UniqueType's implementation
-        # looks for generics in #subtypes and #key_types, which an
-        # intersection does not use - its type parameters live inside
-        # the conjuncts - so `Class<generic<T>> & #new` never bound T.
-        #
-        # Conjuncts resolve left to right, so a generic that only
-        # becomes bindable through a later conjunct stays unresolved in
-        # an earlier one's output.
+        # Every conjunct resolves against the same context, sharing
+        # resolved_generic_values - resolved left to right, so an
+        # earlier conjunct won't see a generic only a later one binds.
         #
         # @param generics_to_resolve [Enumerable<String>]
         # @param context_type [ComplexType, UniqueType, nil]
@@ -209,6 +201,18 @@ module Solargraph
         end
 
         private
+
+        # Renders conjuncts as a tag, bracketing multi-item ones since
+        # `&` binds tighter than `,`/`|` (`[A|B] & C`, not `A, B & C`).
+        #
+        # @param tags_method [:tags, :rooted_tags]
+        # @return [String]
+        def intersection_tag tags_method
+          conjuncts.map do |conjunct|
+            tags = conjunct.send(tags_method)
+            conjunct.items.length > 1 ? "[#{tags}]" : tags
+          end.join(' & ')
+        end
 
         # An assignment's declared `A & B & C` (e.g. `# @type [Hash{:k1
         # => V1} & Hash{:k2 => V2} & Hash{:k3 => V3}]` on a local

@@ -204,6 +204,10 @@ module Solargraph
                          block_required: method_type.block&.required || false, source: :rbs, type_location: closure.location, closure: closure)
     end
 
+    # Builds a named type (with its generic arguments, if any) directly
+    # as an object rather than via a tag string, so `rooted?` survives.
+    # https://github.com/castwide/solargraph/pull/870
+    #
     # @param type_name [RBS::TypeName]
     # @param type_args [Enumerable<RBS::Types::Bases::Base>]
     # @param type_alias_decls [Hash{String => RBS::AST::Declarations::TypeAlias}]
@@ -290,11 +294,20 @@ module Solargraph
         # inline ignore comment. Tracked at
         # https://github.com/castwide/solargraph/issues/1241
         case type
+        when RBS::Types::Optional
+          # @sg-ignore flow sensitive typing ought to be able to handle 'when ClassName'
+          "#{type_to_tag(type.type)}, nil"
         when RBS::Types::Bases::Bool
           'Boolean'
+        when RBS::Types::Tuple
+          # @sg-ignore flow sensitive typing ought to be able to handle 'when ClassName'
+          "Array(#{type.types.map { |t| type_to_tag(t) }.join(', ')})"
         when RBS::Types::Literal
           # @sg-ignore https://github.com/castwide/solargraph/issues/1241 - case/when doesn't narrow type
           type.literal.inspect
+        when RBS::Types::Union
+          # @sg-ignore flow sensitive typing ought to be able to handle 'when ClassName'
+          type.types.map { |t| type_to_tag(t) }.join(', ')
         when RBS::Types::Record
           # @todo Better record support
           'Hash'
@@ -310,6 +323,26 @@ module Solargraph
         when RBS::Types::Bases::Top
           # `Top` is the most super superclass
           'BasicObject'
+        when RBS::Types::Intersection
+          # `&` binds tighter than `,`/`|`, so bracket a conjunct that
+          # renders as more than one type (Union, Optional).
+          #
+          # @sg-ignore flow sensitive typing ought to be able to handle 'when ClassName'
+          type.types.map { |member| intersection_conjunct_tag(member) }.join(' & ')
+        when RBS::Types::ClassInstance, RBS::Types::Alias, RBS::Types::Interface
+          # `Alias` is a top-level type alias, e.g., 'bool' in "type bool = true | false"
+          # @todo ensure these get resolved after processing all aliases
+          # @todo handle recursive aliases
+          #
+          # `Interface` represents a mix-in module which can be considered a
+          # subtype of a consumer of it
+          #
+          # @sg-ignore flow sensitive typing ought to be able to handle 'when ClassName'
+          build_unique_type(type.name, type.args).tags
+        when RBS::Types::ClassSingleton
+          # e.g., singleton(String)
+          # @sg-ignore flow sensitive typing ought to be able to handle 'when ClassName'
+          build_unique_type(type.name).tags
         when RBS::Types::Proc
           'Proc'
         when RBS::Types::Bases::Any
@@ -322,6 +355,13 @@ module Solargraph
           Solargraph.logger.warn "Unrecognized RBS type: #{type.class} at #{type.location}"
           'undefined'
         end
+      end
+
+      # @param member [RBS::Types::Bases::Base]
+      # @return [String]
+      def intersection_conjunct_tag member
+        tag = type_to_tag(member)
+        member.is_a?(RBS::Types::Union) || member.is_a?(RBS::Types::Optional) ? "[#{tag}]" : tag
       end
     end
   end

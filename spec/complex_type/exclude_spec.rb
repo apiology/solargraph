@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+# ComplexType#exclude accepts an api_map parameter but ignores it,
+# doing plain exact-match subtraction instead of also excluding
+# known subtypes of an excluded type.
 describe Solargraph::ComplexType do
   let(:api_map) { Solargraph::ApiMap.new }
 
