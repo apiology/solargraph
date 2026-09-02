@@ -127,6 +127,188 @@ describe Solargraph::ComplexType do
     expect(match).to be(true)
   end
 
+  it 'reshapes a Hash into key/value pairs to conform to a lower-arity Enumerable ancestor' do
+    exp = described_class.parse('Enumerable<Array(Symbol, String)>')
+    inf = described_class.parse('Hash{Symbol => String}')
+    match = inf.conforms_to?(api_map, exp, :method_call)
+    expect(match).to be(true)
+  end
+
+  it 'reshapes any hash-shaped (parameters_type == :hash) type into pairs, not just Hash' do
+    # YARD's `{K => V}` tag syntax produces parameters_type == :hash for
+    # any class name, not just Hash - PairBag proves the reshape is
+    # structural, not name-based.
+    source = Solargraph::Source.load_string(%(
+      class PairBag
+        include Enumerable
+      end
+    ))
+    api_map.map source
+    exp = described_class.parse('Enumerable<Array(Symbol, String)>')
+    inf = described_class.parse('PairBag{Symbol => String}')
+    match = inf.conforms_to?(api_map, exp, :method_call)
+    expect(match).to be(true)
+  end
+
+  it 'reshapes a :list-parameterized (ordinary <A, B> generic) 2-arity type into a tuple ' \
+     'to conform to a lower-arity Enumerable ancestor' do
+    # `Pair` uses ordinary `<A, B>` generic syntax (parameters_type ==
+    # :list), not YARD's `{K => V}` hash tag - the same reshape must
+    # apply to both param shapes.
+    source = Solargraph::Source.load_string(%(
+      # @generic A, B
+      class Pair
+        include Enumerable
+
+        # @param a [generic<A>]
+        # @param b [generic<B>]
+        def initialize(a, b)
+          @a = a
+          @b = b
+        end
+
+        # @yieldparam [Array(generic<A>, generic<B>)]
+        def each
+          yield [@a, @b]
+        end
+      end
+    ))
+    api_map.map source
+    exp = described_class.parse('Enumerable<Array(Symbol, String)>')
+    inf = described_class.parse('Pair<Symbol, String>')
+    match = inf.conforms_to?(api_map, exp, :method_call)
+    expect(match).to be(true)
+  end
+
+  it 'does not reshape a 2-arity :list type that does not include Enumerable' do
+    source = Solargraph::Source.load_string(%(
+      # @generic A, B
+      class NotEnumerablePair
+        # @param a [generic<A>]
+        # @param b [generic<B>]
+        def initialize(a, b)
+          @a = a
+          @b = b
+        end
+      end
+    ))
+    api_map.map source
+    exp = described_class.parse('Enumerable<Array(Symbol, String)>')
+    inf = described_class.parse('NotEnumerablePair<Symbol, String>')
+    match = inf.conforms_to?(api_map, exp, :method_call)
+    expect(match).to be(false)
+  end
+
+  it 'reshapes a 3-arity :list type into a 3-tuple to conform to a lower-arity Enumerable ancestor' do
+    source = Solargraph::Source.load_string(%(
+      # @generic A, B, C
+      class Triple
+        include Enumerable
+
+        # @param a [generic<A>]
+        # @param b [generic<B>]
+        # @param c [generic<C>]
+        def initialize(a, b, c)
+          @a = a
+          @b = b
+          @c = c
+        end
+
+        # @yieldparam [Array(generic<A>, generic<B>, generic<C>)]
+        def each
+          yield [@a, @b, @c]
+        end
+      end
+    ))
+    api_map.map source
+    exp = described_class.parse('Enumerable<Array(Symbol, String, Integer)>')
+    inf = described_class.parse('Triple<Symbol, String, Integer>')
+    match = inf.conforms_to?(api_map, exp, :method_call)
+    expect(match).to be(true)
+
+    exp2 = described_class.parse('Enumerable<Array(Symbol, String)>')
+    expect(inf.conforms_to?(api_map, exp2, :method_call)).to be(false)
+  end
+
+  it 'does not reshape a :list type into a tuple for a lower-arity ancestor whose own ' \
+     'generic param is unrelated to the inferred type\'s params' do
+    # Taggable's X has no relation to Pair's A/B (unlike Enumerable, RBS-
+    # bound to Hash's K/V via `include Enumerable[[K, V]]`) - an arity
+    # mismatch alone must not wrap [A, B] into a tuple and call it X.
+    source = Solargraph::Source.load_string(%(
+      # @generic X
+      module Taggable
+      end
+
+      # @generic A, B
+      class Pair
+        include Taggable
+
+        # @param a [generic<A>]
+        # @param b [generic<B>]
+        def initialize(a, b)
+          @a = a
+          @b = b
+        end
+      end
+    ))
+    api_map.map source
+    exp = described_class.parse('Taggable<Array(Symbol, String)>')
+    inf = described_class.parse('Pair<Symbol, String>')
+    match = inf.conforms_to?(api_map, exp, :method_call)
+    expect(match).to be(false)
+  end
+
+  it 'does not reshape a 3-arity :list type into a tuple for a 2-arity non-Enumerable ancestor' do
+    source = Solargraph::Source.load_string(%(
+      # @generic X, Y
+      module Labeled
+      end
+
+      # @generic A, B, C
+      class Triple2
+        include Labeled
+
+        # @param a [generic<A>]
+        # @param b [generic<B>]
+        # @param c [generic<C>]
+        def initialize(a, b, c)
+          @a = a
+          @b = b
+          @c = c
+        end
+      end
+    ))
+    api_map.map source
+    exp = described_class.parse('Labeled<Array(Symbol, String, Integer), Integer>')
+    inf = described_class.parse('Triple2<Symbol, String, Integer>')
+    match = inf.conforms_to?(api_map, exp, :method_call)
+    expect(match).to be(false)
+  end
+
+  it 'does not reshape a hash-shaped type into a tuple for a lower-arity, non-Enumerable ' \
+     'ancestor whose own generic param is unrelated to the inferred type\'s key/value types' do
+    pending 'pre-existing conflation in key_types_conform?/subtypes_conform?, not introduced ' \
+            'by pair_shaped_viewed_as_pairs? - see comment below'
+    # key_types_conform?/subtypes_conform? compares a hash-shaped inferred's
+    # value type against a list-shaped expected's param positionally - the
+    # same false positive reproduces with no pair-shaping logic involved.
+    source = Solargraph::Source.load_string(%(
+      # @generic X
+      module Taggable
+      end
+
+      class PairBag2
+        include Taggable
+      end
+    ))
+    api_map.map source
+    exp = described_class.parse('Taggable<String>')
+    inf = described_class.parse('PairBag2{Symbol => String}')
+    match = inf.conforms_to?(api_map, exp, :method_call)
+    expect(match).to be(false)
+  end
+
   it 'matches multiple types' do
     exp = described_class.parse('String, Integer')
     inf = described_class.parse('String, Integer')
