@@ -296,16 +296,10 @@ module Solargraph
         @index ||= Index.new
       end
 
-      # A method can be defined by more than one pin with the same
-      # path - e.g., a gem's own implementation plus a `@!parse` stub
-      # in a separate file that overrides its documentation. Combine
-      # them into a single pin so callers see one consistent signature
-      # instead of an arbitrary pick among duplicates.
-      #
-      # Aliases are skipped: combining a MethodAlias pin with a
-      # non-alias pin at the same path produces a `:combined` pin that
-      # #resolve_method_alias can't trace back to its original target,
-      # which raises under SOLARGRAPH_ASSERTS=on.
+      # Combines same-path pins into one. Skips aliases (breaks
+      # #resolve_method_alias under SOLARGRAPH_ASSERTS=on) and
+      # DelegatedMethod (initialize needs exactly one of
+      # :method/:receiver; a merged pin can't hold both).
       #
       # DelegatedMethod pins are skipped for the same reason, but they
       # raise outright rather than degrade: Pin::Base#combine_with rebuilds
