@@ -761,15 +761,14 @@ describe Solargraph::Pin::Method do
         expect(intersection.to_rbs).to eq('::String & ::Comparable & ::Enumerable')
       end
 
-      it 'is not round-trippable through the tag string, unlike to_rbs' do
-        # The object model built directly by RbsTranslator is
-        # correct (verified above), but there is no way to express a
-        # grouped union as a plain tag *string* (see
-        # complex_type_spec.rb). Re-parsing the informal `tag`/`to_s`
-        # output therefore does not reproduce the same structure -
-        # this is a known, documented limitation, not a silent
-        # inconsistency. `to_rbs` uses real RBS grouping syntax and
-        # does round-trip correctly.
+      it 'round-trips a union nested inside an intersection through the tag string' do
+        # A multi-item conjunct (from a union nested inside an
+        # intersection) is bracketed in its tag string - `[A, B] & C`,
+        # not `A, B & C` - since `&` binds tighter than `,`/`|` and the
+        # unbracketed form would misparse as a 2-item union whose
+        # second item is itself an intersection. The bracketed form
+        # parses back to the same structure `to_rbs`'s real RBS syntax
+        # round-trips to as well.
         source = Solargraph::Source.load_string(%(
           #: () -> ((String | Integer) & Comparable)
           def foo; end
@@ -778,17 +777,16 @@ describe Solargraph::Pin::Method do
         api_map.map source
         pin = api_map.get_path_pins('#foo').first
         original = pin.return_type
-        expect(original.tag).to eq('String, Integer & Comparable')
+        expect(original.tag).to eq('[String, Integer] & Comparable')
 
         reparsed = Solargraph::ComplexType.parse(original.tag)
-        expect(reparsed.length).to eq(2)
-        expect(reparsed[0].tag).to eq('String')
-        expect(reparsed[1].tag).to eq('Integer & Comparable')
+        expect(reparsed.length).to eq(1)
+        expect(reparsed.first.conjuncts.map(&:tags)).to eq(['String, Integer', 'Comparable'])
 
-        # to_rbs, by contrast, produces real RBS syntax and round-trips
-        # correctly through RBS's own parser (not Solargraph's tag parser,
-        # which speaks a different dialect and doesn't understand `|` or
-        # bare grouping parens).
+        # to_rbs produces real RBS syntax and round-trips correctly
+        # through RBS's own parser too (not Solargraph's tag parser,
+        # which speaks a different dialect and doesn't understand `|`
+        # or bare grouping parens).
         rbs_type = RBS::Parser.parse_type(original.to_rbs)
         reparsed_via_rbs = Solargraph::RbsTranslator.to_complex_type(rbs_type)
         expect(reparsed_via_rbs.length).to eq(1)
