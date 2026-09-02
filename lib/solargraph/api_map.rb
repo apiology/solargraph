@@ -508,7 +508,10 @@ module Solargraph
             new_pin
           end
         end
-        result.concat inner_get_methods('Kernel', :instance, [:public], deep, skip) if visibility.include?(:private)
+        # Kernel has no ancestry link for a synthetic tag like 'void', so
+        # inject it directly on any deep lookup; 'skip' still blocks a
+        # double-add when the walk above already reached it normally.
+        result.concat inner_get_methods('Kernel', :instance, [:public], deep, skip) if deep
         result.concat inner_get_methods('Module', scope, visibility, deep, skip) if scope == :module
       end
       result = resolve_method_aliases(result, visibility)
