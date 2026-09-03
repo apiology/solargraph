@@ -305,13 +305,9 @@ module Solargraph
         atype.items.all?(&:literal?)
       end
 
-      # nil/true/false are technically "literal" per
-      # ComplexType::UniqueType#literal? (their non_literal_name is
-      # NilClass/TrueClass/FalseClass), but they're singletons, not
-      # dispatch-relevant values the way `0` vs `1` are for tuple
-      # indexing - excluding them keeps ordinary `T?`/nilable params
-      # (extremely common, e.g. String#split's `(Regexp | string |
-      # nil pattern)`) from tripping #literal_arg_matches?.
+      # nil/true/false are technically "literal" per #literal?, but as
+      # singletons they aren't dispatch-relevant like `0` vs `1` -
+      # excluding them keeps ordinary nilable params from tripping #literal_arg_matches?.
       #
       # @param unique_type [ComplexType::UniqueType]
       # @return [Boolean]

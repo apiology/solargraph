@@ -47,4 +47,11 @@ describe Solargraph::ComplexType::UniqueType do
       expect(type.key_type_tag?('"Other"')).to be(false)
     end
   end
+
+  describe '#simplify_literals' do
+    it 'leaves a nil literal as nil, not NilClass' do
+      type = described_class.parse('nil')
+      expect(type.simplify_literals.tag).to eq('nil')
+    end
+  end
 end

@@ -249,13 +249,22 @@ module Solargraph
             # Use the return node for inference. The clip might infer from the
             # first node in a method call instead of the entire call.
             chain = Parser.chain(node, nil, nil)
-            # Exclude the pin(s) this exact assignment belongs to from the
-            # candidates available to resolve its own RHS - a self-reference
-            # (e.g. `a = a`, or `index += 1` desugared to `index = index +
-            # 1`) must resolve against the variable's *other* assignments,
-            # not against the not-yet-computed value being derived here.
+            # Exclude this assignment's own pin(s) from RHS resolution - a
+            # self-reference (e.g. `a = a`) must resolve against the
+            # variable's *other* assignments, not the value being derived.
+            #
+            # Array#include? compares with #==, and Parser::AST::Node#==
+            # is structural (type + children), not identity - two
+            # unrelated call nodes with the same shape (e.g. two separate
+            # bare `steps` calls at different source locations) compare
+            # equal. Using #include? here would wrongly treat an
+            # unrelated candidate - e.g. a flow-sensitive-typing pin
+            # synthesized from an earlier, textually-identical guard call
+            # like `steps.nil?` - as this assignment's own pin, and
+            # exclude it from candidates to resolve `steps` against here,
+            # discarding its narrowing. Compare by identity instead.
             self_excluded_locals = clip.locals.reject do |candidate|
-              candidate.respond_to?(:assignments) && candidate.assignments.include?(parent_node)
+              candidate.assignments.any? { |a| a.equal?(parent_node) }
             end
             # @sg-ignore Need to add nil check here
             result = chain.infer(api_map, closure, self_excluded_locals).self_to_type(closure.context)
@@ -303,7 +312,7 @@ module Solargraph
         unless assignment_types.empty?
           # @type [Array<ComplexType::UniqueType>]
           items = assignment_types.flat_map(&:items).uniq
-          # A later, wider assignment (e.g. `index += 1`) can leave a
+          # A later, wider assignment (e.g. `index += n`) can leave a
           # stale literal (e.g. `0`) alongside its own non-literal
           # base type in the union - drop the redundant literal.
           type_from_assignment = ComplexType.new(items).without_redundant_literals
@@ -388,15 +397,13 @@ module Solargraph
         adjust_type(api_map, raw_return_type)
       end
 
-      # A merged multi-assignment variable pin and its earliest constituent
-      # assignment pin share the same #choose-d (earliest) location but differ
-      # in presence, so discriminating on it keeps Chain's recursion guard from
-      # conflating "resolving the merged pin" with "resolving one of its
-      # narrower assignments" and dropping a legitimate recursive lookup.
+      # A merged multi-assignment pin and its earliest assignment share the
+      # same #choose-d location but differ in presence, which is what keeps
+      # Chain's recursion guard from conflating the two and dropping a valid lookup.
       #
       # @return [String, nil]
       def identity_discriminator
-        presence&.inspect
+        presence&.hash&.to_s
       end
 
       # @sg-ignore need boolish support for ? methods

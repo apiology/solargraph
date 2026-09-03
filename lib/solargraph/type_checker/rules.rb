@@ -86,10 +86,15 @@ module Solargraph
       # @todo 11: flow sensitive typing needs better handling of ||= on lvars
       # @todo 11: Need to validate config
       # @todo 8: flow sensitive typing should support .class == .class
-      # @todo 5: need boolish support for ? methods
+      # @todo 6: need boolish support for ? methods
+      # @todo 6: flow sensitive typing needs better handling of ||= on lvars
+      # @todo 5: literal arrays in this module turn into ::Solargraph::Source::Chain::Array
+      # @todo 5: flow sensitive typing needs to handle 'raise if'
+      # @todo 4: flow sensitive typing needs to eliminate literal from union with [:bar].include?(foo)
+      # @todo 4: nil? support in flow sensitive typing
       # @todo 4: flow sensitive typing ought to be able to handle 'when ClassName'
-      # @todo 4: literal arrays in this module turn into ::Solargraph::Source::Chain::Array
-      # @todo 4: flow sensitive typing needs to handle 'raise if'
+      # @todo 3: pin.closure is a Pin::Namespace for a top-level method pin
+      # @todo 2: flow sensitive typing should handle return nil if location&.name.nil?
       # @todo 2: flow sensitive typing should handle is_a? and next
       # @todo 2: flow sensitive typing needs to handle "if foo = bar"
       # @todo 2: flow sensitive typing needs to create separate ranges for postfix if
@@ -107,14 +112,14 @@ module Solargraph
       # @todo 1: flow sensitive typing needs to handle "if foo.nil?"
       # @todo 1: flow sensitive typing should be able to identify more blocks that always return
       # @todo 1: flow sensitive typing needs to eliminate literal from union with return if foo == :bar
-      # @todo 1: flow sensitive typing not smart enough to handle this case
+      # @todo 3: flow sensitive typing issue with the ternary above
       # @todo 1: flow sensitive typing needs to handle self.class == other.class
-      # @todo 1: flow sensitive typing needs to eliminate literal from union with [:bar].include?(foo)
       # @todo 1: Should better support meaning of '&' in RBS
       # @todo 1: flow sensitive typing needs to handle constants
       # @todo 1: Need to handle duck-typed method calls on union types
       # @todo 1: flow sensitive typing needs to remove literal with
       # @todo 1: https://github.com/castwide/solargraph/pull/1297
+      # @todo 1: flow sensitive typing incorrectly includes an intermediate local variable's type in the inferred return type
       def require_all_unique_types_match_expected?
         report?(:require_all_unique_types_match_expected, :strong)
       end
