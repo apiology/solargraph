@@ -62,7 +62,7 @@ describe Solargraph::Pin::BaseVariable do
     location = Solargraph::Location.new('test.rb', Solargraph::Range.from_to(0, 0, 1, 0))
     presence = Solargraph::Range.from_to(0, 0, 0, 5)
     pin = Solargraph::Pin::LocalVariable.new(name: 'foo', location: location)
-    downcast1 = pin.downcast(presence: presence, intersection_return_type: Solargraph::ComplexType.parse('String'))
+    downcast1 = pin.downcast(presence: presence, narrowed_return_type: Solargraph::ComplexType.parse('String'))
     downcast2 = pin.downcast(presence: presence, exclude_return_type: Solargraph::ComplexType.parse('Integer'))
     expect(downcast1.send(:equality_fields)).not_to eq(downcast2.send(:equality_fields))
   end
