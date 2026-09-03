@@ -155,4 +155,11 @@ describe Solargraph::ComplexType::UniqueType do
       expect(type.send(:namespace_kind, api_map, type)).to be_nil
     end
   end
+
+  describe '#simplify_literals' do
+    it 'leaves a nil literal as nil, not NilClass' do
+      type = described_class.parse('nil')
+      expect(type.simplify_literals.tag).to eq('nil')
+    end
+  end
 end

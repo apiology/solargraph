@@ -115,6 +115,8 @@ module Solargraph
       # @todo 1: Need to handle duck-typed method calls on union types
       # @todo 1: flow sensitive typing needs to remove literal with
       # @todo 1: https://github.com/castwide/solargraph/pull/1297
+      # @todo 1: flow sensitive typing incorrectly includes an intermediate local variable's type in the inferred return type
+      # @todo 3: flow sensitive typing issue with the ternary above
       def require_all_unique_types_match_expected?
         report?(:require_all_unique_types_match_expected, :strong)
       end
