@@ -18,6 +18,18 @@ module Solargraph
       true
     end
 
+    # Paths to the YARD handler scripts bundled with Solargraph for
+    # ActiveSupport macros (class_attribute/mattr_accessor/cattr_accessor,
+    # delegate, and send(:attr_accessor, ...)) that neither YARD nor
+    # yard-activesupport-concern understand on their own.
+    #
+    # @return [Array<String>]
+    def self.active_support_yard_loads
+      %w[active_support_macro_handler delegate_handler send_attr_handler].map do |handler|
+        File.expand_path("yard_map/#{handler}.rb", __dir__)
+      end
+    end
+
     map %w[--version -v] => :version
 
     desc '--version, -v', 'Print the version'
@@ -112,7 +124,7 @@ module Solargraph
       gemspec = Gem::Specification.find_by_name(gem, version)
 
       if options[:rebuild] || !PinCache.has_yard?(gemspec)
-        pins = GemPins.build_yard_pins(['yard-activesupport-concern'], gemspec)
+        pins = GemPins.build_yard_pins(['yard-activesupport-concern'], self.class.active_support_yard_loads, gemspec)
         PinCache.serialize_yard_gem(gemspec, pins)
       end
 
@@ -199,7 +211,7 @@ module Solargraph
             warn "Gem '#{name}' not found"
           else
             if options[:rebuild] || !PinCache.has_yard?(gemspec)
-              pins = GemPins.build_yard_pins(['yard-activesupport-concern'], gemspec)
+              pins = GemPins.build_yard_pins(['yard-activesupport-concern'], self.class.active_support_yard_loads, gemspec)
               PinCache.serialize_yard_gem(gemspec, pins)
             end
 
@@ -605,7 +617,7 @@ module Solargraph
         warn "Gem '#{gemspec&.name}' not found"
       else
         if rebuild || !PinCache.has_yard?(gemspec)
-          pins = GemPins.build_yard_pins(['yard-activesupport-concern'], gemspec)
+          pins = GemPins.build_yard_pins(['yard-activesupport-concern'], self.class.active_support_yard_loads, gemspec)
           PinCache.serialize_yard_gem(gemspec, pins)
         end
 

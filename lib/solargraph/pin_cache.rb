@@ -31,7 +31,11 @@ module Solargraph
       # @param gemspec [Gem::Specification]
       # @return [String]
       def yardoc_path gemspec
-        File.join(base_dir,
+        # Scoped under work_dir, not base_dir: Yardoc.cache's yard_loads
+        # can vary this parse's content per Solargraph checkout (e.g. a
+        # branch adding a handler), and work_dir already keys on
+        # Solargraph::VERSION for exactly this kind of variation.
+        File.join(work_dir,
                   "yard-#{YARD::VERSION}",
                   "yard-activesupport-concern-#{YARD::ActiveSupport::Concern::VERSION}",
                   "#{gemspec.name}-#{gemspec.version}.yardoc")

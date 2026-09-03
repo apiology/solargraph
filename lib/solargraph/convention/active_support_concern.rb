@@ -24,11 +24,21 @@ module Solargraph
       end
 
       # yard-activesupport-concern pulls methods inside
-      # 'class_methods' blocks into main class visible from YARD
+      # 'class_methods' blocks into main class visible from YARD.
+      # active_support_macro_handler.rb adds pins for class_attribute/
+      # mattr_accessor/cattr_accessor calls, delegate_handler.rb adds
+      # pins for delegate calls, and send_attr_handler.rb adds pins for
+      # `<Const>.send(:attr_accessor, ...)`; neither YARD nor that
+      # plugin understand any of these on their own.
       #
       # @param _doc_map [DocMap]
       def global _doc_map
-        Environ.new(yard_plugins: ['activesupport-concern'])
+        Environ.new(yard_plugins: ['activesupport-concern'],
+                    yard_loads: [
+                      File.expand_path('../yard_map/active_support_macro_handler.rb', __dir__),
+                      File.expand_path('../yard_map/delegate_handler.rb', __dir__),
+                      File.expand_path('../yard_map/send_attr_handler.rb', __dir__)
+                    ])
       end
 
       # Process an object to add any class methods brought in via

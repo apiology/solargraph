@@ -19,15 +19,22 @@ module Solargraph
     # @return [Array<String>]
     attr_reader :yard_plugins
 
+    # @return [Array<String>] paths to Ruby scripts to load into the
+    #   yardoc subprocess before parsing (see `yardoc -e`), for handlers
+    #   that ship with Solargraph itself rather than a separate gem.
+    attr_reader :yard_loads
+
     # @param requires [Array<String>]
     # @param domains [Array<String>]
     # @param pins [Array<Pin::Base>]
     # @param yard_plugins [Array<String>]
-    def initialize requires: [], domains: [], pins: [], yard_plugins: []
+    # @param yard_loads [Array<String>]
+    def initialize requires: [], domains: [], pins: [], yard_plugins: [], yard_loads: []
       @requires = requires
       @domains = domains
       @pins = pins
       @yard_plugins = yard_plugins
+      @yard_loads = yard_loads
     end
 
     # @return [self]
@@ -36,6 +43,7 @@ module Solargraph
       requires.clear
       pins.clear
       yard_plugins.clear
+      yard_loads.clear
       self
     end
 
@@ -46,6 +54,7 @@ module Solargraph
       requires.concat other.requires
       pins.concat other.pins
       yard_plugins.concat other.yard_plugins
+      yard_loads.concat other.yard_loads
       self
     end
   end

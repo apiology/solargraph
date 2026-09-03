@@ -33,10 +33,11 @@ module Solargraph
     end
 
     # @param yard_plugins [Array<String>] The names of YARD plugins to use.
+    # @param yard_loads [Array<String>] Paths to Ruby scripts to load.
     # @param gemspec [Gem::Specification]
     # @return [Array<Pin::Base>]
-    def self.build_yard_pins yard_plugins, gemspec
-      Yardoc.cache(yard_plugins, gemspec) unless Yardoc.cached?(gemspec)
+    def self.build_yard_pins yard_plugins, yard_loads, gemspec
+      Yardoc.cache(yard_plugins, yard_loads, gemspec) unless Yardoc.cached?(gemspec)
       return [] unless Yardoc.cached?(gemspec)
       yardoc = Yardoc.load!(gemspec)
       YardMap::Mapper.new(yardoc, gemspec).map

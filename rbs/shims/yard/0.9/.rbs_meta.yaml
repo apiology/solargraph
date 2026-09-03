@@ -1,0 +1,9 @@
+---
+name: yard
+version: '0.9'
+source:
+  type: git
+  name: ruby/gem_rbs_collection
+  revision: 31250b67b9dadaeaccdb65c55d64a20dca7a812e
+  remote: https://github.com/ruby/gem_rbs_collection.git
+  repo_dir: gems

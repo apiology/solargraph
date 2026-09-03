@@ -12,9 +12,11 @@ module Solargraph
     # exists, do nothing and return the path.
     #
     # @param yard_plugins [Array<String>] The names of YARD plugins to use.
+    # @param yard_loads [Array<String>] Paths to Ruby scripts to load
+    #   (`yardoc -e`) for handlers bundled with Solargraph itself.
     # @param gemspec [Gem::Specification]
     # @return [String] The path to the cached yardoc.
-    def cache yard_plugins, gemspec
+    def cache yard_plugins, yard_loads, gemspec
       path = PinCache.yardoc_path gemspec
       return path if cached?(gemspec)
 
@@ -30,6 +32,7 @@ module Solargraph
       Solargraph.logger.info "Caching yardoc for #{gemspec.name} #{gemspec.version}"
       cmd = "yardoc --db #{path} --no-output --plugin solargraph"
       yard_plugins.each { |plugin| cmd << " --plugin #{plugin}" }
+      yard_loads.each { |load_path| cmd << " -e #{load_path}" }
       Solargraph.logger.debug { "Running: #{cmd}" }
       # @todo set these up to run in parallel
       # @todo Is the chdir argument being used here?

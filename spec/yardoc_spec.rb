@@ -43,7 +43,7 @@ describe Solargraph::Yardoc do
           ['output', instance_double(Process::Status, success?: true)]
         end
 
-        described_class.cache([], gemspec)
+        described_class.cache([], [], gemspec)
 
         expect(called_with[0]['BUNDLE_GEMFILE']).to eq(File.absolute_path('Gemfile'))
       end
