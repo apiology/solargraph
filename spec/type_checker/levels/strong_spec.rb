@@ -144,7 +144,6 @@ describe Solargraph::TypeChecker do
     end
 
     it 'accepts a non-nil @type on a local assigned from a bare accessor guarded by .nil?' do
-      pending('https://github.com/apiology/solargraph/pull/53')
       checker = type_checker(%(
         class Repro
           # @return [Array<Hash>, nil]
@@ -166,7 +165,6 @@ describe Solargraph::TypeChecker do
     end
 
     it 'accepts a non-nil @type on a local assigned from a bare accessor guarded by a non-nil return' do
-      pending('https://github.com/apiology/solargraph/pull/53')
       checker = type_checker(%(
         class Repro
           # @return [Array<Hash>, nil]

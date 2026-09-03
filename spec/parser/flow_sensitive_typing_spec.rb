@@ -1423,7 +1423,6 @@ describe Solargraph::Parser::FlowSensitiveTyping do
   end
 
   it 'narrows a bare, implicit-self attr_reader-style accessor assigned into a fresh local variable' do
-    pending('https://github.com/apiology/solargraph/pull/53')
     source = Solargraph::Source.load_string(%(
       class Repro
         # @return [Array<Hash>, nil]
@@ -1444,7 +1443,6 @@ describe Solargraph::Parser::FlowSensitiveTyping do
 
   it 'narrows a bare, implicit-self attr_reader-style accessor assigned into a fresh local ' \
      'variable after a truthy guard' do
-    pending('https://github.com/apiology/solargraph/pull/53')
     source = Solargraph::Source.load_string(%(
       class Repro
         # @return [Array<Hash>, nil]
