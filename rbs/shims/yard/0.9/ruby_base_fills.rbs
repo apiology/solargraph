@@ -1,0 +1,20 @@
+# YARD::Handlers::Ruby::Base really inherits these from
+# YARD::Handlers::Base at runtime, but Solargraph's yard-doc pin
+# generator drops that ancestry for this one class (`solargraph pin
+# 'YARD::Handlers::Ruby::Base' --references` shows no Superclass).
+# Redeclared directly here so it doesn't depend on that ancestry.
+class YARD::Handlers::Ruby::Base
+  include YARD::CodeObjects
+
+  def self.handles: (*(Parser::Ruby::Legacy::RubyToken | Symbol | String | Regexp | YARD::Handlers::Ruby::HandlesExtension) matches) -> void
+  def self.namespace_only: () -> void
+
+  # `process do ... end` instance_evals the block on a handler
+  # instance; `[self: instance]` isn't applied by Solargraph yet
+  # (Pin::Signature has no block self-type), so this has no effect today.
+  def self.process: () { () [self: instance] -> void } -> void
+
+  attr_accessor namespace: untyped
+
+  def register: (*YARD::CodeObjects::Base objects) -> (Array[YARD::CodeObjects::Base] | YARD::CodeObjects::Base)
+end
