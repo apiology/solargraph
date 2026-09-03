@@ -23,6 +23,11 @@ describe Solargraph::ComplexType::UniqueType do
 
     before { api_map.map source }
 
+    it 'returns self when exclude_types is nil' do
+      type = described_class.parse('Sub')
+      expect(type.exclude(nil, api_map)).to be(type)
+    end
+
     it 'falls back to UNDEFINED when the receiver conforms to the excluded type' do
       type = described_class.parse('Sub')
       result = type.exclude(Solargraph::ComplexType.parse('Sup'), api_map)
