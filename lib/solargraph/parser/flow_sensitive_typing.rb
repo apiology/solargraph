@@ -120,7 +120,6 @@ module Solargraph
         return unless node.type == :send
 
         process_isa(node, true_presences, false_presences)
-        process_respond_to(node, true_presences, false_presences)
         process_instance_of(node, true_presences, false_presences)
         process_instance_variable_defined(node, true_presences, false_presences)
         process_nilp(node, true_presences, false_presences)
@@ -729,43 +728,6 @@ module Solargraph
           assignment: node,
           source: :flow_sensitive_typing
         )
-      end
-
-      # A true `x.respond_to?(:m)` proves x satisfies the duck type
-      # `#m` on the guarded path; ComplexType#narrow_with handles
-      # conformance against x's existing type (keeping conforming
-      # union arms, or pairing into an intersection where safe). A
-      # false respond_to? is not a sound class-level exclusion (duck
-      # conformance isn't class membership), so no false-path fact is
-      # asserted.
-      #
-      # @param rt_node [Parser::AST::Node]
-      # @param true_presences [Array<Range>]
-      # @param _false_presences [Array<Range>]
-      #
-      # @return [void]
-      def process_respond_to rt_node, true_presences, _false_presences
-        return unless rt_node.type == :send && rt_node.children[1] == :respond_to?
-
-        # only a literal-symbol first argument is usable; the optional
-        # include_all second argument doesn't change the positive fact
-        arg = rt_node.children[2]
-        return unless arg.is_a?(::Parser::AST::Node) && arg.type == :sym
-
-        method_sym = arg.children[0]
-
-        chain_words = parse_receiver_chain(rt_node.children[0])
-        return if chain_words.nil? || chain_words.empty?
-
-        # @sg-ignore Need to add nil check here
-        position = Range.from_node(rt_node).start
-        # @sg-ignore chain_pin's tuple-destructured args typecheck oddly
-        pin = chain_pin(chain_words, rt_node.children[0], position)
-        return unless pin
-
-        # @type Hash{Pin::BaseVariable => Array<Hash{Symbol => ComplexType}>}
-        if_true = { pin => [{ type: ComplexType.parse("##{method_sym}") }] }
-        process_facts(if_true, true_presences)
       end
 
       # @param isa_node [Parser::AST::Node]
