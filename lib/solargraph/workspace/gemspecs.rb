@@ -73,6 +73,7 @@ module Solargraph
           gemspec = all_gemspecs.find do |spec|
             spec = to_gem_specification(spec) unless spec.respond_to?(:files)
 
+            # @sg-ignore Need to handle duck-typed method calls on union types
             spec&.files&.any? { |gemspec_file| file == gemspec_file }
           end
           return [gemspec_or_preference(gemspec)] if gemspec

@@ -112,7 +112,7 @@ module Solargraph
       # @todo 1: flow sensitive typing needs to eliminate literal from union with [:bar].include?(foo)
       # @todo 1: Should better support meaning of '&' in RBS
       # @todo 1: flow sensitive typing needs to handle constants
-      # @todo 1: Need to handle duck-typed method calls on union types
+      # @todo 2: Need to handle duck-typed method calls on union types
       # @todo 1: flow sensitive typing needs to remove literal with
       # @todo 1: https://github.com/castwide/solargraph/pull/1297
       def require_all_unique_types_match_expected?

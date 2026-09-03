@@ -273,7 +273,7 @@ module Solargraph
     # @param declared [ComplexType, ComplexType::UniqueType]
     # @return [Boolean]
     def record_assignment_conforms_to? pin, declared
-      return false unless pin.respond_to?(:record_type)
+      return false unless pin.is_a?(Pin::BaseVariable)
 
       record_inferred = pin.record_type(api_map)
       return false if record_inferred.nil?
