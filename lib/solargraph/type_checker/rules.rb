@@ -90,6 +90,7 @@ module Solargraph
       # @todo 4: flow sensitive typing ought to be able to handle 'when ClassName'
       # @todo 4: literal arrays in this module turn into ::Solargraph::Source::Chain::Array
       # @todo 4: flow sensitive typing needs to handle 'raise if'
+      # @todo 3: pin.closure is a Pin::Namespace for a top-level method pin
       # @todo 2: flow sensitive typing should handle is_a? and next
       # @todo 2: flow sensitive typing needs to handle "if foo = bar"
       # @todo 2: flow sensitive typing needs to create separate ranges for postfix if
@@ -115,6 +116,8 @@ module Solargraph
       # @todo 1: Need to handle duck-typed method calls on union types
       # @todo 1: flow sensitive typing needs to remove literal with
       # @todo 1: https://github.com/castwide/solargraph/pull/1297
+      # @todo 1: flow sensitive typing incorrectly includes an intermediate local variable's type in the inferred return type
+      # @todo 3: flow sensitive typing issue with the ternary above
       def require_all_unique_types_match_expected?
         report?(:require_all_unique_types_match_expected, :strong)
       end

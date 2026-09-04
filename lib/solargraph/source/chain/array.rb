@@ -28,8 +28,6 @@ module Solargraph
                  # @sg-ignore Unresolved call to defined? on Solargraph::ComplexType, nil
                  elsif child_types.uniq.length == 1 && child_types.first.defined?
                    ComplexType::UniqueType.new('Array', [], child_types.uniq, rooted: true, parameters_type: :list)
-                 elsif child_types.empty?
-                   ComplexType::UniqueType.new('Array', rooted: true, parameters_type: :list)
                  else
                    ComplexType::UniqueType.new('Array', [], child_types, rooted: true, parameters_type: :fixed)
                  end
