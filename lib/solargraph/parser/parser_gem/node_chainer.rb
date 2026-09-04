@@ -114,8 +114,8 @@ module Solargraph
             or_asgn_rhs_node = n.children[1] # s(:int, 123)
             raise "Or-assignment node missing right-hand side: #{n}" if or_asgn_rhs_node.nil?
 
+            # @sg-ignore Wrong argument type for Solargraph::Parser::ParserGem::NodeChainer.chain: node expected Parser::AST::Node, received Parser::AST::Node, nil
             lhs_chain = NodeChainer.chain n.children[0] # s(:ivasgn, :@bar)
-            # @sg-ignore flow sensitive typing needs to handle 'raise if'
             rhs_chain = NodeChainer.chain or_asgn_rhs_node
             or_asgn_rhs_never_returns = always_leaves_compound_statement?(or_asgn_rhs_node)
             or_link = Chain::Or.new([lhs_chain, rhs_chain], rhs_never_returns: or_asgn_rhs_never_returns)
