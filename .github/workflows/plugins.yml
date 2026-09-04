@@ -31,7 +31,7 @@ jobs:
         version: 1.0
     - name: Install gems
       run: |
-        echo 'gem "solargraph-rails", git: "https://github.com/iftheshoefritz/solargraph-rails.git", branch: "drop-array-sum-annotation"' > .Gemfile
+        echo 'gem "solargraph-rails"' > .Gemfile
         echo 'gem "solargraph-rspec"' >> .Gemfile
         # Add optional gem to be able to typecheck related code
         echo "gem 'vernier', '>1.0', '<2'" >> .Gemfile
@@ -65,7 +65,7 @@ jobs:
         version: 1.0
     - name: Install gems
       run: |
-        echo 'gem "solargraph-rails", git: "https://github.com/iftheshoefritz/solargraph-rails.git", branch: "drop-array-sum-annotation"' > .Gemfile
+        echo 'gem "solargraph-rails"' > .Gemfile
         # Add optional gem to be able to typecheck related code
         echo "gem 'vernier', '>1.0', '<2'" >> .Gemfile
         bundle install
@@ -181,7 +181,7 @@ jobs:
     - name: clone solargraph-rails
       run: |
        cd ..
-       git clone --branch drop-array-sum-annotation https://github.com/iftheshoefritz/solargraph-rails.git
+       git clone https://github.com/iftheshoefritz/solargraph-rails.git
        cd solargraph-rails
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
