@@ -32,7 +32,7 @@ end
 # linting CI opts in with BUNDLE_WITH=lint.
 #
 group :lint, optional: true do
-  gem 'overcommit', '~> 0.68.0'
+  gem 'overcommit', '~> 0.71.0'
 end
 
 # Local gemfile for development tools, etc.
