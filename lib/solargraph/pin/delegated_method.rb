@@ -6,8 +6,8 @@ module Solargraph
     # allows aliasing a method from a different closure (class/module etc).
     class DelegatedMethod < Pin::Method
       # @return [Boolean]
-      def body_less?
-        true
+      def body?
+        false
       end
 
       # A DelegatedMethod can be constructed with either a :resolved_method

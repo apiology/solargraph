@@ -41,7 +41,7 @@ module Solargraph
               # @sg-ignore Need to add nil check here
               elsif method_name == :alias_method && node.children[2] && node.children[2] && node.children[2].type == :sym && node.children[3] && node.children[3].type == :sym
                 process_alias_method
-              elsif %i[def_delegator def_delegators].include?(method_name) && forwardable_extended?
+              elsif %i[def_delegator def_delegators].include?(method_name) && extends_forwardable?
                 process_def_delegators
               elsif method_name == :private_class_method && node.children[2].is_a?(AST::Node)
                 # Processing a private class can potentially handle children on its own
@@ -60,9 +60,10 @@ module Solargraph
 
           # True when the enclosing namespace extends Forwardable, which is
           # what makes def_delegator and def_delegators available there.
+          # Matched by name only, so a same-named local module would fool this.
           #
           # @return [Boolean]
-          def forwardable_extended?
+          def extends_forwardable?
             pins.any? do |pin|
               pin.is_a?(Pin::Reference::Extend) &&
                 pin.closure == region.closure &&

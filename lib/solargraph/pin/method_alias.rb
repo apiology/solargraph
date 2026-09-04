@@ -8,8 +8,8 @@ module Solargraph
     #
     class MethodAlias < Method
       # @return [Boolean]
-      def body_less?
-        true
+      def body?
+        false
       end
       # @return [::Symbol]
       attr_reader :scope

@@ -373,13 +373,11 @@ module Solargraph
         @explicit
       end
 
-      # True for method pins that were synthesized from a statement in a
-      # class body rather than parsed from a def, and so have no body of
-      # their own.
+      # False for method pins synthesized from a class-body statement rather than parsed from a def.
       #
       # @return [Boolean]
-      def body_less?
-        attribute?
+      def body?
+        !attribute?
       end
 
       def attribute?
