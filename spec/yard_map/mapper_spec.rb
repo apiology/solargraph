@@ -103,11 +103,15 @@ describe Solargraph::YardMap::Mapper do
 
   it 'adjusts YARD namespaces that conflict with core constants' do
     gemspec = Gem::Specification.find_by_name('pp')
-    gem_yardoc_path = File.join(Dir.mktmpdir, 'pp.yardoc')
-    Solargraph::Yardoc.build_docs(gem_yardoc_path, [], gemspec)
-    code_objects = Solargraph::Yardoc.load!(gem_yardoc_path)
-    mapper = described_class.new(code_objects)
-    pins = mapper.map
-    expect(pins.map(&:path)).to include('RBS::Unnamed::ENVClass#pretty_print')
+    gem_yardoc_path = Dir.mktmpdir
+    begin
+      Solargraph::Yardoc.build_docs(gem_yardoc_path, [], gemspec)
+      code_objects = Solargraph::Yardoc.load!(gem_yardoc_path)
+      mapper = described_class.new(code_objects)
+      pins = mapper.map
+      expect(pins.map(&:path)).to include('RBS::Unnamed::ENVClass#pretty_print')
+    ensure
+      FileUtils.remove_entry_secure(gem_yardoc_path)
+    end
   end
 end
