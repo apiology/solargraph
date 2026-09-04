@@ -9,11 +9,16 @@ module Solargraph
       # @param ivars [Array<Solargraph::Pin::InstanceVariable>]
       # @param enclosing_breakable_pin [Solargraph::Pin::Breakable, nil]
       # @param enclosing_compound_statement_pin [Solargraph::Pin::CompoundStatement, nil]
-      def initialize locals, ivars, enclosing_breakable_pin, enclosing_compound_statement_pin
+      # @param closure [Solargraph::Pin::Closure] The pin enclosing the
+      #   code being processed (e.g. the current method), used to
+      #   resolve a bare, implicit-self call like 'steps' as a call to
+      #   a 0-arg method rather than a local variable.
+      def initialize locals, ivars, enclosing_breakable_pin, enclosing_compound_statement_pin, closure
         @locals = locals
         @ivars = ivars
         @enclosing_breakable_pin = enclosing_breakable_pin
         @enclosing_compound_statement_pin = enclosing_compound_statement_pin
+        @closure = closure
       end
 
       # @param and_node [Parser::AST::Node]
@@ -329,9 +334,10 @@ module Solargraph
         end
       end
 
-      # Finds (single var) or builds (chain, e.g. ['pin', 'location'])
-      # the pin narrowing facts get recorded on. A built pin probes its
-      # type lazily from `node`, so it can't see its own new facts.
+      # Finds (single var) or builds (chain, e.g. ['pin', 'location'], or
+      # a bare 0-arg self call, e.g. ['steps']) the pin narrowing facts get
+      # recorded on. A built pin probes its type lazily from `node`, so it
+      # can't see its own new facts.
       #
       # @param chain_words [::Array<String>]
       # @param node [Parser::AST::Node] the receiver expression, e.g. the
@@ -339,8 +345,19 @@ module Solargraph
       # @param position [Position]
       # @return [Solargraph::Pin::LocalVariable, Solargraph::Pin::InstanceVariable, nil]
       def chain_pin chain_words, node, position
-        # @sg-ignore chain_words is never empty - callers already checked
-        return find_var(chain_words.first, position) if chain_words.length == 1
+        if chain_words.length == 1
+          # A bare word is ambiguous from chain_words alone -- 'steps'
+          # could be a real local variable (node.type == :lvar) or a
+          # 0-arg method call to self (node.type == :send, since the
+          # parser only emits :lvar for a name already assigned as a
+          # local in this scope). Only the former is a tracked variable.
+          # @sg-ignore chain_words is never empty - callers already checked
+          return find_var(chain_words.first, position) unless node.is_a?(::Parser::AST::Node) && node.type == :send
+
+          return unless closure
+
+          return self_call_pin(node)
+        end
 
         # @sg-ignore chain_words is never empty - callers already checked
         root_pin = find_var(chain_words.first, position)
@@ -350,6 +367,26 @@ module Solargraph
           location: Location.from_node(node),
           closure: root_pin.closure,
           name: chain_words.join('.'),
+          assignment: node,
+          source: :flow_sensitive_typing
+        )
+      end
+
+      # Builds the synthesized pin for a bare, implicit-self call to a
+      # 0-arg method, e.g. 'steps'. Rooted at `closure` rather than at a
+      # tracked variable's pin, since there is no variable to inherit a
+      # closure from. Named after the bare method word itself (not
+      # e.g. 'self.steps') so it lines up with how Chain::Call#resolve
+      # looks up a head-position call: by the call's word, via
+      # ApiMap#var_at_location.
+      #
+      # @param node [Parser::AST::Node] the call node, e.g. 'steps'
+      # @return [Solargraph::Pin::LocalVariable]
+      def self_call_pin node
+        Pin::LocalVariable.new(
+          location: Location.from_node(node),
+          closure: closure,
+          name: node.children[1].to_s,
           assignment: node,
           source: :flow_sensitive_typing
         )
@@ -484,7 +521,8 @@ module Solargraph
       end
 
       # Handles a truthy check on a call chain, e.g. 'pin.location' in
-      # 'return nil unless pin.location'; bare vars go to #process_variable.
+      # 'return nil unless pin.location', or on a bare 0-arg self call,
+      # e.g. 'steps'; bare vars (:lvar/:ivar) go to #process_variable.
       #
       # @param node [Parser::AST::Node]
       # @param true_presences [Array<Range>]
@@ -498,7 +536,7 @@ module Solargraph
         return if %i[nil? !].include?(node.children[1])
 
         chain_words = parse_receiver_chain(node)
-        return if chain_words.nil? || chain_words.length < 2
+        return if chain_words.nil? || chain_words.empty?
 
         # @sg-ignore Need to add nil check here
         position = Range.from_node(node).start
@@ -554,7 +592,7 @@ module Solargraph
         %i[return raise next redo retry].include?(clause_node&.type)
       end
 
-      attr_reader :locals, :ivars, :enclosing_breakable_pin, :enclosing_compound_statement_pin
+      attr_reader :locals, :ivars, :enclosing_breakable_pin, :enclosing_compound_statement_pin, :closure
     end
   end
 end

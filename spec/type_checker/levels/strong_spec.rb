@@ -997,5 +997,46 @@ describe Solargraph::TypeChecker do
       # an error when trying to declare sub as Subclass
       expect(checker.problems.map(&:message)).not_to include('Unresolved call to bar on Base')
     end
+
+    it 'accepts a non-nil @type on a local assigned from a bare accessor guarded by .nil?' do
+      checker = type_checker(%(
+        class Repro
+          # @return [Array<Hash>, nil]
+          attr_reader :steps
+
+          # @return [Array<Hash>, nil]
+          def unwrap
+            return nil if steps.nil?
+
+            # @type [Array<Hash>]
+            steps_list = steps
+            steps_list.each { |step| step }
+            steps_list
+          end
+        end
+      ))
+
+      expect(checker.problems.map(&:message)).to eq([])
+    end
+
+    it 'accepts a non-nil @type on a local assigned from a bare accessor guarded by a non-nil return' do
+      checker = type_checker(%(
+        class Repro
+          # @return [Array<Hash>, nil]
+          attr_reader :substeps
+
+          # @return [Array]
+          def extract
+            return ['', nil] if substeps.nil?
+
+            # @type [Array<Hash>]
+            steps_list = substeps
+            [steps_list]
+          end
+        end
+      ))
+
+      expect(checker.problems.map(&:message)).to eq([])
+    end
   end
 end
