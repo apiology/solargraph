@@ -200,7 +200,9 @@ module Solargraph
     end
 
     # @return [String]
+    # @sg-ignore Solargraph::RbsMap#short_name return type could not be inferred
     def short_name
+      # @sg-ignore Unresolved call to split on String, nil
       self.class.name.split('::').last
     end
   end

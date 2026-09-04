@@ -50,6 +50,7 @@ module Solargraph
       # Extracts the rubocop version from _args_
       #
       # @return [String]
+      # @sg-ignore Declared return type ::String does not match inferred type ::String, nil for Solargraph::Diagnostics::Rubocop#rubocop_version
       def rubocop_version
         args.find { |a| a =~ /version=/ }.to_s.split('=').last
       end
@@ -58,6 +59,7 @@ module Solargraph
       # @return [Array<Hash>]
       def make_array resp
         diagnostics = []
+        # @sg-ignore Unresolved call to each on Array<Hash{String => Array<Hash{String => undefined}>}>, nil
         resp['files'].each do |file|
           file['offenses'].each do |off|
             diagnostics.push offense_to_diagnostic(off)
@@ -90,15 +92,19 @@ module Solargraph
       # @param off [Hash{String => Hash{String => Integer}}]
       # @return [Position]
       def offense_start_position off
+        # @sg-ignore Unresolved call to [] on Hash{String => Integer}, nil
         Position.new(off['location']['start_line'] - 1, off['location']['start_column'] - 1)
       end
 
       # @param off [Hash{String => Hash{String => Integer}}]
       # @return [Position]
       def offense_ending_position off
+        # @sg-ignore Unresolved call to [] on Hash{String => Integer}, nil
         if off['location']['start_line'] == off['location']['last_line']
+          # @sg-ignore Unresolved call to [] on Hash{String => Integer}, nil
           start_line = off['location']['start_line'] - 1
           # @type [Integer]
+          # @sg-ignore Variable type could not be inferred for last_column; Unresolved call to [] on Hash{String => Integer}, nil
           last_column = off['location']['last_column']
           line = @source.code.lines[start_line]
           col_off = if line.nil? || line.empty?
@@ -107,10 +113,13 @@ module Solargraph
                       0
                     end
 
+          # @sg-ignore Wrong argument type for Solargraph::Position.new: character expected Integer, received BigDecimal
           Position.new(
+            # @sg-ignore Wrong argument type for Integer#-: arg_0 expected BigDecimal, received Integer
             start_line, last_column - col_off
           )
         else
+          # @sg-ignore Unresolved call to [] on Hash{String => Integer}, nil
           Position.new(off['location']['start_line'], 0)
         end
       end

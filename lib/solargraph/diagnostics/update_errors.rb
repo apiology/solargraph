@@ -26,8 +26,10 @@ module Solargraph
           next if rng.nil? || lines.include?(rng.start.line)
           lines.push rng.start.line
           next if rng.start.line >= code.lines.length
-          scol = code.lines[rng.start.line].index(/[^\s]/) || 0
-          ecol = code.lines[rng.start.line].length
+          line = code.lines[rng.start.line]
+          next unless line.is_a?(String)
+          scol = line.index(/[^\s]/) || 0
+          ecol = line.length
           result.push Range.from_to(rng.start.line, scol, rng.start.line, ecol)
         end
         result

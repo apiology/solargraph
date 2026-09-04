@@ -12,14 +12,17 @@ module Solargraph
             target = node.children[0]
             operator = node.children[1]
             argument = node.children[2]
+            # @sg-ignore Unresolved call to type
             if target.type == :send
               # @sg-ignore Need a downcast here
               process_send_target(target, operator, argument)
+            # @sg-ignore Unresolved call to type
             elsif target.type.to_s.end_with?('vasgn')
               # @sg-ignore Need a downcast here
               process_vasgn_target(target, operator, argument)
             else
               Solargraph.assert_or_log(:opasgn_unknown_target,
+                                       # @sg-ignore Unresolved call to type
                                        "Unexpected op_asgn target type: #{target.type}")
             end
           end
@@ -72,6 +75,7 @@ module Solargraph
             #      s(:int, 2)) # argument
 
             # @type [Parser::AST::Node]
+            # @sg-ignore Declared type Parser::AST::Node does not match inferred type Parser::AST::Node, nil for variable variable_name
             variable_name = asgn.children[0]
             # for lvasgn, gvasgn, cvasgn, convert to lvar, gvar, cvar
             # [6] pry(main)> Parser::CurrentRuby.parse("a = a + 1")

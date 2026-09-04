@@ -109,6 +109,7 @@ module Solargraph
 
       # @param method_object [YARD::CodeObjects::MethodObject]
       # @return [Array<YARD::CodeObjects::MacroObject>]
+      # @sg-ignore Declared return type ::Array<::YARD::CodeObjects::MacroObject> does not match inferred type ::Array<::YARD::CodeObjects::MacroObject>, nil for Solargraph::YardMap::Mapper#macros_for_method_object
       def macros_for_method_object method_object
         attached_macros_by_method_object[method_object]
       end

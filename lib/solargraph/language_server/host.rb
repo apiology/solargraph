@@ -112,6 +112,7 @@ module Solargraph
           message
         elsif request['id']
           if requests[request['id']]
+            # @sg-ignore Unresolved call to process on Solargraph::LanguageServer::Request, nil
             requests[request['id']].process(request['result'])
             requests.delete request['id']
           else
@@ -316,6 +317,7 @@ module Solargraph
       def prepare_folders array
         return if array.nil?
         array.each do |folder|
+          # @sg-ignore Wrong argument type for Solargraph::LanguageServer::UriHelpers#uri_to_file: uri expected String, received String, nil
           prepare uri_to_file(folder['uri']), folder['name']
         end
       end
@@ -547,6 +549,7 @@ module Solargraph
       end
 
       # @return [Bool] if has pending completion request
+      # @sg-ignore Unresolved return type Bool for Solargraph::LanguageServer::Host#pending_completions?
       def pending_completions?
         message_worker.messages.reverse_each.any? { |req| req['method'] == 'textDocument/completion' }
       end
@@ -597,6 +600,7 @@ module Solargraph
       # @return [Array<Solargraph::Pin::Base>]
       def query_symbols query
         result = []
+        # @sg-ignore Unresolved call to query_symbols
         (libraries + [generic_library]).each { |lib| result.concat lib.query_symbols(query) }
         result.uniq
       end
@@ -702,7 +706,10 @@ module Solargraph
         @client_capabilities ||= {}
       end
 
+      # @return [Boolean]
+      # @sg-ignore Solargraph::LanguageServer::Host#client_supports_progress? return type could not be inferred
       def client_supports_progress?
+        # @sg-ignore Unresolved call to [] on Hash{String => Boolean}, nil
         client_capabilities['window'] && client_capabilities['window']['workDoneProgress']
       end
 
@@ -746,6 +753,7 @@ module Solargraph
         changes = []
         params['contentChanges'].each do |recvd|
           chng = check_diff(params['textDocument']['uri'], recvd)
+          # @sg-ignore Wrong argument type for Solargraph::Source::Change.new: range expected Solargraph::Range, nil, received NilClass, Solargraph::Range
           changes.push Solargraph::Source::Change.new(
             (if chng['range'].nil?
                nil
@@ -770,10 +778,13 @@ module Solargraph
       def check_diff uri, change
         return change if change['range']
         source = sources.find(uri)
+        # @sg-ignore Wrong argument type for Integer#+: arg_0 expected BigDecimal, received Integer
         return change if source.code.length + 1 != change['text'].length
         diffs = Diff::LCS.diff(source.code, change['text'])
+        # @sg-ignore Unresolved call to length on Array<Diff::LCS::Change>, nil
         return change if diffs.empty? || diffs.length > 1 || diffs.first.length > 1
         # @type [Diff::LCS::Change]
+        # @sg-ignore Variable type could not be inferred for diff; Unresolved call to first on Array<Diff::LCS::Change>, nil
         diff = diffs.first.first
         return change unless diff.adding? && ['.', ':', '(', ',', ' '].include?(diff.element)
         position = Solargraph::Position.from_offset(source.code, diff.position)
@@ -853,7 +864,10 @@ module Solargraph
         }
       end
 
+      # @return [Boolean]
+      # @sg-ignore Solargraph::LanguageServer::Host#prepare_rename? return type could not be inferred
       def prepare_rename?
+        # @sg-ignore Unresolved call to [] on Hash{String => Boolean}, nil
         client_capabilities['rename'] && client_capabilities['rename']['prepareSupport']
       end
 
@@ -873,6 +887,7 @@ module Solargraph
         progress.begin "0/#{total} files", 0
         progress.send self
         while library.next_map
+          # @sg-ignore Wrong argument type for Float#/: arg_0 expected BigDecimal, received Integer
           pct = ((library.source_map_hash.keys.length.to_f / total) * 100).to_i
           progress.report "#{library.source_map_hash.keys.length}/#{total} files", pct
           progress.send self

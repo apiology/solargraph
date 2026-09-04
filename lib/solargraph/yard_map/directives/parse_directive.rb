@@ -19,7 +19,9 @@ module Solargraph
           region = Parser::Region.new(source: src, closure: ns)
           # @todo These pins may need to be marked not explicit
           old_pins_index = pins.length
+          # @sg-ignore Unresolved call to strip on String, nil
           loff = if source.code.lines[comment_position.line].strip.end_with?('@!parse')
+                   # @sg-ignore Wrong argument type for Integer#+: arg_0 expected BigDecimal, received Integer
                    comment_position.line + 1
                  else
                    comment_position.line
@@ -44,6 +46,7 @@ module Solargraph
         # @param [Array<Pin::Base>] pins
         # @param [Position] position
         # @return [Pin::Closure]
+        # @sg-ignore Declared return type ::Solargraph::Pin::Closure does not match inferred type ::Solargraph::Pin::Base, nil for Solargraph::YardMap::Directives::ParseDirective.closure_at; Declared return type ::Solargraph::Pin::Closure does not match inferred type ::Solargraph::Pin::Base, nil for Solargraph::YardM...
         def closure_at pins, position
           pins.select { |pin| pin.is_a?(Pin::Closure) and pin.location&.range&.contain?(position) }.last
         end

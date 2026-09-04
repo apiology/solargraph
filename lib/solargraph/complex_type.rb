@@ -57,6 +57,7 @@ module Solargraph
     end
 
     # @return [UniqueType]
+    # @sg-ignore Declared return type ::Solargraph::ComplexType::UniqueType does not match inferred type ::Solargraph::ComplexType::UniqueType, nil for Solargraph::ComplexType#first
     def first
       @items.first
     end
@@ -133,6 +134,7 @@ module Solargraph
 
     # @param index [Integer]
     # @return [UniqueType]
+    # @sg-ignore Declared return type ::Solargraph::ComplexType::UniqueType does not match inferred type ::Solargraph::ComplexType::UniqueType, nil for Solargraph::ComplexType#[]
     def [] index
       @items[index]
     end
@@ -311,6 +313,8 @@ module Solargraph
       ComplexType.new(map { |ut| ut.transform(new_name, &transform_type) })
     end
 
+    # @param named_types [Hash{String => ComplexType, UniqueType}]
+    # @return [ComplexType]
     def expand named_types
       ComplexType.new(map { |ut| ut.expand(named_types) })
     end
@@ -342,7 +346,9 @@ module Solargraph
     end
 
     # @return [Array<ComplexType>]
+    # @sg-ignore Solargraph::ComplexType#all_params return type could not be inferred
     def all_params
+      # @sg-ignore Unresolved call to all_params on Solargraph::ComplexType::UniqueType, nil
       @items.first.all_params || []
     end
 
@@ -364,9 +370,11 @@ module Solargraph
     end
 
     # @param other [ComplexType, UniqueType]
+    # @return [Boolean]
     def erased_version_of? other
       return false if items.length != 1 || other.items.length != 1
 
+      # @sg-ignore Unresolved call to erased_version_of? on Solargraph::ComplexType::UniqueType, nil
       @items.first.erased_version_of?(other.items.first)
     end
 
@@ -501,6 +509,7 @@ module Solargraph
             elsif char == '}'
               curly_stack -= 1
               subtype_string += char
+              # @sg-ignore Unresolved call to negative?
               raise ComplexTypeError, "Invalid close in type #{type_string}" if curly_stack.negative?
               next
             elsif char == '('
@@ -508,6 +517,7 @@ module Solargraph
             elsif char == ')'
               paren_stack -= 1
               subtype_string += char
+              # @sg-ignore Unresolved call to negative?
               raise ComplexTypeError, "Invalid close in type #{type_string}" if paren_stack.negative?
               next
             elsif char == ',' && point_stack.zero? && curly_stack.zero? && paren_stack.zero?

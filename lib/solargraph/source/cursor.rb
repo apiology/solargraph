@@ -39,6 +39,7 @@ module Solargraph
       # @return [String]
       def start_of_word
         @start_of_word ||= begin
+          # @sg-ignore Wrong argument type for Integer#-: arg_0 expected BigDecimal, received Integer
           match = source.code[0..(offset - 1)].to_s.match(start_word_pattern)
           result = (match ? match[0] : '')
           # Including the preceding colon if the word appears to be a symbol
@@ -64,6 +65,7 @@ module Solargraph
 
       # @return [Boolean]
       def start_of_constant?
+        # @sg-ignore Wrong argument type for Integer#-: arg_0 expected BigDecimal, received Integer
         source.code[offset - 2, 2] == '::'
       end
 
@@ -72,7 +74,9 @@ module Solargraph
       # @return [Range]
       def range
         @range ||= begin
+          # @sg-ignore Wrong argument type for Solargraph::Position.from_offset: offset expected Integer, received BigDecimal; Wrong argument type for Integer#-: arg_0 expected BigDecimal, received Integer
           s = Position.from_offset(source.code, offset - start_of_word.length)
+          # @sg-ignore Wrong argument type for Integer#+: arg_0 expected BigDecimal, received Integer; Wrong argument type for Solargraph::Position.from_offset: offset expected Integer, received BigDecimal
           e = Position.from_offset(source.code, offset + end_of_word.length)
           Solargraph::Range.new(s, e)
         end
@@ -112,6 +116,7 @@ module Solargraph
       # as an argument.
       #
       # @return [Cursor, nil]
+      # @sg-ignore Declared return type ::Solargraph::Source::Cursor, nil does not match inferred type ::Solargraph::Source::Cursor, ::NilClass for Solargraph::Source::Cursor#recipient
       def recipient
         @recipient ||= begin
           node = recipient_node
@@ -122,6 +127,7 @@ module Solargraph
             if rng
               Cursor.new(source, rng.ending)
             else
+              # @sg-ignore Wrong argument type for Integer#-: arg_0 expected BigDecimal, received Integer
               pos = Position.new(position.line, [position.column - 1, 0].max)
               Cursor.new(source, pos)
             end

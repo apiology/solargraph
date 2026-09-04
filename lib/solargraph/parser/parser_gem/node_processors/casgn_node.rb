@@ -24,6 +24,7 @@ module Solargraph
           # @return [String]
           def const_name
             if node.children[0]
+              # @sg-ignore Wrong argument type for Solargraph::Parser::ParserGem::NodeMethods.unpack_name: node expected Parser::AST::Node, received Parser::AST::Node, nil
               Parser::NodeMethods.unpack_name(node.children[0]) + "::#{node.children[1]}"
             else
               node.children[1].to_s

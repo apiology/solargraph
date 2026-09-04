@@ -7,7 +7,9 @@ module Solargraph
         class NamespaceNode < Parser::NodeProcessor::Base
           include ParserGem::NodeMethods
 
+          # @return [void]
           def process
+            # @sg-ignore Wrong argument type for Solargraph::Parser::ParserGem::NodeMethods#unpack_name: node expected Parser::AST::Node, received Parser::AST::Node, nil
             name = unpack_name(node.children[0])
             comments = comments_for(node)
 
@@ -57,13 +59,17 @@ module Solargraph
             match = source[offset...eol].to_s.match(/\A\s*#\[([^\]]*)\]/)
             return unless match
 
+            # @sg-ignore Unresolved call to strip on String, nil
             code = match[1].strip
+            # @sg-ignore Unresolved call to empty?
             return if code.empty?
 
             "<#{code}>"
           end
 
+          # @return [Object]
           def type_from_node
+            # @sg-ignore Wrong argument type for Solargraph::Parser::ParserGem::NodeMethods#unpack_name: node expected Parser::AST::Node, received Parser::AST::Node, nil
             unpack_name(node.children[1]) if node.children[1]&.type == :const
           end
         end

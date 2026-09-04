@@ -112,6 +112,7 @@ module Solargraph
       # @return [String, nil]
       def resolve_and_cache name, gates
         cached_resolve[[name, gates]] = :in_process
+        # @sg-ignore Wrong argument type for Hash#[]=: arg1 expected String, Symbol, NilClass, received String, nil
         cached_resolve[[name, gates]] = resolve_uncached(name, gates)
       end
 
@@ -124,6 +125,7 @@ module Solargraph
         parts = name.split('::')
         first = nil
         parts.each.with_index do |nam, idx|
+          # @sg-ignore Unresolved call to !=
           resolved, remainder = complex_resolve(nam, base, idx != parts.length - 1)
           first ||= remainder
           if resolved
@@ -148,6 +150,7 @@ module Solargraph
         resolved = nil
         gates.each.with_index do |gate, idx|
           resolved = simple_resolve(name, gate, internal)
+          # @sg-ignore Unresolved call to +
           return [resolved, gates[(idx + 1)..]] if resolved
           store.get_ancestor_references(gate).each do |ref|
             return ref.name.sub(/^::/, '') if ref.name.end_with?("::#{name}") && ref.name.start_with?('::')
@@ -156,6 +159,7 @@ module Solargraph
             next unless mixin
 
             resolved = resolve(name, mixin)
+            # @sg-ignore Unresolved call to +
             return [resolved, gates[(idx + 1)..]] if resolved
           end
         end

@@ -157,6 +157,7 @@ module Solargraph
 
       # @param other [self]
       # @return [Pin::Closure, nil]
+      # @sg-ignore Declared return type ::Solargraph::Pin::Closure, nil does not match inferred type ::Solargraph::Pin::Base, nil, ::Enumerator<undefined, undefined, ::NilClass> for Solargraph::Pin::Base#combine_closure
       def combine_closure other
         choose_pin_attr_with_same_name(other, :closure)
       end
@@ -539,12 +540,15 @@ module Solargraph
         @macros ||= collect_macros
       end
 
+      # @return [Object]
       def macro_names
         parse_comments unless @macro_names
         @macro_names ||= collect_macro_names
       end
 
+      # @sg-ignore Solargraph::Pin::Base#macro_names? return type could not be inferred
       def macro_names?
+        # @sg-ignore Unresolved call to any? on Object
         macro_names.any?
       end
 
@@ -583,7 +587,9 @@ module Solargraph
         comments.include?('@macro')        
       end
 
+      # @sg-ignore Solargraph::Pin::Base#macros_names? return type could not be inferred
       def macros_names?
+        # @sg-ignore Unresolved call to any? on Object
         macro_names.any?
       end
 
@@ -638,6 +644,7 @@ module Solargraph
         result.return_type = return_type
         result.proxied = true
         # Macros should have been processed already
+        # @sg-ignore Unresolved call to clear on Object
         result.macro_names.clear
         result
       end
@@ -757,6 +764,7 @@ module Solargraph
       def compare_docstring_tags docstring1, docstring2
         return false if docstring1.tags.length != docstring2.tags.length
         docstring1.tags.each_index do |i|
+          # @sg-ignore Wrong argument type for Solargraph::Pin::Base#compare_tags: tag1 expected YARD::Tags::Tag, received YARD::Tags::Tag, nil
           return false unless compare_tags(docstring1.tags[i], docstring2.tags[i])
         end
         true
@@ -768,6 +776,7 @@ module Solargraph
       def compare_directives dir1, dir2
         return false if dir1.length != dir2.length
         dir1.each_index do |i|
+          # @sg-ignore Unresolved call to tag on YARD::Tags::Directive, nil
           return false unless compare_tags(dir1[i].tag, dir2[i].tag)
         end
         true
@@ -793,6 +802,7 @@ module Solargraph
         end
       end
 
+      # @return [Object]
       def collect_macro_names
         "#{comments}\n".scan(/\s*?@macro +(\S+).*?[\n]/).map { |match| match[0] }
       end

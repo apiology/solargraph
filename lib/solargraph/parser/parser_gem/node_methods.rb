@@ -88,6 +88,7 @@ module Solargraph
         def drill_signature node, signature
           return signature unless node.is_a?(AST::Node)
           if %i[const cbase].include?(node.type)
+            # @sg-ignore Wrong argument type for Solargraph::Parser::ParserGem::NodeMethods#drill_signature: node expected Parser::AST::Node, received Parser::AST::Node, nil
             signature += drill_signature(node.children[0], signature) unless node.children[0].nil?
             signature += '::' unless signature.empty?
             signature += node.children[1].to_s
@@ -95,6 +96,7 @@ module Solargraph
             signature += '.' unless signature.empty?
             signature += node.children[0].to_s
           elsif node.type == :send
+            # @sg-ignore Wrong argument type for Solargraph::Parser::ParserGem::NodeMethods#drill_signature: node expected Parser::AST::Node, received Parser::AST::Node, nil
             signature += drill_signature(node.children[0], signature) unless node.children[0].nil?
             signature += '.' unless signature.empty?
             signature += node.children[1].to_s
@@ -139,6 +141,7 @@ module Solargraph
           # @param pair [Parser::AST::Node]
           node.children.each do |pair|
             next unless Parser.is_ast_node?(pair) && pair.children[0]
+            # @sg-ignore Unresolved call to children on Parser::AST::Node, nil; Wrong argument type for Solargraph::Parser::ParserGem::NodeMethods#simple_convert: node expected Parser::AST::Node, received Parser::AST::Node, nil
             result[pair.children[0].children[0]] = simple_convert(pair.children[1])
           end
           result
@@ -182,13 +185,18 @@ module Solargraph
         end
 
         # @param node [Parser::AST::Node]
+        # @return [Boolean]
+        # @sg-ignore Solargraph::Parser::ParserGem::NodeMethods.splatted_hash? return type could not be inferred; Solargraph::Parser::ParserGem::NodeMethods#splatted_hash? return type could not be inferred
         def splatted_hash? node
+          # @sg-ignore Unresolved call to type on Parser::AST::Node, nil
           Parser.is_ast_node?(node.children[0]) && node.children[0].type == :kwsplat
         end
 
         # @param node [Parser::AST::Node]
+        # @return [Boolean]
         def splatted_call? node
           return false unless Parser.is_ast_node?(node)
+          # @sg-ignore Unresolved call to type on Parser::AST::Node, nil; Unresolved call to children on Parser::AST::Node, nil
           Parser.is_ast_node?(node.children[0]) && node.children[0].type == :kwsplat && node.children[0].children[0].type != :hash
         end
 
@@ -205,6 +213,7 @@ module Solargraph
           result = []
           if node.type == :block
             result.push node
+            # @sg-ignore Unresolved call to children on Parser::AST::Node, nil
             if Parser.is_ast_node?(node.children[0]) && node.children[0].children.length > 2
               # @sg-ignore Need to add nil check here
               node.children[0].children[2..].each { |child| result.concat call_nodes_from(child) }
@@ -213,6 +222,7 @@ module Solargraph
             node.children[1..].each { |child| result.concat call_nodes_from(child) }
           elsif node.type == :send
             result.push node
+            # @sg-ignore Wrong argument type for Solargraph::Parser::ParserGem::NodeMethods#call_nodes_from: node expected Parser::AST::Node, received Parser::AST::Node, nil
             result.concat call_nodes_from(node.children.first)
             # @sg-ignore Need to add nil check here
             node.children[2..].each { |child| result.concat call_nodes_from(child) }
@@ -254,6 +264,7 @@ module Solargraph
         # @param cursor [Solargraph::Source::Cursor]
         # @return [Parser::AST::Node, nil]
         def find_recipient_node cursor
+          # @sg-ignore Wrong argument type for Integer#-: arg_0 expected BigDecimal, received Integer
           if cursor.source.repaired? && cursor.source.code[cursor.offset - 1] == '('
             return repaired_find_recipient_node(cursor)
           end
@@ -270,6 +281,7 @@ module Solargraph
                      source.tree_at(position.line, position.column)
                    end
                  else
+                   # @sg-ignore Wrong argument type for Solargraph::Source#tree_at: column expected Integer, received BigDecimal; Wrong argument type for Integer#-: arg_0 expected BigDecimal, received Integer
                    source.tree_at(position.line, position.column - 1)
                  end
           # @type [AST::Node, nil]
@@ -282,7 +294,9 @@ module Solargraph
                 # @sg-ignore Need to add nil check here
                 return node if prev && args.include?(prev)
               elsif source.synchronized?
+                # @sg-ignore Wrong argument type for Integer#-: arg_0 expected BigDecimal, received Integer
                 return node if source.code[0..(offset - 1)] =~ /\(\s*\z/ && source.code[offset..] =~ /^\s*\)/
+              # @sg-ignore Wrong argument type for Integer#-: arg_0 expected BigDecimal, received Integer
               elsif source.code[0..(offset - 1)] =~ /\([^(]*\z/
                 return node
               end
@@ -306,7 +320,9 @@ module Solargraph
           return nil if offset.nil? || offset <= 0 || offset > code.length
 
           # The '(' could be at offset-1 (cursor after '(') or at offset (cursor on '(')
+          # @sg-ignore Wrong argument type for Integer#-: arg_0 expected BigDecimal, received Integer
           start_pos = offset - 1
+          # @sg-ignore Unresolved call to positive?
           if start_pos.positive? && code[start_pos] != '(' && code[offset] == '('
             start_pos = offset
           end
@@ -333,6 +349,7 @@ module Solargraph
           # Skip whitespace before '(' to find method name
           idx = paren_pos - 1
           idx -= 1 while idx >= 0 && code[idx] =~ /\s/
+          # @sg-ignore Unresolved call to negative?
           return nil if idx.negative?
 
           # Read method name (including ? and !)
@@ -341,6 +358,7 @@ module Solargraph
           name_start = idx + 1
           return nil if name_start >= name_end
           method_name = code[name_start...name_end]
+          # @sg-ignore Unresolved call to empty?
           return nil if method_name.empty?
 
           # Check for receiver pattern: receiver.method( or receiver::method(
@@ -354,29 +372,39 @@ module Solargraph
             recv_start = idx + 1
             if recv_start < recv_end
               recv_name = code[recv_start...recv_end]
+              # @sg-ignore Unresolved call to empty?
               unless recv_name.empty?
+                # @sg-ignore Unresolved call to to_sym
                 receiver_node = ::Parser::AST::Node.new(:send, [nil, recv_name.to_sym])
+                # @sg-ignore Unresolved call to to_sym
                 return ::Parser::AST::Node.new(:send, [receiver_node, method_name.to_sym])
               end
             end
+          # @sg-ignore Unresolved call to positive?
           elsif idx >= 0 && idx.positive? && code[idx - 1] == ':' && code[idx] == ':'
             const_end = idx - 1
             const_start = const_end
+            # @sg-ignore Unresolved call to positive?
             const_start -= 1 while const_start.positive? && code[const_start - 1] =~ /[a-zA-Z0-9_]/
             const_name = code[const_start...const_end]
+            # @sg-ignore Unresolved call to empty?
             unless const_name.empty? || method_name.empty?
+              # @sg-ignore Unresolved call to to_sym
               const_node = ::Parser::AST::Node.new(:const, [nil, const_name.to_sym])
+              # @sg-ignore Unresolved call to to_sym
               return ::Parser::AST::Node.new(:send, [const_node, method_name.to_sym])
             end
           end
 
           # Simple method call without receiver
+          # @sg-ignore Unresolved call to to_sym
           ::Parser::AST::Node.new(:send, [nil, method_name.to_sym])
         end
 
         # @param cursor [Solargraph::Source::Cursor]
         # @return [Parser::AST::Node, nil]
         def repaired_find_recipient_node cursor
+          # @sg-ignore Wrong argument type for Integer#-: arg_0 expected BigDecimal, received Integer
           c = cursor.source.cursor_at([cursor.position.line, cursor.position.column - 1])
           tree = c.source.tree_at(c.position.line, c.position.column)
           tree.each do |node|
@@ -495,6 +523,7 @@ module Solargraph
                 #   scope in which the proc is run.  This asssumes
                 #   that the function is executed here.
                 if include_explicit_returns
+                  # @sg-ignore Wrong argument type for Solargraph::Parser::ParserGem::NodeMethods::DeepInference.explicit_return_values_from_compound_statement: parent expected Parser::AST::Node, received AST::Node, nil
                   result.concat explicit_return_values_from_compound_statement(node.children[2])
                 end
               elsif CASE_STATEMENT.include?(node.type)
@@ -535,11 +564,14 @@ module Solargraph
               nodes = parent.children.select { |n| n.is_a?(AST::Node) }
               nodes.each_with_index do |node, idx|
                 if node.type == :block
+                  # @sg-ignore Wrong argument type for Solargraph::Parser::ParserGem::NodeMethods::DeepInference.explicit_return_values_from_compound_statement: parent expected Parser::AST::Node, received Parser::AST::Node, nil
                   result.concat explicit_return_values_from_compound_statement(node.children[2])
                 elsif node.type == :rescue
                   # body statements
+                  # @sg-ignore Wrong argument type for Solargraph::Parser::ParserGem::NodeMethods::DeepInference.from_value_position_statement: node expected AST::Node, received Parser::AST::Node, nil
                   result.concat from_value_position_statement(node.children[0])
                   # rescue statements
+                  # @sg-ignore Wrong argument type for Solargraph::Parser::ParserGem::NodeMethods::DeepInference.from_value_position_statement: node expected AST::Node, received Parser::AST::Node, nil
                   result.concat from_value_position_statement(node.children[1])
                 elsif SKIPPABLE.include?(node.type)
                   next
@@ -557,7 +589,9 @@ module Solargraph
                 # value position.  we already have the explicit values
                 # from above; now we need to also gather the value
                 # position nodes
+                # @sg-ignore Wrong argument type for Integer#-: arg_0 expected BigDecimal, received Integer
                 if idx == nodes.length - 1
+                  # @sg-ignore Wrong argument type for Solargraph::Parser::ParserGem::NodeMethods::DeepInference.from_value_position_statement: node expected AST::Node, received Parser::AST::Node, nil
                   result.concat from_value_position_statement(nodes.last,
                                                               include_explicit_returns: false)
                 end

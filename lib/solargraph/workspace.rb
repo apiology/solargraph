@@ -112,6 +112,7 @@ module Solargraph
     #
     # @param filename [String]
     # @return [Solargraph::Source]
+    # @sg-ignore Declared return type ::Solargraph::Source does not match inferred type ::Solargraph::Source, nil for Solargraph::Workspace#source
     def source filename
       source_hash[filename]
     end
@@ -155,6 +156,7 @@ module Solargraph
     # @param updater [Source::Updater]
     # @return [void]
     def synchronize! updater
+      # @sg-ignore Unresolved call to synchronize on Solargraph::Source, nil
       source_hash[updater.filename] = source_hash[updater.filename].synchronize(updater)
     end
 

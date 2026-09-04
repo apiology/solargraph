@@ -40,6 +40,7 @@ module Solargraph
       # @return [Completion]
       def complete
         return package_completions([]) if !source_map.source.parsed? || cursor.string?
+        # @sg-ignore Unresolved call to word on Solargraph::Source::Chain::Link, nil
         if cursor.chain.literal? && cursor.chain.links.last.word == '<Symbol>'
           return package_completions(api_map.get_symbols)
         end
@@ -141,6 +142,7 @@ module Solargraph
             next unless param.keyword?
             result.push Pin::KeywordParam.new(pin.location, "#{param.name}:")
           end
+          # @sg-ignore Unresolved call to kwrestarg? on Solargraph::Pin::Parameter, nil
           next unless !pin.parameters.empty? && pin.parameters.last.kwrestarg?
           pin.docstring.tags(:param).each do |tag|
             next if done.include?(tag.name)
@@ -193,9 +195,11 @@ module Solargraph
         result = []
         result.concat complete_keyword_parameters
         if cursor.chain.constant? || cursor.start_of_constant?
+          # @sg-ignore Unresolved call to word on Solargraph::Source::Chain::Link, nil
           full = cursor.chain.links.first.word
           type = if cursor.chain.undefined?
                    cursor.chain.base.infer(api_map, context_pin, locals)
+                 # @sg-ignore Unresolved call to include?
                  elsif full.include?('::') && cursor.chain.links.length == 1
                    # @sg-ignore Need to add nil check here
                    ComplexType.try_parse(full.split('::')[0..-2].join('::'))
@@ -205,6 +209,7 @@ module Solargraph
                    ComplexType::UNDEFINED
                  end
           if type.undefined?
+            # @sg-ignore Unresolved call to include?
             if full.include?('::')
               result.concat api_map.get_constants(full, *gates)
             else

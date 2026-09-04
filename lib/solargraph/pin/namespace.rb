@@ -55,7 +55,9 @@ module Solargraph
         @path = nil
       end
 
+      # @return [Object]
       def to_rbs
+        # @sg-ignore Unresolved call to to_rbs on Solargraph::ComplexType, nil
         "#{@type} #{return_type.all_params.first.to_rbs}#{rbs_generics}".strip
       end
 

@@ -30,6 +30,7 @@ module Solargraph
       elsif decl == :kwrestarg
         ComplexType.parse('Hash{Symbol => Object}')
       else
+        # @sg-ignore Wrong argument type for Solargraph::RbsTranslator.to_complex_type: type expected RBS::Types::Bases::Base, received RBS::Types::Bases::Bool, RBS::Types::Bases::Void, RBS::Types::Bases::Any, RBS::Types::Bases::Nil, RBS::Types::Bases::Top, RBS::Types::Bases::Bottom, RBS::Types::Bases::Self, RBS::Typ...
         RbsTranslator.to_complex_type(param_type.type)
       end
       Solargraph::Pin::Parameter.new(decl: decl, name: name, closure: closure, return_type: return_type, source: :rbs, type_location: to_sg_location(param_type.location) || closure.type_location)
@@ -49,10 +50,12 @@ module Solargraph
       arg_num = 0
       params = []
       method_type.type.required_positionals.each do |param|
+        # @sg-ignore Unresolved call to name
         params.push RbsTranslator.to_parameter_pin(param, param.name&.to_s || parameter_names[arg_num] || "arg_#{arg_num}", :arg, closure)
         arg_num += 1
       end
       method_type.type.optional_positionals.each do |param|
+        # @sg-ignore Unresolved call to name
         params.push RbsTranslator.to_parameter_pin(param, param.name&.to_s || parameter_names[arg_num] || "arg_#{arg_num}", :optarg, closure)
         arg_num += 1
       end
@@ -61,14 +64,17 @@ module Solargraph
         arg_num += 1
       end
       method_type.type.required_keywords.each do |param|
+        # @sg-ignore Unresolved call to last; Unresolved call to first
         params.push RbsTranslator.to_parameter_pin(param.last, param.first.to_s, :kwarg, closure)
         arg_num += 1
       end
       method_type.type.optional_keywords.each do |param|
+        # @sg-ignore Unresolved call to first; Unresolved call to last
         params.push RbsTranslator.to_parameter_pin(param.last, param.first.to_s, :kwoptarg, closure)
         arg_num += 1
       end
       if method_type.type.rest_keywords
+        # @sg-ignore Wrong argument type for Array#[]: index expected Integer, received Integer, BigDecimal; Wrong argument type for Array#[]: range expected Range<Integer, NilClass>, received Integer, BigDecimal; Wrong argument type for Array#[]: start expected Integer, received Integer, BigDecimal
         params.push RbsTranslator.to_parameter_pin(method_type.type.rest_keywords, method_type.type.rest_keywords.name&.to_s || parameter_names[arg_num] || "arg_#{arg_num}", :kwrestarg, closure)
       end
       params
@@ -85,8 +91,10 @@ module Solargraph
       # handle those correctly
       generics = method_type.type_params.map(&:name).map(&:to_s).uniq
       parameters = to_parameter_pins(method_type, closure, parameter_names)
+      # @sg-ignore Wrong argument type for Solargraph::RbsTranslator.to_complex_type: type expected RBS::Types::Bases::Base, received RBS::Types::Literal, RBS::Types::Bases::Void, RBS::Types::Bases::Any, RBS::Types::Bases::Nil, RBS::Types::Bases::Top, RBS::Types::Bases::Bottom, RBS::Types::Bases::Self, RBS::Types::...
       return_type = to_complex_type(method_type.type.return_type)
       block = if method_type.block
+        # @sg-ignore Wrong argument type for Solargraph::RbsTranslator.to_parameter_pins: method_type expected RBS::MethodType, received RBS::Types::Block, nil
         block_parameters = to_parameter_pins(method_type.block, closure)
         block_return_type = to_complex_type(method_type.block.type.return_type)
         Pin::Signature.new(generics: generics, parameters: block_parameters, return_type: block_return_type, source: :rbs, type_location: closure.location, closure: closure)
@@ -114,9 +122,12 @@ module Solargraph
     def self.to_sg_location(location)
       return nil if location&.name.nil?
 
+      # @sg-ignore Unresolved call to start_column on RBS::Location, nil; Unresolved call to start_line on RBS::Location, nil
       start_pos = Position.new(location.start_line - 1, location.start_column)
+      # @sg-ignore Unresolved call to end_line on RBS::Location, nil; Unresolved call to end_column on RBS::Location, nil
       end_pos = Position.new(location.end_line - 1, location.end_column)
       range = Range.new(start_pos, end_pos)
+      # @sg-ignore Unresolved call to name on RBS::Location, nil
       Location.new(location.name.to_s, range)
     end
 
@@ -128,14 +139,18 @@ module Solargraph
       def type_to_tag type
         case type
         when RBS::Types::Optional
+          # @sg-ignore Unresolved call to type on RBS::Types::Bases::Base
           "#{type_to_tag(type.type)}, nil"
         when RBS::Types::Bases::Bool
           'Boolean'
         when RBS::Types::Tuple
+          # @sg-ignore Unresolved call to types on RBS::Types::Bases::Base
           "Array(#{type.types.map { |t| type_to_tag(t) }.join(', ')})"
         when RBS::Types::Literal
+          # @sg-ignore Unresolved call to literal on RBS::Types::Bases::Base
           type.literal.inspect
         when RBS::Types::Union
+          # @sg-ignore Unresolved call to types on RBS::Types::Bases::Base
           type.types.map { |t| type_to_tag(t) }.join(', ')
         when RBS::Types::Record
           # @todo Better record support
@@ -145,6 +160,7 @@ module Solargraph
         when RBS::Types::Bases::Void
           'void'
         when RBS::Types::Variable
+          # @sg-ignore Unresolved call to name on RBS::Types::Bases::Base
           "#{Solargraph::ComplexType::GENERIC_TAG_NAME}<#{type.name}>"
         when RBS::Types::Bases::Self, RBS::Types::Bases::Instance
           'self'
@@ -152,6 +168,7 @@ module Solargraph
           # `Top` is the most super superclass
           'BasicObject'
         when RBS::Types::Intersection
+          # @sg-ignore Unresolved call to types on RBS::Types::Bases::Base
           type.types.map { |member| type_to_tag(member) }.join(', ')
         when RBS::Types::Proc
           'Proc'
@@ -163,9 +180,11 @@ module Solargraph
           # `Interface represents a mix-in module which can be considered a
           # subtype of a consumer of it
           #
+          # @sg-ignore Unresolved call to name on RBS::Types::Bases::Base; Unresolved call to args on RBS::Types::Bases::Base
           type_tag(type.name, type.args)
         when RBS::Types::ClassSingleton
           # e.g., singleton(String)
+          # @sg-ignore Unresolved call to name on RBS::Types::Bases::Base
           type_tag(type.name)
         when RBS::Types::Bases::Any, RBS::Types::Bases::Bottom
           # `Bottom`` is used in contexts where nothing will ever return

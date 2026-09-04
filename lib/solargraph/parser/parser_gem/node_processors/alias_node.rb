@@ -5,12 +5,15 @@ module Solargraph
     module ParserGem
       module NodeProcessors
         class AliasNode < Parser::NodeProcessor::Base
+          # @return [void]
           def process
             loc = get_node_location(node)
             pins.push Solargraph::Pin::MethodAlias.new(
               location: loc,
               closure: region.closure,
+              # @sg-ignore Unresolved call to children on Parser::AST::Node, nil
               name: node.children[0].children[0].to_s,
+              # @sg-ignore Unresolved call to children on Parser::AST::Node, nil
               original: node.children[1].children[0].to_s,
               scope: region.scope || :instance,
               source: :parser

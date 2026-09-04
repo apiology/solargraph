@@ -76,7 +76,6 @@ module Solargraph
                                      "Ignoring closure #{closure.inspect} on alias type name #{decl.name}")
           end
           pins.push(
-            # @sg-ignore Wrong argument type for Solargraph::Pin::Reference::TypeAlias.new: return_type expected Solargraph::ComplexType, received Solargraph::ComplexType::UniqueType, Solargraph::ComplexType
             Solargraph::Pin::Reference::TypeAlias.new(
               # @sg-ignore Unresolved calls to name, type, type_location; return_type type mismatch
               name: ComplexType.try_parse(decl.name.to_s).to_s, return_type: RbsTranslator.to_complex_type(decl.type).force_rooted, closure: closure, source: :rbs, type_location: location_decl_to_pin_location(decl.location)
@@ -254,6 +253,7 @@ module Solargraph
         generic_defaults = {}
         decl.type_params.each do |param|
           if param.default_type
+            # @sg-ignore Wrong argument type for Solargraph::RbsTranslator.to_complex_type: type expected RBS::Types::Bases::Base, received RBS::Types::Bases::Bool, RBS::Types::Bases::Void, RBS::Types::Bases::Any, RBS::Types::Bases::Nil, RBS::Types::Bases::Top, RBS::Types::Bases::Bottom, RBS::Types::Bases::Self, RBS::Typ...
             complex_type = RbsTranslator.to_complex_type(param.default_type).force_rooted
             generic_defaults[param.name.to_s] = complex_type
           end
@@ -392,6 +392,7 @@ module Solargraph
       # @param decl [RBS::AST::Declarations::Constant]
       # @return [void]
       def constant_decl_to_pin decl
+        # @sg-ignore Wrong argument type for Solargraph::RbsTranslator.to_complex_type: type expected RBS::Types::Bases::Base, received RBS::Types::Bases::Bool, RBS::Types::Bases::Void, RBS::Types::Bases::Any, RBS::Types::Bases::Nil, RBS::Types::Bases::Top, RBS::Types::Bases::Bottom, RBS::Types::Bases::Self, RBS::Typ...
         tag = RbsTranslator.to_complex_type(decl.type)
         pins.push create_constant(decl.name.relative!.to_s, tag, decl.comment&.string, decl)
       end
@@ -408,6 +409,7 @@ module Solargraph
           type_location: location_decl_to_pin_location(decl.location),
           source: :rbs
         )
+        # @sg-ignore Wrong argument type for Solargraph::RbsTranslator.to_complex_type: type expected RBS::Types::Bases::Base, received RBS::Types::Bases::Bool, RBS::Types::Bases::Void, RBS::Types::Bases::Any, RBS::Types::Bases::Nil, RBS::Types::Bases::Top, RBS::Types::Bases::Bottom, RBS::Types::Bases::Self, RBS::Typ...
         rooted_tag = RbsTranslator.to_complex_type(decl.type).force_rooted.rooted_tags
         pin.docstring.add_tag(YARD::Tags::Tag.new(:type, '', rooted_tag))
         pins.push pin
@@ -543,14 +545,18 @@ module Solargraph
         # rubocop:enable Style/SafeNavigationChainLength
         # @param overload [RBS::AST::Members::MethodDefinition::Overload]
         decl.overloads.map do |overload|
+          # @sg-ignore Wrong argument type for Solargraph::RbsMap::Conversions#location_decl_to_pin_location: location expected RBS::Location, nil, received RBS::Location<:type, :type_params>, RBS::AST::Members::Attribute::loc, nil
           type_location = location_decl_to_pin_location(overload.method_type.location)
           generics = overload.method_type.type_params.map(&:name).map(&:to_s)
           signature_parameters, signature_return_type = parts_of_function(overload.method_type, pin, implicit_nil)
           block = if overload.method_type.block
+                    # @sg-ignore Wrong argument type for Solargraph::RbsMap::Conversions#parts_of_function: type expected RBS::MethodType, RBS::Types::Block, received RBS::Types::Block, nil
                     block_parameters, block_return_type = parts_of_function(overload.method_type.block, pin, implicit_nil)
+                    # @sg-ignore Wrong argument type for Solargraph::Pin::Callable.new: return_type expected Solargraph::ComplexType, nil, received Array<Solargraph::Pin::Parameter>
                     Pin::Signature.new(generics: generics, parameters: block_parameters, return_type: block_return_type, source: :rbs,
                                        type_location: type_location, closure: pin)
                   end
+          # @sg-ignore Wrong argument type for Solargraph::Pin::Callable.new: return_type expected Solargraph::ComplexType, nil, received Array<Solargraph::Pin::Parameter>
           Pin::Signature.new(generics: generics, parameters: signature_parameters, return_type: signature_return_type, block: block, source: :rbs,
                              type_location: type_location, closure: pin)
         end
@@ -561,9 +567,12 @@ module Solargraph
       def location_decl_to_pin_location(location)
         return nil if location&.name.nil?
 
+        # @sg-ignore Unresolved call to start_line on RBS::Location, nil; Unresolved call to start_column on RBS::Location, nil
         start_pos = Position.new(location.start_line - 1, location.start_column)
+        # @sg-ignore Unresolved call to end_line on RBS::Location, nil; Unresolved call to end_column on RBS::Location, nil
         end_pos = Position.new(location.end_line - 1, location.end_column)
         range = Range.new(start_pos, end_pos)
+        # @sg-ignore Unresolved call to name on RBS::Location, nil
         Location.new(location.name.to_s, range)
       end
 
@@ -573,7 +582,9 @@ module Solargraph
       # @return [Array(Array<Pin::Parameter>, ComplexType)]
       def parts_of_function type, pin, implicit_nil
         [
+          # @sg-ignore Wrong argument type for Solargraph::RbsTranslator.to_parameter_pins: method_type expected RBS::MethodType, received RBS::MethodType, RBS::Types::Block
           RbsTranslator.to_parameter_pins(type, pin, pin.parameter_names),
+          # @sg-ignore Wrong argument type for Solargraph::RbsMap::Conversions#extract_method_type_return_type: type expected RBS::MethodType, received RBS::MethodType, RBS::Types::Block
           extract_method_type_return_type(type, implicit_nil).force_rooted
         ]
       end
@@ -596,6 +607,7 @@ module Solargraph
           visibility: visibility,
           source: :rbs
         )
+        # @sg-ignore Wrong argument type for Solargraph::RbsTranslator.to_complex_type: type expected RBS::Types::Bases::Base, received RBS::Types::Bases::Bool, RBS::Types::Bases::Void, RBS::Types::Bases::Any, RBS::Types::Bases::Nil, RBS::Types::Bases::Top, RBS::Types::Bases::Bottom, RBS::Types::Bases::Self, RBS::Typ...
         rooted_tag = RbsTranslator.to_complex_type(decl.type).force_rooted.rooted_tags
         pin.docstring.add_tag(YARD::Tags::Tag.new(:return, '', rooted_tag))
         logger.debug do
@@ -627,11 +639,13 @@ module Solargraph
         pin.parameters <<
           Solargraph::Pin::Parameter.new(
             name: 'value',
+            # @sg-ignore Wrong argument type for Solargraph::RbsTranslator.to_complex_type: type expected RBS::Types::Bases::Base, received RBS::Types::Bases::Bool, RBS::Types::Bases::Void, RBS::Types::Bases::Any, RBS::Types::Bases::Nil, RBS::Types::Bases::Top, RBS::Types::Bases::Bottom, RBS::Types::Bases::Self, RBS::Typ...
             return_type: RbsTranslator.to_complex_type(decl.type).force_rooted,
             source: :rbs,
             closure: pin,
             type_location: type_location
           )
+        # @sg-ignore Wrong argument type for Solargraph::RbsTranslator.to_complex_type: type expected RBS::Types::Bases::Base, received RBS::Types::Bases::Bool, RBS::Types::Bases::Void, RBS::Types::Bases::Any, RBS::Types::Bases::Nil, RBS::Types::Bases::Top, RBS::Types::Bases::Bottom, RBS::Types::Bases::Self, RBS::Typ...
         rooted_tag = RbsTranslator.to_complex_type(decl.type).force_rooted.rooted_tags
         pin.docstring.add_tag(YARD::Tags::Tag.new(:return, '', rooted_tag))
         pins.push pin
@@ -657,6 +671,7 @@ module Solargraph
           comments: decl.comment&.string,
           source: :rbs
         )
+        # @sg-ignore Wrong argument type for Solargraph::RbsTranslator.to_complex_type: type expected RBS::Types::Bases::Base, received RBS::Types::Bases::Bool, RBS::Types::Bases::Void, RBS::Types::Bases::Any, RBS::Types::Bases::Nil, RBS::Types::Bases::Top, RBS::Types::Bases::Bottom, RBS::Types::Bases::Self, RBS::Typ...
         rooted_tag = RbsTranslator.to_complex_type(decl.type).force_rooted.rooted_tags
         pin.docstring.add_tag(YARD::Tags::Tag.new(:type, '', rooted_tag))
         pins.push pin
@@ -674,6 +689,7 @@ module Solargraph
           type_location: location_decl_to_pin_location(decl.location),
           source: :rbs
         )
+        # @sg-ignore Wrong argument type for Solargraph::RbsTranslator.to_complex_type: type expected RBS::Types::Bases::Base, received RBS::Types::Bases::Bool, RBS::Types::Bases::Void, RBS::Types::Bases::Any, RBS::Types::Bases::Nil, RBS::Types::Bases::Top, RBS::Types::Bases::Bottom, RBS::Types::Bases::Self, RBS::Typ...
         rooted_tag = RbsTranslator.to_complex_type(decl.type).force_rooted.rooted_tags
         pin.docstring.add_tag(YARD::Tags::Tag.new(:type, '', rooted_tag))
         pins.push pin
@@ -691,6 +707,7 @@ module Solargraph
           type_location: location_decl_to_pin_location(decl.location),
           source: :rbs
         )
+        # @sg-ignore Wrong argument type for Solargraph::RbsTranslator.to_complex_type: type expected RBS::Types::Bases::Base, received RBS::Types::Bases::Bool, RBS::Types::Bases::Void, RBS::Types::Bases::Any, RBS::Types::Bases::Nil, RBS::Types::Bases::Top, RBS::Types::Bases::Bottom, RBS::Types::Bases::Self, RBS::Typ...
         rooted_tag = RbsTranslator.to_complex_type(decl.type).force_rooted.rooted_tags
         pin.docstring.add_tag(YARD::Tags::Tag.new(:type, '', rooted_tag))
         pins.push pin
@@ -768,8 +785,10 @@ module Solargraph
       # This method will convert type aliases to concrete types.
       #
       # @param type [RBS::MethodType]
+      # @param implicit_nil [Boolean]
       # @return [ComplexType]
       def extract_method_type_return_type type, implicit_nil
+          # @sg-ignore Wrong argument type for Solargraph::RbsTranslator.to_complex_type: type expected RBS::Types::Bases::Base, received RBS::Types::Literal, RBS::Types::Bases::Void, RBS::Types::Bases::Any, RBS::Types::Bases::Nil, RBS::Types::Bases::Top, RBS::Types::Bases::Bottom, RBS::Types::Bases::Self, RBS::Types::...
           tag = RbsTranslator.to_complex_type(type.type.return_type)
           return ComplexType.parse("#{tag}, nil") if tag && implicit_nil
           tag

@@ -187,6 +187,7 @@ module Solargraph
           types = return_types_from_node(mass_node, api_map)
           types.map! do |type|
             if type.tuple?
+              # @sg-ignore Wrong argument type for Array#[]: index expected Integer, received Parser::AST::Node; Wrong argument type for Array#[]: range expected Range<Integer, NilClass>, received Parser::AST::Node; Wrong argument type for Array#[]: start expected Integer, received Parser::AST::Node
               type.all_params[index]
             elsif ['::Array', '::Set', '::Enumerable'].include?(type.rooted_name)
               type.all_params.first

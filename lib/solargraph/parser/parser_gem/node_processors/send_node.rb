@@ -7,7 +7,7 @@ module Solargraph
         class SendNode < Parser::NodeProcessor::Base
           include ParserGem::NodeMethods
 
-          # @sg-ignore @override is adding, not overriding
+          # @return [void]
           def process
             # @sg-ignore Variable type could not be inferred for method_name
             # @type [Symbol]
@@ -38,6 +38,7 @@ module Solargraph
                 process_autoload
               elsif method_name == :private_constant
                 process_private_constant
+              # @sg-ignore Unresolved call to type on Parser::AST::Node, nil
               elsif method_name == :alias_method && node.children[2] && node.children[2] && node.children[2].type == :sym && node.children[3] && node.children[3].type == :sym
                 process_alias_method
               elsif method_name == :private_class_method && node.children[2].is_a?(AST::Node)
@@ -129,6 +130,7 @@ module Solargraph
 
           # @return [void]
           def process_include
+            # @sg-ignore Unresolved call to type on Parser::AST::Node, nil
             return unless node.children[2].is_a?(AST::Node) && node.children[2].type == :const
             cp = region.closure
             # @sg-ignore Need to add nil check here
@@ -145,6 +147,7 @@ module Solargraph
 
           # @return [void]
           def process_prepend
+            # @sg-ignore Unresolved call to type on Parser::AST::Node, nil
             return unless node.children[2].is_a?(AST::Node) && node.children[2].type == :const
             cp = region.closure
             # @sg-ignore Need to add nil check here
@@ -183,14 +186,18 @@ module Solargraph
 
           # @return [void]
           def process_require
+            # @sg-ignore Unresolved call to type on Parser::AST::Node, nil
             return unless node.children[2].is_a?(AST::Node) && node.children[2].type == :str
+            # @sg-ignore Unresolved call to children on Parser::AST::Node, nil
             path = node.children[2].children[0].to_s
             pins.push Pin::Reference::Require.new(get_node_location(node), path, source: :parser)
           end
 
           # @return [void]
           def process_autoload
+            # @sg-ignore Unresolved call to type on Parser::AST::Node, nil
             return unless node.children[3].is_a?(AST::Node) && node.children[3].type == :str
+            # @sg-ignore Unresolved call to children on Parser::AST::Node, nil
             path = node.children[3].children[0].to_s
             pins.push Pin::Reference::Require.new(get_node_location(node), path, source: :parser)
           end
@@ -200,6 +207,7 @@ module Solargraph
             if node.children[2].nil?
               # @todo Smelly instance variable access
               region.instance_variable_set(:@visibility, :module_function)
+            # @sg-ignore Unresolved call to type on Parser::AST::Node, nil
             elsif %i[sym str].include?(node.children[2].type)
               # @sg-ignore Need to add nil check here
               node.children[2..].each do |x|
@@ -251,14 +259,18 @@ module Solargraph
                   )
                 end
               end
+            # @sg-ignore Unresolved call to type on Parser::AST::Node, nil
             elsif node.children[2].type == :def
+              # @sg-ignore Wrong argument type for Solargraph::Parser::NodeProcessor.process: node expected Parser::AST::Node, received Parser::AST::Node, nil
               NodeProcessor.process node.children[2], region.update(visibility: :module_function), pins, locals, ivars
             end
           end
 
           # @return [void]
           def process_private_constant
+            # @sg-ignore Unresolved call to type on Parser::AST::Node, nil
             return unless node.children[2] && %i[sym str].include?(node.children[2].type)
+            # @sg-ignore Unresolved call to children on Parser::AST::Node, nil
             cn = node.children[2].children[0].to_s
             ref = pins.select do |p|
               [Solargraph::Pin::Namespace,
@@ -274,7 +286,9 @@ module Solargraph
             pins.push Solargraph::Pin::MethodAlias.new(
               location: get_node_location(node),
               closure: region.closure,
+              # @sg-ignore Unresolved call to children on Parser::AST::Node, nil
               name: node.children[2].children[0].to_s,
+              # @sg-ignore Unresolved call to children on Parser::AST::Node, nil
               original: node.children[3].children[0].to_s,
               scope: region.scope || :instance,
               source: :parser
@@ -283,8 +297,10 @@ module Solargraph
 
           # @return [Boolean]
           def process_private_class_method
+            # @sg-ignore Unresolved call to type on Parser::AST::Node, nil
             if %i[sym str].include?(node.children[2].type)
               ref = pins.select do |p|
+                # @sg-ignore Unresolved call to children on Parser::AST::Node, nil
                 p.is_a?(Pin::Method) && p.namespace == region.closure.full_context.namespace && p.name == node.children[2].children[0].to_s
               end.first
               # HACK: Smelly instance variable access

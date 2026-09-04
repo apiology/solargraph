@@ -142,7 +142,9 @@ module Solargraph
     def method_return_type_problems_for pin
       return [] if pin.is_a?(Pin::MethodAlias)
       result = []
+      # @sg-ignore Unresolved call to self_to_type on Object
       declared = pin.typify(api_map).self_to_type(pin.full_context).qualify(api_map, *pin.gates)
+      # @sg-ignore Unresolved call to undefined?
       if declared.undefined?
         # @sg-ignore Need to add nil check here
         if pin.return_type.undefined? && rules.require_type_tags?
@@ -168,6 +170,7 @@ module Solargraph
         # Without this carve-out, a manually-written @return tag on an attribute is
         # never cross-checked against how the ivar is actually assigned (e.g. a nilable
         # default in the constructor), so a bad tag silently passes at every level.
+        # @sg-ignore Unresolved call to void?
         unless (pin.node.nil? && !pin.attribute?) || declared.void? || virtual_pin?(pin) || abstract?(pin)
           inferred = pin.probe(api_map).self_to_type(pin.full_context)
           if inferred.undefined?
@@ -180,6 +183,7 @@ module Solargraph
           else
             unless return_type_conforms_to?(inferred, declared)
               result.push Problem.new(pin.location,
+                                      # @sg-ignore Unresolved call to rooted_tags
                                       "Declared return type #{declared.rooted_tags} does not match inferred type #{inferred.rooted_tags} for #{pin.path}", pin: pin)
             end
           end
@@ -236,6 +240,7 @@ module Solargraph
         # @param data [Hash{Symbol => BasicObject}]
         params.each_pair do |name, data|
           # @type [ComplexType]
+          # @sg-ignore Declared type Solargraph::ComplexType does not match inferred type BasicObject, nil for variable type
           type = data[:qualified]
           if type.undefined?
             result.push Problem.new(pin.location, "Unresolved type #{data[:tagged]} for #{name} param on #{pin.path}",
@@ -349,6 +354,7 @@ module Solargraph
           found = nil
           # @type [Array<Solargraph::Pin::Base>]
           all_found = []
+          # @sg-ignore Unresolved call to undefined? on Solargraph::Source::Chain::Link, nil
           until base.links.first.undefined?
             # @sg-ignore Need to add nil check here
             all_found = base.define(api_map, closure_pin, locals)
@@ -362,8 +368,10 @@ module Solargraph
           # @todo remove the internal_or_core? check at a higher-than-strict level
           if (!found || found.is_a?(Pin::BaseVariable) || (closest.defined? && internal_or_core?(found))) && !(closest.generic? || ignored_pins.include?(found))
             if closest.defined?
+              # @sg-ignore Unresolved call to word on Solargraph::Source::Chain::Link, nil
               result.push Problem.new(location, "Unresolved call to #{missing.links.last.word} on #{closest}")
             else
+              # @sg-ignore Unresolved call to word on Solargraph::Source::Chain::Link, nil
               result.push Problem.new(location, "Unresolved call to #{missing.links.last.word}")
             end
             @marked_ranges.push rng
@@ -525,10 +533,13 @@ module Solargraph
       kwargs = convert_hash(argchain.node)
       par = sig.parameters[idx]
       # @type [Solargraph::Source::Chain]
+      # @sg-ignore Unresolved call to name
       argchain = kwargs[par.name.to_sym]
+      # @sg-ignore Unresolved call to asgn_code; Unresolved call to decl; Wrong argument type for Integer#-: arg_0 expected BigDecimal, received Integer
       if par.decl == :kwrestarg || (par.decl == :optarg && idx == pin.parameters.length - 1 && par.asgn_code == '{}')
         result.concat kwrestarg_problems_for(api_map, closure_pin, locals, location, pin, params, kwargs)
       elsif argchain
+        # @sg-ignore Unresolved call to name
         data = params[par.name]
         if data.nil?
           # @todo Some level (strong, I guess) should require the param here
@@ -542,11 +553,14 @@ module Solargraph
             # @todo Unresolved call to defined?
             if argtype.defined? && ptype && !arg_conforms_to?(argtype, ptype)
               result.push Problem.new(location,
+                                      # @sg-ignore Unresolved call to name
                                       "Wrong argument type for #{pin.path}: #{par.name} expected #{ptype}, received #{argtype}")
             end
           end
         end
+      # @sg-ignore Unresolved call to decl
       elsif par.decl == :kwarg
+        # @sg-ignore Unresolved call to name
         result.push Problem.new(location, "Call to #{pin.path} is missing keyword argument #{par.name}")
       end
       result
@@ -563,13 +577,17 @@ module Solargraph
     def kwrestarg_problems_for api_map, closure_pin, locals, location, pin, params, kwargs
       result = []
       kwargs.each_pair do |pname, argchain|
+        # @sg-ignore Unresolved call to to_s
         next unless params.key?(pname.to_s)
         # @sg-ignore
         # @type [ComplexType]
         raw_ptype = params[pname.to_s][:qualified]
         ptype = raw_ptype.self_to_type(pin.context)
+        # @sg-ignore Unresolved call to infer
         argtype = argchain.infer(api_map, closure_pin, locals)
+        # @sg-ignore Unresolved call to self_to_type
         argtype = argtype.self_to_type(closure_pin.context)
+        # @sg-ignore Unresolved call to defined?
         if argtype.defined? && ptype && !arg_conforms_to?(argtype, ptype)
           result.push Problem.new(location,
                                   "Wrong argument type for #{pin.path}: #{pname} expected #{ptype}, received #{argtype}")
@@ -642,7 +660,9 @@ module Solargraph
         next unless param_names.include?(param_name)
 
         param_details[param_name] ||= {}
+        # @sg-ignore Unresolved call to [] on Hash{Symbol => String, Solargraph::ComplexType}, nil; Unresolved call to []
         param_details[param_name][:tagged] ||= details[:tagged]
+        # @sg-ignore Unresolved call to []; Unresolved call to [] on Hash{Symbol => String, Solargraph::ComplexType}, nil
         param_details[param_name][:qualified] ||= details[:qualified]
       end
     end
@@ -689,6 +709,7 @@ module Solargraph
     end
 
     # @param pin [Pin::BaseVariable]
+    # @return [Boolean]
     def declared_externally? pin
       raise 'No assignment found' if pin.assignment.nil?
 
@@ -707,6 +728,7 @@ module Solargraph
         found = nil
         # @type [Array<Solargraph::Pin::Base>]
         all_found = []
+        # @sg-ignore Unresolved call to undefined? on Solargraph::Source::Chain::Link, nil
         until base.links.first.undefined?
           all_found = base.define(api_map, closure_pin, locals)
           found = all_found.first
@@ -724,6 +746,7 @@ module Solargraph
     # @param arguments [Array<Source::Chain>]
     # @param location [Location]
     # @return [Array<Problem>]
+    # @sg-ignore Declared return type ::Array<::Solargraph::TypeChecker::Problem> does not match inferred type ::Array, ::Array<::Solargraph::TypeChecker::Problem>, nil for Solargraph::TypeChecker#arity_problems_for
     def arity_problems_for pin, arguments, location
       results = pin.signatures.map do |sig|
         r = parameterized_arity_problems_for(pin, sig.parameters, arguments, location)
@@ -752,6 +775,7 @@ module Solargraph
         if any_splatted_call?(unchecked.map(&:node))
           settled_kwargs = parameters.count(&:keyword?)
         else
+          # @sg-ignore Unresolved call to node on Solargraph::Source::Chain, nil
           kwargs = convert_hash(unchecked.last.node)
           if parameters.any? { |param| %i[kwarg kwoptarg].include?(param.decl) || param.kwrestarg? }
             if kwargs.empty?
@@ -764,7 +788,9 @@ module Solargraph
                   kwargs.delete param.name.to_sym
                   settled_kwargs += 1
                 elsif param.decl == :kwarg
+                  # @sg-ignore Unresolved call to links on Solargraph::Source::Chain, nil
                   last_arg_last_link = arguments.last.links.last
+                  # @sg-ignore Unresolved call to is_a?
                   return [] if last_arg_last_link.is_a?(Solargraph::Source::Chain::Hash) && last_arg_last_link.splatted?
                   return [Problem.new(location, "Missing keyword argument #{param.name} to #{pin.path}")]
                 end
@@ -778,17 +804,22 @@ module Solargraph
         end
       end
       req = required_param_count(parameters)
+      # @sg-ignore Wrong argument type for Integer#+: arg_0 expected BigDecimal, received Integer, BigDecimal
       if req + add_params < unchecked.length
         return [] if parameters.any?(&:rest?)
         opt = optional_param_count(parameters)
+        # @sg-ignore Wrong argument type for Integer#<=: arg_0 expected Numeric, received BigDecimal; Wrong argument type for Integer#+: arg_0 expected BigDecimal, received Integer
         return [] if unchecked.length <= req + opt
+        # @sg-ignore Wrong argument type for Integer#+: arg_0 expected BigDecimal, received Integer, BigDecimal
         if req + add_params + 1 == unchecked.length && any_splatted_call?(unchecked.map(&:node)) && parameters.map(&:decl).intersect?(%i[
                                                                                                                                         kwarg kwoptarg kwrestarg
                                                                                                                                       ])
           return []
         end
+        # @sg-ignore Wrong argument type for Integer#-: arg_0 expected BigDecimal, received Integer
         return [] if arguments.length - req == parameters.select { |p| %i[optarg kwoptarg].include?(p.decl) }.length
         return [Problem.new(location, "Too many arguments to #{pin.path}")]
+      # @sg-ignore Wrong argument type for Integer#<: arg_0 expected Numeric, received BigDecimal; Wrong argument type for Integer#-: arg_0 expected BigDecimal, received Integer; Unresolved call to splat? on Solargraph::Source::Chain, nil; Unresolved call to links on Solargraph::Source::Chain, nil
       elsif unchecked.length < req - settled_kwargs && (arguments.empty? || (!arguments.last.splat? && !arguments.last.links.last.is_a?(Solargraph::Source::Chain::Hash)))
         # HACK: Kernel#raise signature is incorrect in Ruby 2.7 core docs.
         # See https://github.com/castwide/solargraph/issues/418

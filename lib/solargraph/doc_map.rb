@@ -256,6 +256,7 @@ module Solargraph
         combined_pins = GemPins.combine(yard_pins, rbs_collection_pins)
         PinCache.serialize_combined_gem(gemspec, rbs_version_cache_key, combined_pins)
         combined_pins_in_memory[[gemspec.name, gemspec.version]] = combined_pins
+        # @sg-ignore Unresolved call to length on Array<Solargraph::Pin::Base>, nil
         logger.info { "Generated #{combined_pins_in_memory[[gemspec.name, gemspec.version]].length} combined pins for #{gemspec.name} #{gemspec.version}" }
         return combined_pins
       end
@@ -323,6 +324,7 @@ module Solargraph
           # a Gemfile; Gem doesn't try to index the paths in that case.
           #
           # See if we can make a good guess:
+          # @sg-ignore Wrong argument type for Gem::Specification.find_by_name: name expected String, received String, nil
           gemspec = Gem::Specification.find_by_name(gem_name_guess)
         rescue Gem::MissingSpecError
           logger.debug { "Require path #{path} could not be resolved to a gem via find_by_path or guess of #{gem_name_guess}" }
@@ -338,8 +340,10 @@ module Solargraph
     def gemspec_or_preference gemspec
       # :nocov: dormant feature
       return gemspec unless preference_map.key?(gemspec.name)
+      # @sg-ignore Unresolved call to version on Gem::Specification, nil
       return gemspec if gemspec.version == preference_map[gemspec.name].version
 
+      # @sg-ignore Unresolved call to version on Gem::Specification, nil
       change_gemspec_version gemspec, preference_map[gemspec.name].version
       # :nocov:
     end
@@ -364,6 +368,7 @@ module Solargraph
         dep = Gem.loaded_specs[spec.name]
         # @todo is next line necessary?
         dep ||= Gem::Specification.find_by_name(spec.name, spec.requirement)
+        # @sg-ignore Wrong argument type for Set#add?: arg_0 expected Gem::Specification, received Gem::BasicSpecification, nil, Gem::Specification; Wrong argument type for Solargraph::DocMap#fetch_dependencies: gemspec expected Gem::Specification, received Gem::BasicSpecification, nil, Gem::Specification
         deps.merge fetch_dependencies(dep) if deps.add?(dep)
       rescue Gem::MissingSpecError
         Solargraph.logger.warn "Gem dependency #{spec.name} for #{gemspec.name} not found in RubyGems."
@@ -416,6 +421,7 @@ module Solargraph
           "require 'bundler'; require 'json'; Dir.chdir('#{workspace.directory}') { puts Bundler.definition.locked_gems.specs.map { |spec| [spec.name, spec.version] }.to_h.to_json }"
         ]
         o, e, s = Open3.capture3(*cmd)
+        # @sg-ignore Unresolved call to success?
         if s.success?
           Solargraph.logger.debug "External bundle: #{o}"
           hash = o && !o.empty? ? JSON.parse(o.split("\n").last) : {}

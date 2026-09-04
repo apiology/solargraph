@@ -144,6 +144,7 @@ module Solargraph
         @namespace ||= lambda do
           return 'Object' if duck_type?
           return 'NilClass' if nil_type?
+          # @sg-ignore Unresolved call to name on Solargraph::ComplexType, nil
           %w[Class Module].include?(name) && !subtypes.empty? ? subtypes.first.name : name
         end.call
       end

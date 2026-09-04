@@ -7,14 +7,17 @@ module Solargraph
         class DefsNode < DefNode
           include ParserGem::NodeMethods
 
+          # @return [void]
           def process
             s_visi = region.visibility
             s_visi = :public if s_visi == :module_function || region.scope != :class
             loc = get_node_location(node)
+            # @sg-ignore Unresolved call to type on Parser::AST::Node, nil
             closure = if node.children[0].is_a?(AST::Node) && node.children[0].type == :self
                         region.closure
                       else
                         Solargraph::Pin::Namespace.new(
+                          # @sg-ignore Wrong argument type for Solargraph::Parser::ParserGem::NodeMethods#unpack_name: node expected Parser::AST::Node, received Parser::AST::Node, nil
                           name: unpack_name(node.children[0]),
                           source: :parser
                         )
