@@ -99,15 +99,10 @@ describe Solargraph::YardMap::Mapper::ToStructInitializer do
     expect(pins_at(pins, 'Foo#initialize')).to be_empty
   end
 
-  it 'honors a magic encoding comment when rereading the definition line' do
+  it 'honors a magic encoding comment when rereading the definition line, since ' \
+     'File.readlines defaults to UTF-8 and would not honor it on its own, even though YARD does' do
     Dir.mktmpdir do |dir|
       path = File.join(dir, 'struct_def.rb')
-      # File.readlines defaults to Encoding.default_external (UTF-8) and
-      # does not itself honor a magic encoding comment the way compiling
-      # the file would -- \xE9 is only valid as "e" line data under
-      # ISO-8859-1. YARD parses this fine (it resolves the same comment),
-      # so #keyword_init? has to detect and honor it too, not just survive
-      # not honoring it.
       content = "# encoding: ISO-8859-1\nFoo = Struct.new(:bar, :baz, keyword_init: true) # caf\xE9\n"
       File.binwrite(path, content)
       YARD.parse(path)
@@ -118,20 +113,26 @@ describe Solargraph::YardMap::Mapper::ToStructInitializer do
     end
   end
 
-  it 'falls back to positional when the declared encoding does not match the actual bytes' do
+  it 'falls back to positional when the declared encoding does not match the actual bytes -- ' \
+     'checked directly against #keyword_init?, since a file this malformed would never reach YARD as a real ClassObject' do
     Dir.mktmpdir do |dir|
       path = File.join(dir, 'struct_def.rb')
-      # The comment claims US-ASCII, but \xE9 is not a valid US-ASCII byte --
-      # a genuinely unrecoverable case, not merely one File.readlines
-      # defaults its way past. Exercised directly against #keyword_init?,
-      # since a file this malformed is unlikely to reach YARD as a real
-      # ClassObject in the first place.
       content = "# encoding: US-ASCII\nFoo = Struct.new(:bar, :baz, keyword_init: true) # caf\xE9\n"
       File.binwrite(path, content)
 
       code_object = Struct.new(:file, :line).new(path, 2)
       result = described_class.send(:keyword_init?, code_object, nil)
       expect(result).to be(false)
+    end
+  end
+
+  it 'falls back to UTF-8 when the magic comment names an unknown encoding' do
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, 'struct_def.rb')
+      File.write(path, "# encoding: totally-bogus-encoding\nFoo = Struct.new(:bar)\n")
+
+      result = described_class.send(:detect_encoding, path)
+      expect(result).to eq(Encoding::UTF_8)
     end
   end
 

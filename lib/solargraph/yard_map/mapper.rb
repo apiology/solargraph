@@ -47,7 +47,6 @@ module Solargraph
           nspin = namespace_with_bug_fix(code_object)
           @namespace_pins[code_object.path] = nspin
           result.push nspin
-          # See ToStructInitializer for why a Struct.new definition needs this.
           result.concat ToStructInitializer.make(code_object, nspin, @spec)
           # @sg-ignore Unresolved call to superclass on YARD::CodeObjects::NamespaceObject, YARD::CodeObjects::ClassObject
           if code_object.is_a?(YARD::CodeObjects::ClassObject) && !code_object.superclass.nil?
