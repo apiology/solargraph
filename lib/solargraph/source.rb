@@ -213,8 +213,7 @@ module Solargraph
       stringified_comments[rng.start.line] ||= begin
         # @sg-ignore Need to add nil check here
         buff = associated_comments[rng.start.line]
-        # @sg-ignore Wrong argument type for Solargraph::Source#stringify_comment_array: comments expected String, received String, NilClass
-        buff ? stringify_comment_array(buff) : nil
+        stringify_comment_array(buff)
       end
     end
 
@@ -254,24 +253,24 @@ module Solargraph
 
     # Get a hash of comments grouped by the line numbers of the associated code.
     #
-    # @return [Hash{Integer => String, nil}]
+    # @return [Hash{Integer => Array<String>}]
     def associated_comments
       @associated_comments ||= begin
         # @type [Hash{Integer => String}]
         result = {}
-        buffer = String.new('')
+        buffer = []
         # @type [Integer, nil]
         last = nil
         comments.each_pair do |num, snip|
           # @sg-ignore Unresolved call to ==
           if !last || num == last + 1
             # @sg-ignore Unresolved call to text
-            buffer.concat "#{snip.text}\n"
+            buffer.push "#{snip.text}\n"
           else
             # @sg-ignore Wrong argument type for Solargraph::Source#first_not_empty_from: line expected Integer, received BigDecimal; Wrong argument type for Integer#+: arg_0 expected BigDecimal, received Integer
             result[first_not_empty_from(last + 1)] = buffer.clone
             # @sg-ignore Unresolved call to text
-            buffer.replace "#{snip.text}\n"
+            buffer.replace ["#{snip.text}\n"]
           end
           last = num
         end
@@ -317,27 +316,31 @@ module Solargraph
 
     # Get a string representation of an array of comments.
     #
-    # @param comments [String]
+    # @param comments [Array<String>, nil]
     # @return [String]
     def stringify_comment_array comments
-      ctxt = String.new('')
+      ctxt = []
       started = false
       skip = nil
-      comments.lines.each do |l|
+      comments&.each do |l|
+        if l =~ /^#-\R/
+          ctxt.clear
+          next
+        end
         # Trim the comment and minimum leading whitespace
         p = l.force_encoding('UTF-8').encode('UTF-8', invalid: :replace, replace: '?').gsub(/^#+/, '')
         if p.strip.empty?
           next unless started
-          ctxt.concat p
+          ctxt.push p
         else
           here = p.index(/[^ \t]/)
           # @sg-ignore flow sensitive typing should be able to handle redefinition
           skip = here if skip.nil? || here < skip
-          ctxt.concat p[skip..]
+          ctxt.push p[skip..]
         end
         started = true
       end
-      ctxt
+      ctxt.join('')
     end
 
     # A hash of line numbers and their associated comments.

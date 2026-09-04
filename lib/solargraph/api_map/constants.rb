@@ -158,7 +158,7 @@ module Solargraph
             mixin = resolve(ref.name, ref.reference_gates)
             next unless mixin
 
-            resolved = simple_resolve(name, mixin, internal)
+            resolved = resolve(name, mixin)
             # @sg-ignore Unresolved call to +
             return [resolved, gates[(idx + 1)..]] if resolved
           end
