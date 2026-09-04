@@ -43,6 +43,7 @@ module Solargraph
 
         protected
 
+        # @sg-ignore return type could not be inferred
         def equality_fields
           super + [@links, @rhs_never_returns]
         end
