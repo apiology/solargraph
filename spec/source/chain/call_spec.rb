@@ -622,14 +622,6 @@ describe Solargraph::Source::Chain::Call do
   end
 
   it 'denies calls on a two-class union when loose union mode is off and only one class defines the method' do
-    # The nilable spec above exercises this same "every union member must
-    # define the method, unless loose_unions" rule, but only via
-    # nullable?/without_nil stripping nil out first - it never actually
-    # tests the general two-real-class case. Found while checking whether
-    # the Call#resolve fix for intersections (A & B <: A, A & B <: B)
-    # regressed real union semantics (A, B calls require both) - it
-    # doesn't (this reproduces identically on unmodified HEAD, before that
-    # fix), but this specific shape was never covered.
     pending 'strict union mode does not deny a call when only one of two plain classes defines it'
     source = Solargraph::Source.load_string(%(
       class A
@@ -1038,40 +1030,6 @@ describe Solargraph::Source::Chain::Call do
       )
       type = infer_at(code, [1, code.lines[1].chomp.length])
       expect(type.rooted_tags).to eq('::Integer')
-    end
-  end
-
-  describe '#literal_node_tag' do
-    # literal_node_tag (#1231) turns a literal argument AST node into
-    # the dispatch tag used to narrow an intersection's Hash-keyed
-    # conjuncts to the one whose key_types match a call's literal
-    # argument - e.g. `period.fetch("Index")` narrowing
-    # `Hash{"Index" => Float} & Hash{"Triggers" => Array}` down to the
-    # first conjunct. Called from #unique_type_key_verdict.
-    let(:call) { described_class.new('fetch') }
-
-    it 'tags a string literal node' do
-      node = Solargraph::Parser.parse('"Index"')
-      expect(call.send(:literal_node_tag, node)).to eq('"Index"')
-    end
-
-    it 'tags a symbol literal node' do
-      node = Solargraph::Parser.parse(':Index')
-      expect(call.send(:literal_node_tag, node)).to eq(':Index')
-    end
-
-    it 'tags an integer literal node' do
-      node = Solargraph::Parser.parse('1')
-      expect(call.send(:literal_node_tag, node)).to eq('1')
-    end
-
-    it 'returns nil for a non-literal node' do
-      node = Solargraph::Parser.parse('[1, 2]')
-      expect(call.send(:literal_node_tag, node)).to be_nil
-    end
-
-    it 'returns nil for a non-AST-node argument' do
-      expect(call.send(:literal_node_tag, nil)).to be_nil
     end
   end
 end

@@ -7,9 +7,11 @@ module Solargraph
       # more conjunct types, e.g., the RBS type `A & B`.
       #
       # Unlike ComplexType's comma-separated items (a union, where any
-      # one member describes the value), every conjunct of an
-      # Intersection must independently describe the value. That
-      # means the subtyping rules are the mirror image of a union's:
+      # one member describes the value), every conjunct must describe
+      # the value independently, so the subtyping rules are a union's
+      # mirror image: A & B <: A and A & B <: B (<: means "is a
+      # subtype of"), but a value satisfies A & B only if it satisfies
+      # every conjunct.
       #
       #   A & B <: A
       #   A & B <: B
@@ -45,17 +47,17 @@ module Solargraph
         # @param conjuncts [Array<ComplexType>]
         def initialize conjuncts
           @conjuncts = conjuncts
-          super(conjuncts.map(&:tags).join(' & '), rooted: true)
+          super(intersection_tag(:tags), rooted: true)
         end
 
         # @return [String]
         def tag
-          @tag ||= conjuncts.map(&:tags).join(' & ')
+          @tag ||= intersection_tag(:tags)
         end
 
         # @return [String]
         def rooted_tag
-          @rooted_tag ||= conjuncts.map(&:rooted_tags).join(' & ')
+          @rooted_tag ||= intersection_tag(:rooted_tags)
         end
 
         # @return [String]
@@ -151,17 +153,9 @@ module Solargraph
           end
         end
 
-        # Every conjunct describes the same value, so each is resolved
-        # against the same context type, and a generic bound by one
-        # conjunct is visible to the rest through the shared
-        # resolved_generic_values hash. UniqueType's implementation
-        # looks for generics in #subtypes and #key_types, which an
-        # intersection does not use - its type parameters live inside
-        # the conjuncts - so `Class<generic<T>> & #new` never bound T.
-        #
-        # Conjuncts resolve left to right, so a generic that only
-        # becomes bindable through a later conjunct stays unresolved in
-        # an earlier one's output.
+        # Every conjunct resolves against the same context, sharing
+        # resolved_generic_values - resolved left to right, so an
+        # earlier conjunct won't see a generic only a later one binds.
         #
         # @param generics_to_resolve [Enumerable<String>]
         # @param context_type [ComplexType, UniqueType, nil]
@@ -177,12 +171,20 @@ module Solargraph
         # Applies the transformation to each conjunct independently
         # and rebuilds the intersection from the results.
         #
-        # @param new_name [String, nil]
+        # new_name is not passed down to the conjuncts. An
+        # intersection's own `name` is the synthetic `"A & B"` string
+        # built in #initialize, not a namespace; giving that to each
+        # conjunct renames `Hash{"a" => Float}` to
+        # `Hash{"a" => Float} & Hash{"b" => Float}{"a" => Float}`,
+        # which no longer parses. Each conjunct keeps its own name,
+        # which is the only rename that means anything here.
+        #
+        # @param _new_name [String, nil] ignored - see above
         # @yieldparam t [UniqueType]
         # @yieldreturn [UniqueType]
         # @return [self]
-        def transform new_name = nil, &transform_type
-          Intersection.new(conjuncts.map { |conjunct| conjunct.transform(new_name, &transform_type) })
+        def transform _new_name = nil, &transform_type
+          Intersection.new(conjuncts.map { |conjunct| conjunct.transform(&transform_type) })
         end
 
         # UniqueType#qualify walks key_types and subtypes; an
@@ -201,6 +203,18 @@ module Solargraph
         end
 
         private
+
+        # Renders conjuncts as a tag, bracketing multi-item ones since
+        # `&` binds tighter than `,`/`|` (`[A|B] & C`, not `A, B & C`).
+        #
+        # @param tags_method [:tags, :rooted_tags]
+        # @return [String]
+        def intersection_tag tags_method
+          conjuncts.map do |conjunct|
+            tags = conjunct.send(tags_method)
+            conjunct.items.length > 1 ? "[#{tags}]" : tags
+          end.join(' & ')
+        end
 
         # An assignment's declared `A & B & C` (e.g. `# @type [Hash{:k1
         # => V1} & Hash{:k2 => V2} & Hash{:k3 => V3}]` on a local
@@ -275,12 +289,7 @@ module Solargraph
           end
         end
 
-        # Returns expected itself when it's a bare Intersection, or
-        # its one item when it's a ComplexType consisting of nothing
-        # but a single Intersection. A union with an intersection as
-        # one of several alternatives returns nil; #conforms_to? has
-        # already tried each alternative on its own by then, so what
-        # reaches here is the fallback "any conjunct" path.
+        # Returns expected itself (or its one item) when it's an Intersection, else nil.
         #
         # @param expected [ComplexType, ComplexType::UniqueType]
         # @return [Intersection, nil]

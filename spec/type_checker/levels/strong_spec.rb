@@ -2087,23 +2087,7 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message)).not_to include('Unresolved call to bar on Base')
     end
 
-    it 'resolves Hash#fetch to the value type with no intersection involved' do
-      # Regression coverage for a leak that used to make this report
-      # 'Declared type Float does not match inferred type Float, generic<X>'.
-      # Not #1231-specific: https://github.com/castwide/solargraph/pull/1231#issuecomment-5207523909
-      # reported it against an intersection of two Hash instantiations, but it
-      # reproduced identically for a single, non-intersected generic Hash.
-      #
-      # Pin::Parameter#compatible_arg? rejected Hash#fetch's exact-arity
-      # overload, so inference fell through to the pin's raw combined
-      # signature type, which still carried the unresolved generic X from
-      # fetch's default-value and block overloads.
-      #
-      # castwide/solargraph#1266 fixed that for RBS >= 4.1.x, and
-      # castwide/solargraph#1223's non-literal overload fallback
-      # (a1e844414) closed the remaining pre-4.1 case, so this now holds on
-      # every supported RBS version. Both are merged into this branch; the
-      # assertion was version-conditional until then.
+    it 'resolves Hash#fetch on a literal-keyed Hash with no intersection involved' do
       checker = type_checker(%(
         class Repro
           # @param period [Hash{"Index" => Float}]
@@ -2117,34 +2101,7 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message)).to be_empty
     end
 
-    it 'always dispatches a same-class generic method through the first union member, not #1231-specific' do
-      # Not an intersection-types bug at all: a *union* of two Hash
-      # instantiations shows the identical "always the first one, regardless
-      # of order or argument" dispatch bug that the same-class intersection
-      # specs below track. Confirmed on unmodified castwide/solargraph
-      # master (8fda63384, no & or | involved) with a minimal @generic
-      # class (no Hash, no literal keys, no #1266 dependency):
-      #
-      #   # @generic T
-      #   class Box
-      #     # @return [generic<T>]
-      #     def get; end
-      #   end
-      #
-      #   # @param b [Box<Integer>, Box<String>]
-      #   b.get  # infers Integer
-      #   # @param b [Box<String>, Box<Integer>]
-      #   b.get  # infers String - order picked the type, not the call
-      #
-      # Root cause: Call#inferred_pins resolves the class's generic
-      # parameter against `self_type = name_pin.binder` - the *whole*
-      # union/intersection type - rather than per-member, so it binds
-      # against whichever member it structurally matches first.
-      #
-      # Filing this as its own issue/PR against master, independent of
-      # #1231 and #1266, so the Hash intersection specs below inherit the
-      # fix whichever order the PRs land in rather than stacking one PR on
-      # top of another.
+    it 'always dispatches a same-class generic method through the first union member' do
       pending 'Call#inferred_pins binds a generic against the first union/intersection member only'
       checker = type_checker(%(
         class Repro
@@ -2202,17 +2159,10 @@ describe Solargraph::TypeChecker do
           .to include('Wrong argument type for Consumer#project_to_h: project_obj expected Asana::Resources::Project, received Mocha::Mock')
       end
 
-      it 'accepts an intersection-typed argument where the duck-typed conjunct is expected (#1231)' do
-        # https://github.com/castwide/solargraph/pull/1231#issuecomment-5280196737 -
-        # ComplexType#duck_types_match? used to check the duck-typed
-        # expectation against ComplexType#namespace/#scope, which for an
-        # Intersection just delegates to its *first* conjunct
-        # (Intersection#namespace/#scope). That rejected an intersection
-        # whenever the duck-typed conjunct wasn't the first one, even
-        # though duck-typed subtyping only needs *some* conjunct to
-        # satisfy it - the same "any one conjunct" rule
-        # Intersection#conforms_to? already applies elsewhere. Fixed by
-        # checking each conjunct instead of just the first.
+      it 'accepts an intersection-typed argument where the duck-typed conjunct is expected' do
+        # Duck-typed subtyping needs *some* conjunct to satisfy it, not
+        # specifically the first one that Intersection#namespace/#scope
+        # delegate to.
         checker = type_checker(%(
           # @param callback [#quack]
           # @return [void]
@@ -2243,56 +2193,13 @@ describe Solargraph::TypeChecker do
           .to include('Wrong argument type for #notify: callback expected #quack, received String & Integer')
       end
 
-      it 'dispatches generic methods per-conjunct when intersecting two instantiations of the same generic class (#1231)' do
-        # https://github.com/castwide/solargraph/pull/1231#issuecomment-5207523909 -
-        # #fetch on Hash{K1=>V1} & Hash{K2=>V2} used to always resolve through
-        # the *first* conjunct's #fetch signature regardless of which key was
-        # passed. Root cause (shared with castwide/solargraph#1272): both
-        # conjuncts resolve to a pin with the same path (Hash#fetch) but
-        # different, already-correctly-resolved return types, and dedup was
-        # keying on path alone - fixed here the same way
-        # castwide/solargraph#1273 fixed it for real unions, applied to
-        # Call#method_stack_pins's Intersection branch too.
-        #
-        # That made dispatch order-independent and sound (both conjuncts'
-        # possible return types show up), but not yet *precise*: it returned
-        # a union of every conjunct's result rather than narrowing to the one
-        # whose key actually matches. RBS's own `Hash#fetch: (_Key key) -> V`
-        # can't do this itself - `_Key` is a structural hash/eql? interface,
-        # not literally `K`, so the key argument is never connected to the
-        # return type by ordinary overload resolution. Call#method_stack_pins
-        # now detects any `_Key`-shaped parameter on a conjunct's method
-        # (generalizing past #fetch/#[] to #dig, #delete, etc. for free) and,
-        # when every conjunct yields a positive verdict for or against the
-        # call's own literal argument, keeps only the matching conjunct(s) -
-        # conservatively falling back to today's full union whenever even one
-        # conjunct can't be verified one way or the other.
-        #
-        # Key-parameter detection has to handle two shapes, because RBS's
-        # own core/hash.rbs changed in 4.1.0: `(_Key key)` from 4.1.0 on,
-        # `(K arg0)` before it. Pin::Signature#key_param_index recognizes
-        # both - see its comment. Without the pre-4.1 shape this spec
-        # passes on RBS >= 4.1 and fails on 3.10.x/4.0.x, which is what
-        # apiology/solargraph#49 CI was reporting before that was fixed.
-        #
-        # Both castwide/solargraph#1223 (restores literal type inference,
-        # without which the literal "Index"/"Triggers" key_types get widened
-        # to plain String before the narrowing above ever sees them) and
-        # castwide/solargraph#1266 are merged into this branch. Neither is
-        # specific to intersections; #1223 is a genuine prerequisite for this
-        # spec to observe the fix working, #1266 is not involved at all.
-        #
-        # This spec was `skip`ped for a while as "flaky - fails or
-        # unexpectedly passes depending on run". That was a misreading of CI,
-        # not a real flake. apiology/solargraph#49 run 1 (commit 82f464e0e)
-        # was reported as failing every matrix leg but one; in fact exactly
-        # one leg failed (`rspec (4.0, 4.0.3)`) and the other twelve were
-        # `cancelled` by fail-fast. Run 2 (commit 92b638667) was reported as
-        # an unexplained opposite result on `rspec (4.0, 4.1.1)`; in fact
-        # that leg's only "failure" was two `FIXED` markers - the specs
-        # passed, but that run's pending guard was gated to Ruby 3.2, so a
-        # pass on Ruby 4.0 registered as unexpected. The behavior was
-        # deterministic throughout, splitting purely on RBS version.
+      it 'dispatches generic methods per-conjunct when intersecting two instantiations of the same generic class' do
+        # Both conjuncts resolve to a pin with the same path (Hash#fetch)
+        # but different, already-resolved return types, so dispatch keys on
+        # path *and* return type, then narrows to the conjunct whose key
+        # matches the call's literal argument. Overload resolution can't
+        # do that on its own, since it runs per conjunct and both
+        # conjuncts yield a pin with the same path.
         checker = type_checker(%(
           class Repro
             # @param period [Hash{"Index" => Float} & Hash{"Triggers" => Array<Hash{"Name" => String}>}]
@@ -2309,16 +2216,7 @@ describe Solargraph::TypeChecker do
         expect(checker.problems.map(&:message)).to be_empty
       end
 
-      it 'dispatches generic methods per-conjunct regardless of conjunct order (#1231)' do
-        # https://github.com/castwide/solargraph/pull/1231#issuecomment-5207523909 -
-        # this used to demonstrate order-*dependence*: swapping the conjunct
-        # order flipped which (wrong) type both fetches reported. The
-        # dedup-key fix described in the sibling spec above makes this
-        # order-independent now - same per-key-narrowed result either way,
-        # dispatched via the same literal-key matching described there.
-        # Same prerequisite as that spec, already merged into this branch:
-        # castwide/solargraph#1223. Was `skip`ped alongside its sibling for a
-        # flake that turned out not to exist - see that spec's comment.
+      it 'dispatches generic methods per-conjunct regardless of conjunct order' do
         checker = type_checker(%(
           class Repro
             # @param period [Hash{"Triggers" => Array<Hash{"Name" => String}>} & Hash{"Index" => Float}]
@@ -2335,21 +2233,12 @@ describe Solargraph::TypeChecker do
         expect(checker.problems.map(&:message)).to be_empty
       end
 
-      it 'dispatches generic methods per-conjunct for symbol keys (#1231)' do
-        # Symbol keys take a different path to the same bug than the string
-        # keys above: symbols already infer as literal types, so per-overload
-        # matching correctly rejects the non-matching conjunct - but a pin
-        # whose overloads all fail to match is not dropped, it just falls
-        # through to its declared return type, so the union survives anyway.
-        # Only key_verified_conjuncts can actually remove a conjunct. Before
-        # Pin::Signature#key_param_index learned RBS < 4.1's `(K arg0)`
-        # shape, this reported the union plus an unresolved generic<X> plus
-        # three spurious "Wrong argument type for Hash#fetch: arg0 expected
-        # :Index, received :Triggers" errors on RBS 3.10.x/4.0.x - the arg
-        # check was resolving against the conjunct that narrowing should
-        # have dropped. castwide/solargraph#1223 (restores literal type
-        # inference) is a prerequisite too, already merged into this
-        # branch.
+      it 'dispatches generic methods per-conjunct for symbol keys' do
+        # Symbols already infer as literal types, so per-overload matching
+        # rejects the non-matching conjunct on its own here - a pin whose
+        # overloads all fail falls through to its declared return type
+        # rather than being dropped, so only Call#argument_verified_conjuncts
+        # actually removes it.
         checker = type_checker(%(
           class Repro
             # @param period [Hash{:Index => Float} & Hash{:Triggers => Array<Hash{:Name => String}>}]
@@ -2380,12 +2269,10 @@ describe Solargraph::TypeChecker do
         expect(checker.problems.map(&:message)).to be_empty
       end
 
-      it 'resolves a call to a method defined on just one conjunct of an intersection-typed receiver (#1231)' do
-        # https://github.com/castwide/solargraph/pull/1231#issuecomment-5207595119 -
-        # method-call resolution used to only try the first conjunct's method
-        # stack, per unique type, and required every one of them to define the
-        # method the way a real union would. Fixed in Call#method_stack_pins by
-        # giving Intersection conjuncts "any one is enough" semantics instead.
+      it 'resolves a call to a method defined on just one conjunct of an intersection-typed receiver' do
+        # Method lookup gives an intersection's conjuncts "any one is
+        # enough" semantics (A & B <: A, A & B <: B), unlike a union, where
+        # every alternative has to define the method.
         checker = type_checker(%(
           class A
             # @return [void]
@@ -2407,6 +2294,45 @@ describe Solargraph::TypeChecker do
 
           Factory.new.make.foo
           Factory.new.make.bar
+      ))
+        expect(checker.problems.map(&:message)).to be_empty
+      end
+
+      it 'dispatches to the conjunct whose parameter type actually accepts the argument' do
+        # Same problem as the Hash-record specs above, generalized:
+        # narrowing an intersection's conjuncts by argument fit isn't
+        # Hash-key-specific, it's ordinary overload matching applied
+        # per conjunct instead of per signature.
+        checker = type_checker(%(
+          class A
+            # @param x [String]
+            # @return [Integer]
+            def pick(x)
+              1
+            end
+          end
+
+          class B
+            # @param x [Symbol]
+            # @return [Float]
+            def pick(x)
+              1.0
+            end
+          end
+
+          class Factory
+            # @sg-ignore A.new duck-types as A & B for this repro
+            # @return [A & B]
+            def make
+              A.new
+            end
+          end
+
+          # @type [Integer]
+          from_a = Factory.new.make.pick("hello")
+
+          # @type [Float]
+          from_b = Factory.new.make.pick(:hello)
       ))
         expect(checker.problems.map(&:message)).to be_empty
       end
@@ -2437,9 +2363,7 @@ describe Solargraph::TypeChecker do
         expect(checker.problems.map(&:message)).to be_empty
       end
 
-      it 'resolves a conjunct method on an intersection-typed local variable, not just a call chain (#1231)' do
-        # Same fix as the sibling spec above applies to any intersection-typed
-        # value, not just method-return-value call chains.
+      it 'resolves a conjunct method on an intersection-typed local variable, not just a call chain' do
         checker = type_checker(%(
           class A
             # @return [void]
@@ -2462,8 +2386,6 @@ describe Solargraph::TypeChecker do
       end
 
       it 'resolves conjunct methods on a three-way intersection' do
-        # Same fix as the sibling specs above; each conjunct is checked
-        # independently regardless of how many there are.
         checker = type_checker(%(
           class A
             # @return [void]
