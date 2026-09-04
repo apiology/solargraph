@@ -54,4 +54,18 @@ describe Solargraph::ComplexType do
       expect(narrowed.tag).to eq('T')
     end
   end
+
+  context 'when nothing conforms and the narrowing type is a bare UniqueType' do
+    it 'accepts a bare UniqueType (not wrapped in a ComplexType) as narrowing_type' do
+      receiver = described_class.parse('Integer')
+      # A bare UniqueType, as narrow_with's own signature declares
+      # it may receive, rather than a ComplexType wrapping one.
+      bare_unique_type = described_class.parse('String').to_a.first
+      expect(bare_unique_type).to be_a(Solargraph::ComplexType::UniqueType)
+
+      result = receiver.narrow_with(bare_unique_type, api_map)
+
+      expect(result).to be_undefined
+    end
+  end
 end
