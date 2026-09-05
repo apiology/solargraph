@@ -291,6 +291,29 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message)).to be_empty
     end
 
+    it 'dispatches to the no-block @overload when the call site passes no block, ' \
+       'even though a sibling @overload with identical explicit params also declares a block' do
+      checker = type_checker(%(
+        # @overload build
+        #   @return [Integer]
+        # @overload build
+        #   @yieldparam widget [String]
+        #   @yieldreturn [String]
+        #   @return [String]
+        def build
+          return 1 unless block_given?
+
+          yield 'hi'
+        end
+
+        # @return [Integer]
+        def total
+          build
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
     it 'does not complain on array dereference' do
       checker = type_checker(%(
         # @param idx [Integer] an index
