@@ -1039,10 +1039,8 @@ describe Solargraph::Parser::FlowSensitiveTyping do
   end
 
   it 'uses is_a? in a raise if() to exclude a narrower parameterized member than the class it tests' do
-    # excluding Array (the class tested by is_a?) also excludes
-    # Array<Integer>, since every Array<Integer> is an Array - even
-    # though the is_a? check itself can't distinguish Array<Integer>
-    # from any other Array.
+    # excluding Array also excludes Array<Integer>: every Array<Integer>
+    # is an Array, even though is_a?(Array) can't tell them apart.
     source = Solargraph::Source.load_string(%(
       module Repro
         # @param x [Symbol, Array<Integer>]
