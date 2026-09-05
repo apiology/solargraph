@@ -21,7 +21,7 @@ module Solargraph
             elsif node.type == :false
               # rubocop:enable Lint/BooleanSymbol
               @value = false
-            elsif %i[int sym].include?(node.type)
+            elsif %i[int sym str].include?(node.type)
               @value = node.children.first
             end
           end
