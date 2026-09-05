@@ -83,6 +83,7 @@ module Solargraph
       # @return [RBS::Environment]
       def core_aware_environment loader, fallback:
         return fallback unless loader.core_root.nil?
+        return fallback unless rebound_alias?(fallback)
 
         core_loader = RBS::EnvironmentLoader.new(repository: loader.repository)
         loader.libs.each { |lib| core_loader.add(library: lib.name, version: lib.version) }
@@ -101,6 +102,25 @@ module Solargraph
             'for these libraries, and will be typed by their alias name instead.'
         end
         fallback
+      end
+
+      # #resolve_type_names rebinds a target it cannot find into the local
+      # namespace rather than raising, so a reference into absent core ends
+      # up naming either the alias itself or a name nothing declares.
+      #
+      # @param environment [RBS::Environment]
+      # @return [Boolean]
+      def rebound_alias? environment
+        decls = environment.type_alias_decls
+        decls.any? do |name, entry|
+          # @sg-ignore Unresolved call to decl on generic<D>
+          type = entry.decl.type
+          # @sg-ignore Unresolved call to is_a? on generic<D>
+          next false unless type.is_a?(RBS::Types::Alias)
+
+          # @sg-ignore Unresolved call to to_s on generic<D>
+          type.name.to_s == name.to_s || !decls.key?(type.name)
+        end
       end
 
       # @param decl [RBS::AST::Declarations::Base]
