@@ -754,7 +754,6 @@ module Solargraph
         method_type = RBS::Parser.parse_method_type(inline_rbs)
         return nil if method_type.nil?
 
-        # @sg-ignore Wrong argument type for to_complex_type: type expected RBS::Types::Bases::Base, received union of concrete subtypes
         RbsTranslator.to_complex_type(method_type.type.return_type)
       rescue RBS::ParsingError
         nil

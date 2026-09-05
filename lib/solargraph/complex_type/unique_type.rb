@@ -33,6 +33,7 @@ module Solargraph
         raise ComplexTypeError, "Illegal prefix: #{name}" if name.start_with?(':::')
         # Anonymous shorthand (`<A>`, `(A)`, `{A=>B}`) defaults the
         # omitted type name to Array or Hash, before the rooted check below.
+        # @sg-ignore Need to add nil check here
         name = ANONYMOUS_NAME_BY_STARTING_TAG.fetch(substring[0]) if name.empty? && !substring.empty?
         if name.start_with?('::')
           name = name[2..]
@@ -48,10 +49,12 @@ module Solargraph
         key_types = []
         # @type [Array<ComplexType>]
         subtypes = []
+        # @type [Symbol, nil]
         parameters_type = nil
         unless substring.empty?
           # @sg-ignore Wrong argument type for Solargraph::ComplexType.parse: strings expected String, received String, nil
           subs = ComplexType.parse(substring[1..-2], partial: true)
+          # @sg-ignore Need to add nil check here
           parameters_type = PARAMETERS_TYPE_BY_STARTING_TAG.fetch(substring[0]) do
             raise ComplexTypeError, "Unrecognized parameter delimiter: name=#{name}, substring=#{substring}"
           end

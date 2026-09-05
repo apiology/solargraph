@@ -50,7 +50,6 @@ module Solargraph
     # @param type_alias_decls [Hash{String => RBS::AST::Declarations::TypeAlias}]
     # @return [ComplexType]
     def self.to_restarg_return_type elem_rbs_type, type_alias_decls: {}
-      # @sg-ignore Wrong argument type for to_complex_type: type expected RBS::Types::Bases::Base, received union of concrete subtypes
       elem_type = RbsTranslator.to_complex_type(elem_rbs_type, type_alias_decls: type_alias_decls)
       return ComplexType.parse('Array') if elem_type.undefined?
       ComplexType.new([ComplexType::UniqueType.new('Array', [], [elem_type], rooted: true, parameters_type: :list)])
@@ -63,7 +62,6 @@ module Solargraph
     # @param type_alias_decls [Hash{String => RBS::AST::Declarations::TypeAlias}]
     # @return [ComplexType]
     def self.to_kwrestarg_return_type elem_rbs_type, type_alias_decls: {}
-      # @sg-ignore Wrong argument type for to_complex_type: type expected RBS::Types::Bases::Base, received union of concrete subtypes
       elem_type = RbsTranslator.to_complex_type(elem_rbs_type, type_alias_decls: type_alias_decls)
       return ComplexType.parse('Hash{Symbol => Object}') if elem_type.undefined?
       ComplexType.new([ComplexType::UniqueType.new('Hash', [ComplexType.try_parse('Symbol')], [elem_type], rooted: true, parameters_type: :hash)])
@@ -136,7 +134,6 @@ module Solargraph
       return_type = to_complex_type(method_type.type.return_type, type_alias_decls: type_alias_decls)
       block = if method_type.block
                 block_parameters = to_parameter_pins(method_type.block, closure, type_alias_decls: type_alias_decls)
-                # @sg-ignore Wrong argument type for to_complex_type: type expected RBS::Types::Bases::Base, received union of concrete subtypes
                 block_return_type = to_complex_type(method_type.block.type.return_type, type_alias_decls: type_alias_decls)
                 Pin::Signature.new(generics: generics, parameters: block_parameters, return_type: block_return_type, source: :rbs, type_location: closure.location, closure: closure)
               end
@@ -195,18 +192,14 @@ module Solargraph
         # https://github.com/castwide/solargraph/issues/1241
         case type
         when RBS::Types::Optional
-          # @sg-ignore flow sensitive typing ought to be able to handle 'when ClassName'
           "#{type_to_tag(type.type, type_alias_decls: type_alias_decls, expanding_aliases: expanding_aliases)}, nil"
         when RBS::Types::Bases::Bool
           'Boolean'
         when RBS::Types::Tuple
-          # @sg-ignore flow sensitive typing ought to be able to handle 'when ClassName'
           "Array(#{type.types.map { |t| type_to_tag(t, type_alias_decls: type_alias_decls, expanding_aliases: expanding_aliases) }.join(', ')})"
         when RBS::Types::Literal
-          # @sg-ignore https://github.com/castwide/solargraph/issues/1241 - case/when doesn't narrow type
           type.literal.inspect
         when RBS::Types::Union
-          # @sg-ignore flow sensitive typing ought to be able to handle 'when ClassName'
           type.types.map { |t| type_to_tag(t, type_alias_decls: type_alias_decls, expanding_aliases: expanding_aliases) }.join(', ')
         when RBS::Types::Record
           # @todo Better record support
@@ -216,7 +209,6 @@ module Solargraph
         when RBS::Types::Bases::Void
           'void'
         when RBS::Types::Variable
-          # @sg-ignore https://github.com/castwide/solargraph/issues/1241 - case/when doesn't narrow type
           "#{Solargraph::ComplexType::GENERIC_TAG_NAME}<#{type.name}>"
         when RBS::Types::Bases::Self, RBS::Types::Bases::Instance
           'self'
@@ -238,12 +230,9 @@ module Solargraph
           # it's generic (e.g. "type box[T] = Array[T] | nil") -
           # expanding those would leak an unbound generic<T> tag, since
           # args aren't substituted into the expansion.
-          # @sg-ignore flow sensitive typing ought to be able to handle 'when ClassName'
           alias_name = type.name.to_s
           alias_decl = type_alias_decls[alias_name]
-          # @sg-ignore flow sensitive typing ought to be able to handle 'when ClassName'
           if alias_decl.nil? || expanding_aliases.include?(alias_name) || !type.args.empty?
-            # @sg-ignore flow sensitive typing ought to be able to handle 'when ClassName'
             build_unique_type(type.name, type.args, type_alias_decls: type_alias_decls, expanding_aliases: expanding_aliases).tags
           else
             type_to_tag(alias_decl.type, type_alias_decls: type_alias_decls,
@@ -253,11 +242,9 @@ module Solargraph
           # `Interface` represents a mix-in module which can be considered a
           # subtype of a consumer of it
           #
-          # @sg-ignore flow sensitive typing ought to be able to handle 'when ClassName'
           build_unique_type(type.name, type.args, type_alias_decls: type_alias_decls, expanding_aliases: expanding_aliases).tags
         when RBS::Types::ClassSingleton
           # e.g., singleton(String)
-          # @sg-ignore flow sensitive typing ought to be able to handle 'when ClassName'
           build_unique_type(type.name, [], type_alias_decls: type_alias_decls, expanding_aliases: expanding_aliases).tags
         when RBS::Types::Proc
           'Proc'
