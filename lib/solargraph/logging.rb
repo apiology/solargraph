@@ -18,6 +18,7 @@ module Solargraph
     # @sg-ignore https://github.com/apiology/solargraph/pull/65
     # @sg-ignore https://github.com/castwide/solargraph/pull/1223
     def self.resolve_level configured_level = ENV.fetch('SOLARGRAPH_LOG', nil)
+      # @sg-ignore Need to add nil check here
       return LOG_LEVELS.fetch(configured_level) if LOG_LEVELS.key?(configured_level)
 
       if configured_level
