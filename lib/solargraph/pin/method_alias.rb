@@ -7,10 +7,15 @@ module Solargraph
     # methods from included modules.
     #
     class MethodAlias < Method
+      # @return [Boolean]
+      def body?
+        false
+      end
       # @return [::Symbol]
       attr_reader :scope
 
       # @return [String]
+      # @sg-ignore Need to add nil check here
       attr_reader :original
 
       # @param scope [::Symbol]

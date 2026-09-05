@@ -4,6 +4,7 @@ module Solargraph
   module Pin
     class Callable < Closure
       # @return [Signature]
+      # @sg-ignore Need to add nil check here
       attr_reader :block
 
       attr_accessor :parameters
@@ -14,12 +15,17 @@ module Solargraph
       # @param block [Signature, nil]
       # @param return_type [ComplexType, nil]
       # @param parameters [::Array<Pin::Parameter>]
+      # @param block_required [Boolean] Whether callers must pass a block for
+      #   this signature to apply. Only ever true for RBS-sourced signatures
+      #   with a non-optional block (`{ ... }` rather than `?{ ... }`); a bare
+      #   `&block` parameter or YARD @yield tag never makes a block mandatory.
       # @param [Hash{Symbol => Object}] splat
-      def initialize block: nil, return_type: nil, parameters: [], **splat
+      def initialize block: nil, return_type: nil, parameters: [], block_required: false, **splat
         super(**splat)
         @block = block
         @return_type = return_type
         @parameters = parameters
+        @block_required = block_required
       end
 
       def reset_generated!
@@ -55,6 +61,7 @@ module Solargraph
       def combine_with other, attrs = {}
         new_attrs = {
           block: combine_blocks(other),
+          block_required: block_required? || other.block_required?,
           return_type: combine_return_type(other)
         }.merge(attrs)
         new_attrs[:parameters] = choose_parameters(other).clone.freeze unless new_attrs.key?(:parameters)
@@ -123,7 +130,6 @@ module Solargraph
       #
       # @return [Array<Array, String, nil>]
       def full_type_arity
-        # @sg-ignore flow sensitive typing needs to handle attrs
         [return_type ? return_type.items.count.to_s : nil] + type_arity
       end
 
@@ -143,13 +149,17 @@ module Solargraph
                                         resolved_generic_values: {}
         callable = super(generics_to_resolve, return_type_context, resolved_generic_values: resolved_generic_values)
         callable.parameters = callable.parameters.each_with_index.map do |param, i|
-          if arg_types.nil?
-            param.dup
-          else
-            param.resolve_generics_from_context(generics_to_resolve,
-                                                arg_types[i],
-                                                resolved_generic_values: resolved_generic_values)
-          end
+          # Even when we have no argument type to bind a generic
+          # *from* at this level (arg_types is nil, e.g. a yielded
+          # block's own parameter list), a method-level generic used
+          # here may already have been bound from context elsewhere
+          # (e.g. the enclosing method call's own arguments) and
+          # recorded in resolved_generic_values. Still route through
+          # resolve_generics_from_context so that value gets applied,
+          # rather than leaving the parameter as an unresolved generic.
+          param.resolve_generics_from_context(generics_to_resolve,
+                                              arg_types&.[](i),
+                                              resolved_generic_values: resolved_generic_values)
         end
         if callable.block?
           callable.block = block.resolve_generics_from_context(generics_to_resolve,
@@ -162,6 +172,7 @@ module Solargraph
 
       def typify api_map
         type = return_type
+        # @sg-ignore Need to add nil check here
         return type.qualify(api_map, *gates) if type.defined?
         if method_name.end_with?('?')
           logger.debug { "Callable#typify(self=#{self}) => Boolean (? suffix)" }
@@ -172,11 +183,9 @@ module Solargraph
         end
       end
 
-      # @sg-ignore Need to add nil check here
       # @return [String]
       def method_name
         raise "closure was nil in #{inspect}" if closure.nil?
-        # @sg-ignore Need to add nil check here
         @method_name ||= closure.name
       end
 
@@ -240,11 +249,13 @@ module Solargraph
       def arity_matches? arguments, with_block
         argcount = arguments.length
         parcount = mandatory_positional_param_count
+        # @sg-ignore Need to add nil check here
         parcount -= 1 if !parameters.empty? && parameters.last.block?
-        return false if block? && !with_block
+        return false if block? && block_required? && !with_block
         # @todo this and its caller should be changed so that this can
         #   look at the kwargs provided and check names against what
         #   we acccept
+        # @sg-ignore Need to add nil check here
         return false if argcount < parcount && !(argcount == parcount - 1 && parameters.last.restarg?)
         true
       end
@@ -265,6 +276,11 @@ module Solargraph
 
       def block?
         !!@block
+      end
+
+      # @return [Boolean]
+      def block_required?
+        !!@block_required
       end
 
       protected

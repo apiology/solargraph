@@ -63,6 +63,7 @@ module Solargraph
           return if id.nil?
 
           accept_or_cancel
+          # @type [Hash{:jsonrpc => String} & Hash{:id => Integer} & Hash{:result => Hash | Array | nil} & Hash{:error => Hash}]
           response = {
             jsonrpc: '2.0',
             id: id

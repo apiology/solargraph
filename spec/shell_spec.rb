@@ -78,6 +78,55 @@ describe Solargraph::Shell do
 
         expect(output).to include('Scanned ').and include(' seconds.')
       end
+
+      it 'reports and exits when typifying a pin raises' do
+        pin = instance_double(Solargraph::Pin::Method, path: 'Foo#bar', location: nil)
+        allow(api_map).to receive(:pins).and_return([pin])
+        allow(pin).to receive(:typify).and_raise(StandardError, 'boom')
+
+        output = capture_both do
+          shell.options = { directory: 'spec/fixtures/workspace' }
+          shell.scan
+        rescue SystemExit
+          # Ignore the SystemExit raised when a pin fails to typify
+        end
+
+        expect(output).to include('Error testing Foo#bar')
+        expect(output).to include('[StandardError]: boom')
+      end
+
+      context 'with a pin in the workspace' do
+        let(:pin) { instance_double(Solargraph::Pin::Base, path: 'Foo#bar', location: nil) }
+
+        before do
+          allow(api_map).to receive(:pins).and_return([pin])
+        end
+
+        it 'typifies and probes the pin' do
+          allow(pin).to receive(:typify)
+          allow(pin).to receive(:probe)
+
+          capture_stdout do
+            shell.options = { directory: 'spec/fixtures/workspace', verbose: false }
+            shell.scan
+          end
+
+          expect(pin).to have_received(:typify).with(api_map)
+          expect(pin).to have_received(:probe).with(api_map)
+        end
+
+        it 'prints the pin description when --verbose is set' do
+          allow(pin).to receive(:typify)
+          allow(pin).to receive(:probe)
+
+          output = capture_stdout do
+            shell.options = { directory: 'spec/fixtures/workspace', verbose: true }
+            shell.scan
+          end
+
+          expect(output).to include('Foo#bar')
+        end
+      end
     end
   end
 
@@ -113,6 +162,22 @@ describe Solargraph::Shell do
         expect(output).to include("Gem 'nonexistentgem' not found")
       end
 
+      it 'complains even with Ruby warnings disabled, as under bin/solargraph' do
+        # bin/solargraph sets $VERBOSE = nil, which turns Kernel#warn into a
+        # no-op - a warn-based message would never reach the user.
+        old_verbose = $VERBOSE
+        $VERBOSE = nil
+        begin
+          output = capture_both do
+            shell.gems('nonexistentgem')
+          end
+        ensure
+          $VERBOSE = old_verbose
+        end
+
+        expect(output).to include("Gem 'nonexistentgem' not found")
+      end
+
       it 'caches core without erroring out' do
         capture_both do
           shell.uncache('core')
@@ -127,6 +192,90 @@ describe Solargraph::Shell do
         end
 
         expect(output).to include("Gem 'solargraph123' not found")
+      end
+    end
+
+    context 'with mocked Workspace' do
+      let(:workspace) { instance_double(Solargraph::Workspace) }
+      let(:gemspec) { instance_double(Gem::Specification, name: 'backport') }
+
+      before do
+        allow(Solargraph::Workspace).to receive(:new).and_return(workspace)
+      end
+
+      it 'caches all without erroring out' do
+        allow(workspace).to receive(:cache_all_for_workspace!)
+
+        _output = capture_both { shell.gems }
+
+        expect(workspace).to have_received(:cache_all_for_workspace!)
+      end
+
+      it 'caches single gem without erroring out' do
+        allow(workspace).to receive(:find_gem).with('backport').and_return(gemspec)
+        allow(workspace).to receive(:cache_gem)
+
+        capture_both do
+          shell.options = { rebuild: false }
+          shell.gems('backport')
+        end
+
+        expect(workspace).to have_received(:cache_gem).with(gemspec, out: an_instance_of(StringIO), rebuild: false)
+      end
+
+      it "caches core pins when name is 'core'" do
+        allow(Solargraph::PinCache).to receive(:core?).and_return(false)
+        allow(Solargraph::PinCache).to receive(:cache_core)
+
+        capture_both do
+          shell.options = { rebuild: false }
+          shell.gems('core')
+        end
+
+        expect(Solargraph::PinCache).to have_received(:cache_core).with(out: an_instance_of(StringIO))
+      end
+
+      it "rebuilds core pins when name is 'core' and --rebuild is set even if already cached" do
+        allow(Solargraph::PinCache).to receive(:core?).and_return(true)
+        allow(Solargraph::PinCache).to receive(:cache_core)
+
+        capture_both do
+          shell.options = { rebuild: true }
+          shell.gems('core')
+        end
+
+        expect(Solargraph::PinCache).to have_received(:cache_core).with(out: an_instance_of(StringIO))
+      end
+
+      it 'reports a gem whose lookup resolves to no gemspec' do
+        allow(workspace).to receive(:find_gem).with('no-gemspec').and_return(nil)
+
+        output = capture_both do
+          shell.gems('no-gemspec')
+        end
+
+        expect(output).to include("Gem 'no-gemspec' not found")
+      end
+
+      it 'reports a gem that raises Gem::MissingSpecError' do
+        allow(workspace).to receive(:find_gem).with('flaky-gem').and_raise(Gem::MissingSpecError.new('flaky-gem', '1.0'))
+
+        output = capture_both do
+          shell.gems('flaky-gem')
+        end
+
+        expect(output).to include("Gem 'flaky-gem' not found")
+      end
+
+      it 'reports a gem that raises Gem::Requirement::BadRequirementError' do
+        allow(workspace).to receive(:find_gem).with('bad-gem').and_raise(Gem::Requirement::BadRequirementError, 'bad requirement string')
+
+        output = capture_both do
+          shell.gems('bad-gem')
+        end
+
+        expect(output).to include("Gem 'bad-gem' failed while loading")
+        expect(output).to include('bad requirement string')
       end
     end
   end
@@ -271,17 +420,114 @@ describe Solargraph::Shell do
     end
 
     context 'with no pin' do
-      it 'prints error' do
+      before do
         allow(api_map).to receive(:get_path_pins).with('Not#found').and_return([])
+        allow(api_map).to receive(:get_method_stack).with('Not', 'found', scope: :instance).and_return([])
         allow(Solargraph::Pin::Method).to receive(:===).with(nil).and_return(false)
+      end
 
+      it 'prints error' do
         out = capture_both do
-          shell.options = {}
+          shell.options = { resolve: true }
           shell.pin('Not#found')
         rescue SystemExit
           # Ignore the SystemExit raised by the shell when no pin is found
         end
         expect(out).to include("Pin not found for path 'Not#found'")
+      end
+
+      it 'prints the error even with Ruby warnings disabled, as under bin/solargraph' do
+        # bin/solargraph sets $VERBOSE = nil, which turns Kernel#warn into a
+        # no-op - a warn-based message would never reach the user.
+        old_verbose = $VERBOSE
+        $VERBOSE = nil
+        begin
+          out = capture_both do
+            shell.options = { resolve: true }
+            shell.pin('Not#found')
+          rescue SystemExit
+            # Ignore the SystemExit raised by the shell when no pin is found
+          end
+        ensure
+          $VERBOSE = old_verbose
+        end
+        expect(out).to include("Pin not found for path 'Not#found'")
+      end
+    end
+
+    context 'when the path names no pin of its own' do
+      let(:mixin_pin) do
+        instance_double(Solargraph::Pin::Method, path: 'Mixin#helper')
+      end
+
+      before do
+        allow(api_map).to receive(:get_path_pins).with('Child#helper').and_return([])
+        allow(api_map).to receive(:get_method_stack)
+          .with('Child', 'helper', scope: :instance).and_return([mixin_pin])
+        allow(mixin_pin).to receive(:inspect).and_return('helper pin inspect')
+      end
+
+      it 'describes the inherited definition by default, printing nothing else' do
+        out = capture_both do
+          shell.options = { resolve: true }
+          shell.pin('Child#helper')
+        end
+        # Just the pin: resolution is the documented default, not an event
+        # worth annotating.
+        expect(out).to eq("helper pin inspect\n")
+      end
+
+      it 'describes only the exact path with --no-resolve' do
+        out = capture_both do
+          shell.options = { resolve: false }
+          shell.pin('Child#helper')
+        rescue SystemExit
+          # Ignore the SystemExit raised by the shell when no pin is found
+        end
+        expect(out).to include("Pin not found for path 'Child#helper'")
+        expect(out).not_to include('helper pin inspect')
+        expect(api_map).not_to have_received(:get_method_stack)
+      end
+    end
+
+    context 'when the path names a pin of its own' do
+      it 'describes it without consulting method lookup' do
+        allow(to_s_pin).to receive(:inspect).and_return('pin inspect result')
+        allow(api_map).to receive(:get_method_stack)
+
+        out = capture_both do
+          shell.options = { resolve: true }
+          shell.pin('String#to_s')
+        end
+
+        # Byte-identical to the pre-resolution output for an exact hit.
+        expect(out).to eq("pin inspect result\n")
+        expect(api_map).not_to have_received(:get_method_stack)
+      end
+    end
+  end
+
+  describe 'profile' do
+    # vernier is an optional dependency (see the LoadError rescue in
+    # Shell#profile) and isn't installed in this repo's Gemfile, so stub it
+    # out entirely rather than requiring the real gem.
+    before do
+      allow(shell).to receive(:require).with('vernier').and_return(true)
+      stub_const('Vernier', Module.new)
+      allow(Vernier).to receive(:profile).and_yield
+    end
+
+    it 'profiles go-to-definition against a real workspace' do
+      Dir.mktmpdir do |output_dir|
+        output = capture_both do
+          shell.options = { directory: 'spec/fixtures/workspace', output_dir: output_dir, line: 4, column: 10 }
+          shell.profile
+        end
+
+        expect(output).to include('Processing go-to-definition request...')
+        expect(output).to include('Result: [{')
+        expect(output).to include('uri')
+        expect(output).to include('thing.rb"')
       end
     end
   end

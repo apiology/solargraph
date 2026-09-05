@@ -1,8 +1,15 @@
 # frozen_string_literal: true
 
+require 'rubygems'
 require 'pathname'
 require 'observer'
 require 'open3'
+
+# @!parse
+#   class ::Gem::Specification
+#     # @return [String]
+#     def name; end
+#   end
 
 module Solargraph
   # A Library handles coordination between a Workspace and an ApiMap.
@@ -21,6 +28,7 @@ module Solargraph
     attr_reader :current
 
     # @return [LanguageServer::Progress, nil]
+    # @sg-ignore Declared return type ::Solargraph::LanguageServer::Progress, nil does not match inferred type nil, false, ::Solargraph::LanguageServer::Progress for Solargraph::Library#cache_progr
     attr_reader :cache_progress
 
     # @param workspace [Solargraph::Workspace]
@@ -33,6 +41,7 @@ module Solargraph
       # @type [Source, nil]
       @current = nil
       @sync_count = 0
+      @cache_progress = nil
     end
 
     def inspect
@@ -254,7 +263,7 @@ module Solargraph
 
       result = []
       files = if only
-                [api_map.source_map(filename)]
+                [api_map.source_map(filename)].compact
               else
                 (workspace.sources + (@current ? [@current] : []))
               end
@@ -265,11 +274,13 @@ module Solargraph
           referenced&.path == pin.path
         end
         if pin.path == 'Class#new'
+          # @todo flow sensitive typing should allow shadowing of Kernel#caller
           caller = cursor.chain.base.infer(api_map, clip.send(:closure), clip.locals).first
           if caller.defined?
             found.select! do |loc|
               clip = api_map.clip_at(loc.filename, loc.range.start)
               other = clip.send(:cursor).chain.base.infer(api_map, clip.send(:closure), clip.locals).first
+              # @todo flow sensitive typing should allow shadowing of Kernel#caller
               caller == other
             end
           else
@@ -279,13 +290,11 @@ module Solargraph
         # HACK: for language clients that exclude special characters from the start of variable names
         if strip && (match = cursor.word.match(/^[^a-z0-9_]+/i))
           found.map! do |loc|
-            # @sg-ignore Unresolved call to []
+            # @sg-ignore Wrong argument type for Solargraph::Range.from_to: c1 expected Integer, received BigDecimal
             Solargraph::Location.new(loc.filename, Solargraph::Range.from_to(loc.range.start.line, loc.range.start.column + match[0].length, loc.range.ending.line, loc.range.ending.column))
           end
         end
-        result.concat(found.sort do |a, b|
-          a.range.start.line <=> b.range.start.line
-        end)
+        result.concat(found.sort { |a, b| a.range.start.line <=> b.range.start.line })
       end
       result.uniq
     end
@@ -310,9 +319,7 @@ module Solargraph
       return nil if pin.nil?
       # @param full [String]
       return_if_match = proc do |full|
-        if source_map_hash.key?(full)
-          return Location.new(full, Solargraph::Range.from_to(0, 0, 0, 0))
-        end
+        return Location.new(full, Solargraph::Range.from_to(0, 0, 0, 0)) if source_map_hash.key?(full)
       end
       workspace.require_paths.each do |path|
         full = File.join path, pin.name
@@ -418,7 +425,6 @@ module Solargraph
           name = args.shift
           reporter = Diagnostics.reporter(name)
           raise DiagnosticsError, "Diagnostics reporter #{name} does not exist" if reporter.nil?
-          # @sg-ignore Hash errors
           repargs[reporter] ||= []
           # @sg-ignore Hash errors
           repargs[reporter].concat args
@@ -443,7 +449,6 @@ module Solargraph
         source_maps: source_map_hash.values,
         workspace: workspace,
         external_requires: external_requires,
-        # @sg-ignore OK if @current.filename is nil
         live_map: @current ? source_map_hash[@current.filename] : nil
       )
     end
@@ -483,10 +488,10 @@ module Solargraph
       src = workspace.sources.find { |s| !source_map_hash.key?(s.filename) }
       if src
         Logging.logger.debug "Mapping #{src.filename}"
+        mapped_source = Solargraph::SourceMap.map(src)
         # @sg-ignore OK if src.filename is nil
-        source_map_hash[src.filename] = Solargraph::SourceMap.map(src)
-        # @sg-ignore OK if src.filename is nil
-        source_map_hash[src.filename]
+        source_map_hash[src.filename] = mapped_source
+        mapped_source
       else
         false
       end
@@ -514,6 +519,11 @@ module Solargraph
     end
 
     private
+
+    # @return [PinCache]
+    def pin_cache
+      workspace.pin_cache
+    end
 
     # @return [Hash{String => Array<String>}]
     def source_map_external_require_hash
@@ -600,7 +610,7 @@ module Solargraph
 
       pending = api_map.uncached_gemspecs.length - cache_errors.length - 1
 
-      if Yardoc.processing?(spec)
+      if pin_cache.yardoc_processing?(spec)
         logger.info "Enqueuing cache of #{spec.name} #{spec.version} (already being processed)"
         queued_gemspec_cache.push(spec)
         return if pending - queued_gemspec_cache.length < 1
@@ -615,7 +625,10 @@ module Solargraph
         logger.info "Caching #{spec.name} #{spec.version}"
         Thread.new do
           report_cache_progress spec.name, pending
-          _o, e, s = Open3.capture3(workspace.command_path, 'cache', spec.name, spec.version.to_s)
+          kwargs = {}
+          kwargs[:chdir] = workspace.directory.to_s if workspace.directory && !workspace.directory.empty?
+          _o, e, s = Open3.capture3(workspace.command_path, 'cache', spec.name, spec.version.to_s,
+                                    **kwargs)
           if s.success?
             logger.info "Cached #{spec.name} #{spec.version}"
           else
@@ -632,8 +645,7 @@ module Solargraph
 
     # @return [Array<Gem::Specification>]
     def cacheable_specs
-      cacheable = api_map.uncached_yard_gemspecs +
-                  api_map.uncached_rbs_collection_gemspecs -
+      cacheable = api_map.uncached_gemspecs +
                   queued_gemspec_cache -
                   cache_errors.to_a
       return cacheable unless cacheable.empty?
@@ -651,15 +663,11 @@ module Solargraph
     # @return [void]
     def report_cache_progress gem_name, pending
       @total ||= pending
-      # @sg-ignore Wrong argument type for Integer#>: arg_0 expected Numeric, received Integer, nil
       @total = pending if pending > @total
-      # @sg-ignore Unresolved call to - on Integer, nil
       finished = @total - pending
-      # @sg-ignore @total should always be an Integer
       pct = if @total.zero?
               0
             else
-              # @sg-ignore Unresolved call to to_f
               ((finished.to_f / @total) * 100).to_i
             end
       message = "#{gem_name}#{" (+#{pending})" if pending.positive?}"
@@ -673,7 +681,6 @@ module Solargraph
         changed
         notify_observers @cache_progress
       end
-      # @sg-ignore Unresolved call to report
       @cache_progress.report(message, pct)
       changed
       notify_observers @cache_progress
@@ -696,8 +703,7 @@ module Solargraph
         source_map_hash.each_value { |map| find_external_requires(map) }
         api_map.catalog bench
         logger.info "Catalog complete (#{api_map.source_maps.length} files, #{api_map.pins.length} pins)"
-        logger.info "#{api_map.uncached_yard_gemspecs.length} uncached YARD gemspecs"
-        logger.info "#{api_map.uncached_rbs_collection_gemspecs.length} uncached RBS collection gemspecs"
+        logger.info "#{api_map.uncached_gemspecs.length} uncached gemspecs"
         cache_next_gemspec
         @sync_count = 0
       end

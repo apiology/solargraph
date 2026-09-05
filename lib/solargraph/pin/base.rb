@@ -23,9 +23,10 @@ module Solargraph
       attr_reader :name
 
       # @return [String]
+      # @sg-ignore Need to add nil check here
       attr_reader :path
 
-      # @return [::Symbol]
+      # @return [::Symbol, nil]
       attr_accessor :source
 
       # @type [::Numeric, nil] A priority for determining if pins should be combined or not
@@ -42,7 +43,7 @@ module Solargraph
       # @param closure [Solargraph::Pin::Closure, nil]
       # @param name [String]
       # @param comments [String, nil]
-      # @param source [Symbol, nil]
+      # @param source [::Symbol, nil]
       # @param docstring [YARD::Docstring, nil]
       # @param directives [::Array<YARD::Tags::Directive>, nil]
       # @param combine_priority [::Numeric, nil] See attr_reader for combine_priority
@@ -75,6 +76,7 @@ module Solargraph
 
       # @return [Pin::Closure, nil]
       def closure
+        @closure ||= derive_closure_from_compound_statement
         unless @closure
           Solargraph.assert_or_log(:closure,
                                    "Closure not set on #{self.class} #{name.inspect} from #{source.inspect}")
@@ -245,7 +247,7 @@ module Solargraph
         return results.first if results.any? { |r| r.is_a? AST::Node }
         results.min
       rescue StandardError
-        warn("Problem handling #{attr} for \n#{inspect}\n and \n#{other.inspect}\n\n#{send(attr).inspect} vs #{other.send(attr).inspect}")
+        logger.warn("Problem handling #{attr} for \n#{inspect}\n and \n#{other.inspect}\n\n#{send(attr).inspect} vs #{other.send(attr).inspect}")
         raise
       end
 
@@ -305,7 +307,6 @@ module Solargraph
         values1 = arr1.map(&)
         # @type [undefined]
         values2 = arr2.map(&)
-        # @sg-ignore
         return arr1 if values1 == values2
         Solargraph.assert_or_log(:"combine_with_#{attr}",
                                  "Inconsistent #{attr.inspect} values between \nself =#{inspect} and \nother=#{other.inspect}:\n\n self values = #{values1}\nother values =#{attr} = #{values2}")
@@ -452,7 +453,6 @@ module Solargraph
       # @return [String, nil]
       def filename
         return nil if location.nil?
-        # @sg-ignore flow sensitive typing needs to handle attrs
         location.filename
       end
 
@@ -490,7 +490,7 @@ module Solargraph
         instance_of?(other.class) &&
           # @sg-ignore Translate to something flow sensitive typing understands
           name == other.name &&
-          # @sg-ignore flow sensitive typing needs to handle attrs
+          # @sg-ignore https://github.com/castwide/solargraph/issues/1249
           (closure.equal?(other.closure) || (closure&.nearly?(other.closure))) &&
           # @sg-ignore Translate to something flow sensitive typing understands
           (comments == other.comments ||
@@ -539,6 +539,7 @@ module Solargraph
         @macros ||= collect_macros
       end
 
+      # @return [Array<String>]
       def macro_names
         parse_comments unless @macro_names
         @macro_names ||= collect_macro_names
@@ -642,10 +643,18 @@ module Solargraph
         result
       end
 
+      # Distinguishes pins that share a #location but cover different things.
+      # Nil for pins with no such distinction to make.
+      #
+      # @return [String, nil]
+      def identity_discriminator
+        nil
+      end
+
       # @deprecated
       # @return [String]
       def identity
-        @identity ||= "#{closure&.path}|#{name}|#{location}"
+        @identity ||= "#{closure&.path}|#{name}|#{location}|#{identity_discriminator}"
       end
 
       # The namespaces available for resolving the current namespace. Each gate
@@ -731,6 +740,25 @@ module Solargraph
 
       private
 
+      # Fallback for pins with no directly-assigned @closure: walk the
+      # CompoundStatement parent chain (present only on
+      # CompoundStatement-family pins - Closure, While, Until, etc.)
+      # until an ancestor is_a?(Closure). Every pin built through
+      # Region-threaded node processors already gets an explicit
+      # closure:, so this only matters for a pin constructed purely
+      # from a compound_statement chain with no closure: override.
+      #
+      # @return [Pin::Closure, nil]
+      def derive_closure_from_compound_statement
+        return nil unless is_a?(CompoundStatement)
+
+        # @sg-ignore flow sensitive typing doesn't narrow self past an is_a? guard
+        cs = compound_statement
+        # @sg-ignore flow sensitive typing doesn't narrow self past an is_a? guard
+        cs = cs.compound_statement while cs && !cs.is_a?(Closure)
+        cs
+      end
+
       # @return [void]
       def parse_comments
         # HACK: Avoid a NoMethodError on nil with empty overload tags
@@ -757,6 +785,7 @@ module Solargraph
       def compare_docstring_tags docstring1, docstring2
         return false if docstring1.tags.length != docstring2.tags.length
         docstring1.tags.each_index do |i|
+          # @sg-ignore Need to add nil check here
           return false unless compare_tags(docstring1.tags[i], docstring2.tags[i])
         end
         true
@@ -768,6 +797,7 @@ module Solargraph
       def compare_directives dir1, dir2
         return false if dir1.length != dir2.length
         dir1.each_index do |i|
+          # @sg-ignore Need to add nil check here
           return false unless compare_tags(dir1[i].tag, dir2[i].tag)
         end
         true
@@ -793,6 +823,7 @@ module Solargraph
         end
       end
 
+      # @return [Array<String>]
       def collect_macro_names
         "#{comments}\n".scan(/\s*?@macro +(\S+).*?[\n]/).map { |match| match[0] }
       end

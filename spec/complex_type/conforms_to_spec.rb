@@ -81,7 +81,6 @@ describe Solargraph::ComplexType do
   end
 
   it 'handles singleton types compared against their literals' do
-    pending 'side of effect of inference changes'
     exp = Solargraph::ComplexType::UniqueType.new('nil', rooted: true)
     inf = Solargraph::ComplexType::UniqueType.new('NilClass', rooted: true)
     match = inf.conforms_to?(api_map, exp, :method_call)
@@ -237,6 +236,214 @@ describe Solargraph::ComplexType do
     it 'validates inheritance the other way' do
       match = sup.conforms_to?(api_map, sub, :method_call, [:allow_reverse_match])
       expect(match).to be(true)
+    end
+  end
+
+  context 'with intersection types' do
+    let(:source) do
+      Solargraph::Source.load_string(%(
+        class Sup; end
+        class Sub < Sup; end
+        class Unrelated; end
+      ))
+    end
+
+    before do
+      api_map.map source
+    end
+
+    it 'lets an intersection satisfy an expectation of any one conjunct (A & B <: A)' do
+      inf = described_class.parse('Sub & Unrelated')
+      exp = described_class.parse('Sub')
+      expect(inf.conforms_to?(api_map, exp, :method_call)).to be(true)
+    end
+
+    it 'lets an intersection satisfy an expectation of any one conjunct (A & B <: B)' do
+      inf = described_class.parse('Sub & Unrelated')
+      exp = described_class.parse('Unrelated')
+      expect(inf.conforms_to?(api_map, exp, :method_call)).to be(true)
+    end
+
+    it 'does not let an intersection satisfy an expectation none of its conjuncts meet' do
+      inf = described_class.parse('Sub & Unrelated')
+      exp = described_class.parse('Integer')
+      expect(inf.conforms_to?(api_map, exp, :method_call)).to be(false)
+    end
+
+    it 'requires every conjunct to be satisfied to conform to an intersection expectation' do
+      inf = described_class.parse('Sub')
+      exp = described_class.parse('Sup & Unrelated')
+      expect(inf.conforms_to?(api_map, exp, :method_call)).to be(false)
+    end
+
+    it 'conforms to an intersection expectation when every conjunct is satisfied' do
+      inf = described_class.parse('Sub')
+      exp = described_class.parse('Sup & Sub')
+      expect(inf.conforms_to?(api_map, exp, :method_call)).to be(true)
+    end
+
+    context 'when both the inferred and expected types are intersections' do
+      # A & B <: C & D: each expected conjunct needs some inferred match.
+      it 'conforms to an identical intersection with unrelated conjuncts' do
+        inf = described_class.parse('Sub & Unrelated')
+        exp = described_class.parse('Sub & Unrelated')
+        expect(inf.conforms_to?(api_map, exp, :method_call)).to be(true)
+      end
+
+      it 'conforms to an identical intersection regardless of conjunct order' do
+        inf = described_class.parse('Sub & Unrelated')
+        exp = described_class.parse('Unrelated & Sub')
+        expect(inf.conforms_to?(api_map, exp, :method_call)).to be(true)
+      end
+
+      it 'still requires every expected conjunct to be covered by some inferred conjunct' do
+        inf = described_class.parse('Sub & Unrelated')
+        exp = described_class.parse('Sub & Integer')
+        expect(inf.conforms_to?(api_map, exp, :method_call)).to be(false)
+      end
+
+      it 'lets a wider inferred intersection satisfy a narrower expected one' do
+        inf = described_class.parse('Sub & Unrelated & Integer')
+        exp = described_class.parse('Sub & Unrelated')
+        expect(inf.conforms_to?(api_map, exp, :method_call)).to be(true)
+      end
+
+      it 'conforms to a union that offers the same intersection as one alternative' do
+        inf = described_class.parse('Sub & Unrelated')
+        exp = described_class.parse('Sub & Integer', 'Sub & Unrelated', 'nil')
+        expect(inf.conforms_to?(api_map, exp, :method_call)).to be(true)
+      end
+
+      it 'conforms to itself when it is a union of intersections' do
+        type = described_class.parse('Sub & Unrelated', 'Sub & Integer', 'nil')
+        expect(type.conforms_to?(api_map, type, :assignment)).to be(true)
+      end
+
+      it 'still rejects a union whose alternatives no conjunct combination covers' do
+        inf = described_class.parse('Sub & Unrelated')
+        exp = described_class.parse('Sub & Integer', 'Float')
+        expect(inf.conforms_to?(api_map, exp, :method_call)).to be(false)
+      end
+    end
+
+    it 'combines a class and a mix-in as conjuncts' do
+      inf = described_class.parse('String & Comparable')
+      expect(inf.conforms_to?(api_map, described_class.parse('Comparable'), :method_call)).to be(true)
+      expect(inf.conforms_to?(api_map, described_class.parse('Enumerable'), :method_call)).to be(false)
+    end
+
+    it 'lets a value satisfy a class-and-mix-in intersection expectation' do
+      exp = described_class.parse('Comparable & String')
+      expect(described_class.parse('String').conforms_to?(api_map, exp, :method_call)).to be(true)
+      expect(described_class.parse('Integer').conforms_to?(api_map, exp, :method_call)).to be(false)
+    end
+
+    context 'with a duck-typed conjunct in the expectation' do
+      let(:source) do
+        Solargraph::Source.load_string(%(
+          class Sup; end
+          class Sub < Sup; end
+          class Unrelated; end
+
+          class Quacker
+            def to_str
+              ''
+            end
+          end
+        ))
+      end
+
+      it 'structurally verifies a duck-typed conjunct alongside a nominal one' do
+        exp = described_class.parse('Object & #to_str')
+        expect(described_class.parse('Quacker').conforms_to?(api_map, exp, :method_call)).to be(true)
+      end
+
+      it 'still requires the nominal conjunct even if the duck-typed one matches' do
+        exp = described_class.parse('Comparable & #to_str')
+        expect(described_class.parse('Quacker').conforms_to?(api_map, exp, :method_call)).to be(false)
+      end
+    end
+  end
+
+  context 'with RBS interface types' do
+    it 'structurally validates a type that satisfies the interface, without any rule' do
+      exp = described_class.parse('Hash::_Key')
+      inf = described_class.parse('Symbol')
+      match = inf.conforms_to?(api_map, exp, :method_call)
+      expect(match).to be(true)
+    end
+
+    it 'structurally invalidates a type that does not satisfy the interface, even with allow_unmatched_interface' do
+      exp = described_class.parse('_ToAry')
+      inf = described_class.parse('Integer')
+      match = inf.conforms_to?(api_map, exp, :method_call, [:allow_unmatched_interface])
+      expect(match).to be(false)
+    end
+
+    it 'rejects a type that does not satisfy the interface when the rule is absent' do
+      exp = described_class.parse('_ToAry')
+      inf = described_class.parse('Integer')
+      match = inf.conforms_to?(api_map, exp, :method_call)
+      expect(match).to be(false)
+    end
+
+    it 'validates a type that satisfies the interface via a core fill include' do
+      exp = described_class.parse('_ToAry')
+      inf = described_class.parse('Array')
+      match = inf.conforms_to?(api_map, exp, :method_call)
+      expect(match).to be(true)
+    end
+
+    it 'falls back to allow_unmatched_interface when the interface pin cannot be found' do
+      exp = described_class::UniqueType.new('_NoSuchInterface', rooted: true)
+      inf = described_class.parse('Integer')
+      expect(inf.conforms_to?(api_map, exp, :method_call, [:allow_unmatched_interface])).to be(true)
+      expect(inf.conforms_to?(api_map, exp, :method_call)).to be(false)
+    end
+
+    it 'rejects a same-named method with the wrong return type' do
+      # https://github.com/castwide/solargraph/issues/1267
+      #
+      # The structural check only confirms a `to_ary` method exists; it
+      # doesn't verify it actually returns an Array.
+      pending 'structural interface conformance does not yet check method return types (issue #1267)'
+      source = Solargraph::Source.load_string(%(
+        class BadToAry
+          # @return [String]
+          def to_ary
+            'not an array'
+          end
+        end
+      ))
+      api_map.map source
+      exp = described_class.parse('_ToAry')
+      inf = described_class.parse('BadToAry')
+      match = inf.conforms_to?(api_map, exp, :method_call)
+      expect(match).to be(false)
+    end
+
+    it 'rejects a same-named method with the wrong arity' do
+      # https://github.com/castwide/solargraph/issues/1267
+      #
+      # The structural check only confirms an `eql?` method exists; it
+      # doesn't verify it accepts the argument Hash::_Key#eql? requires.
+      pending 'structural interface conformance does not yet check method parameters (issue #1267)'
+      source = Solargraph::Source.load_string(%(
+        class BadKey
+          def eql?
+            true
+          end
+
+          def hash
+            1
+          end
+        end
+      ))
+      api_map.map source
+      exp = described_class.parse('Hash::_Key')
+      inf = described_class.parse('BadKey')
+      match = inf.conforms_to?(api_map, exp, :method_call)
+      expect(match).to be(false)
     end
   end
 

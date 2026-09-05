@@ -355,8 +355,8 @@ describe Solargraph::Pin::Method do
     api_map.map source
     pin = api_map.get_path_pins('Foo#bar').first
     type = pin.probe(api_map)
-    expect(type.rooted_tags).to eq('::Integer, nil')
-    expect(type.to_rbs).to eq('(::Integer | nil)')
+    expect(type.rooted_tags).to eq('1, nil')
+    expect(type.to_rbs).to eq('(1 | nil)')
     expect(type.simple_tags).to eq('Integer, nil')
   end
 
@@ -389,6 +389,38 @@ describe Solargraph::Pin::Method do
     pin = api_map.get_path_pins('Foo#bar').first
     type = pin.probe(api_map)
     expect(type.simple_tags).to eq('Integer')
+  end
+
+  it 'infers from literal array dereference' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        def bar
+          arr = ['a', 'b']
+          arr[0]
+        end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+    pin = api_map.get_path_pins('Foo#bar').first
+    type = pin.probe(api_map)
+    expect(type.to_s).to eq('String, nil')
+  end
+
+  it 'infers from multiple-assignment chains' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        def bar
+          a, b = ['a', 'b']
+          b
+        end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+    pin = api_map.get_path_pins('Foo#bar').first
+    type = pin.probe(api_map)
+    expect(type.to_s).to eq('String')
   end
 
   it 'typifies from super methods' do
@@ -554,7 +586,9 @@ describe Solargraph::Pin::Method do
       # on type.  Let's make sure we combine those with anything else
       # found (e.g., additions from the BigDecimal RBS collection)
       # without collapsing signatures
-      api_map = Solargraph::ApiMap.load_with_cache(Dir.pwd, nil)
+      api_map = Solargraph::ApiMap.load(Dir.pwd)
+      bench = Solargraph::Bench.new external_requires: ['bigdecimal']
+      api_map.catalog(bench)
       method = api_map.get_method_stack('Integer', '+', scope: :instance).first
       expect(method.signatures.count).to be > 3
     end
@@ -671,6 +705,92 @@ describe Solargraph::Pin::Method do
       expect(pin.return_type.to_s).to eq('Boolean')
     end
 
+    it 'sets intersection return types' do
+      source = Solargraph::Source.load_string(%(
+        #: () -> (String & Comparable)
+        def foo; end
+      ))
+      api_map = Solargraph::ApiMap.new
+      api_map.map source
+      pin = api_map.get_path_pins('#foo').first
+      expect(pin.return_type.to_s).to eq('String & Comparable')
+      expect(pin.return_type.first).to be_a(Solargraph::ComplexType::UniqueType::Intersection)
+    end
+
+    # RBS nests `&`/`|` freely, unlike the YARD/tag-string grammar, so
+    # these go through RbsTranslator instead of a round-tripped tag string.
+    context 'with a union nested inside an intersection' do
+      it 'preserves a union as the first conjunct' do
+        source = Solargraph::Source.load_string(%(
+          #: () -> ((String | Integer) & Comparable)
+          def foo; end
+        ))
+        api_map = Solargraph::ApiMap.new
+        api_map.map source
+        pin = api_map.get_path_pins('#foo').first
+        intersection = pin.return_type.first
+        expect(intersection).to be_a(Solargraph::ComplexType::UniqueType::Intersection)
+        expect(intersection.conjuncts.length).to eq(2)
+        expect(intersection.conjuncts.first.length).to eq(2)
+        expect(intersection.conjuncts.first.tags).to eq('String, Integer')
+        expect(intersection.to_rbs).to eq('(::String | ::Integer) & ::Comparable')
+      end
+
+      it 'preserves a union as the second conjunct' do
+        source = Solargraph::Source.load_string(%(
+          #: () -> (Comparable & (String | Integer))
+          def foo; end
+        ))
+        api_map = Solargraph::ApiMap.new
+        api_map.map source
+        pin = api_map.get_path_pins('#foo').first
+        intersection = pin.return_type.first
+        expect(intersection.conjuncts.last.length).to eq(2)
+        expect(intersection.to_rbs).to eq('::Comparable & (::String | ::Integer)')
+      end
+
+      it 'flattens a nested intersection into the same conjunct list' do
+        source = Solargraph::Source.load_string(%(
+          #: () -> (String & (Comparable & Enumerable))
+          def foo; end
+        ))
+        api_map = Solargraph::ApiMap.new
+        api_map.map source
+        pin = api_map.get_path_pins('#foo').first
+        intersection = pin.return_type.first
+        expect(intersection.to_rbs).to eq('::String & ::Comparable & ::Enumerable')
+      end
+
+      it 'round-trips through both the tag string and to_rbs' do
+        source = Solargraph::Source.load_string(%(
+          #: () -> ((String | Integer) & Comparable)
+          def foo; end
+        ))
+        api_map = Solargraph::ApiMap.new
+        api_map.map source
+        pin = api_map.get_path_pins('#foo').first
+        original = pin.return_type
+
+        # `&` binds tighter than a union's `,`, so the grouped conjunct
+        # keeps its brackets and re-parses to the same structure.
+        expect(original.tag).to eq('[String, Integer] & Comparable')
+        reparsed = Solargraph::ComplexType.parse(original.tag)
+        expect(reparsed.length).to eq(1)
+        expect(reparsed.first.conjuncts.map(&:tags)).to eq(['String, Integer', 'Comparable'])
+
+        # rooted_tag keeps the `::` prefixes that tag drops, so it is
+        # the form that round-trips to an identical RBS rendering.
+        expect(Solargraph::ComplexType.parse(original.rooted_tag).to_rbs).to eq(original.to_rbs)
+
+        # to_rbs uses RBS's own grouping syntax and round-trips through
+        # RBS's parser rather than Solargraph's tag parser.
+        rbs_type = RBS::Parser.parse_type(original.to_rbs)
+        reparsed_via_rbs = Solargraph::RbsTranslator.to_complex_type(rbs_type)
+        expect(reparsed_via_rbs.length).to eq(1)
+        expect(reparsed_via_rbs.first.conjuncts.map(&:tags)).to eq(['String, Integer', 'Comparable'])
+      end
+    end
+
     it 'sets required positional parameters' do
       source = Solargraph::Source.load_string(%(
         #: (String) -> bool
@@ -713,7 +833,9 @@ describe Solargraph::Pin::Method do
       expect(pin.signatures.first.parameters).to be_one
       expect(pin.signatures.first.parameters.first.name).to eq('bar')
       expect(pin.signatures.first.parameters.first.decl).to eq(:restarg)
-      expect(pin.signatures.first.parameters.first.return_type.to_s).to eq('Array')
+      # `bar` here is the restarg's declared per-element type - RBS's
+      # inline shorthand identifies it by position, not name.
+      expect(pin.signatures.first.parameters.first.return_type.to_s).to eq('Array<bar>')
     end
 
     it 'sets required keyword parameters' do
@@ -758,7 +880,8 @@ describe Solargraph::Pin::Method do
       expect(pin.signatures.first.parameters).to be_one
       expect(pin.signatures.first.parameters.first.name).to eq('bar')
       expect(pin.signatures.first.parameters.first.decl).to eq(:kwrestarg)
-      expect(pin.signatures.first.parameters.first.return_type.to_s).to eq('Hash{Symbol => Object}')
+      # `bar` here is the kwrestarg's declared per-value type.
+      expect(pin.signatures.first.parameters.first.return_type.to_s).to eq('Hash{Symbol => bar}')
     end
 
     it 'sets block parameters' do
@@ -785,5 +908,11 @@ describe Solargraph::Pin::Method do
       pin = api_map.get_path_pins('#foo').first
       expect { pin.signatures }.not_to raise_error
     end
+  end
+
+  it 'typifies a DuckMethod pin with no closure without raising' do
+    api_map = Solargraph::ApiMap.new
+    pin = Solargraph::Pin::DuckMethod.new(name: 'to_s', source: :api_map)
+    expect { pin.typify(api_map) }.not_to raise_error
   end
 end

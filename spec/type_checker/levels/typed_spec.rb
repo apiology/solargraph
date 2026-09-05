@@ -223,7 +223,7 @@ describe Solargraph::TypeChecker do
         def foo(bar = 123); end
         ))
       expect(checker.problems.map(&:message))
-        .to eq(['Declared type String does not match inferred type Integer for variable bar'])
+        .to eq(['Declared type String does not match inferred type 123 for variable bar'])
     end
 
     it 'validates string default values of parameters' do
@@ -439,6 +439,43 @@ describe Solargraph::TypeChecker do
       checker = type_checker(%(
         def nil_assignment?
          'foo'.nil? # infers as 'false'
+        end
+      ))
+      expect(checker.problems).to be_empty
+    end
+
+    it 'accepts a method body that only ever raises against any declared return type' do
+      checker = type_checker(%(
+        class Foo
+          # @return [Boolean]
+          def matches?
+            raise 'Override me!'
+          end
+        end
+      ))
+      expect(checker.problems).to be_empty
+    end
+
+    it 'accepts a method body that only ever aborts against any declared return type' do
+      checker = type_checker(%(
+        class Foo
+          # @return [String]
+          def name
+            abort('Override me!')
+          end
+        end
+      ))
+      expect(checker.problems).to be_empty
+    end
+
+    it 'accepts a method body that conditionally raises alongside a conforming return' do
+      checker = type_checker(%(
+        class Foo
+          # @return [String]
+          def maybe cond
+            return 'x' if cond
+            raise 'nope'
+          end
         end
       ))
       expect(checker.problems).to be_empty

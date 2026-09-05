@@ -72,7 +72,6 @@ module Solargraph
           attr_reader :current
 
           # @return [Gem::Version]
-          # @sg-ignore Need to add nil check here
           def available
             if !@available && !@fetched
               @fetched = true
@@ -84,6 +83,7 @@ module Solargraph
                     @error = 'An error occurred fetching the gem data'
                     GEM_ZERO
                   else
+                    # @sg-ignore Solargraph has no RBS coverage for Gem::NameTuple (the actual runtime type here, not Gem::Dependency)
                     tuple.version
                   end
                 end
@@ -99,7 +99,7 @@ module Solargraph
             @fetched ||= false
           end
 
-          # @return [String, nil]
+          # @return [String, Hash, nil]
           attr_reader :error
         end
       end

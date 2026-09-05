@@ -61,4 +61,90 @@ describe Solargraph::ApiMap::Index do
       expect(first_parameter.return_type.tag).to eq('String')
     end
   end
+
+  describe '#map_overrides on a constant' do
+    let(:baz_constant) do
+      Solargraph::Pin::Constant.new(name: 'BAZ',
+                                    closure: Solargraph::Pin::ROOT_PIN,
+                                    comments: '@return [String]')
+    end
+
+    let(:baz_override) do
+      Solargraph::Pin::Reference::Override.from_comment('BAZ', '@return [Integer]')
+    end
+
+    let(:input_pins) { [baz_constant, baz_override] }
+
+    it 'does not raise on a pin without signatures' do
+      expect { output_pins }.not_to raise_error
+    end
+
+    it 'redefines the return type of the constant' do
+      constant_pin = output_pins.find { |pin| pin.path == 'BAZ' }
+      expect(constant_pin.return_type.tag).to eq('Integer')
+    end
+  end
+
+  describe '#map_overrides with @overload tags' do
+    let(:passthrough) do
+      Solargraph::Pin::Namespace.new(name: 'Passthrough')
+    end
+
+    let(:identity) do
+      meth = Solargraph::Pin::Method.new(name: 'identity',
+                                         scope: :instance,
+                                         parameters: [],
+                                         closure: passthrough)
+      param = Solargraph::Pin::Parameter.new(name: 'arguments', closure: meth)
+      meth.parameters << param
+      meth
+    end
+
+    let(:identity_override) do
+      Solargraph::Pin::Reference::Override.from_comment('Passthrough#identity', <<~COMMENT)
+        @overload identity(arguments)
+          @param arguments [Array<Hash>]
+          @return [Array<Hash>]
+        @overload identity(arguments)
+          @param arguments [Array<String>]
+          @return [Array<String>]
+      COMMENT
+    end
+
+    let(:input_pins) do
+      [
+        passthrough,
+        identity,
+        identity_override
+      ]
+    end
+
+    it 'produces one dispatchable signature per @overload tag, not just the first' do
+      method_pin = output_pins.find { |pin| pin.path == 'Passthrough#identity' }
+      expect(method_pin.signatures.length).to eq(2)
+      expect(method_pin.signatures.map { |sig| sig.parameters.first.return_type.tag }).to eq(['Array<Hash>', 'Array<String>'])
+      expect(method_pin.signatures.map { |sig| sig.return_type.tag }).to eq(['Array<Hash>', 'Array<String>'])
+    end
+
+    context 'when overriding a method that already had its signatures computed' do
+      let(:input_pins) do
+        [
+          passthrough,
+          identity,
+          identity_override
+        ]
+      end
+
+      it 'still applies every @overload tag, not zero of them' do
+        # Force memoization of the original (un-overridden) signatures,
+        # simulating an earlier pass over the ApiMap having already
+        # read #signatures before the override was applied.
+        identity.signatures
+
+        method_pin = output_pins.find { |pin| pin.path == 'Passthrough#identity' }
+        expect(method_pin.signatures.length).to eq(2)
+        expect(method_pin.signatures.map { |sig| sig.return_type.tag }).to eq(['Array<Hash>', 'Array<String>'])
+      end
+    end
+  end
 end

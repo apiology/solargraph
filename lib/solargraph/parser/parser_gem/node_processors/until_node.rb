@@ -8,19 +8,28 @@ module Solargraph
           include ParserGem::NodeMethods
 
           def process
+            FlowSensitiveTyping.new(locals,
+                                    ivars,
+                                    enclosing_breakable_pin,
+                                    enclosing_compound_statement_pin,
+                                    region.closure).process_until(node)
+
             location = get_node_location(node)
             # Note - this should not be considered a block, as the
             # until statement doesn't create a closure - e.g.,
             # variables created inside can be seen from outside as
             # well
-            pins.push Solargraph::Pin::Until.new(
+            until_pin = Solargraph::Pin::Until.new(
               location: location,
               closure: region.closure,
+              compound_statement: region.compound_statement,
+              conditional: true,
               node: node,
               comments: comments_for(node),
               source: :parser
             )
-            process_children region
+            pins.push until_pin
+            process_children region.update(compound_statement: until_pin)
           end
         end
       end

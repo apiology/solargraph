@@ -6,21 +6,30 @@ module Solargraph
       # @return [::Symbol]
       attr_reader :decl
 
-      # @return [String]
+      # @return [String, nil]
       attr_reader :asgn_code
 
       # allow this to be set to the method after the method itself has
       # been created
       attr_writer :closure
 
-      # @param decl [::Symbol] :arg, :optarg, :kwarg, :kwoptarg, :restarg, :kwrestarg, :block, :blockarg
+      # @param decl [::Symbol] :arg, :optarg, :kwarg, :kwoptarg, :restarg, :kwrestarg, :block, :blockarg, :mlhs
       # @param asgn_code [String, nil]
+      # @param mlhs_path [::Array<Integer>, nil] for a variable inside a
+      #   destructured block parameter group (`|(a, b), c|`): the group's
+      #   position in the block signature followed by the element index at
+      #   each nesting level (`a` -> [0, 0], `b` -> [0, 1])
       # @param [Hash{Symbol => Object}] splat
-      def initialize decl: :arg, asgn_code: nil, **splat
+      def initialize decl: :arg, asgn_code: nil, mlhs_path: nil, **splat
         super(**splat)
         @asgn_code = asgn_code
         @decl = decl
+        @mlhs_path = mlhs_path
       end
+
+      # @return [::Array<Integer>, nil]
+      # @return [::Array<Integer>, nil]
+      attr_reader :mlhs_path
 
       def type_location
         super || closure&.type_location
@@ -30,7 +39,7 @@ module Solargraph
         super || closure&.type_location
       end
 
-      def combine_with other, attrs = {}
+      def combine_with other, attrs = {}, location: nil
         # Parameters can only be combined with local variables in the same closure
         return self unless other.closure == closure
 
@@ -45,7 +54,7 @@ module Solargraph
                         asgn_code: asgn_code
                       }
                     end
-        super(other, new_attrs.merge(attrs))
+        super(other, new_attrs.merge(attrs), location: location)
       end
 
       def combine_return_type other
@@ -63,7 +72,6 @@ module Solargraph
       end
 
       def kwrestarg?
-        # @sg-ignore flow sensitive typing needs to handle attrs
         decl == :kwrestarg || (assignment && %i[HASH hash].include?(assignment.type))
       end
 
@@ -95,7 +103,7 @@ module Solargraph
 
       # @return [String]
       def type_arity_decl
-        arity_decl + return_type.items.count.to_s
+        arity_decl + return_type.tags
       end
 
       def arg?
@@ -181,7 +189,7 @@ module Solargraph
           @return_type = ComplexType::UNDEFINED
           found = param_tag
           @return_type = ComplexType.try_parse(*found.types) unless found.nil? || found.types.nil?
-          # @sg-ignore flow sensitive typing should be able to handle redefinition
+          # @sg-ignore https://github.com/castwide/solargraph/issues/1250
           if @return_type.undefined?
             case decl
             when :restarg
@@ -208,8 +216,20 @@ module Solargraph
 
       # @param api_map [ApiMap]
       def typify api_map
+        if definite
+          # Reassigned by an assignment guaranteed to have executed:
+          # prefer that value's type over the declared parameter type.
+          reassigned_type = probe(api_map)
+          return reassigned_type if reassigned_type.defined?
+        end
+
         new_type = super
         return new_type if new_type.defined?
+
+        if mlhs_path && closure.is_a?(Pin::Block)
+          projected = typify_mlhs_element(api_map)
+          return adjust_type api_map, projected.self_to_type(full_context) if projected.defined?
+        end
 
         # sniff based on param tags
         new_type = closure.is_a?(Pin::Block) ? typify_block_param(api_map) : typify_method_param(api_map)
@@ -221,20 +241,34 @@ module Solargraph
 
       # @param atype [ComplexType]
       # @param api_map [ApiMap]
-      def compatible_arg? atype, api_map
+      # @param require_literal [Boolean] Whether a literal-typed
+      #   parameter requires the argument to also be a literal (see
+      #   #literal_arg_matches?). Callers doing overload *selection*
+      #   should retry with this set to false if no overload matches
+      #   with it true, so a literal-typed parameter with no
+      #   non-literal sibling overload to fall back to (e.g. a Hash's
+      #   key type resolved to a literal from its receiver's declared
+      #   type) doesn't reject every candidate outright.
+      def compatible_arg? atype, api_map, require_literal: true
         # make sure we get types from up the method
         # inheritance chain if we don't have them on this pin
         ptype = typify api_map
         return true if ptype.undefined?
 
-        return true if atype.conforms_to?(api_map,
-                                          ptype,
-                                          :method_call,
-                                          %i[allow_empty_params allow_undefined])
-        ptype.generic?
+        # :allow_unmatched_interface lets an RBS-interface-typed
+        # parameter (e.g. Hash#fetch's `_Key`) accept an argument not
+        # nominally included in that interface via CoreFills::INCLUDES.
+        return false unless atype.conforms_to?(api_map,
+                                               ptype,
+                                               :method_call,
+                                               %i[allow_empty_params allow_undefined allow_unmatched_interface]) || ptype.generic?
+
+        return true unless require_literal
+
+        # @sg-ignore Wrong argument type for Solargraph::Pin::Parameter#literal_arg_matches?: ptype expected Solargraph::ComplexType, received Solargraph::ComplexType, Solargraph::ComplexType::UniqueTy
+        literal_arg_matches? ptype, atype
       end
 
-      # @sg-ignore flow sensitive typing needs to handle attrs
       def documentation
         tag = param_tag
         return '' if tag.nil? || tag.text.nil?
@@ -245,6 +279,29 @@ module Solargraph
 
       def generate_complex_type
         nil
+      end
+
+      # #compatible_arg? is too permissive for overload *selection*: it
+      # would let a literal-typed overload always win over the safe
+      # catch-all for any argument merely assignable to it, not just literals.
+      #
+      # @param ptype [ComplexType]
+      # @param atype [ComplexType]
+      # @return [Boolean]
+      def literal_arg_matches? ptype, atype
+        return true unless ptype.items.any? { |item| dispatch_literal?(item) }
+
+        atype.items.all?(&:literal?)
+      end
+
+      # nil/true/false are technically "literal" per #literal?, but as
+      # singletons they aren't dispatch-relevant like `0` vs `1` -
+      # excluding them keeps ordinary nilable params from tripping #literal_arg_matches?.
+      #
+      # @param unique_type [ComplexType::UniqueType]
+      # @return [Boolean]
+      def dispatch_literal? unique_type
+        unique_type.literal? && !unique_type.singleton?
       end
 
       # @return [YARD::Tags::Tag, nil]
@@ -259,11 +316,42 @@ module Solargraph
         params[index] if index && params[index] && (params[index].name.nil? || params[index].name.empty?)
       end
 
+      # Project this variable's type out of its destructured parameter
+      # group's tuple type, one element index per nesting level.
+      #
+      # @param api_map [ApiMap]
+      # @return [ComplexType]
+      # @sg-ignore Declared return type does not match inferred - loop-reassigned
+      #   `type` union widens under this branch's newer or/branch inference
+      #   (castwide/solargraph#1309); apiology/solargraph#60 predates it. Specs green.
+      def typify_mlhs_element api_map
+        block_pin = closure
+        path = mlhs_path
+        return ComplexType::UNDEFINED unless path && block_pin.is_a?(Pin::Block) && block_pin.receiver
+
+        # @sg-ignore Array#[] arg Integer, nil - path.first is nilable in general
+        #   but an mlhs_path always has at least one element
+        type = block_pin.typify_parameters(api_map)[path.first]
+        path.drop(1).each do |idx|
+          # @sg-ignore Unresolved call to tuple? - loop-reassignment of `type`
+          #   not narrowed (known loop-reassignment family); post-merge dogfood only
+          return ComplexType::UNDEFINED if type.nil? || !type.tuple?
+
+          # @sg-ignore Unresolved call to all_params / Array#[] idx Integer, nil -
+          #   same loop-reassignment gap as above; mlhs_path elements are Integers
+          type = type.all_params[idx]
+        end
+        type || ComplexType::UNDEFINED
+      end
+
       # @param api_map [ApiMap]
       # @return [ComplexType]
       def typify_block_param api_map
         block_pin = closure
-        return block_pin.typify_parameters(api_map)[index] if block_pin.is_a?(Pin::Block) && block_pin.receiver && index
+        if block_pin.is_a?(Pin::Block) && block_pin.receiver && index
+          typed = block_pin.typify_parameters(api_map)[index]
+          return typed unless typed.nil?
+        end
         ComplexType::UNDEFINED
       end
 
@@ -281,8 +369,9 @@ module Solargraph
             found = p
             break
           end
-          if found.nil? && !index.nil? && params[index] && (params[index].name.nil? || params[index].name.empty?)
-            found = params[index]
+          indexed_param = index.nil? ? nil : params[index]
+          if found.nil? && indexed_param && (indexed_param.name.nil? || indexed_param.name.empty?)
+            found = indexed_param
           end
           unless found.nil? || found.types.nil?
             return ComplexType.try_parse(*found.types).qualify(api_map,
@@ -319,7 +408,7 @@ module Solargraph
         return nil if skip.include?(ref)
         skip.push ref
         parts = ref.split(/[.#]/)
-        if parts.first.empty?
+        if parts.first.to_s.empty?
           path = "#{namespace}#{ref}"
         else
           fqns = api_map.qualify(parts.first, namespace)

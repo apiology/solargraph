@@ -12,6 +12,7 @@ module Solargraph
     include Parser::NodeMethods
 
     # @return [String]
+    # @sg-ignore Need to add nil check here
     attr_reader :filename
 
     # @return [Rules]
@@ -33,6 +34,7 @@ module Solargraph
                    rules: workspace ? workspace.rules(level) : Rules.new(level, {})
       @filename = filename
       # @todo Smarter directory resolution
+      # @sg-ignore Wrong argument type for File.dirname: file_name expected String, _ToStr, _ToPath, received String, nil
       @api_map = api_map || Solargraph::ApiMap.load(File.dirname(filename),
                                                     loose_unions: !rules.require_all_unique_types_support_call?)
       @rules = rules
@@ -118,7 +120,6 @@ module Solargraph
         rules = Rules.new(level, {})
         api_map ||= Solargraph::ApiMap.new(loose_unions:
                                              !rules.require_all_unique_types_support_call?)
-        # @sg-ignore flow sensitive typing needs better handling of ||= on lvars
         api_map.map(source)
         new(filename, api_map: api_map, level: level, rules: rules)
       end
@@ -141,6 +142,8 @@ module Solargraph
     # @return [Array<Problem>]
     def method_return_type_problems_for pin
       return [] if pin.is_a?(Pin::MethodAlias)
+      # An unresolvable DelegatedMethod's type comes from its @!method directive, not a @return tag.
+      return [] if pin.is_a?(Pin::DelegatedMethod) && !pin.resolvable?(api_map)
       result = []
       declared = pin.typify(api_map).self_to_type(pin.full_context).qualify(api_map, *pin.gates)
       if declared.undefined?
@@ -177,7 +180,10 @@ module Solargraph
             unless rules.ignore_all_undefined? || external?(pin) || pin.attribute?
               result.push Problem.new(pin.location, "#{pin.path} return type could not be inferred", pin: pin)
             end
-          else
+          elsif !inferred.bot?
+            # A method body that never returns (e.g., only ever raises or
+            # aborts) is compatible with any declared return type - bot is
+            # a subtype of everything, so there's nothing to check.
             unless return_type_conforms_to?(inferred, declared)
               result.push Problem.new(pin.location,
                                       "Declared return type #{declared.rooted_tags} does not match inferred type #{inferred.rooted_tags} for #{pin.path}", pin: pin)
@@ -206,7 +212,6 @@ module Solargraph
 
     # @param pin [Pin::Base]
     def virtual_pin? pin
-      # @sg-ignore Need to add nil check here
       pin.location && source.comment_at?(pin.location.range.ending)
     end
 
@@ -235,6 +240,7 @@ module Solargraph
         # @param name [String]
         # @param data [Hash{Symbol => BasicObject}]
         params.each_pair do |name, data|
+          # @sg-ignore Need a downcast here
           # @type [ComplexType]
           type = data[:qualified]
           if type.undefined?
@@ -249,6 +255,26 @@ module Solargraph
     # @return [Array<Pin::Base>]
     def ignored_pins
       @ignored_pins ||= []
+    end
+
+    # Retries a failed variable-assignment conformance check using
+    # Pin::BaseVariable#record_type - a per-key inference of a Hash
+    # literal that #probe's merged Hash{K => V} result can't express -
+    # so a Hash literal that only sets some of a declared record type's
+    # keys still typechecks. Only applies to pins whose assignment is a
+    # single Hash literal; anything else returns false, leaving the
+    # original failure in place.
+    #
+    # @param pin [Pin::Base]
+    # @param declared [ComplexType, ComplexType::UniqueType]
+    # @return [Boolean]
+    def record_assignment_conforms_to? pin, declared
+      return false unless pin.respond_to?(:record_type)
+
+      record_inferred = pin.record_type(api_map)
+      return false if record_inferred.nil?
+
+      assignment_conforms_to?(record_inferred, declared)
     end
 
     # @return [Array<Problem>]
@@ -270,7 +296,7 @@ module Solargraph
                   result.push Problem.new(pin.location, "Variable type could not be inferred for #{pin.name}", pin: pin)
                 end
               else
-                unless assignment_conforms_to?(inferred, declared)
+                unless assignment_conforms_to?(inferred, declared) || record_assignment_conforms_to?(pin, declared)
                   result.push Problem.new(pin.location,
                                           "Declared type #{declared} does not match inferred type #{inferred} for variable #{pin.name}", pin: pin)
                 end
@@ -327,7 +353,7 @@ module Solargraph
         chain = Solargraph::Parser.chain(call, filename)
         # @sg-ignore Need to add nil check here
         closure_pin = source_map.locate_closure_pin(rng.start.line, rng.start.column)
-        if call.type == :block
+        if %i[block numblock].include?(call.type)
           # blocks in the AST include the method call as well, so the
           # node returned by #call_nodes_from needs to be backed out
           # one closure
@@ -349,6 +375,7 @@ module Solargraph
           found = nil
           # @type [Array<Solargraph::Pin::Base>]
           all_found = []
+          # @sg-ignore Need to add nil check here
           until base.links.first.undefined?
             # @sg-ignore Need to add nil check here
             all_found = base.define(api_map, closure_pin, locals)
@@ -362,15 +389,27 @@ module Solargraph
           # @todo remove the internal_or_core? check at a higher-than-strict level
           if (!found || found.is_a?(Pin::BaseVariable) || (closest.defined? && internal_or_core?(found))) && !(closest.generic? || ignored_pins.include?(found))
             if closest.defined?
+              # @sg-ignore Need to add nil check here
               result.push Problem.new(location, "Unresolved call to #{missing.links.last.word} on #{closest}")
             else
+              # @sg-ignore Need to add nil check here
               result.push Problem.new(location, "Unresolved call to #{missing.links.last.word}")
             end
+            # @sg-ignore Wrong argument type for Array#push: objects expected Solargraph::Range, received Solargraph::Range, nil
             @marked_ranges.push rng
           end
         end
         # @sg-ignore Need to add nil check here
         result.concat argument_problems_for(chain, api_map, closure_pin, locals, location)
+      rescue StandardError => e
+        # A single call site's type inference should never take down the
+        # rest of the typecheck run (or, when this is invoked per-file
+        # across a workspace, every file after it) -- degrade to one
+        # reported problem for this call site instead.
+        # @sg-ignore Need to add nil check here
+        word = chain.links.last.word
+        Solargraph.logger.warn "Error checking call to #{word} at #{location.range}: [#{e.class}] #{e.message}"
+        result.push Problem.new(location, "Internal error inferring type for call to #{word}: [#{e.class}] #{e.message}")
       end
       result
     end
@@ -416,10 +455,12 @@ module Solargraph
         return [] if !rules.validate_calls? || base.links.first.is_a?(Solargraph::Source::Chain::ZSuper)
 
         all_errors = []
+        receiver_type = base.base.infer(api_map, closure_pin, locals)
         pin.signatures.sort_by { |sig| sig.parameters.length }.each do |sig|
           params = param_details_from_stack(sig, pins)
 
-          signature_errors = signature_argument_problems_for location, locals, closure_pin, params, arguments, sig, pin
+          signature_errors = signature_argument_problems_for(location, locals, closure_pin, params, arguments, sig,
+                                                             pin, receiver_type)
 
           if signature_errors.empty?
             # we found a signature that works - meaning errors from
@@ -433,6 +474,22 @@ module Solargraph
       result
     end
 
+    # Resolves any remaining generics in a fixed-arity parameter's
+    # declared type against the receiver's actual type; the restarg
+    # counterpart is #restarg_problems_for.
+    #
+    # @param ptype [ComplexType, ComplexType::UniqueType] the
+    #   parameter's declared type, as found via
+    #   #signature_param_details
+    # @param pin [Pin::Method]
+    # @param receiver_type [ComplexType]
+    # @return [ComplexType, ComplexType::UniqueType]
+    def resolve_param_type_against_receiver ptype, pin, receiver_type
+      return ptype if ptype.nil? || ptype.undefined?
+      # @sg-ignore pin.closure is a Pin::Namespace for a top-level method pin
+      ptype.resolve_generics(pin.closure, receiver_type)
+    end
+
     # @param location [Location]
     # @param locals [Array<Pin::LocalVariable>]
     # @param closure_pin [Pin::Closure]
@@ -440,16 +497,25 @@ module Solargraph
     # @param arguments [Array<Source::Chain>]
     # @param sig [Pin::Signature]
     # @param pin [Pin::Method]
+    # @param receiver_type [ComplexType] the type of the object the
+    #   method is being called on, used to resolve the signature's
+    #   generics against the receiver's actual type parameters.
     #
     # @return [Array<Problem>]
-    def signature_argument_problems_for location, locals, closure_pin, params, arguments, sig, pin
+    def signature_argument_problems_for location, locals, closure_pin, params, arguments, sig, pin, receiver_type
       errors = []
+      splat_keywords, unverifiable_splat = keyword_splat_types(arguments.last, closure_pin, locals)
+      errors.concat keyword_splat_problems_for(sig, pin, location, arguments, splat_keywords, unverifiable_splat)
       # @todo add logic mapping up restarg parameters with
       #   arguments (including restarg arguments).  Use tuples
       #   when possible, and when not, ensure provably
       #   incorrect situations are detected.
       sig.parameters.each_with_index do |par, idx|
-        return errors if par.decl == :restarg # bail out and assume the rest is valid pending better arg processing
+        if par.decl == :restarg
+          # A restarg absorbs every remaining positional argument -
+          # check each against the restarg's own resolved type.
+          return restarg_problems_for(location, locals, closure_pin, arguments, sig, pin, receiver_type, par, idx)
+        end
         argchain = arguments[idx]
         if argchain.nil?
           final_arg = arguments.last
@@ -485,6 +551,7 @@ module Solargraph
               return errors
             end
             ptype = params.key?(par.name) ? params[par.name][:qualified] : ComplexType::UNDEFINED
+            ptype = resolve_param_type_against_receiver(ptype, pin, receiver_type)
             ptype = ptype.self_to_type(par.context)
             if ptype.nil?
               # @todo Some level (strong, I guess) should require the param here
@@ -498,15 +565,94 @@ module Solargraph
               end
             end
           else
-            errors.concat kwarg_problems_for sig, argchain, api_map, closure_pin, locals, location, pin, params, idx
+            errors.concat kwarg_problems_for(sig, argchain, api_map, closure_pin, locals, location, pin, params,
+                                             idx, splat_keywords, unverifiable_splat, receiver_type)
             next
           end
-        elsif par.decl == :kwarg
+        elsif par.decl == :kwarg && unverifiable_splat.nil?
           errors.push Problem.new(location, "Call to #{pin.path} is missing keyword argument #{par.name}")
           next
         end
       end
       errors
+    end
+
+    # Checks each call-site argument absorbed by a restarg against
+    # the restarg's own declared/resolved type.
+    #
+    # @param location [Location]
+    # @param locals [Array<Pin::LocalVariable>]
+    # @param closure_pin [Pin::Closure]
+    # @param arguments [Array<Source::Chain>]
+    # @param sig [Pin::Signature]
+    # @param pin [Pin::Method]
+    # @param receiver_type [ComplexType] the type of the object the
+    #   method is being called on, used to resolve the restarg's type.
+    # @param par [Pin::Parameter] the restarg parameter
+    # @param idx [Integer] the restarg's index within sig.parameters
+    #
+    # @return [Array<Problem>]
+    def restarg_problems_for location, locals, closure_pin, arguments, sig, pin, receiver_type, par, idx
+      errors = []
+
+      # par.return_type is the restarg's own array type (e.g.
+      # `Array<Integer>`); unwrap one level to get the element type.
+      # @sg-ignore pin.closure is a Pin::Namespace for a top-level method pin
+      wrapped_ptype = par.return_type.resolve_generics(pin.closure, receiver_type)
+      subtypes = wrapped_ptype.items.flat_map(&:subtypes)
+      # An untyped restarg (e.g. `(*untyped)`) yields a ComplexType
+      # with no subtypes; #undefined? doesn't catch that case, so
+      # it's checked explicitly here.
+      return errors if subtypes.empty?
+
+      ptype = ComplexType.new(subtypes.flat_map(&:items))
+      # @sg-ignore pin.closure is a Pin::Namespace for a top-level method pin
+      ptype = ptype.qualify(api_map, *pin.closure.gates).self_to_type(par.context)
+      return errors if ptype.nil? || ptype.undefined?
+
+      restarg_arguments(sig, arguments, idx).each do |restargchain|
+        # A spread argument's own element types aren't statically
+        # known here - skip it rather than guess.
+        next if restargchain.nil? || restargchain.node.type == :splat
+
+        restargtype = restargchain.infer(api_map, closure_pin, locals).self_to_type(closure_pin.context)
+        next unless restargtype.defined?
+        next if arg_conforms_to?(restargtype, ptype)
+
+        errors.push Problem.new(location,
+                                "Wrong argument type for #{pin.path}: #{par.name} expected #{ptype}, received #{restargtype}")
+      end
+      errors
+    end
+
+    # @param sig [Pin::Signature]
+    # @param arguments [Array<Source::Chain>]
+    # @param idx [Integer] the restarg's index within sig.parameters
+    # @return [Array<Source::Chain>] the call-site arguments absorbed
+    #   by the restarg at idx
+    # @sg-ignore flow sensitive typing incorrectly includes an intermediate local variable's type in the inferred return type
+    def restarg_arguments sig, arguments, idx
+      # Trailing positional parameters after a restarg (`def foo(*path,
+      # baz)`) consume the last N arguments - exclude them from the restarg.
+      trailing_positional_params = sig.parameters[(idx + 1)..] || []
+      trailing_positional_count = trailing_positional_params.count { |p| p.decl == :arg }
+      restargs = trailing_positional_count.zero? ? arguments[idx..] || [] : arguments[idx...-trailing_positional_count] || []
+
+      # A trailing bare hash argument (`foo(*args, key: val)`) is
+      # parsed as an implicit kwargs hash appended to the call's
+      # arguments - it belongs to the signature's keyword parameters,
+      # not the restarg.
+      # @sg-ignore flow sensitive typing issue with the ternary above
+      last_arg = restargs.last
+      # @sg-ignore flow sensitive typing issue with the ternary above
+      has_trailing_hash = last_arg && last_arg.links.last.is_a?(Solargraph::Source::Chain::Hash)
+      has_keyword_params = sig.parameters.any? { |p| %i[kwarg kwoptarg kwrestarg].include?(p.decl) }
+      if has_trailing_hash && has_keyword_params
+        # @sg-ignore flow sensitive typing issue with the ternary above
+        restargs[0...-1]
+      else
+        restargs
+      end
     end
 
     # @param sig [Pin::Signature]
@@ -518,38 +664,167 @@ module Solargraph
     # @param pin [Pin::Method]
     # @param params [Hash{String => Hash{Symbol => undefined}}]
     # @param idx [Integer]
+    # @param splat_keywords [Hash{Symbol => ComplexType}] keywords a `**` splat records in its type
+    # @param unverifiable_splat [ComplexType, nil] the type of a `**` splat that records no keys
+    # @param receiver_type [ComplexType] the type of the object the
+    #   method is being called on, used to resolve the parameter's generic type.
     #
     # @return [Array<Problem>]
-    def kwarg_problems_for sig, argchain, api_map, closure_pin, locals, location, pin, params, idx
+    def kwarg_problems_for sig, argchain, api_map, closure_pin, locals, location, pin, params, idx, splat_keywords,
+                           unverifiable_splat, receiver_type
       result = []
       kwargs = convert_hash(argchain.node)
+      # idx comes from an each_with_index over these same parameters.
+      #
+      # @sg-ignore "Declared type Solargraph::Pin::Parameter does not match
+      #   inferred type Solargraph::Pin::Parameter, nil for variable par"
+      # @type [Pin::Parameter]
       par = sig.parameters[idx]
-      # @type [Solargraph::Source::Chain]
-      argchain = kwargs[par.name.to_sym]
+      return result if par.nil?
+
       if par.decl == :kwrestarg || (par.decl == :optarg && idx == pin.parameters.length - 1 && par.asgn_code == '{}')
-        result.concat kwrestarg_problems_for(api_map, closure_pin, locals, location, pin, params, kwargs)
-      elsif argchain
-        data = params[par.name]
-        if data.nil?
-          # @todo Some level (strong, I guess) should require the param here
-        else
-          # @type [ComplexType, ComplexType::UniqueType]
-          ptype = data[:qualified]
-          ptype = ptype.self_to_type(pin.context)
-          unless ptype.undefined?
-            # @type [ComplexType]
-            argtype = argchain.infer(api_map, closure_pin, locals).self_to_type(closure_pin.context)
-            # @todo Unresolved call to defined?
-            if argtype.defined? && ptype && !arg_conforms_to?(argtype, ptype)
-              result.push Problem.new(location,
-                                      "Wrong argument type for #{pin.path}: #{par.name} expected #{ptype}, received #{argtype}")
-            end
-          end
+        return kwrestarg_problems_for(api_map, closure_pin, locals, location, pin, params, kwargs)
+      end
+      # @type [Solargraph::Source::Chain, nil]
+      valuechain = kwargs[par.name.to_sym]
+      argtype = if valuechain
+                  valuechain.infer(api_map, closure_pin, locals).self_to_type(closure_pin.context)
+                else
+                  splat_keywords[par.name.to_sym]
+                end
+      if argtype.nil?
+        if par.decl == :kwarg && unverifiable_splat.nil?
+          result.push Problem.new(location, "Call to #{pin.path} is missing keyword argument #{par.name}")
         end
-      elsif par.decl == :kwarg
-        result.push Problem.new(location, "Call to #{pin.path} is missing keyword argument #{par.name}")
+        return result
+      end
+      data = params[par.name]
+      # @todo Some level (strong, I guess) should require the param here
+      return result if data.nil?
+
+      # @type [ComplexType, ComplexType::UniqueType]
+      ptype = data[:qualified]
+      ptype = resolve_param_type_against_receiver(ptype, pin, receiver_type)
+      ptype = ptype.self_to_type(pin.context)
+      return result if ptype.undefined?
+
+      if argtype.defined? && !arg_conforms_to?(argtype, ptype)
+        result.push Problem.new(location,
+                                "Wrong argument type for #{pin.path}: #{par.name} expected #{ptype}, received #{argtype}")
       end
       result
+    end
+
+    # Problems that belong to the call as a whole rather than to one
+    # keyword parameter: a `**` splat whose type records no keys, and
+    # keys a record type supplies that the method does not accept.
+    #
+    # @param sig [Pin::Signature]
+    # @param pin [Pin::Method]
+    # @param location [Location]
+    # @param arguments [Array<Source::Chain>]
+    # @param splat_keywords [Hash{Symbol => ComplexType}]
+    # @param unverifiable_splat [ComplexType, nil]
+    # @return [Array<Problem>]
+    def keyword_splat_problems_for sig, pin, location, arguments, splat_keywords, unverifiable_splat
+      keyword_params = sig.parameters.select(&:keyword?)
+      return [] if keyword_params.empty?
+
+      if unverifiable_splat
+        unverified = keyword_params.select { |par| par.decl == :kwarg }.map(&:name) -
+                     convert_hash(arguments.last&.node).keys.map(&:to_s)
+        return [] if unverified.empty?
+
+        return [Problem.new(location, unverifiable_splat_message(pin, unverifiable_splat, unverified))]
+      end
+      return [] if splat_keywords.empty? || sig.parameters.any?(&:kwrestarg?)
+
+      unrecognized = splat_keywords.keys.reject { |name| keyword_params.any? { |par| par.name.to_sym == name } }
+      return [] if unrecognized.empty?
+
+      [Problem.new(location, "Unrecognized keyword argument #{unrecognized.first} to #{pin.path}")]
+    end
+
+    # @param pin [Pin::Method]
+    # @param type [ComplexType]
+    # @param unverified [Array<String>] required keywords the splat may or may not supply
+    # @return [String]
+    def unverifiable_splat_message pin, type, unverified
+      "Cannot verify keyword arguments to #{pin.path}: the ** splat is #{type}, which does not record its keys, " \
+        "so required keyword #{unverified.length == 1 ? 'argument' : 'arguments'} #{unverified.join(', ')} " \
+        'cannot be checked - give the splatted value a record type ' \
+        "(e.g. Hash{:#{unverified.first} => Object}) to check it"
+    end
+
+    # The keywords a call's `**` splats record in their types.
+    #
+    # A splat of a literal hash is not included: its keys are in the node
+    # itself, and #convert_hash already has them.
+    #
+    # @param argchain [Source::Chain, nil] the call's final argument
+    # @param closure_pin [Pin::Closure]
+    # @param locals [Array<Pin::LocalVariable>]
+    # @return [Array(Hash{Symbol => ComplexType}, ComplexType), Array(Hash{Symbol => ComplexType}, nil)]
+    #   the keywords found, and the type of the first splat that records no keys
+    def keyword_splat_types argchain, closure_pin, locals
+      node = argchain&.node
+      # @sg-ignore Translate to something flow sensitive typing understands
+      return [{}, nil] unless Parser.is_ast_node?(node) && node.type == :hash
+
+      keywords = {}
+      # @sg-ignore Translate to something flow sensitive typing understands
+      node.children.each do |child|
+        next unless Parser.is_ast_node?(child) && child.type == :kwsplat
+        inner = child.children[0]
+        next if Parser.is_ast_node?(inner) && inner.type == :hash
+
+        type = Solargraph::Parser.chain(inner).infer(api_map, closure_pin, locals)
+        recorded = recorded_keyword_types(type)
+        return [{}, type] if recorded.nil?
+
+        keywords.merge!(recorded)
+      end
+      [keywords, nil]
+    end
+
+    # The keyword names and value types a record type records - e.g.
+    # `Hash{:a => Integer} & Hash{:b => String}` records a as Integer and
+    # b as String - or nil if the type does not record its keys.
+    #
+    # @param type [ComplexType]
+    # @return [Hash{Symbol => ComplexType}, nil]
+    def recorded_keyword_types type
+      return nil if type.undefined? || type.items.empty?
+
+      keywords = {}
+      type.items.each do |item|
+        conjuncts = item.is_a?(ComplexType::UniqueType::Intersection) ? item.conjuncts : [ComplexType.new([item])]
+        conjuncts.each do |conjunct|
+          conjunct.items.each do |unique_type|
+            recorded = symbol_keyed_entries(unique_type)
+            return nil if recorded.nil?
+
+            keywords.merge!(recorded)
+          end
+        end
+      end
+      keywords
+    end
+
+    # @param unique_type [ComplexType::UniqueType]
+    # @return [Hash{Symbol => ComplexType}, nil]
+    def symbol_keyed_entries unique_type
+      return nil unless unique_type.name == 'Hash'
+      return nil if unique_type.key_types.empty? || unique_type.key_types.length != unique_type.subtypes.length
+
+      entries = {}
+      unique_type.key_types.each_with_index do |key_type, i|
+        tags = key_type.items.map(&:tag)
+        return nil unless tags.length == 1 && tags.first.start_with?(':')
+
+        entries[tags.first[1..].to_sym] = unique_type.subtypes[i]
+      end
+      entries
     end
 
     # @param api_map [ApiMap]
@@ -589,12 +864,13 @@ module Solargraph
       tags.each do |tag|
         next if param_details.key? tag.name.to_s
         next if tag.types.nil?
+        # @type [Hash{:tagged => String} & Hash{:qualified => ComplexType}]
         details = {
           tagged: tag.types.join(', '),
           qualified: Solargraph::ComplexType.try_parse(*tag.types).qualify(api_map, pin.full_context.namespace)
         }
         # don't complain about a param that didn't come from the pin we're looking at anyway
-        if details[:qualified].defined? ||
+        if details.fetch(:qualified).defined? ||
            relevant_pin.parameter_names.include?(tag.name.to_s)
           param_details[tag.name.to_s] = details
         end
@@ -642,7 +918,9 @@ module Solargraph
         next unless param_names.include?(param_name)
 
         param_details[param_name] ||= {}
+        # @sg-ignore flow sensitive typing needs better handling of ||= on lvars
         param_details[param_name][:tagged] ||= details[:tagged]
+        # @sg-ignore flow sensitive typing needs better handling of ||= on lvars
         param_details[param_name][:qualified] ||= details[:qualified]
       end
     end
@@ -672,7 +950,6 @@ module Solargraph
     # @param pin [Pin::Base]
     def internal? pin
       return false if pin.nil?
-      # @sg-ignore flow sensitive typing needs to handle attrs
       pin.location && api_map.bundled?(pin.location.filename)
     end
 
@@ -693,7 +970,6 @@ module Solargraph
       raise 'No assignment found' if pin.assignment.nil?
 
       chain = Solargraph::Parser.chain(pin.assignment, filename)
-      # @sg-ignore flow sensitive typing needs to handle attrs
       rng = Solargraph::Range.from_node(pin.assignment)
       # @sg-ignore Need to add nil check here
       closure_pin = source_map.locate_closure_pin(rng.start.line, rng.start.column)
@@ -707,6 +983,7 @@ module Solargraph
         found = nil
         # @type [Array<Solargraph::Pin::Base>]
         all_found = []
+        # @sg-ignore Need to add nil check here
         until base.links.first.undefined?
           all_found = base.define(api_map, closure_pin, locals)
           found = all_found.first
@@ -730,7 +1007,7 @@ module Solargraph
         return [] if r.empty?
         r
       end
-      results.first
+      results.first || []
     end
 
     # @param pin [Pin::Method]
@@ -752,6 +1029,7 @@ module Solargraph
         if any_splatted_call?(unchecked.map(&:node))
           settled_kwargs = parameters.count(&:keyword?)
         else
+          # @sg-ignore Need to add nil check here
           kwargs = convert_hash(unchecked.last.node)
           if parameters.any? { |param| %i[kwarg kwoptarg].include?(param.decl) || param.kwrestarg? }
             if kwargs.empty?
@@ -764,7 +1042,9 @@ module Solargraph
                   kwargs.delete param.name.to_sym
                   settled_kwargs += 1
                 elsif param.decl == :kwarg
+                  # @sg-ignore Need to add nil check here
                   last_arg_last_link = arguments.last.links.last
+                  # @sg-ignore Need to add nil check here
                   return [] if last_arg_last_link.is_a?(Solargraph::Source::Chain::Hash) && last_arg_last_link.splatted?
                   return [Problem.new(location, "Missing keyword argument #{param.name} to #{pin.path}")]
                 end
@@ -789,6 +1069,7 @@ module Solargraph
         end
         return [] if arguments.length - req == parameters.select { |p| %i[optarg kwoptarg].include?(p.decl) }.length
         return [Problem.new(location, "Too many arguments to #{pin.path}")]
+      # @sg-ignore Need to add nil check here
       elsif unchecked.length < req - settled_kwargs && (arguments.empty? || (!arguments.last.splat? && !arguments.last.links.last.is_a?(Solargraph::Source::Chain::Hash)))
         # HACK: Kernel#raise signature is incorrect in Ruby 2.7 core docs.
         # See https://github.com/castwide/solargraph/issues/418
@@ -828,13 +1109,13 @@ module Solargraph
       with_block = false
       # @param pin [Pin::Parameter]
       pin.parameters.each do |pin|
-        # @sg-ignore flow sensitive typing should be able to handle redefinition
+        # @sg-ignore https://github.com/castwide/solargraph/issues/1250
         if %i[kwarg kwoptarg kwrestarg].include?(pin.decl)
           with_opts = true
-        # @sg-ignore flow sensitive typing should be able to handle redefinition
+        # @sg-ignore https://github.com/castwide/solargraph/issues/1250
         elsif pin.decl == :block
           with_block = true
-        # @sg-ignore flow sensitive typing should be able to handle redefinition
+        # @sg-ignore https://github.com/castwide/solargraph/issues/1250
         elsif pin.decl == :restarg
           args.push Solargraph::Source::Chain.new([Solargraph::Source::Chain::Variable.new(pin.name)], nil, true)
         else
@@ -856,7 +1137,6 @@ module Solargraph
     # @return [Set<Integer>]
     def all_sg_ignore_lines
       source.associated_comments.select do |_line, text|
-        # @sg-ignore Need to add nil check here
         text.any? { |t| t.include?('@sg-ignore') }
       end.keys.to_set
     end

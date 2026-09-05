@@ -59,7 +59,7 @@ describe Solargraph::Library do
     end
 
     it 'returns a Completion' do
-      library = described_class.new(Solargraph::Workspace.new(Dir.pwd,
+      library = described_class.new(Solargraph::Workspace.new('',
                                                               Solargraph::Workspace::Config.new))
       library.attach Solargraph::Source.load_string(%(
         require 'backport'
@@ -676,6 +676,16 @@ describe Solargraph::Library do
 
       library.catalog
       expect { library.send(:sync_catalog) }.not_to raise_error
+    end
+  end
+
+  describe '#cache_next_gemspec' do
+    it 'does not start a new caching pass while one is already in progress' do
+      library = described_class.new
+      library.instance_variable_set(:@cache_progress, Solargraph::LanguageServer::Progress.new('Caching gem'))
+      allow(library).to receive(:report_cache_progress)
+      library.send(:cache_next_gemspec)
+      expect(library).not_to have_received(:report_cache_progress)
     end
   end
 end
