@@ -84,12 +84,6 @@ Lint/DuplicateBranch:
     - 'lib/solargraph/parser/parser_gem/node_chainer.rb'
     - 'lib/solargraph/pin/base.rb'
 
-# Configuration parameters: DelegatingMethods.
-# DelegatingMethods: delegate
-Lint/DuplicateMethods:
-  Exclude:
-    - 'lib/solargraph/parser/parser_gem/node_chainer.rb'
-
 # This cop supports unsafe autocorrection (--autocorrect-all).
 Lint/InterpolationCheck:
   Exclude:

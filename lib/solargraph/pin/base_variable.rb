@@ -31,6 +31,8 @@ module Solargraph
       # @param assignments [Array<Parser::AST::Node>] Possible
       #   assignments that may have been made to this variable
       # @param mass_assignment [::Array(Parser::AST::Node, Integer, Boolean), nil]
+      #   The mass assignment node, this variable's position in the
+      #   left-hand side, and whether this variable is a splat target.
       # @param assignment [Parser::AST::Node, nil] First assignment
       #   that was made to this variable
       # @param assignments [Array<Parser::AST::Node>] Possible
@@ -325,27 +327,37 @@ module Solargraph
         unless @mass_assignment.nil?
           mass_node, index, splat = @mass_assignment
           types = return_types_from_node(mass_node, api_map)
+          # rubocop:disable Style/ConditionalAssignment
           if splat
             # A splat target (`*args`) captures every remaining
             # element of the right-hand side, not just one position -
             # take the source array's full parameter union rather
             # than a single indexed/first parameter.
             types = types.flat_map do |type|
-              if type.tuple? || ['::Array', '::Set', '::Enumerable'].include?(type.rooted_name)
+              if type.tuple? || splattable?(api_map, type)
                 type.all_params
               else
                 []
               end
             end
           else
-            types.map! do |type|
+            types = types.flat_map do |type|
               if type.tuple?
-                type.all_params[index]
-              elsif ['::Array', '::Set', '::Enumerable'].include?(type.rooted_name)
-                type.all_params.first
+                # A true tuple's positions are heterogeneous, so only
+                # the position actually being assigned applies here.
+                [type.all_params[index]].compact
+              elsif splattable?(api_map, type)
+                # A non-tuple Array-like type (e.g. Array<Integer,
+                # String>) declares a union of possible element types,
+                # not a positional tuple - every position can hold any
+                # member of that union, so the whole union applies.
+                type.all_params
+              else
+                []
               end
-            end.compact!
+            end
           end
+          # rubocop:enable Style/ConditionalAssignment
 
           return ComplexType::UNDEFINED if types.empty?
 
@@ -587,6 +599,19 @@ module Solargraph
         args.children.any? do |arg|
           arg.is_a?(::AST::Node) && arg.children[0].to_s == name
         end
+      end
+
+      # True for a type destructurable by a splat/multi-assignment target -
+      # Array/Set/Enumerable by name, or anything structurally Enumerable.
+      #
+      # @param api_map [ApiMap]
+      # @param type [ComplexType]
+      # @return [Boolean]
+      def splattable? api_map, type
+        return true if ['::Array', '::Set', '::Enumerable'].include?(type.rooted_name)
+
+        enumerable = ComplexType.parse('::Enumerable').qualify(api_map)
+        type.qualify(api_map).conforms_to?(api_map, enumerable, :assignment)
       end
 
       # @param api_map [ApiMap]

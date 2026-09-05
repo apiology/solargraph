@@ -97,7 +97,53 @@ describe Solargraph::Pin::BaseVariable do
     expect(args_pin.probe(api_map).tag).to eq('Array<Symbol, BasicObject>')
   end
 
-  it 'leaves a plain (non-splat) multiple assignment unaffected by splat handling' do
+  it 'infers a splat target of a non-collection type as undefined' do
+    source = Solargraph::Source.load_string(%(
+      class Repro
+        # @param mutator [Integer]
+        # @return [void]
+        def call(mutator)
+          command, *args = mutator
+        end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+    locals = api_map.source_map('test.rb').locals
+    args_pin = locals.find { |l| l.name == 'args' }
+    expect(args_pin.probe(api_map)).to be_undefined
+  end
+
+  it 'infers a splat target from a user-defined class that includes Enumerable' do
+    source = Solargraph::Source.load_string(%(
+      # @generic Elem
+      class MyBag
+        include Enumerable
+
+        # @yieldparam [generic<Elem>]
+        # @return [void]
+        def each; end
+      end
+
+      class Repro
+        # @param bag [MyBag<String>]
+        # @return [void]
+        def call(bag)
+          first, *rest = bag
+        end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+    locals = api_map.source_map('test.rb').locals
+    first_pin = locals.find { |l| l.name == 'first' }
+    rest_pin = locals.find { |l| l.name == 'rest' }
+    expect(first_pin.probe(api_map).tag).to eq('String')
+    expect(rest_pin.probe(api_map).tag).to eq('Array<String>')
+  end
+
+  it 'gives every non-splat target the full element union of a non-tuple Array' do
+    # #to_s, not #tag, so a regression collapsing the union to one member fails here.
     source = Solargraph::Source.load_string(%(
       class Repro
         # @param pair [Array<Integer, String>]
@@ -112,8 +158,8 @@ describe Solargraph::Pin::BaseVariable do
     locals = api_map.source_map('test.rb').locals
     a_pin = locals.find { |l| l.name == 'a' }
     b_pin = locals.find { |l| l.name == 'b' }
-    expect(a_pin.probe(api_map).tag).to eq('Integer')
-    expect(b_pin.probe(api_map).tag).to eq('Integer')
+    expect(a_pin.probe(api_map).to_s).to eq('Integer, String')
+    expect(b_pin.probe(api_map).to_s).to eq('Integer, String')
   end
 
   it 'infers an undefined splat target when the source is not itself a tuple or container' do
