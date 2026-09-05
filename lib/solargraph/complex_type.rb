@@ -562,9 +562,9 @@ module Solargraph
 
     private
 
-    # Narrows what a generic member binds against: context members this
-    # type already matches concretely are dropped, so the generic takes
-    # only what is left over rather than the whole union.
+    # Narrows what a generic member binds against: context members this type
+    # already matches concretely are dropped. Nothing left over means no value
+    # can reach the generic, which is bot.
     #
     # @param unique_type [UniqueType] A member of @items
     # @param context_type [ComplexType, UniqueType, nil]
@@ -576,7 +576,7 @@ module Solargraph
       return context_type if concrete_items.empty?
 
       remaining_items = context_type.items.reject { |ct| concrete_items.any? { |ci| ci.name == ct.name } }
-      return context_type if remaining_items.empty?
+      return BOT if remaining_items.empty?
 
       ComplexType.new(remaining_items)
     end

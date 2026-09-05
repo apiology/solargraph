@@ -553,12 +553,26 @@ describe 'YARD type specifier list parsing' do
                                                    { 'A' => 'String' }]
       }.freeze
 
-      UNION_COMPLEX_TYPE_GENERIC_TESTS.each do |name, (tag, context_type_tag, unfrozen_input_map, generics_to_resolve, expected_rooted_tags, expected_output_map)|
+      # The concrete members cover the whole context, so no value can reach the
+      # generic: it binds to bot, which the union then absorbs.
+      UNION_COMPLEX_TYPE_GENERIC_BOT_TESTS = {
+        context_covered_by_one_member: ['generic<A>, nil', 'nil', {}, %w[A], 'nil', { 'A' => 'bot' }],
+        context_covered_by_two_members: ['generic<A>, String, nil', 'String, nil', {}, %w[A], 'String, nil',
+                                         { 'A' => 'bot' }]
+      }.freeze
+
+      BOT_TYPE_PR = 'https://github.com/castwide/solargraph/pull/1277'
+
+      union_generic_cases = UNION_COMPLEX_TYPE_GENERIC_TESTS.map { |name, row| [name, row, nil] } +
+                            UNION_COMPLEX_TYPE_GENERIC_BOT_TESTS.map { |name, row| [name, row, BOT_TYPE_PR] }
+
+      union_generic_cases.each do |name, (tag, context_type_tag, unfrozen_input_map, generics_to_resolve, expected_rooted_tags, expected_output_map), pending_url|
         context "when resolving #{name}: union #{tag} with context #{context_type_tag} and existing resolved generics #{unfrozen_input_map}" do
           let(:complex_type) { Solargraph::ComplexType.parse(tag) }
           let(:context_type) { Solargraph::ComplexType.parse(context_type_tag) }
 
           it "resolves to #{expected_rooted_tags} with updated map #{expected_output_map}" do
+            pending pending_url if pending_url
             resolved_generic_values = unfrozen_input_map.transform_values { |tag| Solargraph::ComplexType.parse(tag) }
             resolved_type = complex_type.resolve_generics_from_context(generics_to_resolve, context_type,
                                                                        resolved_generic_values: resolved_generic_values)
