@@ -516,11 +516,9 @@ module Solargraph
         process_call_chain(expression_node, true_ranges, false_ranges)
       end
 
-      # Recognizes receivers of the form 'foo', '@foo', 'foo.bar', or
+      # Recognizes receivers shaped like 'foo', '@foo', 'foo.bar', or
       # '@foo.bar.baz' -- a chain of simple, argument-less, blockless
-      # calls/variable references rooted in a local variable, instance
-      # variable, or (for a bare call, e.g. 'foo' referring to a 0-arg
-      # method on self) an as-yet-unresolved name.
+      # calls/variables rooted in a local, ivar, or unresolved name.
       #
       # @param node [Parser::AST::Node, nil]
       # @return [::Array<String>, nil] Dotted-word chain, e.g. ['pin',
@@ -1177,9 +1175,7 @@ module Solargraph
         chain_words = parse_receiver_chain(node)
         return if chain_words.nil? || chain_words.empty?
 
-        # @sg-ignore Range.from_node is nil only for a node without
-        #   source location info, which doesn't happen for real parsed
-        #   nodes reaching here (same as isa_position/nilp_position above)
+        # @sg-ignore Need to add nil check here
         position = Range.from_node(node).start
 
         pin = chain_pin(chain_words, node, position)
