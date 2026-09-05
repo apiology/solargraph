@@ -56,29 +56,31 @@ module Solargraph
           # need to worry about the not-nil case
 
           binder = binder.without_nil if nullable?
-          # Resolve each arm alone, so a `self` return type narrows to that arm, not the whole union.
+          # Resolve one unique type at a time, so a `self` return type narrows to the one that supplied the pin.
           # @type [::Array<Pin::Base>]
           resolved = []
-          unresolved_arm = false
+          unresolved_type = false
           binder.each_unique_type do |context|
             ns_tag = context.namespace == '' ? '' : context.namespace_type.tag
             stack = api_map.get_method_stack(ns_tag, word, scope: context.scope)
             pin = stack.first
             if pin.nil?
-              unresolved_arm = true
+              unresolved_type = true
               next
             end
-            # This arm's name_pin binds only this arm, so #inferred_pins (incl. Class#new) sees just it.
-            arm_name_pin = Pin::ProxyType.anonymous(name_pin.context,
-                                                    closure: name_pin.closure,
-                                                    gates: name_pin.gates,
-                                                    binder: context,
-                                                    source: :chain)
-            resolved.concat inferred_pins([pin], api_map, arm_name_pin, locals)
+            # Bind name_pin to this type alone, so #inferred_pins (incl. Class#new) cannot see the others.
+            type_name_pin = Pin::ProxyType.anonymous(name_pin.context,
+                                                     closure: name_pin.closure,
+                                                     gates: name_pin.gates,
+                                                     binder: context,
+                                                     source: :chain)
+            resolved.concat inferred_pins([pin], api_map, type_name_pin, locals)
           end
-          return [] if unresolved_arm && !api_map.loose_unions
+          return [] if unresolved_type && !api_map.loose_unions
           return [] if resolved.empty?
-          # Dedup on return type too, so arms sharing an inherited pin path don't collapse to just the first.
+          # Accumulating every type's result treats the binder as a union, which is the only
+          # multi-type binder ComplexType builds; dedup on return type as well as path so that
+          # types sharing an inherited pin do not collapse to just the first.
           resolved.uniq { |pin| [pin.path, pin.return_type.tag] }
         end
 
@@ -175,10 +177,7 @@ module Solargraph
 
         # @param pins [::Enumerable<Pin::Base>]
         # @param api_map [ApiMap]
-        # @param name_pin [Pin::Base] name_pin.binder resolves `self` in the
-        #   resolved pins' declarations. For a union receiver, callers pass a
-        #   name_pin bound to the single arm that supplied `pins`, not the
-        #   whole union.
+        # @param name_pin [Pin::Base] its #binder resolves `self` in the declarations of `pins`
         # @param locals [::Array<Solargraph::Pin::LocalVariable, Solargraph::Pin::Parameter>]
         # @return [::Array<Pin::Base>]
         def inferred_pins pins, api_map, name_pin, locals

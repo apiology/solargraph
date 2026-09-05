@@ -361,11 +361,11 @@ describe Solargraph::Source::Chain::Call do
 
     chain = Solargraph::Source::SourceChainer.chain(source, Solargraph::Position.new(4, 11))
     type = chain.infer(api_map, Solargraph::Pin::ROOT_PIN, api_map.source_map('test.rb').locals)
-    # Array#each's `-> Enumerator[Elem, self]` narrows to the Array<Integer> arm, not the union.
+    # Array#each's `-> Enumerator[Elem, self]` narrows to the Array<Integer> member, not the union.
     expect(type.tag).to eq('Enumerator<Integer, Array<Integer>>')
   end
 
-  it 'resolves an RBS self return type to the union arm that supplied the method' do
+  it 'resolves an RBS self return type to the union member that supplied the method' do
     source = Solargraph::Source.load_string(%(
       # @type [String, Symbol]
       name = string_or_symbol
@@ -376,11 +376,11 @@ describe Solargraph::Source::Chain::Call do
 
     chain = Solargraph::Source::SourceChainer.chain(source, Solargraph::Position.new(3, 11))
     type = chain.infer(api_map, Solargraph::Pin::ROOT_PIN, api_map.source_map('test.rb').locals)
-    # Symbol#to_sym is `-> self` and String#to_sym is `-> Symbol`, so both arms give Symbol.
+    # Symbol#to_sym is `-> self` and String#to_sym is `-> Symbol`, so both members give Symbol.
     expect(type.tag).to eq('Symbol')
   end
 
-  it 'resolves a shared self-returning method separately for each union arm' do
+  it 'resolves a shared self-returning method separately for each union member' do
     source = Solargraph::Source.load_string(%(
       # @type [String, Symbol]
       name = string_or_symbol
@@ -391,11 +391,11 @@ describe Solargraph::Source::Chain::Call do
 
     chain = Solargraph::Source::SourceChainer.chain(source, Solargraph::Position.new(3, 11))
     type = chain.infer(api_map, Solargraph::Pin::ROOT_PIN, api_map.source_map('test.rb').locals)
-    # Kernel#itself is `-> self` and one pin for both arms, so each arm contributes its own self.
+    # Kernel#itself is `-> self` and one pin for both members, so each contributes its own self.
     expect(type.rooted_tags).to eq('::String, ::Symbol')
   end
 
-  it 'resolves a YARD @return [self] to the union arm that supplied the method' do
+  it 'resolves a YARD @return [self] to the union member that supplied the method' do
     source = Solargraph::Source.load_string(%(
       class Alpha
         # @return [Symbol]
@@ -420,7 +420,7 @@ describe Solargraph::Source::Chain::Call do
     expect(type.rooted_tags).to eq('::Symbol, ::Beta')
   end
 
-  it 'distributes a YARD self nested in a generic across union arms' do
+  it 'distributes a YARD self nested in a generic across union members' do
     source = Solargraph::Source.load_string(%(
       class Base
         # @return [Array<self>]
@@ -439,11 +439,11 @@ describe Solargraph::Source::Chain::Call do
 
     chain = Solargraph::Source::SourceChainer.chain(source, Solargraph::Position.new(11, 14))
     type = chain.infer(api_map, Solargraph::Pin::ROOT_PIN, api_map.source_map('test.rb').locals)
-    # Base#many is one shared pin, so the nested `self` resolves per arm, not to Array<Alpha, Beta>.
+    # Base#many is one shared pin, so the nested `self` resolves per member, not to Array<Alpha, Beta>.
     expect(type.rooted_tags).to eq('::Array<::Alpha>, ::Array<::Beta>')
   end
 
-  it 'does not leak one union arm into a Class#new call resolved on another arm' do
+  it 'does not leak one union member into a Class#new call resolved on another' do
     source = Solargraph::Source.load_string(%(
       class Beta; end
 
@@ -456,11 +456,11 @@ describe Solargraph::Source::Chain::Call do
 
     chain = Solargraph::Source::SourceChainer.chain(source, Solargraph::Position.new(5, 13))
     type = chain.infer(api_map, Solargraph::Pin::ROOT_PIN, api_map.source_map('test.rb').locals)
-    # The bare `Class` arm cannot know what its #new constructs, and Beta must not leak in from the other arm.
+    # The bare `Class` member cannot know what its #new constructs, and Beta must not leak in from the other.
     expect(type.rooted_tags).to eq('undefined')
   end
 
-  it 'resolves Class#new the same way regardless of union arm order' do
+  it 'resolves Class#new the same way regardless of union member order' do
     source = Solargraph::Source.load_string(%(
       class Beta; end
 
