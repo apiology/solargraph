@@ -2448,7 +2448,7 @@ describe Solargraph::TypeChecker do
       end
     end
 
-    it 'resolves Hash#fetch return type on Hash{Symbol => Class<X>} without leaking a generic placeholder' do
+    it "picks Hash#fetch's Hash::_Key-typed overload for a Symbol key instead of merging in the block form's generic" do
       # https://github.com/castwide/solargraph/issues/1227
       #
       # As of RBS 4.1.0, Hash#fetch's single-argument overload takes
