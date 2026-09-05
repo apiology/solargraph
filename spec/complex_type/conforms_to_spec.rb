@@ -241,29 +241,74 @@ describe Solargraph::ComplexType do
   end
 
   context 'with RBS interface types' do
+    around do |example|
+      require 'tmpdir'
+      Dir.mktmpdir('rspec-solargraph-') do |dir|
+        @temp_dir = dir
+        example.run
+      end
+    end
+
+    attr_reader :temp_dir
+
+    # Declared here rather than reused from core RBS, whose interfaces vary by version.
+    let(:rbs) do
+      <<~RBS
+        interface _MyKey
+          def hash: () -> Integer
+          def eql?: (untyped) -> bool
+        end
+
+        interface _MyToAry
+          def to_ary: () -> Array[untyped]
+        end
+
+        class MyKeyImpl
+          def hash: () -> Integer
+          def eql?: (untyped) -> bool
+        end
+
+        class BadToAry
+          def to_ary: () -> String
+        end
+
+        class BadKey
+          def eql?: () -> bool
+          def hash: () -> Integer
+        end
+      RBS
+    end
+
+    let(:api_map) do
+      File.write(File.join(temp_dir, 'interfaces.rbs'), rbs)
+      loader = RBS::EnvironmentLoader.new(core_root: nil, repository: RBS::Repository.new(no_stdlib: false))
+      loader.add(path: Pathname(temp_dir))
+      Solargraph::ApiMap.new.index(Solargraph::RbsMap::Conversions.new(loader: loader).pins)
+    end
+
     it 'structurally validates a type that satisfies the interface, without any rule' do
-      exp = described_class.parse('Hash::_Key')
-      inf = described_class.parse('Symbol')
+      exp = described_class.parse('_MyKey')
+      inf = described_class.parse('MyKeyImpl')
       match = inf.conforms_to?(api_map, exp, :method_call)
       expect(match).to be(true)
     end
 
     it 'structurally invalidates a type that does not satisfy the interface, even with allow_unmatched_interface' do
-      exp = described_class.parse('_ToAry')
+      exp = described_class.parse('_MyToAry')
       inf = described_class.parse('Integer')
       match = inf.conforms_to?(api_map, exp, :method_call, [:allow_unmatched_interface])
       expect(match).to be(false)
     end
 
     it 'rejects a type that does not satisfy the interface when the rule is absent' do
-      exp = described_class.parse('_ToAry')
+      exp = described_class.parse('_MyToAry')
       inf = described_class.parse('Integer')
       match = inf.conforms_to?(api_map, exp, :method_call)
       expect(match).to be(false)
     end
 
     it 'validates a type that satisfies the interface via a core fill include' do
-      exp = described_class.parse('_ToAry')
+      exp = described_class.parse('_MyToAry')
       inf = described_class.parse('Array')
       match = inf.conforms_to?(api_map, exp, :method_call)
       expect(match).to be(true)
@@ -278,16 +323,7 @@ describe Solargraph::ComplexType do
 
     it 'rejects a same-named method with the wrong return type' do
       pending 'https://github.com/castwide/solargraph/issues/1267'
-      source = Solargraph::Source.load_string(%(
-        class BadToAry
-          # @return [String]
-          def to_ary
-            'not an array'
-          end
-        end
-      ))
-      api_map.map source
-      exp = described_class.parse('_ToAry')
+      exp = described_class.parse('_MyToAry')
       inf = described_class.parse('BadToAry')
       match = inf.conforms_to?(api_map, exp, :method_call)
       expect(match).to be(false)
@@ -295,19 +331,7 @@ describe Solargraph::ComplexType do
 
     it 'rejects a same-named method with the wrong arity' do
       pending 'https://github.com/castwide/solargraph/issues/1267'
-      source = Solargraph::Source.load_string(%(
-        class BadKey
-          def eql?
-            true
-          end
-
-          def hash
-            1
-          end
-        end
-      ))
-      api_map.map source
-      exp = described_class.parse('Hash::_Key')
+      exp = described_class.parse('_MyKey')
       inf = described_class.parse('BadKey')
       match = inf.conforms_to?(api_map, exp, :method_call)
       expect(match).to be(false)
