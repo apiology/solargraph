@@ -404,7 +404,9 @@ module Solargraph
           # qualify(), however, happens in the namespace where
           # the docs were written - from the method pin.
           # @todo Need to add nil check here
+          # @sg-ignore Need to add nil check here
           if new_return_type.defined?
+            # @sg-ignore Need to add nil check here
             type = with_params(new_return_type.self_to_type(self_type), self_type).qualify(api_map, *pin.gates)
           end
           type ||= ComplexType::UNDEFINED
