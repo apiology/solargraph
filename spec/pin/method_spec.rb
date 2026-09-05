@@ -139,6 +139,78 @@ describe Solargraph::Pin::Method do
     expect(combined.documentation).to include('Returns:')
   end
 
+  it 'shows an RBS return type in the documentation of a pin combined from a YARD pin and an RBS pin' do
+    yard_pin = described_class.new(name: 'foo', closure: Solargraph::Pin::ROOT_PIN, source: :yardoc,
+                                   comments: "Zebra description from YARD.\n@param value [String] the value")
+    rbs_pin = described_class.new(name: 'foo', closure: Solargraph::Pin::ROOT_PIN, source: :rbs,
+                                  comments: 'Alpha description from RBS.',
+                                  return_type: Solargraph::ComplexType.try_parse('Integer').force_rooted)
+    combined = yard_pin.combine_with(rbs_pin)
+    expect(combined.documentation).to include('::Integer')
+  end
+
+  it 'discards its memoized documentation when generated state is reset' do
+    pin = described_class.new(name: 'foo', closure: Solargraph::Pin::ROOT_PIN, source: :source, comments: 'First.')
+    expect(pin.documentation).to include('First.')
+    pin.instance_variable_set(:@comments, 'Second.')
+    pin.instance_variable_set(:@docstring, nil)
+    pin.reset_generated!
+    expect(pin.documentation).to include('Second.')
+  end
+
+  it 'shows parameter types supplied by RBS rather than by a YARD param tag' do
+    pending 'https://github.com/castwide/solargraph/pull/1104'
+    pin = described_class.new(name: 'foo', closure: Solargraph::Pin::ROOT_PIN, source: :rbs,
+                              comments: 'Does a thing.',
+                              return_type: Solargraph::ComplexType.try_parse('String').force_rooted)
+    pin.parameters << Solargraph::Pin::Parameter.new(
+      name: 'value', closure: pin, source: :rbs,
+      return_type: Solargraph::ComplexType.try_parse('Integer').force_rooted
+    )
+    expect(pin.documentation).to include('value')
+    expect(pin.documentation).to include('::Integer')
+  end
+
+  it 'shows a YARD parameter description and an RBS return type together once the two pins are combined' do
+    pending 'https://github.com/castwide/solargraph/pull/1104'
+    yard_pin = described_class.new(name: 'foo', closure: Solargraph::Pin::ROOT_PIN, source: :yardoc,
+                                   comments: "Zebra description from YARD.\n@param value [String] the value")
+    rbs_pin = described_class.new(name: 'foo', closure: Solargraph::Pin::ROOT_PIN, source: :rbs,
+                                  comments: 'Alpha description from RBS.',
+                                  return_type: Solargraph::ComplexType.try_parse('Integer').force_rooted)
+    combined = yard_pin.combine_with(rbs_pin)
+    expect(combined.documentation).to include('the value')
+    expect(combined.documentation).to include('::Integer')
+  end
+
+  it 'documents a combined pin the same way before and after a proxy to its own return type' do
+    pending 'https://github.com/castwide/solargraph/pull/1104'
+    yard_pin = described_class.new(name: 'foo', closure: Solargraph::Pin::ROOT_PIN, source: :yardoc,
+                                   comments: "Zebra description from YARD.\n@param value [String] the value")
+    rbs_pin = described_class.new(name: 'foo', closure: Solargraph::Pin::ROOT_PIN, source: :rbs,
+                                  comments: 'Alpha description from RBS.',
+                                  return_type: Solargraph::ComplexType.try_parse('Integer').force_rooted)
+    combined = yard_pin.combine_with(rbs_pin)
+    expect(combined.proxy(combined.return_type).documentation).to eq(combined.documentation)
+  end
+
+  it 'keeps a parameter tag added straight to the docstring when proxied to a new return type' do
+    pending 'https://github.com/castwide/solargraph/pull/1104'
+    pin = described_class.new(name: 'baz=', closure: Solargraph::Pin::ROOT_PIN, source: :source, comments: 'Sets baz.')
+    pin.docstring.add_tag(YARD::Tags::Tag.new(:param, 'the new value', ['String'], 'value'))
+    proxied = pin.proxy(Solargraph::ComplexType.try_parse('String').force_rooted)
+    expect(proxied.docstring.tags(:param).map(&:name)).to eq(['value'])
+    expect(proxied.documentation).to include('the new value')
+  end
+
+  it 'leaves a docstring that already lists several return types alone when realized' do
+    pending 'https://github.com/castwide/solargraph/pull/1104'
+    pin = described_class.new(name: 'multi', closure: Solargraph::Pin::ROOT_PIN, source: :source,
+                              comments: "Multi.\n@return [String]\n@return [Integer]")
+    realized = pin.realize(Solargraph::ApiMap.new)
+    expect(realized.docstring.tags(:return).length).to eq(2)
+  end
+
   it 'ignores malformed return tags' do
     pin = described_class.new(name: 'bar', comments: '@return [Array<String')
     expect(pin.return_type).to be_undefined

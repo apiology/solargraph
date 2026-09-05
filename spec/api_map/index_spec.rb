@@ -70,5 +70,19 @@ describe Solargraph::ApiMap::Index do
       method_pin = output_pins.find { |pin| pin.path == 'Foo.new' }
       expect(method_pin.comments).to eq("#{method_pin.docstring.to_raw}\n")
     end
+
+    context 'when the override targets a pin class that is not a method' do
+      let(:input_pins) do
+        [foo_class,
+         Solargraph::Pin::Constant.new(name: 'BAR', closure: foo_class),
+         Solargraph::Pin::Reference::Override.from_comment('Foo::BAR', '@deprecated use something else')]
+      end
+
+      it 'applies the override instead of raising on a pin that cannot take new comments' do
+        pending 'https://github.com/castwide/solargraph/pull/1104'
+        constant_pin = output_pins.find { |pin| pin.path == 'Foo::BAR' }
+        expect(constant_pin.docstring.tag(:deprecated)).not_to be_nil
+      end
+    end
   end
 end

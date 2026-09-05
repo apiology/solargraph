@@ -70,4 +70,23 @@ describe Solargraph::Pin::BaseVariable do
     checker = Solargraph::TypeChecker.load_string(code, 'test.rb', :alpha)
     expect(checker.problems.map(&:message)).to eq([])
   end
+
+  it 'recovers an RBS-supplied parameterized type unchanged from the docstring type tag it is synced into' do
+    return_type = Solargraph::ComplexType.try_parse('Hash{Symbol => Array<String>}').force_rooted
+    pin = Solargraph::Pin::InstanceVariable.new(name: '@h', closure: Solargraph::Pin::ROOT_PIN,
+                                                source: :rbs, return_type: return_type)
+    expect(pin.docstring.tag(:type).types).to eq(['::Hash{::Symbol => ::Array<::String>}'])
+    expect(pin.return_type.rooted_tags).to eq(return_type.rooted_tags)
+  end
+
+  it 'shows its type in documentation, whether the type came from RBS or from a YARD type tag' do
+    pending 'https://github.com/castwide/solargraph/pull/1104'
+    rbs_pin = Solargraph::Pin::InstanceVariable.new(name: '@foo', closure: Solargraph::Pin::ROOT_PIN, source: :rbs,
+                                                    comments: 'The foo.',
+                                                    return_type: Solargraph::ComplexType.try_parse('String').force_rooted)
+    yard_pin = Solargraph::Pin::InstanceVariable.new(name: '@bar', closure: Solargraph::Pin::ROOT_PIN,
+                                                     source: :source, comments: "The bar.\n@type [String]")
+    expect(rbs_pin.documentation).to include('String')
+    expect(yard_pin.documentation).to include('String')
+  end
 end
