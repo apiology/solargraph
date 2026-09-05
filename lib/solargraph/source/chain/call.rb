@@ -171,24 +171,24 @@ module Solargraph
             overloads = p.signatures
             # next p if overloads.empty?
             type = ComplexType::UNDEFINED
-            # start with overloads that require blocks; if we are
-            # passing a block, we want to find a signature that will
-            # use it.  If we didn't pass a block, the logic below will
-            # reject it regardless
-
-            with_block, without_block = overloads.partition(&:block?)
             # @sg-ignore flow sensitive typing should handle is_a? and next
             # @type Array<Pin::Signature>
-            sorted_overloads = with_block + without_block
+            sorted_overloads = dispatch_order(overloads)
             # @type [Pin::Signature, nil]
             new_signature_pin = nil
+            # @type [Pin::Signature, nil]
+            selected_signature_pin = nil
             # @sg-ignore flow sensitive typing should handle is_a? and next
             # @param ol [Pin::Signature]
             sorted_overloads.each do |ol|
               type, new_signature_pin = match_overload_type(ol, p, api_map, name_pin, locals, type, new_signature_pin)
+              # Signatures are tried in preference order, so the first to
+              # match is the best available match. A later one may replace
+              # it only by supplying the return type it could not.
+              selected_signature_pin = new_signature_pin if selected_signature_pin.nil? || type.defined?
               break if type.defined?
             end
-            p = p.with_single_signature(new_signature_pin) unless new_signature_pin.nil?
+            p = p.with_single_signature(selected_signature_pin) unless selected_signature_pin.nil?
             next p.proxy(type) if type.defined?
             if !p.macros.empty?
               result = process_macro(p, api_map, name_pin.context, locals)
@@ -216,6 +216,45 @@ module Solargraph
               # @sg-ignore Need to add nil check here
               selfy == pin.return_type ? pin : pin.proxy(selfy)
             end
+          end
+        end
+
+        # Orders overload signatures for dispatch.
+        #
+        # If we are passing a block, we want to find a signature
+        # that will use it, so block-taking overloads go first.
+        #
+        # If we did NOT pass a block, a block-taking YARD overload
+        # is not guaranteed to be rejected by arity_matches?: YARD
+        # signatures have no way to express a required block, so
+        # Pin::Callable#block_required? defaults false for them,
+        # and arity_matches? only rejects a missing block when
+        # block_required? is true. Without a block at the call
+        # site, try the non-block overloads first instead, so a
+        # sibling overload that differs only by block presence
+        # (e.g. two @overload tags with identical explicit params,
+        # one plain and one block-taking) resolves to the plain
+        # one rather than to the block overload's possibly-
+        # unresolved block-bound generic.
+        #
+        # @param overloads [::Array<Pin::Signature>]
+        # @return [::Array<Pin::Signature>]
+        def dispatch_order overloads
+          with_block, without_block = overloads.partition(&:block?)
+          # A signature whose block declares no yielded parameters
+          # (e.g. a `&block` parameter documented with no @yieldparam,
+          # which yields `{ () -> }`) says nothing about what the block
+          # receives. When a sibling signature declares yielded
+          # parameters, try that one first: the block's parameters
+          # resolve from whichever signature is selected here, and Ruby
+          # blocks accept fewer arguments than are yielded, so the
+          # parameterized signature is the strictly more informative
+          # match whenever both are otherwise equally applicable.
+          yielding, non_yielding = with_block.partition { |sig| !sig.block.parameters.empty? }
+          if with_block?
+            yielding + non_yielding + without_block
+          else
+            without_block + non_yielding + yielding
           end
         end
 

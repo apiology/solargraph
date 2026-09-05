@@ -709,4 +709,84 @@ describe Solargraph::Source::Chain::Call do
     clip = api_map.clip_at('test.rb', [14, 14])
     expect(clip.infer.rooted_tags).to eq('::Set<::Foo::Bar::Symbol>')
   end
+
+  it 'prefers a block signature that declares yielded parameters over one that does not' do
+    # Two docs for the same method, combined by ApiMap::Store into one pin
+    # with two block-taking signatures:
+    #
+    #   1. bare `&block`, no @yieldparam - yields `{ () -> }`
+    #   2. `&block` with @yieldparam and @return both declared
+    #
+    # Signature (1) is mapped first, so without the reorder in
+    # Call#inferred_pins it would be tried first, match (both signatures
+    # have the same arity), and win outright - leaving the block
+    # parameter's type undefined. With the reorder, (2) is tried first
+    # because it is the only signature whose block declares parameters;
+    # it matches and immediately supplies a return type, so
+    # new_signature_pin is set once and the loop breaks without ever
+    # considering (1). The block parameter is therefore typed from (2).
+    bare_no_return = Solargraph::SourceMap.load_string(%(
+      module Widgetbox
+        class Item
+        end
+
+        class << self
+          def build(&block)
+          end
+        end
+      end
+    ), 'widgetbox.rb')
+    yielding_with_return = Solargraph::SourceMap.load_string(%(
+      # @!parse
+      #   module Widgetbox
+      #     class << self
+      #       # @yieldparam item [Widgetbox::Item]
+      #       # @return [Widgetbox::Item]
+      #       def build(&block); end
+      #     end
+      #   end
+    ), 'yieldparam_stub.rb')
+    caller_source = Solargraph::Source.load_string(%(
+      Widgetbox.build do |item|
+        item
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.catalog Solargraph::Bench.new(source_maps: [bare_no_return, yielding_with_return,
+                                                        Solargraph::SourceMap.map(caller_source)])
+
+    clip = api_map.clip_at('test.rb', [2, 12])
+    expect(clip.infer.tag).to eq('Widgetbox::Item')
+  end
+
+  it 'keeps an earlier matching signature only until a later one supplies a return type' do
+    # Two overloads for the same method, neither taking a block:
+    #
+    #   1. matches the call's single argument but declares no @return
+    #   2. matches the same argument and declares @return
+    #
+    # Both are tried in source order (there is no block to reorder by).
+    # (1) matches first, so new_signature_pin is set to it - but since
+    # it declares no return type, the loop doesn't break and continues
+    # to (2), which matches and supplies a return type. new_signature_pin
+    # is replaced by (2), and that replacement is what the resolved type
+    # comes from.
+    source = Solargraph::Source.load_string(%(
+      class Widget
+        # @overload build(name)
+        #   @param name [String]
+        # @overload build(name)
+        #   @param name [String]
+        #   @return [Widget]
+        def build(name)
+        end
+      end
+
+      Widget.new.build('foo')
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+    clip = api_map.clip_at('test.rb', [10, 6])
+    expect(clip.infer.tag).to eq('Widget')
+  end
 end
