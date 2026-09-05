@@ -64,9 +64,7 @@ module Solargraph
             [stack.first].compact
           end
           pin_groups = [] if !api_map.loose_unions && pin_groups.any?(&:empty?)
-          # Dedup on path and resolved return type. Union members resolve the
-          # same path against different contexts, so pins can share a path yet
-          # return different types; keying on path alone drops all but the first.
+          # Several union members can end up with the same pin and return type.
           # @sg-ignore Array#flatten returns a bare Array, so uniq's block param has no element type to infer from
           pins = pin_groups.flatten.uniq { |p| [p.path, p.return_type.rooted_tags] }
           return [] if pins.empty?
