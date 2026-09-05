@@ -48,7 +48,7 @@ module Solargraph
             return if corrections&.empty?
 
             Solargraph.logger.info('Formatting result:')
-            # @sg-ignore flow sensitive typing should be able to handle redefinition
+            # @sg-ignore Need to add nil check here
             corrections.each_line do |line|
               next if line.strip.empty?
               Solargraph.logger.info(line.strip)
