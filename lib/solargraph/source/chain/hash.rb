@@ -56,7 +56,6 @@ module Solargraph
         # @param locals [::Array<Pin::Base>]
         # @return [ComplexType]
         def inferred_type api_map, name_pin, locals
-          # @type [::Array<::Array(Chain, Chain)>, nil]
           pairs = @pairs
           return @complex_type if pairs.nil? || pairs.empty?
 

@@ -303,6 +303,18 @@ module Solargraph
         name == other.name && (all_params.empty? || all_params.all?(&:undefined?))
       end
 
+      # The first pin of the method stack for +word+ on this type, or
+      # nil when the method does not resolve.
+      #
+      # @param word [String]
+      # @param api_map [ApiMap]
+      # @return [::Array<Pin::Base>, nil]
+      def method_stack_pins word, api_map
+        ns_tag = namespace == '' ? '' : namespace_type.tag
+        stack = api_map.get_method_stack(ns_tag, word, scope: scope)
+        stack.first.nil? ? nil : [stack.first]
+      end
+
       # @param api_map [ApiMap]
       # @param expected [ComplexType::UniqueType, ComplexType]
       # @param situation [:method_call, :assignment, :return_type]

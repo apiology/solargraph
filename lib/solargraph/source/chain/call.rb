@@ -64,8 +64,8 @@ module Solargraph
 
         private
 
-        # Resolves the pins for calling `word` on every top-level
-        # alternative of a binder type (loose_unions allows leniency).
+        # Resolves the pins for calling `word` on a binder type, with an
+        # intersection narrowed to the conjuncts this call can dispatch to.
         #
         # @param binder_type [ComplexType, ComplexType::UniqueType]
         # @param api_map [ApiMap]
@@ -73,38 +73,10 @@ module Solargraph
         # @param locals [::Array<Pin::LocalVariable, Pin::Parameter>]
         # @return [::Array<Pin::Base>]
         def method_pins_for_binder binder_type, api_map, name_pin, locals
-          top_level_types = binder_type.is_a?(ComplexType) ? binder_type.to_a : [binder_type]
-          pin_groups = top_level_types.map { |unique_type| method_stack_pins(unique_type, api_map, name_pin, locals) }
-          pin_groups = [] if !api_map.loose_unions && pin_groups.any?(&:nil?)
-          # Dedup on path *and* return type: alternatives can share a
-          # path (e.g. same generic method on different instantiations).
-          # @param p [Pin::Base]
-          pin_groups.compact.flatten.uniq { |p| [p.path, p.return_type.tag] }
-        end
-
-        # Resolves the method stack's first pin for one top-level type.
-        # An Intersection needs only one conjunct to define the method.
-        #
-        # @param unique_type [ComplexType::UniqueType]
-        # @param api_map [ApiMap]
-        # @param name_pin [Pin::Base]
-        # @param locals [::Array<Pin::LocalVariable, Pin::Parameter>]
-        # @return [::Array<Pin::Base>, nil] nil when unresolved
-        def method_stack_pins unique_type, api_map, name_pin, locals
-          if unique_type.is_a?(ComplexType::UniqueType::Intersection)
-            resolved = argument_verified_conjuncts(unique_type.conjuncts, api_map, name_pin, locals).filter_map do |conjunct|
-              pins = method_pins_for_binder(conjunct, api_map, name_pin, locals)
-              pins.empty? ? nil : pins
-            end
-            return nil if resolved.empty?
-            # @param p [Pin::Base]
-            resolved.flatten.uniq { |p| [p.path, p.return_type.tag] }
-          else
-            ns_tag = unique_type.namespace == '' ? '' : unique_type.namespace_type.tag
-            stack = api_map.get_method_stack(ns_tag, word, scope: unique_type.scope)
-            return nil if stack.first.nil?
-            [stack.first]
+          pins = binder_type.method_stack_pins(word, api_map) do |conjuncts|
+            argument_verified_conjuncts(conjuncts, api_map, name_pin, locals)
           end
+          pins || []
         end
 
         # Narrows conjuncts to the ones with at least one signature

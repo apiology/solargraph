@@ -61,6 +61,26 @@ module Solargraph
           conjuncts.fetch(0).scope
         end
 
+        # Pins from the conjuncts defining the method - one is enough -
+        # narrowed by the block to those the caller can dispatch to.
+        #
+        # @param word [String]
+        # @param api_map [ApiMap]
+        # @yieldparam conjuncts [::Array<ComplexType>]
+        # @yieldreturn [::Array<ComplexType>]
+        # @return [::Array<Pin::Base>, nil] nil when no conjunct defines it
+        def method_stack_pins word, api_map, &narrow_conjuncts
+          candidates = block_given? ? yield(conjuncts) : conjuncts
+          resolved = candidates.filter_map do |conjunct|
+            pins = conjunct.method_stack_pins(word, api_map, &narrow_conjuncts)
+            pins.empty? ? nil : pins
+          end
+          return nil if resolved.empty?
+
+          # @param p [Pin::Base]
+          resolved.flatten.uniq { |p| [p.path, p.return_type.tag] }
+        end
+
         def generic?
           conjuncts.any?(&:generic?)
         end

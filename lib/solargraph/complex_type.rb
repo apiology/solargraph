@@ -46,6 +46,24 @@ module Solargraph
       ComplexType.new(types).reduce_object
     end
 
+    # Pins for calling +word+ on each alternative of this union
+    # (loose_unions allows leniency).
+    #
+    # @param word [String]
+    # @param api_map [ApiMap]
+    # @yieldparam conjuncts [Array<ComplexType>] the conjuncts of an intersection
+    # @yieldreturn [Array<ComplexType>] the conjuncts to dispatch on
+    # @return [Array<Pin::Base>]
+    def method_stack_pins word, api_map, &narrow_conjuncts
+      pin_groups = @items.map { |item| item.method_stack_pins(word, api_map, &narrow_conjuncts) }
+      return [] if !api_map.loose_unions && pin_groups.any?(&:nil?)
+
+      # Dedup on path *and* return type: alternatives can share a
+      # path (e.g. same generic method on different instantiations).
+      # @param p [Pin::Base]
+      pin_groups.compact.flatten.uniq { |p| [p.path, p.return_type.tag] }
+    end
+
     # @param generics_to_resolve [Enumerable<String>]]
     # @param context_type [ComplexType, ComplexType::UniqueType, nil]
     # @param resolved_generic_values [Hash{String => ComplexType}] Added to as types are encountered or resolved
