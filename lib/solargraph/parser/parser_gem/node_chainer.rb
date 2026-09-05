@@ -208,25 +208,6 @@ module Solargraph
           end
         end
 
-        # Chains each key/value pair of a literal hash so Chain::Hash
-        # can infer Hash{K => V} from its actual contents, the same
-        # way Chain::Array infers Array<T> from its elements. Returns
-        # nil (falling back to a bare, unparameterized Hash) when any
-        # entry isn't a plain `key => value` pair - a `**splat` entry
-        # contributes key/value types we have no node to chain.
-        #
-        # @param node [Parser::AST::Node]
-        # @return [::Array<::Array(Chain, Chain)>, nil]
-        def hash_pairs node
-          return nil unless Parser.is_ast_node?(node) && node.type == :hash
-          return nil unless node.children.all? { |pair| Parser.is_ast_node?(pair) && pair.type == :pair }
-
-          node.children.map do |pair|
-            key_node, value_node = pair.children
-            [NodeChainer.chain(key_node, @filename, pair), NodeChainer.chain(value_node, @filename, pair)]
-          end
-        end
-
         # @param node [Parser::AST::Node]
         # @return [Source::Chain, nil]
         def passed_block node
