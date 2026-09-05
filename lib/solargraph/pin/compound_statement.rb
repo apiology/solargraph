@@ -44,23 +44,15 @@ module Solargraph
     class CompoundStatement < Pin::Base
       attr_reader :node
 
-      # The immediately enclosing CompoundStatement, if any - nil only
-      # for the synthetic root Namespace Region creates for top-level
-      # code. Since Closure < CompoundStatement, walking this chain
-      # until an ancestor is_a?(Closure) is how Base#closure is
-      # derived when a pin has no directly-assigned @closure.
+      # The immediately enclosing CompoundStatement - nil only for the
+      # synthetic root Namespace Region creates for top-level code.
       #
       # @return [Pin::CompoundStatement, nil]
       attr_reader :compound_statement
 
-      # True if this construct's body may be skipped, or run zero or
-      # multiple times, at runtime - e.g. an if/while/until/rescue/&&/
-      # ||/||= body, or a block body (which, despite being a Closure
-      # like Method/Namespace, may run zero or many times depending on
-      # the method it's passed to, unlike a method/namespace body,
-      # which always runs exactly once when reached). Defaults false -
-      # true only where a node processor explicitly marks a construct
-      # as conditionally executed.
+      # True if this body may be skipped or run more than once - an
+      # if/while/until/rescue/&&/||/||= body, or a block, whose call
+      # count depends on the method it is passed to. Defaults false.
       #
       # @return [Boolean]
       attr_reader :conditional
@@ -87,11 +79,8 @@ module Solargraph
         super(other, new_attrs)
       end
 
-      # Bare CompoundStatement pins (if/when/rescue/&&/||/||= bodies)
-      # all share name == '', so the same-name-assertion in
-      # Base#choose_pin_attr_with_same_name (used by #combine_closure)
-      # would be meaningless noise here - pick by location instead,
-      # mirroring BaseVariable#combine_closure.
+      # Bare CompoundStatement pins all share name == '', so pick by
+      # location instead, as BaseVariable#combine_closure does.
       #
       # @param other [self]
       # @return [Pin::CompoundStatement, nil]

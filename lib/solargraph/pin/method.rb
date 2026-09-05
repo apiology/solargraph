@@ -668,10 +668,8 @@ module Solargraph
           end
           rng = Range.from_node(n)
           next unless rng
-          # A flow-sensitive downcast's presence can end before the return
-          # node's own end (e.g. inside `!(foo.nil? || foo < 5)`); chain
-          # resolution re-checks each local's presence at its own sub-node
-          # location, so pass the full local set rather than pre-filtering here.
+          # Pass the full local set: chain resolution re-checks each
+          # presence per sub-node, and a downcast can end early.
           # @sg-ignore Need to add nil check here
           all_locals = api_map.source_map(location.filename).locals
           # @sg-ignore Need to add nil check here

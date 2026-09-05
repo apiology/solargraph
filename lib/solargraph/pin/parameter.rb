@@ -209,10 +209,8 @@ module Solargraph
       # @param api_map [ApiMap]
       def typify api_map
         if definite
-          # flow sensitive typing: this parameter was reassigned by
-          # an assignment guaranteed to have executed, so prefer the
-          # type of the value it was reassigned to over its declared
-          # @param type
+          # reassigned by an assignment guaranteed to have run, so the
+          # reassigned type wins over the declared @param type
           reassigned_type = probe(api_map)
           return reassigned_type if reassigned_type.defined?
         end

@@ -30,15 +30,8 @@ module Solargraph
                 source: :parser
               )
             end
-            # Not pushed onto `pins`: this CompoundStatement is never
-            # looked up on its own (an and/or/orasgn/resbody body has
-            # no identity worth indexing the way a def/class does),
-            # it only needs to exist as the value every pin created
-            # below it (via region.update(compound_statement: ...))
-            # carries in its own `compound_statement` field, so those
-            # pins can walk back up to find their enclosing
-            # conditionally-executed scope. Once processing the body
-            # returns, rescue_body_cs itself is discarded.
+            # Not pushed onto `pins`: it is never looked up by itself, only
+            # carried by the pins below it so they can find this scope.
             # @sg-ignore RBS Array[self] indexing infers Array instead of self
             rescue_body_cs = Solargraph::Pin::CompoundStatement.new(
               # @sg-ignore RBS Array[self] indexing infers Array instead of self

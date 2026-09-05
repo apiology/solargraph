@@ -732,13 +732,8 @@ module Solargraph
 
       private
 
-      # Fallback for pins with no directly-assigned @closure: walk the
-      # CompoundStatement parent chain (present only on
-      # CompoundStatement-family pins - Closure, While, Until, etc.)
-      # until an ancestor is_a?(Closure). Every pin built through
-      # Region-threaded node processors already gets an explicit
-      # closure:, so this only matters for a pin constructed purely
-      # from a compound_statement chain with no closure: override.
+      # Fallback for a pin with no @closure of its own: walk the
+      # compound_statement chain up to the first Closure ancestor.
       #
       # @return [Pin::Closure, nil]
       def derive_closure_from_compound_statement

@@ -6,17 +6,8 @@ module Solargraph
     # source.
     #
     class Region
-      # The nearest enclosing Closure pin (a method, block, or
-      # namespace). Every pin needs this at construction time, so it
-      # is tracked directly here rather than derived by walking
-      # `compound_statement` up to its nearest Closure ancestor on
-      # every pin push - that walk is `Pin::Base#closure`'s fallback
-      # for a pin built with no `@closure` of its own, not the normal
-      # path. `closure` only changes at a def/class/module/block
-      # boundary; `compound_statement` changes at every conditional
-      # branch, which is far more often - keeping them as two fields
-      # updated at their own rates avoids re-walking a chain that is
-      # usually unchanged since the last pin.
+      # Nearest enclosing Closure (method, block, or namespace). Kept as
+      # its own field: it changes far less often than `compound_statement`.
       #
       # @return [Pin::Closure]
       attr_reader :closure
@@ -33,13 +24,9 @@ module Solargraph
       # @return [Array<Symbol>]
       attr_reader :lvars
 
-      # The nearest enclosing CompoundStatement pin (an if/when/while/
-      # rescue/&&/||/||= body, a method/block body, or a namespace
-      # body) - a series of statements/expressions where a later one
-      # executing implies the earlier ones in the same series
-      # executed too. Every Closure is also a CompoundStatement, so
-      # this is a superset of the `closure` chain: it additionally
-      # includes branch bodies that aren't scopes.
+      # Nearest enclosing CompoundStatement - a statement series where a
+      # later one running implies the earlier ones did. Superset of
+      # `closure`, adding branch bodies that are not scopes.
       #
       # @return [Pin::CompoundStatement]
       attr_reader :compound_statement
