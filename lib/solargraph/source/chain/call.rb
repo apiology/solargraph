@@ -377,7 +377,6 @@ module Solargraph
           # @todo It shouldn't be necessary to choose either generics or macros
           # @sg-ignore Need to add nil check here
           new_return_type = if new_signature_pin.return_type.defined?
-                              # @sg-ignore Need to add nil check here
                               new_signature_pin.return_type
                             else
                               # @sg-ignore Need to add nil check here
@@ -587,7 +586,6 @@ module Solargraph
         def find_method_pin name_pin
           method_pin = name_pin
           until method_pin.is_a?(Pin::Method)
-            # @sg-ignore Need to support this in flow sensitive typing
             method_pin = method_pin.closure
             return if method_pin.nil?
           end
@@ -682,9 +680,7 @@ module Solargraph
 
         protected
 
-        # @sg-ignore Fix "Not enough arguments to Module#protected"
         def equality_fields
-          # @sg-ignore literal arrays in this module turn into ::Solargraph::Source::Chain::Array
           super + [arguments, block]
         end
       end

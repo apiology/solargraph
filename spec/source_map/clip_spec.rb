@@ -2955,7 +2955,7 @@ describe Solargraph::SourceMap::Clip do
   ), 'test.rb')
     api_map = Solargraph::ApiMap.new.map(source)
     clip = api_map.clip_at('test.rb', [2, 6])
-    expect(clip.infer.to_s).to eq('String')
+    expect(clip.infer.to_s).to eq('"a"')
 
     clip = api_map.clip_at('test.rb', [4, 6])
     expect(clip.infer.to_s).to eq('123')

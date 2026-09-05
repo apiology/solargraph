@@ -241,7 +241,7 @@ describe Solargraph::Pin::LocalVariable do
           end
           x
         end
-      ), 6, 10)).to eq('String')
+      ), 6, 10)).to eq('"str"')
     end
 
     it 'keeps a name first assigned inside the block out of the outer scope' do

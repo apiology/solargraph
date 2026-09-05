@@ -9,7 +9,6 @@ describe Solargraph::Source::Chain::Literal do
   end
 
   it 'does not corrupt a string literal containing a comma, once literal typing is restored' do
-    pending 'https://github.com/castwide/solargraph/pull/1223'
     node = Solargraph::Parser.parse("'a, b'", 'test.rb', 0)
     literal = described_class.new('String', node)
     api_map = Solargraph::ApiMap.new

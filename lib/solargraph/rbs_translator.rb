@@ -184,6 +184,8 @@ module Solargraph
       private
 
       # @param type [RBS::Types::Bases::Base]
+      # @param type_alias_decls [Hash{String => RBS::AST::Declarations::TypeAlias}]
+      # @param expanding_aliases [Array<String>]
       # @return [String]
       def type_to_tag type, type_alias_decls: {}, expanding_aliases: []
         # Every branch below narrows `type` by class via `when`, but
@@ -274,6 +276,8 @@ module Solargraph
       end
 
       # @param member [RBS::Types::Bases::Base]
+      # @param type_alias_decls [Hash{String => RBS::AST::Declarations::TypeAlias}]
+      # @param expanding_aliases [Array<String>]
       # @return [String]
       def intersection_conjunct_tag member, type_alias_decls: {}, expanding_aliases: []
         tag = type_to_tag(member, type_alias_decls: type_alias_decls, expanding_aliases: expanding_aliases)

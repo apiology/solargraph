@@ -148,7 +148,7 @@ describe Solargraph::Source::Chain::Call do
     api_map.map(source)
     chain = Solargraph::Source::SourceChainer.chain(source, Solargraph::Position.new(6, 9))
     type = chain.infer(api_map, Solargraph::Pin::ROOT_PIN, api_map.source_map('test.rb').locals)
-    expect(type.rooted_tags).to eq('::String')
+    expect(type.rooted_tags).to eq('"hi"')
   end
 
   it 'expands a named macro reached through a non-macro directive that shares its name' do

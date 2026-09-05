@@ -219,11 +219,9 @@ module Solargraph
         # @return [::Array<::Array(Chain, Chain)>, nil]
         def hash_pairs node
           return nil unless Parser.is_ast_node?(node) && node.type == :hash
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1223
           return nil unless node.children.all? { |pair| Parser.is_ast_node?(pair) && pair.type == :pair }
 
           node.children.map do |pair|
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1223
             key_node, value_node = pair.children
             [NodeChainer.chain(key_node, @filename, pair), NodeChainer.chain(value_node, @filename, pair)]
           end
