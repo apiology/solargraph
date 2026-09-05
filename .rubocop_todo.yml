@@ -32,6 +32,15 @@ Layout/EndAlignment:
     - 'lib/solargraph/shell.rb'
 
 # This cop supports safe autocorrection (--autocorrect).
+# Configuration parameters: AllowMultipleStyles, EnforcedHashRocketStyle, EnforcedColonStyle, EnforcedLastArgumentHashStyle.
+# SupportedHashRocketStyles: key, separator, table
+# SupportedColonStyles: key, separator, table
+# SupportedLastArgumentHashStyles: always_inspect, always_ignore, ignore_implicit, ignore_explicit
+Layout/HashAlignment:
+  Exclude:
+    - 'lib/solargraph/rbs_translator.rb'
+
+# This cop supports safe autocorrection (--autocorrect).
 # Configuration parameters: EnforcedStyle.
 # SupportedStyles: normal, indented_internal_methods
 Layout/IndentationConsistency:
@@ -74,6 +83,12 @@ Lint/DuplicateBranch:
   Exclude:
     - 'lib/solargraph/parser/parser_gem/node_chainer.rb'
     - 'lib/solargraph/pin/base.rb'
+
+# Configuration parameters: DelegatingMethods.
+# DelegatingMethods: delegate
+Lint/DuplicateMethods:
+  Exclude:
+    - 'lib/solargraph/parser/parser_gem/node_chainer.rb'
 
 # This cop supports unsafe autocorrection (--autocorrect-all).
 Lint/InterpolationCheck:
@@ -118,7 +133,7 @@ Metrics/AbcSize:
 # Configuration parameters: CountComments, CountAsOne, AllowedMethods, AllowedPatterns, inherit_mode.
 # AllowedMethods: refine
 Metrics/BlockLength:
-  Max: 59
+  Max: 92
 
 # Configuration parameters: CountBlocks, CountModifierForms.
 Metrics/BlockNesting:
@@ -131,6 +146,7 @@ Metrics/ClassLength:
 # Configuration parameters: AllowedMethods, AllowedPatterns, Max.
 Metrics/CyclomaticComplexity:
   Exclude:
+    - 'lib/solargraph/complex_type.rb'
     - 'lib/solargraph/type_checker.rb'
 
 # Configuration parameters: CountComments, Max, CountAsOne, AllowedMethods, AllowedPatterns.
@@ -143,7 +159,7 @@ Metrics/MethodLength:
 
 # Configuration parameters: CountComments, CountAsOne.
 Metrics/ModuleLength:
-  Max: 169
+  Max: 158
 
 # Configuration parameters: Max, CountKeywordArgs, MaxOptionalParameters.
 Metrics/ParameterLists:
@@ -157,6 +173,7 @@ Metrics/ParameterLists:
 # Configuration parameters: AllowedMethods, AllowedPatterns, Max.
 Metrics/PerceivedComplexity:
   Exclude:
+    - 'lib/solargraph/complex_type.rb'
     - 'lib/solargraph/parser/parser_gem/node_chainer.rb'
     - 'lib/solargraph/type_checker.rb'
 

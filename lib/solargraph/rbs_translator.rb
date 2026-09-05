@@ -12,7 +12,7 @@ module Solargraph
       'NilClass' => 'nil'
     }.freeze
 
-    # @param type [RBS::Types::Bases::Base]
+    # @param type [RBS::Types::t]
     # @param type_alias_decls [Hash{String => RBS::AST::Declarations::TypeAlias}]
     # @param expanding_aliases [Array<String>] Names of aliases already
     #   being expanded in this call chain, to detect recursive aliases
@@ -35,7 +35,6 @@ module Solargraph
                     when :kwrestarg
                       RbsTranslator.to_kwrestarg_return_type(param_type.type, type_alias_decls: type_alias_decls)
                     else
-                      # @sg-ignore Wrong argument type for to_complex_type: type expected RBS::Types::Bases::Base, received union of concrete subtypes
                       RbsTranslator.to_complex_type(param_type.type, type_alias_decls: type_alias_decls)
                     end
       Solargraph::Pin::Parameter.new(decl: decl, name: name, closure: closure, return_type: return_type, source: :rbs, type_location: to_sg_location(param_type.location) || closure.type_location)
@@ -134,7 +133,6 @@ module Solargraph
       # handle those correctly
       generics = method_type.type_params.map(&:name).map(&:to_s).uniq
       parameters = to_parameter_pins(method_type, closure, parameter_names, type_alias_decls: type_alias_decls)
-      # @sg-ignore Wrong argument type for to_complex_type: type expected RBS::Types::Bases::Base, received union of concrete subtypes
       return_type = to_complex_type(method_type.type.return_type, type_alias_decls: type_alias_decls)
       block = if method_type.block
                 block_parameters = to_parameter_pins(method_type.block, closure, type_alias_decls: type_alias_decls)
@@ -183,7 +181,7 @@ module Solargraph
     class << self
       private
 
-      # @param type [RBS::Types::Bases::Base]
+      # @param type [RBS::Types::t]
       # @param type_alias_decls [Hash{String => RBS::AST::Declarations::TypeAlias}]
       # @param expanding_aliases [Array<String>]
       # @return [String]
