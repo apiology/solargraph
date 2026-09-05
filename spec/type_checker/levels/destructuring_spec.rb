@@ -71,6 +71,32 @@ describe Solargraph::TypeChecker do
       expect(count_pin.typify(api_map).tag).to eq('Integer')
     end
 
+    it 'creates locals for a nested destructured parameter group' do
+      source = Solargraph::Source.load_string(%(
+        class NestedMlhsGroup
+          # @return [Array<Array((Array(String, Integer)), Symbol)>]
+          def nested_pairs
+            [[['a', 1], :x]]
+          end
+
+          # @return [void]
+          def grouped
+            nested_pairs.each do |((name, count), tag)|
+              puts "\#{name} \#{count} \#{tag}"
+            end
+          end
+        end
+      ), 'test.rb')
+      api_map = Solargraph::ApiMap.new
+      api_map.map source
+      locals = api_map.source_map('test.rb').locals
+      # the recursive mlhs branch must create locals for the doubly-nested
+      # group, not just the top-level one
+      expect(locals.find { |l| l.name == 'name' }).not_to be_nil
+      expect(locals.find { |l| l.name == 'count' }).not_to be_nil
+      expect(locals.find { |l| l.name == 'tag' }).not_to be_nil
+    end
+
     it 'keeps a union-typed pair element in one tuple position (Hash#each with union key)' do
       checker = type_checker(%(
         class UnionKeyDict
@@ -170,6 +196,34 @@ describe Solargraph::TypeChecker do
         end
       ))
       expect(checker.problems).to be_empty
+    end
+
+    it 'keeps a resolved position when a sibling position is an unbound generic' do
+      # Bag is used unparameterized, so Elem never binds - the second
+      # yielded position stays undefined while the first (a plain
+      # String) still resolves. Since the positions genuinely
+      # correspond one-to-one (per_position_yield_types? true) and at
+      # least one resolved, typify_parameters must keep that partial
+      # result instead of discarding it.
+      checker = type_checker(%(
+        # @generic Elem
+        class Bag
+          include Enumerable
+          # @yieldparam [String]
+          # @yieldparam [generic<Elem>]
+          # @return [void]
+          def each_pair; end
+        end
+
+        class Repro
+          # @param bag [Bag]
+          # @return [void]
+          def call(bag)
+            bag.each_pair { |label, item| label.upcase }
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).not_to include('Unresolved call to upcase')
     end
 
     it 'leaves parameters undefined rather than assigning a whole auto-splatted value' do
