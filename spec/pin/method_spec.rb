@@ -788,7 +788,7 @@ describe Solargraph::Pin::Method do
 
     it 'ignores a comment that parses to no method type at all' do
       source = Solargraph::Source.load_string(%(
-        #: # not actually rbs
+        #: # invalid RBS
         def foo; end
       ))
       api_map = Solargraph::ApiMap.new
