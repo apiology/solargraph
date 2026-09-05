@@ -673,9 +673,8 @@ module Solargraph
           # resolution re-checks each local's presence at its own sub-node
           # location, so pass the full local set rather than pre-filtering here.
           # @sg-ignore Need to add nil check here
-          all_locals = api_map.source_map(location.filename).locals
-          # @sg-ignore Need to add nil check here
-          chain = Solargraph::Parser.chain(n, location.filename)
+          all_locals = api_map.source_map(filename).locals
+          chain = Solargraph::Parser.chain(n, filename)
           type = chain.infer(api_map, self, all_locals)
           result.push type unless type.undefined?
         end

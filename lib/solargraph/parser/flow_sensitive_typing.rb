@@ -171,9 +171,10 @@ module Solargraph
                                     get_node_end_position(else_clause))
         end
 
+        return if conditional_node.nil?
+
         process_expression(conditional_node, true_ranges, false_ranges)
 
-        # @sg-ignore Need to add nil check here
         process_guarded_reassignment(if_node, conditional_node, then_clause, else_clause)
       end
 
