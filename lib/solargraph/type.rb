@@ -69,6 +69,9 @@ module Solargraph
     # @!method nullable?
     # @!method items
     #   @return [Array<Type>]
+    # @!method expand named_types
+    #   @param named_types [Hash{String => Type}]
+    #   @return [Type]
 
     # @return [String]
     def tag
