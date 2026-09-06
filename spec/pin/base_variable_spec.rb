@@ -80,7 +80,6 @@ describe Solargraph::Pin::BaseVariable do
   end
 
   it 'shows its type in documentation, whether the type came from RBS or from a YARD type tag' do
-    pending 'https://github.com/castwide/solargraph/pull/1104'
     rbs_pin = Solargraph::Pin::InstanceVariable.new(name: '@foo', closure: Solargraph::Pin::ROOT_PIN, source: :rbs,
                                                     comments: 'The foo.',
                                                     return_type: Solargraph::ComplexType.try_parse('String').force_rooted)

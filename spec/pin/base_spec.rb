@@ -112,7 +112,6 @@ describe Solargraph::Pin::Base do
 
   describe '#reset_generated!' do
     it 'discards a memoized documentation string on a pin class that is not a method' do
-      pending 'https://github.com/castwide/solargraph/pull/1104'
       pin = Solargraph::Pin::Constant.new(name: 'BAZ', closure: Solargraph::Pin::ROOT_PIN, source: :rbs,
                                           comments: 'Original description.')
       expect(pin.documentation).to include('Original description.')

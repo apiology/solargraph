@@ -7,6 +7,9 @@ module Solargraph
     class Method < Callable
       include Solargraph::Parser::NodeMethods
 
+      # Parameter declarations for a block passed by reference.
+      BLOCK_PASS_DECLS = %i[block blockarg].freeze
+
       # @return [::Symbol] :public, :private, or :protected
       attr_reader :visibility
 
@@ -98,7 +101,6 @@ module Solargraph
         end
         block&.reset_generated!
         @signatures&.each(&:reset_generated!)
-        @documentation = nil
       end
 
       def all_rooted?
@@ -312,31 +314,15 @@ module Solargraph
             sync_return_type_tag
           end
           method_docs ||= super || ''
-          param_tags = docstring.tags(:param)
-          unless param_tags.nil? || param_tags.empty?
+          params = render_parameters(parameter_lists, docstring.tags(:param))
+          unless params.nil?
             method_docs += "\n\n" unless method_docs.empty?
-            method_docs += "Params:\n"
-            lines = []
-            param_tags.each do |p|
-              l = "* #{p.name}"
-              l += " [#{escape_brackets(p.types.join(', '))}]" unless p.types.nil? || p.types.empty?
-              l += " #{p.text}"
-              lines.push l
-            end
-            method_docs += lines.join("\n")
+            method_docs += "Params:\n#{params}"
           end
-          yieldparam_tags = docstring.tags(:yieldparam)
-          unless yieldparam_tags.nil? || yieldparam_tags.empty?
+          block_params = render_parameters(block_parameter_lists, docstring.tags(:yieldparam))
+          unless block_params.nil?
             method_docs += "\n\n" unless method_docs.empty?
-            method_docs += "Block Params:\n"
-            lines = []
-            yieldparam_tags.each do |p|
-              l = "* #{p.name}"
-              l += " [#{escape_brackets(p.types.join(', '))}]" unless p.types.nil? || p.types.empty?
-              l += " #{p.text}"
-              lines.push l
-            end
-            method_docs += lines.join("\n")
+            method_docs += "Block Params:\n#{block_params}"
           end
           yieldreturn_tags = docstring.tags(:yieldreturn)
           unless yieldreturn_tags.empty?
@@ -480,6 +466,114 @@ module Solargraph
       end
 
       private
+
+      # The parameter lists to document, one per signature, duplicates
+      # collapsed. Reading the Parameter pins rather than the @param
+      # tags is what surfaces RBS types: an RBS method carries no tags
+      # at all, and its parameters live only on its signatures.
+      #
+      # @return [::Array<::Array<Pin::Parameter>>]
+      def parameter_lists
+        return [] unless parameter_pins?
+
+        # Prefer the parameters this pin already holds over generating
+        # signatures from them, so that a method carrying @overload tags
+        # documents the same parameters whether or not its signatures
+        # have been generated yet.
+        distinct_parameter_lists(parameters.empty? ? signatures.map(&:parameters) : [parameters])
+      end
+
+      # @return [::Array<::Array<Pin::Parameter>>]
+      def block_parameter_lists
+        return [] unless parameter_pins?
+
+        distinct_parameter_lists(signatures.filter_map { |sig| sig.block&.parameters })
+      end
+
+      # False for a pin constructed with plain parameter names, which
+      # can neither generate signatures nor carry a type; it documents
+      # its tags instead.
+      #
+      # @return [Boolean]
+      def parameter_pins?
+        parameters.all?(Pin::Parameter)
+      end
+
+      # Drops the block-pass parameter, whose type and description are
+      # documented by the Block Params and Block Returns sections.
+      #
+      # @param lists [::Array<::Array<Pin::Parameter>>]
+      # @return [::Array<::Array<Pin::Parameter>>]
+      def distinct_parameter_lists lists
+        lists.map { |list| list.reject { |param| BLOCK_PASS_DECLS.include?(param.decl) } }
+             .reject(&:empty?)
+             .uniq
+      end
+
+      # One bullet per parameter, grouped under a signature heading when
+      # the signatures take different parameters. Keying a single merged
+      # list by name would misattribute them: Kernel#Integer takes
+      # int_like in one signature and str plus base in another.
+      #
+      # @param lists [::Array<::Array<Pin::Parameter>>]
+      # @param tags [::Array<YARD::Tags::Tag>] the tags describing them
+      # @return [String, nil] nil when there is nothing to render
+      def render_parameters lists, tags
+        return render_parameter_tags(tags) if lists.empty?
+
+        bullets = if lists.length == 1
+                    parameter_bullets(lists.first, tags, '')
+                  else
+                    lists.map { |params| "* `(#{params.map(&:full).join(', ')})`\n#{parameter_bullets(params, tags, '  ')}" }
+                         .join("\n")
+                  end
+        documented = lists.flatten.map(&:name)
+        undocumented = tags.reject { |tag| tag.name.nil? || tag.name.empty? || documented.include?(tag.name) }
+        [bullets, render_parameter_tags(undocumented)].compact.join("\n")
+      end
+
+      # @param params [::Array<Pin::Parameter>]
+      # @param tags [::Array<YARD::Tags::Tag>]
+      # @param indent [String]
+      # @return [String]
+      def parameter_bullets params, tags, indent
+        params.each_with_index.map do |param, index|
+          line = "#{indent}* #{param.name}"
+          line += " [#{escape_brackets(param.return_type.rooted_tags)}]" if param.return_type.defined?
+          line + " #{parameter_tag(param, tags, index)&.text}"
+        end.join("\n")
+      end
+
+      # The tag describing a parameter, matched by name and falling back
+      # to position for a tag written without one.
+      #
+      # @param param [Pin::Parameter]
+      # @param tags [::Array<YARD::Tags::Tag>]
+      # @param index [Integer]
+      # @return [YARD::Tags::Tag, nil]
+      def parameter_tag param, tags, index
+        named = tags.find { |tag| tag.name == param.name }
+        return named unless named.nil?
+
+        positional = tags[index]
+        positional if positional && (positional.name.nil? || positional.name.empty?)
+      end
+
+      # Documents parameters known only to YARD, where no Parameter pin
+      # exists to read a type from -- a combined pin keeps the tags of
+      # the docstring it took, but empties its own parameter list.
+      #
+      # @param tags [::Array<YARD::Tags::Tag>]
+      # @return [String, nil] nil when there is nothing to render
+      def render_parameter_tags tags
+        return nil if tags.nil? || tags.empty?
+
+        tags.map do |tag|
+          line = "* #{tag.name}"
+          line += " [#{escape_brackets(tag.types.join(', '))}]" unless tag.types.nil? || tag.types.empty?
+          line + " #{tag.text}"
+        end.join("\n")
+      end
 
       # @param other [Pin::Method]
       # @return [Array<Pin::Signature>]

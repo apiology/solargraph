@@ -159,7 +159,6 @@ describe Solargraph::Pin::Method do
   end
 
   it 'shows parameter types supplied by RBS rather than by a YARD param tag' do
-    pending 'https://github.com/castwide/solargraph/pull/1104'
     pin = described_class.new(name: 'foo', closure: Solargraph::Pin::ROOT_PIN, source: :rbs,
                               comments: 'Does a thing.',
                               return_type: Solargraph::ComplexType.try_parse('String').force_rooted)
@@ -172,7 +171,6 @@ describe Solargraph::Pin::Method do
   end
 
   it 'shows a YARD parameter description and an RBS return type together once the two pins are combined' do
-    pending 'https://github.com/castwide/solargraph/pull/1104'
     yard_pin = described_class.new(name: 'foo', closure: Solargraph::Pin::ROOT_PIN, source: :yardoc,
                                    comments: "Zebra description from YARD.\n@param value [String] the value")
     rbs_pin = described_class.new(name: 'foo', closure: Solargraph::Pin::ROOT_PIN, source: :rbs,
@@ -184,7 +182,6 @@ describe Solargraph::Pin::Method do
   end
 
   it 'documents a combined pin the same way before and after a proxy to its own return type' do
-    pending 'https://github.com/castwide/solargraph/pull/1104'
     yard_pin = described_class.new(name: 'foo', closure: Solargraph::Pin::ROOT_PIN, source: :yardoc,
                                    comments: "Zebra description from YARD.\n@param value [String] the value")
     rbs_pin = described_class.new(name: 'foo', closure: Solargraph::Pin::ROOT_PIN, source: :rbs,

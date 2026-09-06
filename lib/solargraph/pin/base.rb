@@ -93,14 +93,15 @@ module Solargraph
         type_location = choose(other, :type_location)
         location = choose(other, :location)
         combined_name = combine_name(other)
+        combined_comments = choose_longer(other, :comments)
         new_attrs = {
           location: location,
           type_location: type_location,
           name: combined_name,
           closure: combine_closure(other),
-          comments: choose_longer(other, :comments),
+          comments: combined_comments,
           source: :combined,
-          docstring: choose(other, :docstring),
+          docstring: docstring_for(other, combined_comments),
           directives: combine_directives(other),
           combine_priority: combine_priority
         }.merge(attrs)
@@ -111,6 +112,19 @@ module Solargraph
         out = self.class.new(**new_attrs)
         out.reset_generated!
         out
+      end
+
+      # The docstring belonging to whichever pin supplied the combined
+      # comments. Taking it independently leaves the two disagreeing,
+      # so that tags written in the comments that won are not the tags
+      # the combined pin reports. #choose_longer returns one of the two
+      # comments, so one of these pins always supplied them.
+      #
+      # @param other [self]
+      # @param chosen_comments [String, nil]
+      # @return [YARD::Docstring]
+      def docstring_for other, chosen_comments
+        comments == chosen_comments ? docstring : other.docstring
       end
 
       # @param other [self]
@@ -188,6 +202,7 @@ module Solargraph
         @context = nil
         @binder = nil
         @path = nil
+        @documentation = nil
         reset_conversions
       end
 
