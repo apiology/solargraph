@@ -154,8 +154,11 @@ describe Solargraph::Shell do
     end
 
     context 'with the core pseudo-gem' do
+      let(:core_map) { instance_double(Solargraph::RbsMap::CoreMap) }
+
       before do
-        allow(Solargraph::RbsMap::CoreMap).to receive(:cache_core)
+        allow(Solargraph::RbsMap::CoreMap).to receive(:new).and_return(core_map)
+        allow(core_map).to receive(:cache_core).and_return([])
       end
 
       it 'caches core pins' do
@@ -163,7 +166,7 @@ describe Solargraph::Shell do
 
         capture_both { shell.gems('core') }
 
-        expect(Solargraph::RbsMap::CoreMap).to have_received(:cache_core)
+        expect(core_map).to have_received(:cache_core)
       end
     end
   end
