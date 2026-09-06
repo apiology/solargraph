@@ -30,8 +30,10 @@ module Solargraph
                 source: :parser
               )
             end
-            # Not pushed onto `pins`: it is never looked up by itself, only
-            # carried by the pins below it so they can find this scope.
+            # Not pushed onto `pins`: an and/or/orasgn/resbody body has no
+            # identity worth indexing the way a def/class does. It exists only
+            # so the pins below it carry it as `compound_statement`, and is
+            # discarded once processing returns.
             # @sg-ignore RBS Array[self] indexing infers Array instead of self
             rescue_body_cs = Solargraph::Pin::CompoundStatement.new(
               # @sg-ignore RBS Array[self] indexing infers Array instead of self

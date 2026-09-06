@@ -1,13 +1,8 @@
 # frozen_string_literal: true
 
 describe Solargraph::Pin::CompoundStatement do
-  # Every pin built through Region-threaded node processors still gets
-  # an explicit `closure:`, so `Pin::Base#closure` returns the stored
-  # value, not the derived one - the derivation only kicks in as a
-  # fallback. These specs check the two would agree anyway, so a
-  # future node processor that updates one threading (closure: or
-  # compound_statement:) without the other gets caught here instead
-  # of silently drifting.
+  # The fallback derivation Pin::Base#closure uses when a pin has no
+  # closure: of its own - these specs check the two always agree.
   def derive_closure pin
     cs = pin.compound_statement
     cs = cs.compound_statement while cs && !cs.is_a?(Solargraph::Pin::Closure)

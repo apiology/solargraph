@@ -144,8 +144,6 @@ module Solargraph
       end
 
       # @param other [self]
-      #
-      # @param other [self]
       # @param location [Location, nil]
       # @return [::Array<Parser::AST::Node>]
       def combine_assignments other, location = nil

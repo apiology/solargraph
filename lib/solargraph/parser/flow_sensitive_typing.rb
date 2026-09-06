@@ -218,10 +218,10 @@ module Solargraph
 
       private
 
-      # For `tasks = ['a'] if tasks.nil?`, code after the conditional
-      # also gets the else-branch facts, since not firing leaves the
-      # original value. Restricted to names the clause definitely
-      # reassigns, or `x.nil? || y.nil?` would narrow `y` too.
+      # For `tasks = ['a'] if tasks.nil?`, code after the conditional also
+      # gets the else-branch facts; the firing path is already handled by
+      # unioning in the assignment pin. Restricted to names the clause
+      # definitely reassigns, or `x.nil? || y.nil?` would narrow `y` too.
       #
       # @param if_node [Parser::AST::Node]
       # @param conditional_node [Parser::AST::Node]
