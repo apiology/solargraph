@@ -191,6 +191,16 @@ module Solargraph
         non_literal_name != name
       end
 
+      # Whether this type's tag is a literal value (`:a`, `"Index"`, `1`,
+      # `true`) rather than a class name. Unlike #literal?, this does not
+      # take part in type inference; it only reports what the tag says, so
+      # a literal written in an annotation survives qualification.
+      #
+      # @return [Boolean]
+      def literal_tag?
+        non_literal_name != name
+      end
+
       # @return [String]
       def non_literal_name
         @non_literal_name ||= determine_non_literal_name
@@ -607,17 +617,35 @@ module Solargraph
       # @param gates [Array<String>] The namespaces from which to resolve names
       # @return [self, ComplexType, UniqueType] The generated ComplexType
       def qualify api_map, *gates
-        transform do |t|
-          next t if t.name == GENERIC_TAG_NAME
-          next t if t.duck_type? || t.void? || t.undefined? || t.literal?
-          open = t.rooted? ? [''] : gates
-          fqns = api_map.qualify(t.non_literal_name, *open)
-          if fqns.nil?
-            next UniqueType::BOOLEAN if t.tag == 'Boolean'
-            next UniqueType::UNDEFINED
+        if name == GENERIC_TAG_NAME
+          new_key_types = @key_types
+          new_subtypes = @subtypes
+        else
+          # A literal key tag is the one place a literal has to survive
+          # qualification: widening `:a` to Symbol in `Hash{:a => String}`
+          # would erase which key the type is talking about. Literals
+          # elsewhere still widen to their class.
+          #
+          # map (not flat_map) over @key_types/@subtypes: each entry is one
+          # parameter position, and must stay one position - flat_map would
+          # splice a union position's qualified members in as extra
+          # positions instead of keeping them together in one ComplexType.
+          new_key_types = @key_types.map do |ct|
+            ComplexType.new(ct.items.map { |ut| ut.literal_tag? ? ut : ut.qualify(api_map, *gates) })
           end
-          t.recreate(new_name: fqns, make_rooted: true)
+          new_subtypes = @subtypes.map do |ct|
+            ComplexType.new(ct.items.map { |ut| ut.qualify(api_map, *gates) })
+          end
         end
+        qualified = recreate(new_key_types: new_key_types, new_subtypes: new_subtypes)
+        return qualified if name == GENERIC_TAG_NAME || duck_type? || void? || undefined? || literal?
+        open = rooted? ? [''] : gates
+        fqns = api_map.qualify(non_literal_name, *open)
+        if fqns.nil?
+          return UniqueType::BOOLEAN if tag == 'Boolean'
+          return UniqueType::UNDEFINED
+        end
+        qualified.recreate(new_name: fqns, make_rooted: true)
       end
 
       def selfy?

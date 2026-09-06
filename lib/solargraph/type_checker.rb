@@ -444,6 +444,13 @@ module Solargraph
     # @return [Array<Problem>]
     def signature_argument_problems_for location, locals, closure_pin, params, arguments, sig, pin
       errors = []
+      splat_keywords, unverifiable_splat = keyword_splat_types(arguments.last, closure_pin, locals)
+      # @sg-ignore "Wrong argument type for
+      #   Solargraph::TypeChecker#keyword_splat_problems_for: unverifiable_splat
+      #   expected Solargraph::ComplexType, nil, received Hash{Symbol =>
+      #   Solargraph::ComplexType}" - multiple assignment from an Array(A, B)
+      #   return type gives every variable the type of the first element
+      errors.concat keyword_splat_problems_for(sig, pin, location, arguments, splat_keywords, unverifiable_splat)
       # @todo add logic mapping up restarg parameters with
       #   arguments (including restarg arguments).  Use tuples
       #   when possible, and when not, ensure provably
@@ -498,10 +505,16 @@ module Solargraph
               end
             end
           else
-            errors.concat kwarg_problems_for sig, argchain, api_map, closure_pin, locals, location, pin, params, idx
+            # @sg-ignore "Wrong argument type for
+            #   Solargraph::TypeChecker#kwarg_problems_for: unverifiable_splat
+            #   expected Solargraph::ComplexType, nil, received Hash{Symbol =>
+            #   Solargraph::ComplexType}" - multiple assignment from an
+            #   Array(A, B) return type gives every variable the first element's type
+            errors.concat kwarg_problems_for(sig, argchain, api_map, closure_pin, locals, location, pin, params,
+                                             idx, splat_keywords, unverifiable_splat)
             next
           end
-        elsif par.decl == :kwarg
+        elsif par.decl == :kwarg && unverifiable_splat.nil?
           errors.push Problem.new(location, "Call to #{pin.path} is missing keyword argument #{par.name}")
           next
         end
@@ -518,38 +531,166 @@ module Solargraph
     # @param pin [Pin::Method]
     # @param params [Hash{String => Hash{Symbol => undefined}}]
     # @param idx [Integer]
+    # @param splat_keywords [Hash{Symbol => ComplexType}] keywords a `**` splat records in its type
+    # @param unverifiable_splat [ComplexType, nil] the type of a `**` splat that records no keys
     #
     # @return [Array<Problem>]
-    def kwarg_problems_for sig, argchain, api_map, closure_pin, locals, location, pin, params, idx
+    def kwarg_problems_for sig, argchain, api_map, closure_pin, locals, location, pin, params, idx, splat_keywords,
+                           unverifiable_splat
       result = []
       kwargs = convert_hash(argchain.node)
+      # idx comes from an each_with_index over these same parameters.
+      #
+      # @sg-ignore "Declared type Solargraph::Pin::Parameter does not match
+      #   inferred type Solargraph::Pin::Parameter, nil for variable par"
+      # @type [Pin::Parameter]
       par = sig.parameters[idx]
-      # @type [Solargraph::Source::Chain]
-      argchain = kwargs[par.name.to_sym]
       if par.decl == :kwrestarg || (par.decl == :optarg && idx == pin.parameters.length - 1 && par.asgn_code == '{}')
-        result.concat kwrestarg_problems_for(api_map, closure_pin, locals, location, pin, params, kwargs)
-      elsif argchain
-        data = params[par.name]
-        if data.nil?
-          # @todo Some level (strong, I guess) should require the param here
-        else
-          # @type [ComplexType, ComplexType::UniqueType]
-          ptype = data[:qualified]
-          ptype = ptype.self_to_type(pin.context)
-          unless ptype.undefined?
-            # @type [ComplexType]
-            argtype = argchain.infer(api_map, closure_pin, locals).self_to_type(closure_pin.context)
-            # @todo Unresolved call to defined?
-            if argtype.defined? && ptype && !arg_conforms_to?(argtype, ptype)
-              result.push Problem.new(location,
-                                      "Wrong argument type for #{pin.path}: #{par.name} expected #{ptype}, received #{argtype}")
-            end
-          end
+        return kwrestarg_problems_for(api_map, closure_pin, locals, location, pin, params, kwargs)
+      end
+      # @type [Solargraph::Source::Chain, nil]
+      valuechain = kwargs[par.name.to_sym]
+      argtype = if valuechain
+                  valuechain.infer(api_map, closure_pin, locals).self_to_type(closure_pin.context)
+                else
+                  splat_keywords[par.name.to_sym]
+                end
+      if argtype.nil?
+        if par.decl == :kwarg && unverifiable_splat.nil?
+          result.push Problem.new(location, "Call to #{pin.path} is missing keyword argument #{par.name}")
         end
-      elsif par.decl == :kwarg
-        result.push Problem.new(location, "Call to #{pin.path} is missing keyword argument #{par.name}")
+        return result
+      end
+      data = params[par.name]
+      # @todo Some level (strong, I guess) should require the param here
+      return result if data.nil?
+
+      # @type [ComplexType, ComplexType::UniqueType]
+      ptype = data[:qualified]
+      ptype = ptype.self_to_type(pin.context)
+      return result if ptype.undefined?
+
+      # @sg-ignore "Unresolved call to defined?" and "Wrong argument type for
+      #   Solargraph::TypeChecker#arg_conforms_to?: inferred expected
+      #   Solargraph::ComplexType, Solargraph::ComplexType::UniqueType, received
+      #   Solargraph::ComplexType, nil" - the nil case returned above
+      if argtype.defined? && !arg_conforms_to?(argtype, ptype)
+        result.push Problem.new(location,
+                                "Wrong argument type for #{pin.path}: #{par.name} expected #{ptype}, received #{argtype}")
       end
       result
+    end
+
+    # Problems that belong to the call as a whole rather than to one
+    # keyword parameter: a `**` splat whose type records no keys, and
+    # keys a record type supplies that the method does not accept.
+    #
+    # @param sig [Pin::Signature]
+    # @param pin [Pin::Method]
+    # @param location [Location]
+    # @param arguments [Array<Source::Chain>]
+    # @param splat_keywords [Hash{Symbol => ComplexType}]
+    # @param unverifiable_splat [ComplexType, nil]
+    # @return [Array<Problem>]
+    def keyword_splat_problems_for sig, pin, location, arguments, splat_keywords, unverifiable_splat
+      keyword_params = sig.parameters.select(&:keyword?)
+      return [] if keyword_params.empty?
+
+      if unverifiable_splat
+        unverified = keyword_params.select { |par| par.decl == :kwarg }.map(&:name) -
+                     convert_hash(arguments.last&.node).keys.map(&:to_s)
+        return [] if unverified.empty?
+
+        return [Problem.new(location, unverifiable_splat_message(pin, unverifiable_splat, unverified))]
+      end
+      return [] if splat_keywords.empty? || sig.parameters.any?(&:kwrestarg?)
+
+      unrecognized = splat_keywords.keys.reject { |name| keyword_params.any? { |par| par.name.to_sym == name } }
+      return [] if unrecognized.empty?
+
+      [Problem.new(location, "Unrecognized keyword argument #{unrecognized.first} to #{pin.path}")]
+    end
+
+    # @param pin [Pin::Method]
+    # @param type [ComplexType]
+    # @param unverified [Array<String>] required keywords the splat may or may not supply
+    # @return [String]
+    def unverifiable_splat_message pin, type, unverified
+      "Cannot verify keyword arguments to #{pin.path}: the ** splat is #{type}, which does not record its keys, " \
+        "so required keyword #{unverified.length == 1 ? 'argument' : 'arguments'} #{unverified.join(', ')} " \
+        'cannot be checked - give the splatted value a record type ' \
+        "(e.g. Hash{:#{unverified.first} => Object}) to check it"
+    end
+
+    # The keywords a call's `**` splats record in their types.
+    #
+    # A splat of a literal hash is not included: its keys are in the node
+    # itself, and #convert_hash already has them.
+    #
+    # @param argchain [Source::Chain, nil] the call's final argument
+    # @param closure_pin [Pin::Closure]
+    # @param locals [Array<Pin::LocalVariable>]
+    # @return [Array(Hash{Symbol => ComplexType}, ComplexType), Array(Hash{Symbol => ComplexType}, nil)]
+    #   the keywords found, and the type of the first splat that records no keys
+    def keyword_splat_types argchain, closure_pin, locals
+      node = argchain&.node
+      # @sg-ignore Translate to something flow sensitive typing understands
+      return [{}, nil] unless Parser.is_ast_node?(node) && node.type == :hash
+
+      keywords = {}
+      # @sg-ignore Translate to something flow sensitive typing understands
+      node.children.each do |child|
+        next unless Parser.is_ast_node?(child) && child.type == :kwsplat
+        inner = child.children[0]
+        next if Parser.is_ast_node?(inner) && inner.type == :hash
+
+        type = Solargraph::Parser.chain(inner).infer(api_map, closure_pin, locals)
+        recorded = recorded_keyword_types(type)
+        return [{}, type] if recorded.nil?
+
+        keywords.merge!(recorded)
+      end
+      [keywords, nil]
+    end
+
+    # The keyword names and value types a record type records - e.g.
+    # `Hash{:a => Integer} & Hash{:b => String}` records a as Integer and
+    # b as String - or nil if the type does not record its keys.
+    #
+    # @param type [ComplexType]
+    # @return [Hash{Symbol => ComplexType}, nil]
+    def recorded_keyword_types type
+      return nil if type.undefined? || type.items.empty?
+
+      keywords = {}
+      type.items.each do |item|
+        conjuncts = item.is_a?(ComplexType::UniqueType::Intersection) ? item.conjuncts : [ComplexType.new([item])]
+        conjuncts.each do |conjunct|
+          conjunct.items.each do |unique_type|
+            recorded = symbol_keyed_entries(unique_type)
+            return nil if recorded.nil?
+
+            keywords.merge!(recorded)
+          end
+        end
+      end
+      keywords
+    end
+
+    # @param unique_type [ComplexType::UniqueType]
+    # @return [Hash{Symbol => ComplexType}, nil]
+    def symbol_keyed_entries unique_type
+      return nil unless unique_type.name == 'Hash'
+      return nil if unique_type.key_types.empty? || unique_type.key_types.length != unique_type.subtypes.length
+
+      entries = {}
+      unique_type.key_types.each_with_index do |key_type, i|
+        tags = key_type.items.map(&:tag)
+        return nil unless tags.length == 1 && tags.first.start_with?(':')
+
+        entries[tags.first[1..].to_sym] = unique_type.subtypes[i]
+      end
+      entries
     end
 
     # @param api_map [ApiMap]

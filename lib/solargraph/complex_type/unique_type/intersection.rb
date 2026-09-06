@@ -185,6 +185,16 @@ module Solargraph
           Intersection.new(conjuncts.map { |conjunct| conjunct.transform(&transform_type) })
         end
 
+        # UniqueType#qualify walks key_types and subtypes; an
+        # intersection holds neither, so it qualifies its conjuncts.
+        #
+        # @param api_map [ApiMap]
+        # @param gates [Array<String>]
+        # @return [Intersection]
+        def qualify api_map, *gates
+          Intersection.new(conjuncts.map { |conjunct| conjunct.qualify(api_map, *gates) })
+        end
+
         # @return [self]
         def erase_parameters
           self

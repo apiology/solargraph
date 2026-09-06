@@ -409,6 +409,174 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message)).to be_empty
     end
 
+    it 'reports a ** splat whose type records no keys as unverifiable, not missing' do
+      checker = type_checker(%(
+        # @param a [Integer]
+        # @param b [Integer]
+        # @return [void]
+        def foo(a:, b:); end
+
+        # @return [Hash{Symbol => Integer}]
+        def make_args
+          { a: 1, b: 2 }
+        end
+
+        # @return [void]
+        def bar
+          args = make_args
+          foo(**args)
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq(
+        ['Cannot verify keyword arguments to #foo: the ** splat is Hash{Symbol => Integer}, which does not ' \
+         'record its keys, so required keyword arguments a, b cannot be checked - give the splatted value a ' \
+         'record type (e.g. Hash{:a => Object}) to check it']
+      )
+    end
+
+    it 'names only the required keywords a ** splat has to supply' do
+      checker = type_checker(%(
+        # @param a [Integer]
+        # @param b [Integer]
+        # @return [void]
+        def foo(a:, b:); end
+
+        # @return [Hash{Symbol => Integer}]
+        def make_args
+          { b: 2 }
+        end
+
+        # @return [void]
+        def bar
+          args = make_args
+          foo(a: 1, **args)
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq(
+        ['Cannot verify keyword arguments to #foo: the ** splat is Hash{Symbol => Integer}, which does not ' \
+         'record its keys, so required keyword argument b cannot be checked - give the splatted value a ' \
+         'record type (e.g. Hash{:b => Object}) to check it']
+      )
+    end
+
+    it 'accepts required keywords supplied by a record-typed ** splat' do
+      checker = type_checker(%(
+        # @param a [Integer]
+        # @param b [Integer]
+        # @return [void]
+        def foo(a:, b:); end
+
+        # @param args [Hash{:a => Integer} & Hash{:b => Integer}]
+        # @return [void]
+        def bar(args)
+          foo(**args)
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
+    it 'accepts a record-typed ** splat that supplies what the literal keywords do not' do
+      checker = type_checker(%(
+        # @param a [Integer]
+        # @param b [Integer]
+        # @return [void]
+        def foo(a:, b:); end
+
+        # @param args [Hash{:b => Integer}]
+        # @return [void]
+        def bar(args)
+          foo(a: 1, **args)
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
+    it 'reports a keyword a record-typed ** splat leaves out' do
+      checker = type_checker(%(
+        # @param a [Integer]
+        # @param b [Integer]
+        # @return [void]
+        def foo(a:, b:); end
+
+        # @param args [Hash{:a => Integer}]
+        # @return [void]
+        def bar(args)
+          foo(**args)
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq(['Call to #foo is missing keyword argument b'])
+    end
+
+    it 'checks the value types a record-typed ** splat supplies' do
+      checker = type_checker(%(
+        # @param a [Integer]
+        # @param b [Integer]
+        # @return [void]
+        def foo(a:, b:); end
+
+        # @param args [Hash{:a => String} & Hash{:b => Integer}]
+        # @return [void]
+        def bar(args)
+          foo(**args)
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq(
+        ['Wrong argument type for #foo: a expected Integer, received String']
+      )
+    end
+
+    it 'reports a keyword a record-typed ** splat supplies that the method does not accept' do
+      checker = type_checker(%(
+        # @param a [Integer]
+        # @param b [Integer]
+        # @return [void]
+        def foo(a:, b:); end
+
+        # @param args [Hash{:a => Integer} & Hash{:b => Integer} & Hash{:c => Integer}]
+        # @return [void]
+        def bar(args)
+          foo(**args)
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq(['Unrecognized keyword argument c to #foo'])
+    end
+
+    it 'still reports a keyword left out of a splatted literal hash' do
+      checker = type_checker(%(
+        # @param a [Integer]
+        # @param b [Integer]
+        # @return [void]
+        def foo(a:, b:); end
+
+        # @return [void]
+        def bar
+          foo(**{ a: 1 })
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq(['Missing keyword argument b to #foo'])
+    end
+
+    it 'does not invent a keyword named after the splatted variable' do
+      checker = type_checker(%(
+        class Base
+          # @param name [String]
+          # @param foo [Integer]
+          # @return [void]
+          def initialize(name:, foo: 1); end
+        end
+
+        class Sub < Base
+          # @param name [String]
+          # @param kwargs [Hash{Symbol => Object}]
+          # @return [void]
+          def initialize(name, **kwargs)
+            super(name: name, **kwargs)
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
     it 'calls out type issues even when keyword issues are there' do
       pending('fixes to arg vs param checking algorithm')
 

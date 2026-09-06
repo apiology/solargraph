@@ -158,14 +158,19 @@ module Solargraph
           result
         end
 
+        # Whether the hash passes along keys that are not in the node -
+        # `foo(**args)` or `foo(a: 1, **args)`, but not `foo(**{ a: 1 })`,
+        # whose keys are right there.
+        #
         # @param node [Parser::AST::Node]
         def hash_is_splatted? node
           return false unless Parser.is_ast_node?(node) && node.type == :hash
-          return false unless Parser.is_ast_node?(node.children.last) && node.children.last.type == :kwsplat
-          if Parser.is_ast_node?(node.children.last.children[0]) && node.children.last.children[0].type == :hash
-            return false
+          node.children.any? do |child|
+            # @sg-ignore Translate to something flow sensitive typing understands
+            next false unless Parser.is_ast_node?(child) && child.type == :kwsplat
+            # @sg-ignore Translate to something flow sensitive typing understands
+            !(Parser.is_ast_node?(child.children[0]) && child.children[0].type == :hash)
           end
-          true
         end
 
         # Chains each key/value pair of a literal hash so Chain::Hash
