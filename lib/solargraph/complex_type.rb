@@ -172,6 +172,20 @@ module Solargraph
       @items.all?(&:undefined?)
     end
 
+    # A union is a duck type only when every member is one. A mixed
+    # union has members that still need ordinary conformance checking,
+    # and an empty one is not a duck type at all.
+    #
+    # @return [Boolean]
+    def duck_type?
+      !@items.empty? && @items.all?(&:duck_type?)
+    end
+
+    # @return [Boolean]
+    def void?
+      !@items.empty? && @items.all?(&:void?)
+    end
+
     # @param name [Symbol]
     # @param include_private [Boolean]
     def respond_to_missing? name, include_private = false
