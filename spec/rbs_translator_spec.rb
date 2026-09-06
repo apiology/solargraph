@@ -42,6 +42,16 @@ describe Solargraph::RbsTranslator do
     end
   end
 
+  context 'with literal type arguments' do
+    it 'roots the class name but not a symbol literal argument' do
+      expect(translate('::Array[:Sym]').rooted_tags).to eq('::Array<:Sym>')
+    end
+
+    it 'roots the class name but not a capitalized string literal key' do
+      expect(translate('::Hash["Index", ::Float]').rooted_tags).to eq('::Hash{"Index" => ::Float}')
+    end
+  end
+
   context 'when translating at the top level (already correct)' do
     it 'builds a real intersection from a union conjunct' do
       type = translate('(Integer | String) & Comparable')

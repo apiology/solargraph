@@ -1192,17 +1192,6 @@ describe Solargraph::TypeChecker do
     end
 
     it 'resolves Hash#fetch on a literal-keyed Hash with no intersection involved' do
-      # Not #1231-specific: https://github.com/castwide/solargraph/pull/1231#issuecomment-5207523909
-      # reported this against an intersection of two Hash instantiations, but it
-      # reproduced identically for a single, non-intersected generic Hash.
-      #
-      # On RBS >= 4.1.0, Pin::Parameter#compatible_arg? rejected Hash#fetch's
-      # exact-arity `(key: Hash::_Key) -> V` overload, because Hash::_Key is
-      # checked nominally rather than structurally against the String argument,
-      # and fell through to the pin's raw combined signature type, which still
-      # carries an unresolved generic X from the other overloads. RbsTranslator
-      # now stubs Hash::_Key back to K (see RBS_INTERFACE_TO_GENERIC), so the
-      # nominal check succeeds and no interface is left to resolve structurally.
       checker = type_checker(%(
         class Repro
           # @param period [Hash{"Index" => Float}]
@@ -1216,34 +1205,7 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message)).to be_empty
     end
 
-    it 'always dispatches a same-class generic method through the first union member, not #1231-specific' do
-      # Not an intersection-types bug at all: a *union* of two Hash
-      # instantiations shows the identical "always the first one, regardless
-      # of order or argument" dispatch bug that the same-class intersection
-      # specs below track. Confirmed on unmodified castwide/solargraph
-      # master (8fda63384, no & or | involved) with a minimal @generic
-      # class (no Hash, no literal keys, no #1266 dependency):
-      #
-      #   # @generic T
-      #   class Box
-      #     # @return [generic<T>]
-      #     def get; end
-      #   end
-      #
-      #   # @param b [Box<Integer>, Box<String>]
-      #   b.get  # infers Integer
-      #   # @param b [Box<String>, Box<Integer>]
-      #   b.get  # infers String - order picked the type, not the call
-      #
-      # Root cause: Call#inferred_pins resolves the class's generic
-      # parameter against `self_type = name_pin.binder` - the *whole*
-      # union/intersection type - rather than per-member, so it binds
-      # against whichever member it structurally matches first.
-      #
-      # Filing this as its own issue/PR against master, independent of
-      # #1231 and #1266, so the Hash intersection specs below inherit the
-      # fix whichever order the PRs land in rather than stacking one PR on
-      # top of another.
+    it 'always dispatches a same-class generic method through the first union member' do
       pending 'Call#inferred_pins binds a generic against the first union/intersection member only'
       checker = type_checker(%(
         class Repro
@@ -1301,11 +1263,10 @@ describe Solargraph::TypeChecker do
           .to include('Wrong argument type for Consumer#project_to_h: project_obj expected Asana::Resources::Project, received Mocha::Mock')
       end
 
-      it 'accepts an intersection-typed argument where the duck-typed conjunct is expected (#1231)' do
+      it 'accepts an intersection-typed argument where the duck-typed conjunct is expected' do
         # Duck-typed subtyping needs *some* conjunct to satisfy it, not
         # specifically the first one that Intersection#namespace/#scope
-        # delegate to -
-        # https://github.com/castwide/solargraph/pull/1231#issuecomment-5280196737
+        # delegate to.
         checker = type_checker(%(
           # @param callback [#quack]
           # @return [void]
@@ -1336,19 +1297,14 @@ describe Solargraph::TypeChecker do
           .to include('Wrong argument type for #notify: callback expected #quack, received String & Integer')
       end
 
-      it 'dispatches generic methods per-conjunct when intersecting two instantiations of the same generic class (#1231)' do
+      it 'dispatches generic methods per-conjunct when intersecting two instantiations of the same generic class' do
         # Both conjuncts resolve to a pin with the same path (Hash#fetch)
         # but different, already-resolved return types, so dispatch keys on
         # path *and* return type, then narrows to the conjunct whose key
         # matches the call's literal argument. Overload resolution can't
         # do that on its own, since it runs per conjunct and both
-        # conjuncts yield a pin with the same path -
-        # https://github.com/castwide/solargraph/pull/1231#issuecomment-5207523909
-        #
-        # castwide/solargraph#1223 is a prerequisite: without it the literal
-        # "Index"/"Triggers" key_types widen to plain String before the
-        # narrowing can see them.
-        pending 'needs castwide/solargraph#1223'
+        # conjuncts yield a pin with the same path.
+        pending 'https://github.com/castwide/solargraph/pull/1223'
         checker = type_checker(%(
           class Repro
             # @param period [Hash{"Index" => Float} & Hash{"Triggers" => Array<Hash{"Name" => String}>}]
@@ -1365,11 +1321,8 @@ describe Solargraph::TypeChecker do
         expect(checker.problems.map(&:message)).to be_empty
       end
 
-      it 'dispatches generic methods per-conjunct regardless of conjunct order (#1231)' do
-        # The conjunct order of the sibling spec above, reversed: the same
-        # per-key narrowing applies either way, with the same
-        # castwide/solargraph#1223 prerequisite.
-        pending 'needs castwide/solargraph#1223'
+      it 'dispatches generic methods per-conjunct regardless of conjunct order' do
+        pending 'https://github.com/castwide/solargraph/pull/1223'
         checker = type_checker(%(
           class Repro
             # @param period [Hash{"Triggers" => Array<Hash{"Name" => String}>} & Hash{"Index" => Float}]
@@ -1386,14 +1339,13 @@ describe Solargraph::TypeChecker do
         expect(checker.problems.map(&:message)).to be_empty
       end
 
-      it 'dispatches generic methods per-conjunct for symbol keys (#1231)' do
-        # Symbol keys reach the same union by a different route than the
-        # string keys above: symbols already infer as literal types, so
-        # per-overload matching rejects the non-matching conjunct - but a
-        # pin whose overloads all fail to match falls through to its
-        # declared return type rather than being dropped, so only
-        # Call#key_verified_conjuncts can actually remove a conjunct.
-        pending 'needs castwide/solargraph#1223'
+      it 'dispatches generic methods per-conjunct for symbol keys' do
+        # Symbols already infer as literal types, so per-overload matching
+        # rejects the non-matching conjunct on its own here - a pin whose
+        # overloads all fail falls through to its declared return type
+        # rather than being dropped, so only Call#argument_verified_conjuncts
+        # actually removes it.
+        pending 'https://github.com/castwide/solargraph/pull/1223'
         checker = type_checker(%(
           class Repro
             # @param period [Hash{:Index => Float} & Hash{:Triggers => Array<Hash{:Name => String}>}]
@@ -1424,11 +1376,10 @@ describe Solargraph::TypeChecker do
         expect(checker.problems.map(&:message)).to be_empty
       end
 
-      it 'resolves a call to a method defined on just one conjunct of an intersection-typed receiver (#1231)' do
+      it 'resolves a call to a method defined on just one conjunct of an intersection-typed receiver' do
         # Method lookup gives an intersection's conjuncts "any one is
         # enough" semantics (A & B <: A, A & B <: B), unlike a union, where
-        # every alternative has to define the method -
-        # https://github.com/castwide/solargraph/pull/1231#issuecomment-5207595119
+        # every alternative has to define the method.
         checker = type_checker(%(
           class A
             # @return [void]
@@ -1450,6 +1401,45 @@ describe Solargraph::TypeChecker do
 
           Factory.new.make.foo
           Factory.new.make.bar
+      ))
+        expect(checker.problems.map(&:message)).to be_empty
+      end
+
+      it 'dispatches to the conjunct whose parameter type actually accepts the argument' do
+        # Same problem as the Hash-record specs above, generalized:
+        # narrowing an intersection's conjuncts by argument fit isn't
+        # Hash-key-specific, it's ordinary overload matching applied
+        # per conjunct instead of per signature.
+        checker = type_checker(%(
+          class A
+            # @param x [String]
+            # @return [Integer]
+            def pick(x)
+              1
+            end
+          end
+
+          class B
+            # @param x [Symbol]
+            # @return [Float]
+            def pick(x)
+              1.0
+            end
+          end
+
+          class Factory
+            # @sg-ignore A.new duck-types as A & B for this repro
+            # @return [A & B]
+            def make
+              A.new
+            end
+          end
+
+          # @type [Integer]
+          from_a = Factory.new.make.pick("hello")
+
+          # @type [Float]
+          from_b = Factory.new.make.pick(:hello)
       ))
         expect(checker.problems.map(&:message)).to be_empty
       end
@@ -1480,9 +1470,7 @@ describe Solargraph::TypeChecker do
         expect(checker.problems.map(&:message)).to be_empty
       end
 
-      it 'resolves a conjunct method on an intersection-typed local variable, not just a call chain (#1231)' do
-        # Same fix as the sibling spec above applies to any intersection-typed
-        # value, not just method-return-value call chains.
+      it 'resolves a conjunct method on an intersection-typed local variable, not just a call chain' do
         checker = type_checker(%(
           class A
             # @return [void]
@@ -1505,8 +1493,6 @@ describe Solargraph::TypeChecker do
       end
 
       it 'resolves conjunct methods on a three-way intersection' do
-        # Same fix as the sibling specs above; each conjunct is checked
-        # independently regardless of how many there are.
         checker = type_checker(%(
           class A
             # @return [void]

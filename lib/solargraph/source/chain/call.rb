@@ -57,140 +57,93 @@ module Solargraph
 
           # @sg-ignore Need to handle duck-typed method calls on union types
           binder = binder.without_nil if nullable?
-          pins = method_pins_for_binder(binder, api_map)
+          pins = method_pins_for_binder(binder, api_map, name_pin, locals)
           return [] if pins.empty?
           inferred_pins(pins, api_map, name_pin, locals)
         end
 
         private
 
-        # Resolves the pins for calling `word` on every top-level
-        # alternative of a (possibly union) binder type. Each
-        # alternative must define the method unless
-        # api_map.loose_unions allows duck-typed leniency.
+        # Resolves the pins for calling `word` on a binder type, with an
+        # intersection narrowed to the conjuncts this call can dispatch to.
         #
         # @param binder_type [ComplexType, ComplexType::UniqueType]
         # @param api_map [ApiMap]
+        # @param name_pin [Pin::Base]
+        # @param locals [::Array<Pin::LocalVariable, Pin::Parameter>]
         # @return [::Array<Pin::Base>]
-        def method_pins_for_binder binder_type, api_map
-          top_level_types = binder_type.is_a?(ComplexType) ? binder_type.to_a : [binder_type]
-          pin_groups = top_level_types.map { |unique_type| method_stack_pins(unique_type, api_map) }
-          pin_groups = [] if !api_map.loose_unions && pin_groups.any?(&:nil?)
-          # Alternatives can share a pin path (e.g. the same generic
-          # method against `Box<Integer>` and `Box<String>`) while
-          # already resolving to different return types, so dedup on
-          # both rather than losing every alternative but the first.
-          # @param p [Pin::Base]
-          pin_groups.compact.flatten.uniq { |p| [p.path, p.return_type.tag] }
-        end
-
-        # Resolves the method stack's first pin for a single top-level
-        # unique type. An Intersection needs only *one* of its conjuncts
-        # to define the method (A & B <: A, A & B <: B) - the opposite of
-        # a union - so it recurses per conjunct and accepts whichever
-        # ones resolve. A conjunct is a full ComplexType, since RBS
-        # allows e.g. `(A | B) & C`.
-        #
-        # @param unique_type [ComplexType::UniqueType]
-        # @param api_map [ApiMap]
-        # @return [::Array<Pin::Base>, nil] nil when unresolved
-        def method_stack_pins unique_type, api_map
-          if unique_type.is_a?(ComplexType::UniqueType::Intersection)
-            resolved = key_verified_conjuncts(unique_type.conjuncts, api_map).filter_map do |conjunct|
-              pins = method_pins_for_binder(conjunct, api_map)
-              pins.empty? ? nil : pins
-            end
-            return nil if resolved.empty?
-            # @param p [Pin::Base]
-            resolved.flatten.uniq { |p| [p.path, p.return_type.tag] }
-          else
-            ns_tag = unique_type.namespace == '' ? '' : unique_type.namespace_type.tag
-            stack = api_map.get_method_stack(ns_tag, word, scope: unique_type.scope)
-            return nil if stack.first.nil?
-            [stack.first]
+        def method_pins_for_binder binder_type, api_map, name_pin, locals
+          pins = binder_type.method_stack_pins(word, api_map) do |conjuncts|
+            argument_verified_conjuncts(conjuncts, api_map, name_pin, locals)
           end
+          pins || []
         end
 
-        # Narrows an intersection's conjuncts to the ones whose own
-        # `key_types` match this call's literal argument at a Hash-like
-        # key parameter, so
-        # `(Hash{"Index" => Float} & Hash{"Triggers" => Array<...>})#fetch("Index")`
-        # resolves to the "Index" conjunct rather than a union of both.
-        # Overload resolution can't do this on its own: it runs per
-        # conjunct, and both conjuncts produce a pin with the same path,
-        # so nothing downstream knows which one the argument selected.
-        #
-        # A conjunct is only narrowed away when *every* conjunct yields a
-        # positive verdict (matched or didn't); if even one is
-        # undeterminable, every conjunct passes through unfiltered.
+        # Narrows conjuncts to the ones with at least one signature
+        # the call arguments conform to. Left unfiltered when any
+        # conjunct resolves no signature to judge against.
         #
         # @param conjuncts [::Array<ComplexType>]
         # @param api_map [ApiMap]
+        # @param name_pin [Pin::Base]
+        # @param locals [::Array<Pin::LocalVariable, Pin::Parameter>]
         # @return [::Array<ComplexType>]
-        def key_verified_conjuncts conjuncts, api_map
+        def argument_verified_conjuncts conjuncts, api_map, name_pin, locals
           return conjuncts if arguments.empty?
 
-          verdicts = conjuncts.map { |c| conjunct_key_verdict(c, api_map) }
-          return conjuncts if verdicts.any?(&:nil?)
+          accepts = conjuncts.map { |c| conjunct_accepts_arguments(c, api_map, name_pin, locals) }
+          return conjuncts if accepts.any?(&:nil?)
 
-          matching = conjuncts.zip(verdicts).select { |(_c, matched)| matched }.map(&:first)
+          matching = conjuncts.zip(accepts).select { |(_c, matched)| matched }.map(&:first)
           matching.empty? ? conjuncts : matching
         end
 
-        # Whether this conjunct's own literal `key_types` positively match
-        # the call's own literal argument at the key parameter's position
-        # (see Pin::Signature#hash_key_param_index), or nil if that can't be
-        # determined (no key-shaped parameter here, non-literal argument,
-        # or no literal `key_types` to compare against).
+        # Whether any signature of the method this conjunct resolves
+        # accepts the call arguments; nil when none resolves.
         #
         # @param conjunct [ComplexType]
         # @param api_map [ApiMap]
+        # @param name_pin [Pin::Base]
+        # @param locals [::Array<Pin::LocalVariable, Pin::Parameter>]
         # @return [Boolean, nil]
-        def conjunct_key_verdict conjunct, api_map
-          verdicts = conjunct.items.map { |unique_type| unique_type_key_verdict(unique_type, api_map) }
-          return nil if verdicts.any?(&:nil?)
+        def conjunct_accepts_arguments conjunct, api_map, name_pin, locals
+          pins = method_pins_for_binder(conjunct, api_map, name_pin, locals)
+          return nil if pins.empty?
 
-          verdicts.all?
+          signatures = pins.flat_map(&:signatures)
+          return nil if signatures.empty?
+
+          signatures.any? { |s| matching_arg_types(s, api_map, name_pin, locals) }
         end
 
-        # @param unique_type [ComplexType::UniqueType]
-        # @param api_map [ApiMap]
-        # @return [Boolean, nil]
-        def unique_type_key_verdict unique_type, api_map
-          return nil unless unique_type.literal_keyed?
-
-          ns_tag = unique_type.namespace == '' ? '' : unique_type.namespace_type.tag
-          pin = api_map.get_method_stack(ns_tag, word, scope: unique_type.scope).first
-          return nil if pin.nil?
-
-          key_tags = unique_type.key_types.map(&:tag)
-          index = pin.signatures.filter_map { |s| s.hash_key_param_index(api_map, key_tags) }.first
-          return nil if index.nil? || index >= arguments.length
-
-          key_tag = literal_node_tag(arguments[index]&.node)
-          return nil if key_tag.nil?
-
-          unique_type.key_type_tag?(key_tag)
-        end
-
-        # The literal tag (e.g. `"Index"`, `:index`, `1`) a `UniqueType`
-        # built from this argument node's literal value would have, or nil
-        # if the node isn't a literal Hash-key-shaped value.
+        # Whether an overload's arity and each parameter's declared
+        # type accept the call's actual arguments.
         #
-        # @param node [Parser::AST::Node, Object]
-        # @return [String, nil]
-        def literal_node_tag node
-          return nil unless Parser.is_ast_node?(node)
+        # @param overload [Pin::Signature]
+        # @param api_map [ApiMap]
+        # @param name_pin [Pin::Base]
+        # @param locals [::Array<Solargraph::Pin::LocalVariable, Solargraph::Pin::Parameter>]
+        # @return [::Array<ComplexType>, nil] the arguments' inferred types if it matches, nil otherwise
+        def matching_arg_types overload, api_map, name_pin, locals
+          return nil unless overload.arity_matches?(arguments, with_block?)
 
-          # @sg-ignore tool-limitation:is_a-narrowing:predicate-wrapper
-          case node.type
-          # @sg-ignore tool-limitation:is_a-narrowing:predicate-wrapper
-          when :str then node.children.first.inspect
-          # @sg-ignore tool-limitation:is_a-narrowing:predicate-wrapper
-          when :sym then ":#{node.children.first}"
-          # @sg-ignore tool-limitation:is_a-narrowing:predicate-wrapper
-          when :int then node.children.first.to_s
+          # @type [::Array<ComplexType>]
+          atypes = []
+          arguments.each_with_index do |arg, idx|
+            param = overload.parameters[idx]
+            if param.nil?
+              return nil unless overload.parameters.any?(&:restarg?)
+              break
+            end
+            arg_name_pin = Pin::ProxyType.anonymous(name_pin.context,
+                                                    closure: name_pin.closure,
+                                                    gates: name_pin.gates,
+                                                    source: :chain)
+            atype = atypes[idx] = arg.infer(api_map, arg_name_pin, locals)
+            # @sg-ignore flow sensitive typing should handle is_a? and next
+            return nil unless param.compatible_arg?(atype, api_map) || param.restarg?
           end
+          atypes
         end
 
         # Checks whether a single overload signature matches the call's
@@ -208,28 +161,8 @@ module Solargraph
         # @param new_signature_pin [Pin::Signature, nil]
         # @return [::Array(ComplexType, Pin::Signature)]
         def match_overload_type overload, pin, api_map, name_pin, locals, type, new_signature_pin
-          return [type, new_signature_pin] unless overload.arity_matches?(arguments, with_block?)
-
-          match = true
-          atypes = []
-          arguments.each_with_index do |arg, idx|
-            param = overload.parameters[idx]
-            if param.nil?
-              match = overload.parameters.any?(&:restarg?)
-              break
-            end
-            arg_name_pin = Pin::ProxyType.anonymous(name_pin.context,
-                                                    closure: name_pin.closure,
-                                                    gates: name_pin.gates,
-                                                    source: :chain)
-            atype = atypes[idx] ||= arg.infer(api_map, arg_name_pin, locals)
-            # @sg-ignore flow sensitive typing should handle is_a? and next
-            unless param.compatible_arg?(atype, api_map) || param.restarg?
-              match = false
-              break
-            end
-          end
-          return [type, new_signature_pin] unless match
+          atypes = matching_arg_types(overload, api_map, name_pin, locals)
+          return [type, new_signature_pin] if atypes.nil?
 
           if overload.block && with_block?
             block_atypes = overload.block.parameters.map(&:return_type)
