@@ -61,6 +61,21 @@ module Solargraph
         save(stdlib_require_path(require), pins)
       end
 
+      # Every entry in the running Ruby installation's standard library
+      # directory, as a name that might be requirable. Not all of them
+      # resolve to a gemspec or to RBS; callers discard the misses.
+      #
+      # @return [Array<String>] possible standard library names
+      def possible_stdlibs
+        Dir.glob(File.join(Gem::RUBYGEMS_DIR, '*')).map do |file_or_dir|
+          basename = File.basename(file_or_dir)
+          basename.end_with?('.rb') ? basename[0..-4] : basename
+        end.sort.uniq
+      rescue StandardError => e
+        logger.info { "Failed to list possible stdlibs: #{e.message}" }
+        []
+      end
+
       # @return [String]
       def core_path
         File.join(work_dir, 'core.ser')

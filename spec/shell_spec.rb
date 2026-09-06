@@ -129,6 +129,29 @@ describe Solargraph::Shell do
         expect(output).to include("Gem 'solargraph123' not found")
       end
     end
+
+    context 'with mocked Workspace' do
+      let(:workspace) { instance_double(Solargraph::Workspace) }
+      let(:gemspec) { instance_double(Gem::Specification, name: 'backport', version: '1.2.0') }
+
+      before do
+        allow(Solargraph::Workspace).to receive(:new).and_return(workspace)
+        allow(workspace).to receive(:gemspecs_to_cache).and_return([gemspec])
+        allow(shell).to receive(:do_cache)
+      end
+
+      it 'caches only what the workspace selects' do
+        capture_both { shell.gems }
+
+        expect(shell).to have_received(:do_cache).with(gemspec, any_args)
+      end
+
+      it 'reports the number of gems it cached' do
+        output = capture_both { shell.gems }
+
+        expect(output).to include('Documentation cached for 1 gems.')
+      end
+    end
   end
 
   describe 'cache' do

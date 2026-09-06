@@ -150,6 +150,26 @@ module Solargraph
       Gem::Specification.find_by_name(name, version)
     end
 
+    # Gemspecs the bundle depends on directly. Empty when the
+    # workspace has no resolvable bundle.
+    #
+    # @return [Array<Gem::Specification, Bundler::LazySpecification, Bundler::StubSpecification>]
+    def all_gemspecs_from_bundle
+      gemspecs.all_gemspecs_from_bundle
+    end
+
+    # Every gemspec whose pins this workspace could need: the bundle,
+    # plus any standard library that resolves to a gemspec in this Ruby
+    # installation. Candidate stdlib names resolving to nothing are dropped.
+    #
+    # @return [Array<Gem::Specification>]
+    def gemspecs_to_cache
+      # @sg-ignore Wrong argument type for Solargraph::Workspace::Gemspecs#find_gem: out expected IO, nil, received NilClass
+      stdlib_gemspecs = PinCache.possible_stdlibs.map { |name| gemspecs.find_gem(name, out: nil) }.compact
+
+      (all_gemspecs_from_bundle + stdlib_gemspecs).uniq { |gemspec| [gemspec.name, gemspec.version] }
+    end
+
     # Synchronize the workspace from the provided updater.
     #
     # @param updater [Source::Updater]
@@ -196,6 +216,11 @@ module Solargraph
     end
 
     private
+
+    # @return [Solargraph::Workspace::Gemspecs]
+    def gemspecs
+      @gemspecs ||= Gemspecs.new(directory_or_nil)
+    end
 
     # The language server configuration (or an empty hash if the workspace was
     # not initialized from a server).
