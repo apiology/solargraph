@@ -321,6 +321,27 @@ describe Solargraph::ComplexType do
       expect(inf.conforms_to?(api_map, exp, :method_call)).to be(false)
     end
 
+    it 'validates against a union whose interface member is satisfied' do
+      exp = described_class.parse('_MyToAry, Integer')
+      inf = described_class.parse('Array')
+      match = inf.conforms_to?(api_map, exp, :method_call)
+      expect(match).to be(true)
+    end
+
+    it 'validates regardless of where the interface sits in the union' do
+      exp = described_class.parse('Integer, _MyToAry')
+      inf = described_class.parse('Array')
+      match = inf.conforms_to?(api_map, exp, :method_call)
+      expect(match).to be(true)
+    end
+
+    it 'invalidates against a union when no member is satisfied' do
+      exp = described_class.parse('_MyToAry, Integer')
+      inf = described_class.parse('String')
+      match = inf.conforms_to?(api_map, exp, :method_call)
+      expect(match).to be(false)
+    end
+
     it 'rejects a same-named method with the wrong return type' do
       pending 'https://github.com/castwide/solargraph/issues/1267'
       exp = described_class.parse('_MyToAry')
