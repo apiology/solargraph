@@ -203,14 +203,10 @@ module Solargraph
           else
             types = types.flat_map do |type|
               if type.tuple?
-                # A true tuple's positions are heterogeneous, so only
-                # the position actually being assigned applies here.
+                # Array(Integer, String) gives each position its own type.
                 [type.all_params[index]].compact
               elsif splattable?(api_map, type)
-                # A non-tuple Array-like type (e.g. Array<Integer,
-                # String>) declares a union of possible element types,
-                # not a positional tuple - every position can hold any
-                # member of that union, so the whole union applies.
+                # Array<Integer, String> is a union: any position holds either.
                 type.all_params
               else
                 []
