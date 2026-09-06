@@ -79,7 +79,6 @@ describe Solargraph::ApiMap::Index do
       end
 
       it 'applies the override instead of raising on a pin that cannot take new comments' do
-        pending 'https://github.com/castwide/solargraph/pull/1104'
         constant_pin = output_pins.find { |pin| pin.path == 'Foo::BAR' }
         expect(constant_pin.docstring.tag(:deprecated)).not_to be_nil
       end

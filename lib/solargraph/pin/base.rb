@@ -87,13 +87,17 @@ module Solargraph
       #
       # @return [self]
       def combine_with other, attrs = {}
-        priority_choice = choose_priority(other)
-        return priority_choice unless priority_choice.nil?
-
         type_location = choose(other, :type_location)
         location = choose(other, :location)
         combined_name = combine_name(other)
-        combined_comments = choose_longer(other, :comments)
+        combined_docstring = docstring_for(other, choose_longer(other, :comments))
+        # With an authority the two must agree, or the pin documents one side
+        # and renders from the other.
+        combined_comments = if authority_over(other).nil?
+                              choose_longer(other, :comments)
+                            else
+                              "#{combined_docstring.to_raw}\n"
+                            end
         new_attrs = {
           location: location,
           type_location: type_location,
@@ -101,7 +105,7 @@ module Solargraph
           closure: combine_closure(other),
           comments: combined_comments,
           source: :combined,
-          docstring: docstring_for(other, combined_comments),
+          docstring: combined_docstring,
           directives: combine_directives(other),
           combine_priority: combine_priority
         }.merge(attrs)
@@ -124,26 +128,57 @@ module Solargraph
       # @param chosen_comments [String, nil]
       # @return [YARD::Docstring]
       def docstring_for other, chosen_comments
+        boss = authority_over(other)
+        return overlay_docstring(boss, boss.equal?(self) ? other : self) unless boss.nil?
+
         comments == chosen_comments ? docstring : other.docstring
+      end
+
+      # The base pin's docstring with every tag name the authoritative pin
+      # supplies replaced by that pin's tags. Tags it says nothing about
+      # survive, which is what makes an override a refinement.
+      #
+      # @param boss [Pin::Base]
+      # @param base [Pin::Base]
+      # @return [YARD::Docstring]
+      def overlay_docstring boss, base
+        merged = base.docstring.dup
+        boss.docstring.tags.map(&:tag_name).uniq.each { |name| merged.delete_tags(name) }
+        boss.docstring.tags.each { |tag| merged.add_tag(tag) }
+        merged
       end
 
       # @param other [self]
       # @return [self, nil] Returns either the pin chosen based on priority or nil
       #   A nil return means that the combination process must proceed
-      def choose_priority other
-        if combine_priority.nil? && !other.combine_priority.nil?
-          return other
-        elsif other.combine_priority.nil? && !combine_priority.nil?
-          return self
-        elsif !combine_priority.nil? && !other.combine_priority.nil?
-          if combine_priority > other.combine_priority
-            return self
-          elsif combine_priority < other.combine_priority
-            return other
-          end
-        end
+      # The pin whose values win a field-by-field merge, or nil when neither
+      # outranks the other. A nil combine_priority ranks below any number.
+      #
+      # @param other [Pin::Base]
+      # @return [Pin::Base, nil]
+      def authority_over other
+        return nil if combine_priority == other.combine_priority
+        return other if combine_priority.nil?
+        return self if other.combine_priority.nil?
 
-        nil
+        combine_priority > other.combine_priority ? self : other
+      end
+
+      # The authoritative pin's value for one attribute. nil when there is no
+      # authority, or it supplies nothing, and the ordinary merge decides.
+      #
+      # @param other [Pin::Base]
+      # @param attr [::Symbol]
+      # @return [Object, nil]
+      def authoritative_value other, attr
+        boss = authority_over(other)
+        return nil if boss.nil?
+
+        value = boss.send(attr)
+        return nil if value.nil?
+        return nil if value.respond_to?(:empty?) && value.empty?
+
+        value
       end
 
       # @param other [self]
@@ -151,6 +186,9 @@ module Solargraph
       # @sg-ignore
       # @return [undefined]
       def choose_longer other, attr
+        authoritative = authoritative_value(other, attr)
+        return authoritative unless authoritative.nil?
+
         # @type [undefined]
         val1 = send(attr)
         # @type [undefined]
@@ -253,6 +291,9 @@ module Solargraph
       # @sg-ignore
       # @return [undefined, nil]
       def choose other, attr
+        authoritative = authoritative_value(other, attr)
+        return authoritative unless authoritative.nil?
+
         results = [self, other].map(&attr).compact
         # true and false are different classes and can't be sorted
 

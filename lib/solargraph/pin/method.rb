@@ -53,9 +53,6 @@ module Solargraph
       end
 
       def combine_with other, attrs = {}
-        priority_choice = choose_priority(other)
-        return priority_choice unless priority_choice.nil?
-
         sigs = combine_signatures(other)
         parameters = if sigs.length.positive?
                        [].freeze

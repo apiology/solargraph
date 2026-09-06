@@ -121,4 +121,34 @@ describe Solargraph::Pin::Base do
       expect(pin.documentation).to include('Changed description.')
     end
   end
+
+  describe 'combining with an authoritative pin' do
+    let(:closure) { Solargraph::Pin::Namespace.new(name: 'Foo') }
+
+    let(:base) do
+      Solargraph::Pin::Method.new(name: 'bar', closure: closure,
+                                  comments: "Original prose.\n@param baz [Integer]\n@return [Integer]")
+    end
+
+    let(:boss) do
+      Solargraph::Pin::Method.new(name: 'bar', closure: closure,
+                                  comments: '@return [String]', combine_priority: 1)
+    end
+
+    it 'replaces only the tags the authoritative pin supplies' do
+      combined = base.combine_with(boss)
+      expect(combined.docstring.tag(:return).types).to eq(['String'])
+      expect(combined.docstring.tag(:param).name).to eq('baz')
+    end
+
+    it 'keeps comments and docstring describing the same thing' do
+      combined = base.combine_with(boss)
+      expect(combined.comments).to eq("#{combined.docstring.to_raw}\n")
+    end
+
+    it 'merges by the ordinary rules when neither pin has priority' do
+      plain = Solargraph::Pin::Method.new(name: 'bar', closure: closure, comments: '@return [String]')
+      expect(base.combine_with(plain).docstring.tag(:param).name).to eq('baz')
+    end
+  end
 end
