@@ -206,6 +206,13 @@ describe Solargraph::Pin::Method do
     expect(realized.docstring.tags(:return).map(&:types)).to eq([['::String', '::Integer']])
   end
 
+  it 'keeps the description written beside a return type when realized' do
+    pin = described_class.new(name: 'named', closure: Solargraph::Pin::ROOT_PIN, source: :source,
+                              comments: "Named.\n@return [String] the display name")
+    realized = pin.realize(Solargraph::ApiMap.new)
+    expect(realized.docstring.tags(:return).map(&:text)).to eq(['the display name'])
+  end
+
   it 'leaves the return tag of the pin it was proxied from untouched' do
     pin = described_class.new(name: 'foo', closure: Solargraph::Pin::ROOT_PIN, source: :source,
                               comments: "Foo.\n@return [Integer]")
