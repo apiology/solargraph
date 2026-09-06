@@ -183,24 +183,30 @@ module Solargraph
               pin.docstring.delete_tags tag
               new_pin&.docstring&.delete_tags tag
             end
+            # Add all tags first, or applying mid-loop drops later ones.
             ovr.tags.each do |tag|
               pin.docstring.add_tag(tag)
+              new_pin&.docstring&.add_tag(tag)
+            end
+            # An override can target a constant or variable pin, which has no
+            # signatures to apply overloads to.
+            pin.apply_override_overloads! if pin.is_a?(Pin::Method)
+            new_pin.apply_override_overloads! if new_pin.is_a?(Pin::Method)
+            # Regenerate once, after every tag is on the docstring, so a later
+            # reparse from comments sees all of them.
+            pin.comments = "#{pin.docstring.to_raw}\n" if pin.is_a?(Pin::Method)
+            new_pin.comments = "#{new_pin.docstring.to_raw}\n" if new_pin.is_a?(Pin::Method)
+            pin.reset_generated!
+            new_pin&.reset_generated!
+            ovr.tags.each do |tag|
               redefine_return_type pin, tag
-              pin.comments = "#{pin.docstring.to_raw}\n"
-              pin.reset_generated!
-
-              next unless new_pin
-
-              new_pin.docstring.add_tag(tag)
               redefine_return_type new_pin, tag
-              new_pin.comments = "#{new_pin.docstring.to_raw}\n"
-              new_pin.reset_generated!
             end
           end
         end
       end
 
-      # @param pin [Pin::Method]
+      # @param pin [Pin::Method, nil]
       # @param tag [YARD::Tags::Tag]
       # @return [void]
       def redefine_return_type pin, tag

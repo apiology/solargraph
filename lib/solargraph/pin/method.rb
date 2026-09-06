@@ -103,6 +103,22 @@ module Solargraph
         @signatures&.each(&:reset_generated!)
       end
 
+      # Apply the `@overload` tags an `@!override` just added. RBS-sourced
+      # signatures cannot be rebuilt from the docstring, so they are kept
+      # behind the new overloads; docstring-derived ones are rebuilt, which
+      # also makes a repeated call idempotent.
+      #
+      # @return [void]
+      def apply_override_overloads!
+        previous = @signatures
+        @overloads = nil
+        return if docstring.tags(:overload).none?(&:parameters)
+
+        keep = previous ? previous.select { |sig| sig.source == :rbs } : []
+        @signatures = keep.empty? ? nil : overloads + keep
+        nil
+      end
+
       def all_rooted?
         super && parameters.all?(&:all_rooted?) && (!block || block&.all_rooted?) && signatures.all?(&:all_rooted?)
       end
@@ -409,7 +425,6 @@ module Solargraph
             source: :overloads
           )
         end
-        @overloads
       end
 
       def anon_splat?

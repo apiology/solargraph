@@ -85,4 +85,157 @@ describe Solargraph::ApiMap::Index do
       end
     end
   end
+
+  describe '#map_overrides with @overload tags' do
+    let(:passthrough) do
+      Solargraph::Pin::Namespace.new(name: 'Passthrough')
+    end
+
+    let(:identity) do
+      meth = Solargraph::Pin::Method.new(name: 'identity',
+                                         scope: :instance,
+                                         parameters: [],
+                                         closure: passthrough)
+      param = Solargraph::Pin::Parameter.new(name: 'arguments', closure: meth)
+      meth.parameters << param
+      meth
+    end
+
+    let(:identity_override) do
+      Solargraph::Pin::Reference::Override.from_comment('Passthrough#identity', <<~COMMENT)
+        @overload identity(arguments)
+          @param arguments [Array<Hash>]
+          @return [Array<Hash>]
+        @overload identity(arguments)
+          @param arguments [Array<String>]
+          @return [Array<String>]
+      COMMENT
+    end
+
+    let(:input_pins) do
+      [
+        passthrough,
+        identity,
+        identity_override
+      ]
+    end
+
+    it 'produces one dispatchable signature per @overload tag, not just the first' do
+      method_pin = output_pins.find { |pin| pin.path == 'Passthrough#identity' }
+      expect(method_pin.signatures.length).to eq(2)
+      expect(method_pin.signatures.map { |sig| sig.parameters.first.return_type.tag }).to eq(['Array<Hash>', 'Array<String>'])
+      expect(method_pin.signatures.map { |sig| sig.return_type.tag }).to eq(['Array<Hash>', 'Array<String>'])
+    end
+
+    context 'when overriding a method that already had its signatures computed' do
+      let(:input_pins) do
+        [
+          passthrough,
+          identity,
+          identity_override
+        ]
+      end
+
+      it 'still applies every @overload tag, not zero of them' do
+        # Simulates #signatures already being read before the override applied.
+        identity.signatures
+
+        method_pin = output_pins.find { |pin| pin.path == 'Passthrough#identity' }
+        expect(method_pin.signatures.length).to eq(2)
+        expect(method_pin.signatures.map { |sig| sig.return_type.tag }).to eq(['Array<Hash>', 'Array<String>'])
+      end
+    end
+  end
+
+  # https://solargraph.org/guides/yard documents @!override with a bare
+  # @return tag (no @overload) as its primary example, using
+  # Benchmark.measure as the sample target:
+  #
+  #   # @!override Benchmark.measure
+  #   #   @return [Benchmark::Tms]
+  describe '#map_overrides with a bare @return tag' do
+    let(:benchmark_module) do
+      Solargraph::Pin::Namespace.new(name: 'Benchmark')
+    end
+
+    let(:measure) do
+      Solargraph::Pin::Method.new(name: 'measure',
+                                  scope: :class,
+                                  parameters: [],
+                                  closure: benchmark_module)
+    end
+
+    let(:measure_override) do
+      Solargraph::Pin::Reference::Override.from_comment('Benchmark.measure', '@return [Benchmark::Tms]')
+    end
+
+    let(:input_pins) do
+      [
+        benchmark_module,
+        measure,
+        measure_override
+      ]
+    end
+
+    it 'redefines the return type documented on solargraph.org' do
+      method_pin = output_pins.find { |pin| pin.path == 'Benchmark.measure' }
+      expect(method_pin.return_type.tag).to eq('Benchmark::Tms')
+    end
+
+    context 'when overriding a method that already had its signatures computed' do
+      it 'still redefines the return type' do
+        # Mirrors solargraph-rspec's @!override hitting an already-resolved pin.
+        measure.signatures
+
+        method_pin = output_pins.find { |pin| pin.path == 'Benchmark.measure' }
+        expect(method_pin.return_type.tag).to eq('Benchmark::Tms')
+      end
+    end
+  end
+
+  # The signatures of an RBS-sourced method live only on the pin -- the
+  # docstring cannot express them -- so an override must refine that set
+  # rather than rebuild it from the docstring alone.
+  describe '#map_overrides on a method whose signatures came from RBS' do
+    let(:collection) do
+      Solargraph::Pin::Namespace.new(name: 'Collection')
+    end
+
+    let(:first) do
+      meth = Solargraph::Pin::Method.new(name: 'first',
+                                         scope: :instance,
+                                         parameters: [],
+                                         closure: collection,
+                                         signatures: [])
+      count = Solargraph::Pin::Parameter.new(name: 'count',
+                                             closure: meth,
+                                             return_type: Solargraph::ComplexType.parse('Integer'))
+      meth.signatures << Solargraph::Pin::Signature.new(parameters: [count],
+                                                        return_type: Solargraph::ComplexType.parse('Array<String>'),
+                                                        closure: meth,
+                                                        source: :rbs)
+      meth
+    end
+
+    let(:first_override) do
+      Solargraph::Pin::Reference::Override.from_comment('Collection#first', <<~COMMENT)
+        @overload first(count)
+          @param count [Symbol]
+          @return [Array<Symbol>]
+      COMMENT
+    end
+
+    let(:input_pins) do
+      [
+        collection,
+        first,
+        first_override
+      ]
+    end
+
+    it 'keeps the RBS signature the override did not describe' do
+      method_pin = output_pins.find { |pin| pin.path == 'Collection#first' }
+      expect(method_pin.signatures.map { |sig| sig.return_type.tag }).to eq(['Array<Symbol>', 'Array<String>'])
+    end
+  end
 end
