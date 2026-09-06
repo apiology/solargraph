@@ -408,7 +408,7 @@ module Solargraph
           # here will only be defined inside the block itself and we
           # need to be able to see them
           # @sg-ignore Need to add nil check here
-          block.infer(api_map, block_pin, locals | block_parameters(api_map))
+          block.infer(api_map, block_pin, locals.union(block_parameters(api_map)))
         end
 
         protected
