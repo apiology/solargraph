@@ -576,7 +576,7 @@ module Solargraph
       def parts_of_function type, pin, implicit_nil
         [
           RbsTranslator.to_parameter_pins(type, pin, pin.parameter_names),
-          extract_method_type_return_type(type, implicit_nil).force_rooted
+          extract_method_type_return_type(type, implicit_nil: implicit_nil).force_rooted
         ]
       end
 
@@ -764,7 +764,7 @@ module Solargraph
         'int' => 'Integer',
         'untyped' => '',
         'NilClass' => 'nil'
-      }
+      }.freeze
       private_constant :RBS_TO_YARD_TYPE
 
       # Extract a ComplexType from a MethodType's return type.
@@ -772,17 +772,18 @@ module Solargraph
       # This method will convert type aliases to concrete types.
       #
       # @param type [RBS::MethodType]
+      # @param implicit_nil [Boolean]
       # @return [ComplexType]
-      def extract_method_type_return_type type, implicit_nil
-          tag = RbsTranslator.to_complex_type(type.type.return_type)
-          return ComplexType.parse("#{tag}, nil") if tag && implicit_nil
-          tag
+      def extract_method_type_return_type type, implicit_nil:
+        tag = RbsTranslator.to_complex_type(type.type.return_type)
+        return ComplexType.parse("#{tag}, nil") if tag && implicit_nil
+        tag
       end
 
       # @param type_name [RBS::TypeName]
       # @param type_args [Enumerable<RBS::Types::Bases::Base>]
       # @return [ComplexType::UniqueType]
-      def build_type(type_name, type_args = [])
+      def build_type type_name, type_args = []
         base = RBS_TO_YARD_TYPE[type_name.relative!.to_s] || type_name.relative!.to_s
         params = type_args.map { |arg| RbsTranslator.to_complex_type(arg).force_rooted }
         if base == 'Hash' && params.length == 2

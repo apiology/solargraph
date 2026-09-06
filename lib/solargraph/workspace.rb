@@ -19,10 +19,6 @@ module Solargraph
     # @return [String]
     attr_reader :directory
 
-    # @return [Array<String>]
-    attr_reader :gemnames
-    alias source_gems gemnames
-
     # @todo Remove '' and '*' special cases
     # @param directory [String]
     # @param config [Config, nil]
@@ -38,7 +34,6 @@ module Solargraph
       @config = config
       @server = server
       load_sources
-      @gemnames = []
       require_plugins
     end
 
@@ -70,9 +65,15 @@ module Solargraph
     end
 
     # @param require [String] The string sent to 'require' in the code to resolve, e.g. 'rails', 'bundler/require'
+    #
     # @return [Array<Gem::Specification>, nil]
     def resolve_require require
       gemspecs.resolve_require(require)
+    end
+
+    # @return [Solargraph::PinCache]
+    def pin_cache
+      @pin_cache ||= fresh_pincache
     end
 
     # @return [Environ]
@@ -80,6 +81,31 @@ module Solargraph
       # empty docmap, since the result needs to work in any possible
       # context here
       @global_environ ||= Convention.for_global(DocMap.new([], self, out: nil))
+    end
+
+    # @param gemspec [Gem::Specification]
+    # @param out [StringIO, IO, nil] output stream for logging
+    # @param rebuild [Boolean] whether to rebuild the pins even if they are cached
+    #
+    # @return [void]
+    def cache_gem gemspec, out: nil, rebuild: false
+      pin_cache.cache_gem(gemspec: gemspec, out: out, rebuild: rebuild)
+    end
+
+    # @param gemspec [Gem::Specification, Bundler::LazySpecification]
+    # @param out [StringIO, IO, nil] output stream for logging
+    #
+    # @return [void]
+    def uncache_gem gemspec, out: nil
+      pin_cache.uncache_gem(gemspec, out: out)
+    end
+
+    # @return [Solargraph::PinCache]
+    def fresh_pincache
+      PinCache.new(rbs_collection_path: rbs_collection_path,
+                   rbs_collection_config_path: rbs_collection_config_path,
+                   yard_plugins: yard_plugins,
+                   directory: directory)
     end
 
     # @return [Array<String>]
@@ -165,6 +191,14 @@ module Solargraph
       false
     end
 
+    # True if the workspace has a root Gemfile.
+    #
+    # @todo Handle projects with custom Bundler/Gemfile setups (see DocMap#gemspecs_required_from_bundler)
+    #
+    def gemfile?
+      directory && File.file?(File.join(directory, 'Gemfile'))
+    end
+
     # True if the workspace contains at least one gemspec file.
     #
     # @return [Boolean]
@@ -201,7 +235,34 @@ module Solargraph
     #
     # @return [Gem::Specification, nil]
     def find_gem name, version = nil, out: nil
-      Gem::Specification.find_by_name(name, version)
+      gemspecs.find_gem(name, version, out: out)
+    end
+
+    # @return [Array<Gem::Specification>]
+    def all_gemspecs_from_bundle
+      gemspecs.all_gemspecs_from_bundle
+    end
+
+    # @param out [StringIO, IO, nil] output stream for logging
+    # @param rebuild [Boolean] whether to rebuild the pins even if they are cached
+    # @return [void]
+    def cache_all_for_workspace! out, rebuild: false
+      PinCache.cache_core(out: out) unless PinCache.core? && !rebuild
+
+      gem_specs = all_gemspecs_from_bundle
+      # try any possible standard libraries, but be quiet about it
+      stdlib_specs = pin_cache.possible_stdlibs.map { |stdlib| find_gem(stdlib, out: nil) }.compact
+      specs = (gem_specs + stdlib_specs)
+      specs.each do |spec|
+        pin_cache.cache_gem(gemspec: spec, rebuild: rebuild, out: out) unless pin_cache.cached?(spec)
+      end
+      out&.puts "Documentation cached for all #{specs.length} gems."
+
+      # do this after so that we prefer stdlib requires from gems,
+      # which are likely to be newer and have more pins
+      pin_cache.cache_all_stdlibs(out: out, rebuild: rebuild)
+
+      out&.puts 'Documentation cached for core, standard library and gems.'
     end
 
     # Synchronize the workspace from the provided updater.
@@ -214,6 +275,7 @@ module Solargraph
 
     # @sg-ignore return type could not be inferred
     # @return [String]
+    # @sg-ignore Need to validate config
     def command_path
       server['commandPath'] || 'solargraph'
     end

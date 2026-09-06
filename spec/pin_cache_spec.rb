@@ -2,6 +2,7 @@
 
 require 'bundler'
 require 'benchmark'
+require 'tmpdir'
 
 describe Solargraph::PinCache do
   subject(:pin_cache) do
@@ -80,7 +81,7 @@ describe Solargraph::PinCache do
 
     context 'with the parser gem' do
       before do
-        Solargraph::Shell.new.uncache('parser')
+        pin_cache.uncache_gem(Gem::Specification.find_by_name('parser'), out: nil)
         allow(Solargraph::Yardoc).to receive(:build_docs)
       end
 
@@ -94,7 +95,7 @@ describe Solargraph::PinCache do
 
     context 'with an installed gem' do
       before do
-        Solargraph::Shell.new.gems('kramdown')
+        pin_cache.cache_gem(gemspec: Gem::Specification.find_by_name('kramdown'), out: nil)
       end
 
       it 'uncaches when asked' do
@@ -122,7 +123,7 @@ describe Solargraph::PinCache do
       let(:gem_name) { 'logger' }
 
       before do
-        Solargraph::Shell.new.uncache(gem_name)
+        pin_cache.uncache_gem(Gem::Specification.find_by_name(gem_name), out: nil)
       end
 
       it 'caches' do
@@ -140,7 +141,7 @@ describe Solargraph::PinCache do
       let(:gem_name) { 'rubocop-yard' }
 
       before do
-        Solargraph::Shell.new.uncache(gem_name)
+        pin_cache.uncache_gem(Gem::Specification.find_by_name(gem_name), out: nil)
       end
 
       it 'caches' do
@@ -192,6 +193,51 @@ describe Solargraph::PinCache do
         call
 
         expect(FileUtils).not_to have_received(:rm_rf)
+      end
+    end
+  end
+
+  describe '.uncache_by_prefix' do
+    it 'deletes every file matching the prefix and logs each one' do
+      Dir.mktmpdir do |dir|
+        prefix = File.join(dir, 'some-gem-1.0.0')
+        File.write("#{prefix}-yard.ser", '')
+        File.write("#{prefix}-rbs.ser", '')
+        File.write(File.join(dir, 'unrelated-file'), '')
+        out = StringIO.new
+
+        described_class.uncache_by_prefix(prefix, out: out)
+
+        expect(Dir.glob("#{prefix}*")).to be_empty
+        expect(File.exist?(File.join(dir, 'unrelated-file'))).to be(true)
+        expect(out.string).to include('Clearing pin cache in')
+      end
+    end
+
+    it 'skips directories matching the prefix glob' do
+      Dir.mktmpdir do |dir|
+        prefix = File.join(dir, 'some-gem-1.0.0')
+        Dir.mkdir("#{prefix}-dir")
+
+        expect { described_class.uncache_by_prefix(prefix) }.not_to raise_error
+        expect(Dir.exist?("#{prefix}-dir")).to be(true)
+      end
+    end
+  end
+
+  describe '.exist?' do
+    it 'is true when the joined path is a file' do
+      Dir.mktmpdir do |dir|
+        path = File.join(dir, 'cached.ser')
+        File.write(path, '')
+
+        expect(described_class.exist?(dir, 'cached.ser')).to be(true)
+      end
+    end
+
+    it 'is false when the joined path does not exist' do
+      Dir.mktmpdir do |dir|
+        expect(described_class.exist?(dir, 'missing.ser')).to be(false)
       end
     end
   end
