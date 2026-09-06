@@ -114,6 +114,14 @@ describe Solargraph::Shell do
       end
 
       it 'caches core without erroring out' do
+        capture_both do
+          shell.uncache('core')
+        end
+
+        expect { shell.cache('core') }.not_to raise_error
+      end
+
+      it 'caches core pins from the gems command' do
         core_map = instance_double(Solargraph::RbsMap::CoreMap)
         allow(Solargraph::RbsMap::CoreMap).to receive(:new).and_return(core_map)
         allow(core_map).to receive(:cache_core).and_return([])
