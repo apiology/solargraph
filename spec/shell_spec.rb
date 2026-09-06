@@ -286,6 +286,58 @@ describe Solargraph::Shell do
     end
   end
 
+  describe '#do_cache' do
+    let(:pin) { Solargraph::Pin::Namespace.new(name: 'Foo') }
+
+    before do
+      workspace = instance_double(Solargraph::Workspace, rbs_collection_path: nil, rbs_collection_config_path: nil)
+      allow(Solargraph::Workspace).to receive(:new).and_return(workspace)
+      allow(Solargraph::PinCache).to receive_messages(has_yard?: false, has_rbs_collection?: false)
+      allow(Solargraph::PinCache).to receive(:serialize_yard_gem)
+      allow(Solargraph::PinCache).to receive(:serialize_rbs_collection_gem)
+      allow(Solargraph::GemPins).to receive(:build_yard_pins).and_return([pin])
+    end
+
+    # @param name [String]
+    # @param cache_key [String]
+    # @return [Gem::Specification] the gemspec handed to do_cache
+    def cache_gem name, cache_key
+      gemspec = instance_double(Gem::Specification, name: name)
+      rbs_map = instance_double(Solargraph::RbsMap, cache_key: cache_key, pins: [pin])
+      allow(Solargraph::RbsMap).to receive(:from_gemspec).and_return(rbs_map)
+      shell.send(:do_cache, gemspec)
+      gemspec
+    end
+
+    it 'skips the YARD build when the RBS collection resolves types' do
+      cache_gem('parser', 'resolved-key')
+
+      expect(Solargraph::GemPins).not_to have_received(:build_yard_pins)
+    end
+
+    it 'caches RBS collection pins for a gem whose YARD build was skipped' do
+      gemspec = cache_gem('parser', 'resolved-key')
+
+      expect(Solargraph::PinCache).to have_received(:serialize_rbs_collection_gem).with(gemspec, 'resolved-key', [pin])
+    end
+
+    it 'builds YARD pins when the RBS collection cannot resolve types' do
+      gemspec = cache_gem('parser', Solargraph::RbsMap::CACHE_KEY_UNRESOLVED)
+
+      expect(Solargraph::PinCache).to have_received(:serialize_yard_gem).with(gemspec, [pin])
+    end
+
+    it 'builds YARD pins for a gem outside the suppression list' do
+      gemspec = cache_gem('rspec', 'resolved-key')
+
+      expect(Solargraph::PinCache).to have_received(:serialize_yard_gem).with(gemspec, [pin])
+    end
+
+    it 'warns when the gemspec is missing' do
+      expect { shell.send(:do_cache, nil) }.to output(/not found/).to_stderr
+    end
+  end
+
   context 'with unbundled environments' do
     let!(:command_path) { File.realpath(File.join('spec', 'fixtures', 'shim.rb')) }
     let!(:unbundled_env) { Bundler.unbundled_env.merge({ 'BUNDLE_GEMFILE' => nil }) }
