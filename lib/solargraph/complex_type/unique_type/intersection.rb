@@ -190,7 +190,196 @@ module Solargraph
           self
         end
 
+        # Unanswerable for an intersection: each would report from @name
+        # (the whole compound tag) or from subtype and parameter state an
+        # intersection never populates.
+        def rooted_namespace(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def namespace_type(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def recreate(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def erased_version_of?(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def value_types(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def parameters?(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def list_parameters?(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def fixed_parameters?(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def hash_parameters?(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def substring(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def rooted_substring(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def generate_substring_from(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def parameters_as_rbs(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def resolve_param_generics_from_context(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def rbs_name(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def non_literal_name(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def determine_non_literal_name(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def nullable?(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def selfy?(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def expand(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def without_nil(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def narrow_with(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def resolve_generics(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def erase_generics(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def simplify_literals(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def force_rooted(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def self_to_type(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def exclude(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def reduce_class_type(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def to_a(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def each(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def map(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def all?(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def any?(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def rooted_tags(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def desc(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def erased_variance(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def parameter_variance(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def literal?(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def simplifyable_literal?(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def tuple?(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def downcast_to_literal_if_possible(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def rbs_union(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        protected
+
+        def equality_fields(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
         private
+
+        def mixin_pairing?(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def namespace_kind(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
 
         # Renders conjuncts as a tag, bracketing multi-item ones since
         # `&` binds tighter than `,`/`|` (`[A|B] & C`, not `A, B & C`).
