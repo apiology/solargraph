@@ -183,9 +183,14 @@ module Solargraph
       paths = without_gemspecs.to_h.keys
       # @type [Array<Gem::Specification>]
       gemspecs = with_gemspecs.to_h.values.flatten.compact + dependencies.to_a
+      stdlib_gemspecs, gemspecs = gemspecs.partition { |gemspec| stdlib_described?(gemspec) }
 
       paths.each do |path|
         deserialize_stdlib_rbs_map path
+      end
+
+      stdlib_gemspecs.each do |gemspec|
+        deserialize_stdlib_rbs_map gemspec.name
       end
 
       logger.debug { 'DocMap#load_serialized_gem_pins: Combining pins...' }
@@ -272,6 +277,19 @@ module Solargraph
         logger.debug { "Pins not yet cached for #{gemspec.name}:#{gemspec.version}" }
         nil
       end
+    end
+
+    # A default gem ships no documentation of its own, so a combined cache
+    # entry could never hold more than the stdlib RBS already does. Reading
+    # that RBS directly also skips the wait for `solargraph gems` to write
+    # the entry.
+    #
+    # @param gemspec [Gem::Specification]
+    # @return [Boolean]
+    def stdlib_described? gemspec
+      return false unless gemspec.respond_to?(:default_gem?) && gemspec.default_gem?
+
+      RbsMap::StdlibMap.load(gemspec.name).resolved?
     end
 
     # @param path [String] require path that might be in the RBS stdlib collection
