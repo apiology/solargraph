@@ -11,18 +11,16 @@ describe Solargraph::ComplexType::UniqueType do
     end
   end
 
-  describe '#key_type_tag?' do
-    it 'matches a single literal key type' do
-      type = Solargraph::ComplexType.parse('Hash{"Index" => Float}').first
-      expect(type.key_type_tag?('"Index"')).to be(true)
-      expect(type.key_type_tag?('"Other"')).to be(false)
+  describe '#rooted_tags' do
+    it 'leaves a symbol literal alone, so the tag can be parsed back' do
+      type = Solargraph::ComplexType.parse('Array<:Sym>').first.force_rooted
+      expect(type.rooted_tags).to eq('::Array<:Sym>')
+      expect(Solargraph::ComplexType.parse(type.rooted_tags).tags).to eq('Array<:Sym>')
     end
 
-    it 'matches every member of a union key type, not just the first' do
-      type = Solargraph::ComplexType.parse('Hash{"Index"|"Name" => Float}').first
-      expect(type.key_type_tag?('"Index"')).to be(true)
-      expect(type.key_type_tag?('"Name"')).to be(true)
-      expect(type.key_type_tag?('"Other"')).to be(false)
+    it 'leaves a capitalized string literal alone when it is a hash key' do
+      type = Solargraph::ComplexType.parse('Hash{"Index" => Float}').first.force_rooted
+      expect(type.rooted_tags).to eq('::Hash{"Index" => ::Float}')
     end
   end
 

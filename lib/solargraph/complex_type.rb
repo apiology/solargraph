@@ -6,8 +6,8 @@ module Solargraph
   class ComplexType
     GENERIC_TAG_NAME = 'generic'
 
-    # the quote characters that open and close a string literal type
     QUOTE_CHARACTERS = ['"', "'"].freeze
+
     # @!parse
     #   include TypeMethods
     include Equality
@@ -44,6 +44,24 @@ module Solargraph
         api_map.unalias(t.name) || t.qualify(api_map, *gates)
       end
       ComplexType.new(types).reduce_object
+    end
+
+    # Pins for calling +word+ on each alternative of this union
+    # (loose_unions allows leniency).
+    #
+    # @param word [String]
+    # @param api_map [ApiMap]
+    # @yieldparam conjuncts [Array<ComplexType>] the conjuncts of an intersection
+    # @yieldreturn [Array<ComplexType>] the conjuncts to dispatch on
+    # @return [Array<Pin::Base>]
+    def method_stack_pins word, api_map, &narrow_conjuncts
+      pin_groups = @items.map { |item| item.method_stack_pins(word, api_map, &narrow_conjuncts) }
+      return [] if !api_map.loose_unions && pin_groups.any?(&:nil?)
+
+      # Dedup on path *and* return type: alternatives can share a
+      # path (e.g. same generic method on different instantiations).
+      # @param p [Pin::Base]
+      pin_groups.compact.flatten.uniq { |p| [p.path, p.return_type.tag] }
     end
 
     # @param generics_to_resolve [Enumerable<String>]]
@@ -275,14 +293,7 @@ module Solargraph
     private :duck_type_provides?
 
     # Intersection#namespace/#scope only report the first conjunct,
-    # which loses the "any one conjunct satisfies" semantics an
-    # intersection needs against a duck-typed expectation - e.g. a
-    # mock stubbed to satisfy an interface, typed `SomeMockClass &
-    # #some_method`, has to be checked against every conjunct rather
-    # than the first one. A conjunct is itself a full ComplexType (RBS
-    # allows a union as one member of an intersection), so a union
-    # conjunct only counts as satisfying the duck type if every one of
-    # its own alternatives does.
+    # so this checks every conjunct against the duck type directly.
     #
     # @param api_map [ApiMap]
     # @param quack [String]
@@ -294,8 +305,7 @@ module Solargraph
           conjunct.all? { |ut| intersection_conjunct_quacks?(api_map, quack, ut) }
         end
       end
-      # A duck-typed conjunct only vouches for the one method its own
-      # tag names - it has no namespace to look other methods up on.
+      # A duck-typed conjunct only vouches for its own named method.
       return unique_type.to_s[1..] == quack if unique_type.duck_type?
       !api_map.get_method_stack(unique_type.namespace, quack, scope: unique_type.scope).empty?
     end
@@ -488,9 +498,9 @@ module Solargraph
 
     # @param api_map [ApiMap]
     # @param unique_type [ComplexType::UniqueType]
+    # @sg-ignore flow sensitive typing needs to infer Enumerable#find's block return type from an is_a? check
     # @return [:class, :module, nil] nil when the namespace has no pin
     def namespace_kind api_map, unique_type
-      # @type [Pin::Namespace, nil]
       pin = api_map.get_path_pins(unique_type.namespace).find { |p| p.is_a?(Pin::Namespace) }
       pin&.type
     end
@@ -533,12 +543,8 @@ module Solargraph
           bracket_stack = 0
           base = String.new
           subtype_string = String.new
-          # conjuncts of an intersection type (`A & B`) seen so far in
-          # the current `|`-disjunct of the segment being parsed
           # @type [Array<ComplexType>]
           conjuncts = []
-          # disjuncts of a union type (`A | B`) seen so far in the
-          # segment currently being parsed
           # @type [Array<ComplexType, ComplexType::UniqueType>]
           disjuncts = []
           # the open quote character of the string literal being read
@@ -569,8 +575,11 @@ module Solargraph
                 #   automatically or complain about not being
                 #   compatible with key_type's type in type checking
                 key_types = types
+                # @type [Array<ComplexType::UniqueType, ComplexType>]
                 types = []
+                # @type [Array<ComplexType>]
                 conjuncts = []
+                # @type [Array<ComplexType, ComplexType::UniqueType>]
                 disjuncts = []
                 base.clear
                 subtype_string.clear

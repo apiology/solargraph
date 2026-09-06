@@ -9,8 +9,9 @@ module Solargraph
       # Unlike ComplexType's comma-separated items (a union, where any
       # one member describes the value), every conjunct must describe
       # the value independently, so the subtyping rules are a union's
-      # mirror image: A & B <: A and A & B <: B, but a value satisfies
-      # A & B only if it satisfies every conjunct.
+      # mirror image: A & B <: A and A & B <: B (<: means "is a
+      # subtype of"), but a value satisfies A & B only if it satisfies
+      # every conjunct.
       #
       # Each conjunct is a full ComplexType, not a plain UniqueType, as
       # RBS allows a union as one member of an intersection
@@ -58,6 +59,26 @@ module Solargraph
         # @return [::Symbol]
         def scope
           conjuncts.fetch(0).scope
+        end
+
+        # Pins from the conjuncts defining the method - one is enough -
+        # narrowed by the block to those the caller can dispatch to.
+        #
+        # @param word [String]
+        # @param api_map [ApiMap]
+        # @yieldparam conjuncts [::Array<ComplexType>]
+        # @yieldreturn [::Array<ComplexType>]
+        # @return [::Array<Pin::Base>, nil] nil when no conjunct defines it
+        def method_stack_pins word, api_map, &narrow_conjuncts
+          candidates = block_given? ? yield(conjuncts) : conjuncts
+          resolved = candidates.filter_map do |conjunct|
+            pins = conjunct.method_stack_pins(word, api_map, &narrow_conjuncts)
+            pins.empty? ? nil : pins
+          end
+          return nil if resolved.empty?
+
+          # @param p [Pin::Base]
+          resolved.flatten.uniq { |p| [p.path, p.return_type.tag] }
         end
 
         def generic?
@@ -130,17 +151,9 @@ module Solargraph
           end
         end
 
-        # Every conjunct describes the same value, so each is resolved
-        # against the same context type, and a generic bound by one
-        # conjunct is visible to the rest through the shared
-        # resolved_generic_values hash. UniqueType's implementation
-        # looks for generics in #subtypes and #key_types, which an
-        # intersection does not use - its type parameters live inside
-        # the conjuncts - so `Class<generic<T>> & #new` never bound T.
-        #
-        # Conjuncts resolve left to right, so a generic that only
-        # becomes bindable through a later conjunct stays unresolved in
-        # an earlier one's output.
+        # Every conjunct resolves against the same context, sharing
+        # resolved_generic_values - resolved left to right, so an
+        # earlier conjunct won't see a generic only a later one binds.
         #
         # @param generics_to_resolve [Enumerable<String>]
         # @param context_type [ComplexType, UniqueType, nil]
@@ -156,12 +169,20 @@ module Solargraph
         # Applies the transformation to each conjunct independently
         # and rebuilds the intersection from the results.
         #
-        # @param new_name [String, nil]
+        # new_name is not passed down to the conjuncts. An
+        # intersection's own `name` is the synthetic `"A & B"` string
+        # built in #initialize, not a namespace; giving that to each
+        # conjunct renames `Hash{"a" => Float}` to
+        # `Hash{"a" => Float} & Hash{"b" => Float}{"a" => Float}`,
+        # which no longer parses. Each conjunct keeps its own name,
+        # which is the only rename that means anything here.
+        #
+        # @param _new_name [String, nil] ignored - see above
         # @yieldparam t [UniqueType]
         # @yieldreturn [UniqueType]
         # @return [self]
-        def transform new_name = nil, &transform_type
-          Intersection.new(conjuncts.map { |conjunct| conjunct.transform(new_name, &transform_type) })
+        def transform _new_name = nil, &transform_type
+          Intersection.new(conjuncts.map { |conjunct| conjunct.transform(&transform_type) })
         end
 
         # @return [self]
@@ -171,11 +192,8 @@ module Solargraph
 
         private
 
-        # Renders the conjuncts as a tag, bracketing any conjunct that
-        # holds more than one type. `&` binds tighter than the `,`/`|`
-        # of a union, so without the brackets `[A | B] & C` would
-        # render as `A, B & C` and parse back as `A | (B & C)` - a
-        # different type.
+        # Renders conjuncts as a tag, bracketing multi-item ones since
+        # `&` binds tighter than `,`/`|` (`[A|B] & C`, not `A, B & C`).
         #
         # @param tags_method [:tags, :rooted_tags]
         # @return [String]
@@ -186,13 +204,6 @@ module Solargraph
           end.join(' & ')
         end
 
-        # Returns expected itself when it's a bare Intersection, or
-        # its one item when it's a ComplexType consisting of nothing
-        # but a single Intersection. A union with an intersection as
-        # one of several alternatives returns nil; #conforms_to? has
-        # already tried each alternative on its own by then, so what
-        # reaches here is the fallback "any conjunct" path.
-        #
         # True when expected is a union and this intersection conforms
         # to one of its alternatives taken on its own.
         #
@@ -210,6 +221,8 @@ module Solargraph
           end
         end
 
+        # Returns expected itself (or its one item) when it's an Intersection, else nil.
+        #
         # @param expected [ComplexType, ComplexType::UniqueType]
         # @return [Intersection, nil]
         def sole_intersection expected

@@ -31,10 +31,8 @@ module Solargraph
       # @return [UniqueType]
       def self.parse name, substring = '', make_rooted: nil
         raise ComplexTypeError, "Illegal prefix: #{name}" if name.start_with?(':::')
-        # Anonymous shorthand - `<A>`, `(A)`, `{A=>B}` - omits the
-        # leading type name, defaulting it to Array or Hash. Resolved
-        # before the rooted/can_root_name? check below so an anonymous
-        # `<A>` behaves exactly like the equivalent `Array<A>`.
+        # Anonymous shorthand (`<A>`, `(A)`, `{A=>B}`) defaults the
+        # omitted type name to Array or Hash, before the rooted check below.
         name = ANONYMOUS_NAME_BY_STARTING_TAG.fetch(substring[0]) if name.empty? && !substring.empty?
         if name.start_with?('::')
           name = name[2..]
@@ -133,18 +131,9 @@ module Solargraph
         ComplexType.new(types)
       end
 
-      # Flow-sensitive type narrowing: given a type learned from a
-      # runtime guard (e.g. `x.is_a?(Foo)`), refines this type down
-      # to the more specific of each compatible pair between the two
-      # sides. When neither side is already known to be a subtype of
-      # the other but one is positively confirmed to be a mix-in
-      # (e.g. a declared class and an unrelated module), both facts
-      # are still true at once, so the pair is combined into an
-      # Intersection rather than discarded. Everything else - two
-      # different concrete classes (impossible; an object has exactly
-      # one class), or either side being a namespace we can't
-      # positively identify - falls back to the original behavior of
-      # dropping the pair.
+      # Flow-sensitive narrowing (e.g. via `is_a?`): keeps the more
+      # specific of each compatible pair, or an Intersection when
+      # only a confirmed mix-in relationship holds.
       #
       # @see https://www.typescriptlang.org/docs/handbook/2/narrowing.html
       #
@@ -171,14 +160,9 @@ module Solargraph
         ComplexType.new(types)
       end
 
-      # Whether combining these two into an intersection is safe. Only
-      # true when at least one side is *positively confirmed* to be a
-      # mix-in: any class can pick up any module, so a class-and-module
-      # pairing is always plausible. Everything else - two different
-      # concrete classes, or a namespace we have no pin for (synthetic
-      # names like `Boolean`, generics, literals, duck types, or
-      # simply unresolved) - defaults to false, preserving the
-      # original drop-the-pair behavior.
+      # Safe to combine into an intersection only when one side is a
+      # confirmed mix-in (any class can pick up any module); two
+      # classes, or an unpinned namespace, stay false.
       #
       # @param api_map [ApiMap]
       # @param declared [ComplexType::UniqueType]
@@ -190,9 +174,9 @@ module Solargraph
 
       # @param api_map [ApiMap]
       # @param unique_type [ComplexType::UniqueType]
+      # @sg-ignore flow sensitive typing needs to infer Enumerable#find's block return type from an is_a? check
       # @return [Symbol, nil] :class, :module, or nil if unknown
       def namespace_kind api_map, unique_type
-        # @type [Pin::Namespace, nil]
         pin = api_map.get_path_pins(unique_type.namespace).find { |p| p.is_a?(Pin::Namespace) }
         pin&.type
       end
@@ -210,27 +194,6 @@ module Solargraph
       # @return [String]
       def non_literal_name
         @non_literal_name ||= determine_non_literal_name
-      end
-
-      # Whether every one of this type's key_types is a literal type
-      # (e.g. `Hash{"Index" => Float}`'s key_types is `["Index"]`, a
-      # literal String) - a Hash-like type whose keys are specific
-      # values rather than a general key class.
-      #
-      # @return [Boolean]
-      def literal_keyed?
-        key_types.any? && key_types.all? { |kt| kt.items.all?(&:literal?) }
-      end
-
-      # Whether any of this type's key_types has the given literal tag
-      # (e.g. `'"Index"'`, `':foo'`, `'1'`). A key_type is itself a
-      # ComplexType, so a union key (`Hash{"A" | "B" => V}`) has more
-      # than one item to check - `kt.tag` alone only sees the first.
-      #
-      # @param tag [String]
-      # @return [Boolean]
-      def key_type_tag? tag
-        key_types.any? { |kt| kt.items.any? { |item| item.tag == tag } }
       end
 
       # @return [self]
@@ -321,6 +284,18 @@ module Solargraph
       # @param other [UniqueType]
       def erased_version_of? other
         name == other.name && (all_params.empty? || all_params.all?(&:undefined?))
+      end
+
+      # The first pin of the method stack for +word+ on this type, or
+      # nil when the method does not resolve.
+      #
+      # @param word [String]
+      # @param api_map [ApiMap]
+      # @return [::Array<Pin::Base>, nil]
+      def method_stack_pins word, api_map
+        ns_tag = namespace == '' ? '' : namespace_type.tag
+        stack = api_map.get_method_stack(ns_tag, word, scope: scope)
+        stack.first.nil? ? nil : [stack.first]
       end
 
       # @param api_map [ApiMap]
@@ -689,10 +664,14 @@ module Solargraph
         self.class.can_root_name?(name_to_check)
       end
 
+      # Only a constant path or an RBS interface takes a `::` prefix.
+      # Both start with an uppercase letter, after a leading underscore
+      # for an interface; literals like `:Sym` and `"Index"` do not.
+      ROOTABLE_NAME = /\A_?[A-Z]/
+
       # @param name [String]
       def self.can_root_name? name
-        # name is not lowercase
-        !name.empty? && name != name.downcase
+        name.match?(ROOTABLE_NAME)
       end
 
       UNDEFINED = UniqueType.new('undefined', rooted: false)

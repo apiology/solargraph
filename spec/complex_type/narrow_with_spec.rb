@@ -1,10 +1,8 @@
 # frozen_string_literal: true
 
 # ComplexType#narrow_with is flow-sensitive type narrowing (e.g.
-# refining a declared type using a type learned from an `is_a?`
-# guard) - see spec/parser/flow_sensitive_typing_spec.rb for
-# end-to-end coverage through real source. These specs exercise the
-# narrowing logic directly.
+# from an `is_a?` guard) - see
+# spec/parser/flow_sensitive_typing_spec.rb for end-to-end coverage.
 describe Solargraph::ComplexType do
   let(:api_map) { Solargraph::ApiMap.new }
 
@@ -52,6 +50,24 @@ describe Solargraph::ComplexType do
       learned = described_class.parse('M')
       narrowed = declared.narrow_with(learned, api_map)
       expect(narrowed.tag).to eq('T')
+    end
+  end
+
+  context 'when narrowing a class with a duck type' do
+    let(:source) do
+      Solargraph::Source.load_string(%(
+        class T; end
+      ))
+    end
+
+    before { api_map.map source }
+
+    it 'builds an intersection rather than discarding the class' do
+      pending 'https://github.com/castwide/solargraph/pull/1297'
+      declared = described_class.parse('T')
+      learned = described_class.parse('#bar')
+      narrowed = declared.narrow_with(learned, api_map)
+      expect(narrowed.tag).to eq('T & #bar')
     end
   end
 end
