@@ -188,8 +188,10 @@ module Solargraph
               pin.docstring.add_tag(tag)
               new_pin&.docstring&.add_tag(tag)
             end
-            pin.apply_override_overloads!
-            new_pin&.apply_override_overloads!
+            # An override can target a constant or variable pin, which has no
+            # signatures to apply overloads to.
+            pin.apply_override_overloads! if pin.is_a?(Pin::Method)
+            new_pin.apply_override_overloads! if new_pin.is_a?(Pin::Method)
             pin.reset_generated!
             new_pin&.reset_generated!
             ovr.tags.each do |tag|
