@@ -153,13 +153,6 @@ module Solargraph
       @resolved
     end
 
-    # Pins a subclass can serve standalone with no gem cache entry yet; see RbsMap::StdlibMap.
-    #
-    # @return [Array<Pin::Base>, nil]
-    def fallback_pins
-      nil
-    end
-
     # @return [RBS::Repository]
     def repository
       @repository ||= RBS::Repository.new(no_stdlib: false).tap do |repo|

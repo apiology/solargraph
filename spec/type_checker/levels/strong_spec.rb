@@ -999,8 +999,10 @@ describe Solargraph::TypeChecker do
     end
 
     # TypeChecker.load_string builds a bare ApiMap, so a gem's own pins -
-    # Forwardable's def_delegators among them - are not available. Cataloging
-    # a Bench with external_requires loads them.
+    # Forwardable's def_delegators among them - are not available. Catalog a
+    # Bench with external_requires, then cache and re-catalog the way
+    # ApiMap.load_with_cache does, so the pins are present however cold the
+    # gem cache is. Only the gems named in `requires` get built.
     #
     # @param code [String]
     # @param requires [::Array<String>]
@@ -1009,8 +1011,11 @@ describe Solargraph::TypeChecker do
       rules = Solargraph::TypeChecker::Rules.new(:strong, {})
       api_map = Solargraph::ApiMap.new(loose_unions: !rules.require_all_unique_types_support_call?)
       source = Solargraph::Source.load_string(code, 'test.rb')
-      api_map.catalog Solargraph::Bench.new(source_maps: [Solargraph::SourceMap.map(source)],
-                                            external_requires: requires)
+      bench = Solargraph::Bench.new(source_maps: [Solargraph::SourceMap.map(source)],
+                                    external_requires: requires)
+      api_map.catalog bench
+      api_map.cache_all_for_doc_map!(out: nil)
+      api_map.catalog bench
       Solargraph::TypeChecker.new('test.rb', api_map: api_map, level: :strong, rules: rules)
     end
 
