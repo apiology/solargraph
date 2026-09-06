@@ -19,6 +19,7 @@ module Solargraph
               assignment: node.children[1],
               comments: comments_for(node),
               presence: presence,
+              # false inside an if/while/rescue body, which may not run
               definite: !region.compound_statement.conditional,
               compound_statement: region.compound_statement,
               source: :parser

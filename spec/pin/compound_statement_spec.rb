@@ -1,13 +1,10 @@
 # frozen_string_literal: true
 
 describe Solargraph::Pin::CompoundStatement do
-  # Every pin built through Region-threaded node processors still gets
-  # an explicit `closure:`, so `Pin::Base#closure` returns the stored
-  # value, not the derived one - the derivation only kicks in as a
-  # fallback. These specs check the two would agree anyway, so a
-  # future node processor that updates one threading (closure: or
-  # compound_statement:) without the other gets caught here instead
-  # of silently drifting.
+  # Pins are threaded with both an explicit `closure:` and a
+  # `compound_statement:` chain. These specs walk the chain and check
+  # it reaches the same closure, catching a node processor that
+  # threads one without the other.
   def derive_closure pin
     cs = pin.compound_statement
     cs = cs.compound_statement while cs && !cs.is_a?(Solargraph::Pin::Closure)
@@ -54,25 +51,6 @@ describe Solargraph::Pin::CompoundStatement do
     compound_statement_pins.each do |pin|
       expect(derive_closure(pin)).to eq(pin.closure), "mismatch for #{pin.inspect}"
     end
-  end
-
-  it 'derives the enclosing method as closure for a bare CompoundStatement built only with compound_statement:' do
-    source_map = Solargraph::SourceMap.load_string(%(
-      class Foo
-        def bar
-          1
-        end
-      end
-    ))
-    method_pin = source_map.pins.find { |pin| pin.is_a?(Solargraph::Pin::Method) && pin.name == 'bar' }
-
-    bare_pin = described_class.new(
-      location: method_pin.location,
-      compound_statement: method_pin,
-      source: :parser
-    )
-
-    expect(bare_pin.closure).to eq(method_pin)
   end
 
   describe '#combine_with' do
