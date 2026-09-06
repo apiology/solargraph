@@ -121,4 +121,14 @@ describe Solargraph::Pin::Base do
       expect(pin.documentation).to include('Changed description.')
     end
   end
+
+  describe '#parse_comments' do
+    it 'keeps a docstring supplied at construction when there are no comments to reparse' do
+      docstring = Solargraph::Source.parse_docstring('@param x [String] the x').to_docstring
+      pin = Solargraph::Pin::Method.new(name: 'initialize', closure: Solargraph::Pin::ROOT_PIN,
+                                        docstring: docstring, comments: '')
+      expect(pin.directives).to be_empty
+      expect(pin.docstring.tags(:param).map(&:name)).to eq(['x'])
+    end
+  end
 end

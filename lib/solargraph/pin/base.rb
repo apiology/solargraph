@@ -758,7 +758,8 @@ module Solargraph
       def parse_comments
         # HACK: Avoid a NoMethodError on nil with empty overload tags
         if comments.nil? || comments.empty? || comments.strip.end_with?('@overload')
-          @docstring = nil
+          # A docstring assigned at construction has no comments to reparse
+          # from, so clearing it here would discard it for good.
           @directives = []
           @macro_names = []
         else
