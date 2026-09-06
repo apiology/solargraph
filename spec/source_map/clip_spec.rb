@@ -133,6 +133,22 @@ describe Solargraph::SourceMap::Clip do
     expect(paths).to include('Kernel#puts')
   end
 
+  it 'completes Object methods on a class with an unresolvable superclass' do
+    source = Solargraph::Source.load_string(%(
+      class Widget < ActiveRecord::Base
+        def price; end
+      end
+
+      # @param w [Widget]
+      def use(w)
+        w.i
+      end
+    ), 'test.rb')
+    api_map.map source
+    clip = api_map.clip_at('test.rb', [7, 11])
+    expect(clip.complete.pins.map(&:name)).to include('inspect')
+  end
+
   it 'defines core constants' do
     source = Solargraph::Source.load_string('String')
     api_map.map source
