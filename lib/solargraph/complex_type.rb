@@ -94,7 +94,7 @@ module Solargraph
     end
 
     # @yieldparam [UniqueType]
-    # @return [void]
+    # @return [Array<UniqueType>]
     # @overload each_unique_type()
     #   @return [Enumerator<UniqueType>]
     def each_unique_type &block
