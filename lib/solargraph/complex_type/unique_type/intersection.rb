@@ -53,12 +53,12 @@ module Solargraph
 
         # @return [String]
         def namespace
-          conjuncts.fetch(0).namespace
+          raise NotImplementedError, "Intersection #{tag} has no single namespace - resolve each conjunct instead"
         end
 
         # @return [::Symbol]
         def scope
-          conjuncts.fetch(0).scope
+          raise NotImplementedError, "Intersection #{tag} has no single scope - resolve each conjunct instead"
         end
 
         # Pins from the conjuncts defining the method - one is enough -

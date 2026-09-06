@@ -436,15 +436,15 @@ describe 'YARD type specifier list parsing' do
       expect(types.to_rbs).to eq('Array[String & Comparable]')
     end
 
-    describe 'delegating to the first conjunct' do
+    describe 'questions with no single answer' do
       let(:intersection) { Solargraph::ComplexType.parse('String & Comparable').first }
 
-      it 'reports the scope of its first conjunct' do
-        expect(intersection.scope).to eq(:instance)
+      it 'has no scope of its own to report' do
+        expect { intersection.scope }.to raise_error(NotImplementedError)
       end
 
-      it 'reports rooted for #namespace via the first conjunct' do
-        expect(intersection.namespace).to eq('String')
+      it 'has no namespace of its own to report' do
+        expect { intersection.namespace }.to raise_error(NotImplementedError)
       end
     end
 
