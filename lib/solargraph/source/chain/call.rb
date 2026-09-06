@@ -65,7 +65,7 @@ module Solargraph
           end
           pin_groups = [] if !api_map.loose_unions && pin_groups.any?(&:empty?)
           # Several union members can end up with the same pin and return type.
-          # @sg-ignore Array#flatten returns a bare Array, so uniq's block param has no element type to infer from
+          # @sg-ignore Array#flatten returns a bare Array
           pins = pin_groups.flatten.uniq { |p| [p.path, p.return_type.rooted_tags] }
           return [] if pins.empty?
           inferred_pins(pins, api_map, name_pin, locals)
