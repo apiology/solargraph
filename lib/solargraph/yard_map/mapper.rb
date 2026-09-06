@@ -11,6 +11,7 @@ module Solargraph
       # @param spec [Gem::Specification, nil]
       def initialize code_objects, spec = nil
         @code_objects = code_objects
+        @macro_code_objects = code_objects.grep(YARD::CodeObjects::MacroObject)
         @spec = spec
         # @type [Array<Solargraph::Pin::Base>]
         @pins = []
@@ -24,34 +25,51 @@ module Solargraph
         end
         # Some yardocs contain documentation for dependencies that can be
         # ignored here. The YardMap will load dependencies separately.
+        # @sg-ignore does not consider `pin.location.nil? || ` condition
         @pins.keep_if { |pin| pin.location.nil? || File.file?(pin.location.filename) } if @spec
         @pins
       end
 
       private
 
+      def core_store
+        @core_store ||= ApiMap::Store.new(RbsMap::CoreMap.new.pins)
+      end
+
       # @param code_object [YARD::CodeObjects::Base]
       # @return [Array<Pin::Base>]
       def generate_pins code_object
         result = []
-        if code_object.is_a?(YARD::CodeObjects::NamespaceObject)
-          nspin = ToNamespace.make(code_object, @spec, @namespace_pins[code_object.namespace.to_s])
+        case code_object
+        when YARD::CodeObjects::NamespaceObject
+          nspin = namespace_with_bug_fix(code_object)
           @namespace_pins[code_object.path] = nspin
           result.push nspin
-          if code_object.is_a?(YARD::CodeObjects::ClassObject) and !code_object.superclass.nil?
+          if code_object.is_a?(YARD::CodeObjects::ClassObject) && !code_object.superclass.nil?
             # This method of superclass detection is a bit of a hack. If
             # the superclass is a Proxy, it is assumed to be undefined in its
             # yardoc and converted to a fully qualified namespace.
             superclass = if code_object.superclass.is_a?(YARD::CodeObjects::Proxy)
-              "::#{code_object.superclass}"
-            else
-              code_object.superclass.to_s
+                           "::#{code_object.superclass}"
+                         else
+                           code_object.superclass.to_s
+                         end
+            # YARD fills in `Object` for every class whose definition it never
+            # saw a superclass clause on - including a bare `class Foo`
+            # reopening, which asserts nothing about ancestry - and keeps no
+            # record of which case it was. A class with no superclass reference
+            # already resolves to Object, so recording this one adds nothing and
+            # can shadow a superclass declared in another source.
+            unless superclass.delete_prefix('::') == 'Object'
+              result.push Solargraph::Pin::Reference::Superclass.new(name: superclass, closure: nspin,
+                                                                     source: :yard_map)
             end
-            result.push Solargraph::Pin::Reference::Superclass.new(name: superclass, closure: nspin, source: :yard_map)
           end
+          # @sg-ignore flow sensitive typing ought to be able to handle 'when ClassName'
           code_object.class_mixins.each do |m|
             result.push Solargraph::Pin::Reference::Extend.new(closure: nspin, name: m.path, source: :yard_map)
           end
+          # @sg-ignore flow sensitive typing ought to be able to handle 'when ClassName'
           code_object.instance_mixins.each do |m|
             result.push Solargraph::Pin::Reference::Include.new(
               closure: nspin, # @todo Fix this
@@ -59,20 +77,58 @@ module Solargraph
               source: :yard_map
             )
           end
-        elsif code_object.is_a?(YARD::CodeObjects::MethodObject)
+        when YARD::CodeObjects::MethodObject
           closure = @namespace_pins[code_object.namespace.to_s]
+          macros_for_method_object(code_object)
+          # @sg-ignore flow sensitive typing ought to be able to handle 'when ClassName'
           if code_object.name == :initialize && code_object.scope == :instance
             # @todo Check the visibility of <Class>.new
             result.push ToMethod.make(code_object, 'new', :class, :public, closure, @spec)
             result.push ToMethod.make(code_object, 'initialize', :instance, :private, closure, @spec)
+          elsif closure&.source == :yard_map_hack
+            result.push ToMethod.make(code_object, nil, :instance, nil, closure, @spec)
           else
             result.push ToMethod.make(code_object, nil, nil, nil, closure, @spec)
           end
-        elsif code_object.is_a?(YARD::CodeObjects::ConstantObject)
+        when YARD::CodeObjects::ConstantObject
           closure = @namespace_pins[code_object.namespace]
           result.push ToConstant.make(code_object, closure, @spec)
         end
         result
+      end
+
+      # @return [Array<YARD::CodeObjects::MacroObject>]
+      def attached_macros
+        @attached_macros ||= @macro_code_objects.select(&:attached?)
+      end
+
+      # @return [Hash{YARD::CodeObjects::MethodObject => Array<YARD::CodeObjects::MacroObject>}]
+      def attached_macros_by_method_object
+        @attached_macros_by_method_object ||= attached_macros.group_by(&:method_object)
+      end
+
+      # @param method_object [YARD::CodeObjects::MethodObject]
+      # @return [Array<YARD::CodeObjects::MacroObject>]
+      def macros_for_method_object method_object
+        attached_macros_by_method_object[method_object]
+      end
+
+      # Handle a bug in YARD where code that opens a constant's singleton class
+      # (e.g., `class << ENV`) creates a pin that incorrectly overrides the
+      # original constant's value.
+      #
+      # @param code_object [YARD::CodeObjects::NamespaceObject]
+      # @return [Pin::Namespace]
+      def namespace_with_bug_fix code_object
+        core_pin = core_store.get_path_pins(code_object.path)
+                             .find { |pin| pin.is_a?(Pin::Constant) }
+        if core_pin
+          location = Helpers.object_location(code_object, @spec)
+          Solargraph.logger.warn "Adjusting YARD pin that conflicts with RBS core (#{code_object.inspect} #{location.inspect})"
+          Pin::Namespace.new(name: core_pin.return_type.namespace, location: location, source: :yard_map_hack)
+        else
+          ToNamespace.make(code_object, @spec, @namespace_pins[code_object.namespace.to_s])
+        end
       end
     end
   end

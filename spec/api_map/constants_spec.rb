@@ -20,6 +20,31 @@ describe Solargraph::ApiMap::Constants do
       expect(resolved).to eq('Foo::Bar')
     end
 
+    it 'resolves constants in includes' do
+      code = %(
+        module A
+          module Parser
+            module C
+              # @return [String]
+              def baz; "abc"; end
+            end
+
+            B = C
+          end
+
+          class Foo
+            include Parser::B
+
+            # @return [String]
+            def bar
+              baz
+            end
+          end
+        end)
+      checker = Solargraph::TypeChecker.load_string(code, 'test.rb', :strong)
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
     it 'resolves straightforward mixins' do
       source_map = Solargraph::SourceMap.load_string(%(
         module Bar
@@ -68,6 +93,33 @@ describe Solargraph::ApiMap::Constants do
       constants = described_class.new(store)
       resolved = constants.resolve('Foo::Bar::Baz')
       expect(resolved).to eq('Foo::Bar::Baz')
+    end
+
+    it 'resolves remote constants' do
+      source_map = Solargraph::SourceMap.load_string(%(
+        module Module1
+          class Foo
+          end
+        end
+
+        module Module2
+          include Module1
+          Thing = Foo
+        end
+
+        module Module3
+          include Module2
+        end
+
+        module Module4
+          include Module3
+          x = Thing.new
+        end
+      ), 'test.rb')
+      store = Solargraph::ApiMap::Store.new(source_map.pins)
+      constants = described_class.new(store)
+      constant = constants.resolve('Thing', 'Module4')
+      expect(constant).to eq('Module2::Thing')
     end
   end
 
