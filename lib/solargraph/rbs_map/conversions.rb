@@ -716,10 +716,11 @@ module Solargraph
       # @return [void]
       def prepend_to_pin decl, closure
         type = build_type(decl.name, decl.args)
-        generic_values = type.all_params.map(&:rooted_tags)
+        generic_values = type.all_params.map(&:to_s)
         pins.push Solargraph::Pin::Reference::Prepend.new(
           name: decl.name.relative!.to_s,
           type_location: location_decl_to_pin_location(decl.location),
+          generic_values: generic_values,
           closure: closure,
           source: :rbs
         )
@@ -730,10 +731,11 @@ module Solargraph
       # @return [void]
       def extend_to_pin decl, closure
         type = build_type(decl.name, decl.args)
-        generic_values = type.all_params.map(&:rooted_tags)
+        generic_values = type.all_params.map(&:to_s)
         pins.push Solargraph::Pin::Reference::Extend.new(
           name: decl.name.relative!.to_s,
           type_location: location_decl_to_pin_location(decl.location),
+          generic_values: generic_values,
           closure: closure,
           source: :rbs
         )

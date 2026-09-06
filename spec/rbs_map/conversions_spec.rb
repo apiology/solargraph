@@ -93,6 +93,51 @@ describe Solargraph::RbsMap::Conversions do
         expect(method_pin.return_type.tag).to eq('undefined')
       end
     end
+
+    context 'with generic modules mixed in' do
+      let(:rbs) do
+        <<~RBS
+          module Prependable[T]
+            def value: () -> T
+          end
+          module Extendable[T]
+            def build: () -> T
+          end
+          module Includable[T]
+            def fetch: () -> T
+          end
+          class Prepender
+            prepend Prependable[Integer]
+          end
+          class Extender
+            extend Extendable[String]
+          end
+          class Includer
+            include Includable[Symbol]
+          end
+        RBS
+      end
+
+      # @param namespace [String]
+      # @param method [String]
+      # @param scope [Symbol]
+      # @return [String, nil]
+      def inferred_type namespace, method, scope
+        api_map.get_method_stack(namespace, method, scope: scope).first&.return_type&.tag
+      end
+
+      it 'substitutes the type argument of a prepended module' do
+        expect(inferred_type('Prepender', 'value', :instance)).to eq('Integer')
+      end
+
+      it 'substitutes the type argument of an extended module' do
+        expect(inferred_type('Extender', 'build', :class)).to eq('String')
+      end
+
+      it 'substitutes the type argument of an included module' do
+        expect(inferred_type('Includer', 'fetch', :instance)).to eq('Symbol')
+      end
+    end
   end
 
   context 'with standard loads for solargraph project' do
