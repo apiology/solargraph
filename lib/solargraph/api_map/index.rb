@@ -5,10 +5,10 @@ module Solargraph
     class Index
       include Logging
 
-      # @return [Array<String>]
+      # @return [Set<String>]
       attr_reader :macro_method_names
 
-      # @return [Hash{String => Array<Pin::Method>}]
+      # @return [Hash{String => Set<Pin::Method>}]
       attr_reader :macro_method_name_pins
 
       # @param pins [Array<Pin::Base>]
@@ -241,6 +241,23 @@ module Solargraph
         pin.class.new(**attrs)
       end
 
+      # macro_method_name_pins is built before overrides are applied, and
+      # process_macros matches against it by pin equality. A replaced pin left
+      # here stops matching, and its @!macro directives stop expanding.
+      #
+      # @param old_pin [Pin::Base]
+      # @param new_pin [Pin::Base]
+      # @return [void]
+      def swap_macro_pin old_pin, new_pin
+        pin_set = macro_method_name_pins[old_pin.name]
+        return nil if pin_set.nil?
+        return nil unless pin_set.include?(old_pin)
+
+        pin_set.delete old_pin
+        pin_set.add new_pin
+        nil
+      end
+
       # @param collection [::Array<Pin::Base>, nil]
       # @param old_pin [Pin::Base]
       # @param new_pin [Pin::Base]
@@ -256,6 +273,7 @@ module Solargraph
       # @param new_pin [Pin::Base]
       # @return [void]
       def replace_pin old_pin, new_pin
+        swap_macro_pin old_pin, new_pin
         swap_pin pins, old_pin, new_pin
         swap_pin namespace_hash[old_pin.namespace], old_pin, new_pin
         swap_pin pin_class_hash[old_pin.class], old_pin, new_pin
