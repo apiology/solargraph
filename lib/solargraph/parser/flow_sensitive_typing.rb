@@ -21,16 +21,19 @@ module Solargraph
         @only_downcast_these_names = only_downcast_these_names
       end
 
-      # Assert what a true/false condition implies over the given ranges.
+      # Assert what a true/false expression implies over the given ranges.
       # Public for instances configured with only_downcast_these_names.
       #
-      # @param conditional_node [Parser::AST::Node]
+      # @param expression_node [Parser::AST::Node]
       # @param true_ranges [Array<Range>]
       # @param false_ranges [Array<Range>]
       #
       # @return [void]
-      def process_condition conditional_node, true_ranges, false_ranges
-        process_expression(conditional_node, true_ranges, false_ranges)
+      def process_expression expression_node, true_ranges, false_ranges
+        process_calls(expression_node, true_ranges, false_ranges)
+        process_and(expression_node, true_ranges, false_ranges)
+        process_or(expression_node, true_ranges, false_ranges)
+        process_variable(expression_node, true_ranges, false_ranges)
       end
 
       # @param and_node [Parser::AST::Node]
@@ -259,7 +262,7 @@ module Solargraph
 
         FlowSensitiveTyping.new(locals, ivars, enclosing_breakable_pin, enclosing_compound_statement_pin,
                                 only_downcast_these_names: names)
-                           .process_condition(conditional_node, true_ranges, false_ranges)
+                           .process_expression(conditional_node, true_ranges, false_ranges)
       end
 
       # Names this clause assigns on every path. Only unconditional plain
@@ -323,18 +326,6 @@ module Solargraph
             end
           end
         end
-      end
-
-      # @param expression_node [Parser::AST::Node]
-      # @param true_ranges [Array<Range>]
-      # @param false_ranges [Array<Range>]
-      #
-      # @return [void]
-      def process_expression expression_node, true_ranges, false_ranges
-        process_calls(expression_node, true_ranges, false_ranges)
-        process_and(expression_node, true_ranges, false_ranges)
-        process_or(expression_node, true_ranges, false_ranges)
-        process_variable(expression_node, true_ranges, false_ranges)
       end
 
       # @param call_node [Parser::AST::Node]
