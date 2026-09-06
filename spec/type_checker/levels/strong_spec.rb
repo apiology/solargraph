@@ -1374,6 +1374,27 @@ describe Solargraph::TypeChecker do
           .to eq(['Declared return type ::Class<::Integer> does not match inferred type ::Class<::String> ' \
                   'for Factory#use'])
       end
+
+      it 'reports a missing inference, not the call site\'s own class, when a duck-typed #new is called with arguments the synthesized signature rejects' do
+        # clazz.new(**{}) doesn't match the zero-arg signature Chain::Call
+        # synthesizes for the #new conjunct, so match_overload_type never
+        # resolves it - regression coverage for #new falling through to
+        # Pin::Method#typify_from_super, which walked ClassTest's own
+        # ancestor chain (found ClassTest's inherited Class#new) and
+        # returned ClassTest itself instead of leaving this unresolved.
+        checker = type_checker(%(
+          class ClassTest
+            # @generic T
+            # @param clazz [Class<generic<T>> & #new]
+            # @return [generic<T>]
+            def create_object(clazz)
+              clazz.new(**{})
+            end
+          end
+      ))
+        expect(checker.problems.map(&:message))
+          .to eq(['ClassTest#create_object return type could not be inferred'])
+      end
     end
   end
 end
