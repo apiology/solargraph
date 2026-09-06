@@ -27,6 +27,41 @@ describe Solargraph::RbsMap::Conversions do
 
     attr_reader :temp_dir
 
+    context 'with a generic module prepended and extended' do
+      let(:rbs) do
+        <<~RBS
+          module Wrapper[T]
+          end
+
+          class Holder
+            prepend Wrapper[String]
+            extend Wrapper[Integer]
+          end
+        RBS
+      end
+
+      # @param klass [Class<Solargraph::Pin::Reference>]
+      # @return [Array<Array<String>>]
+      def generic_values_for klass
+        conversions.pins
+                   .select { |pin| pin.instance_of?(klass) && pin.name == '::Wrapper' }
+                   .map(&:generic_values)
+                   .uniq
+      end
+
+      it 'carries the prepended type argument' do
+        expect(generic_values_for(Solargraph::Pin::Reference::Prepend)).to eq([['::String']])
+      end
+
+      it 'carries the extended type argument' do
+        expect(generic_values_for(Solargraph::Pin::Reference::Extend)).to include(['::Integer'])
+      end
+
+      it 'leaves no extend reference pin without its type argument' do
+        expect(generic_values_for(Solargraph::Pin::Reference::Extend)).not_to include([])
+      end
+    end
+
     context 'with overlapping module hierarchies and inheritance' do
       subject(:method_pin) { api_map.get_method_stack('A::B::C', 'foo').first }
 
