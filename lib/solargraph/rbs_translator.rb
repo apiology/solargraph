@@ -101,8 +101,7 @@ module Solargraph
       parameters = to_parameter_pins(method_type, closure, parameter_names, type_alias_decls: type_alias_decls)
       return_type = to_complex_type(method_type.type.return_type, type_alias_decls: type_alias_decls)
       block = if method_type.block
-                # @sg-ignore The `if method_type.block` guard above doesn't narrow nil out of this
-                #   second `method_type.block` call: https://github.com/castwide/solargraph/issues/1249
+                # @sg-ignore https://github.com/castwide/solargraph/issues/1249
                 block_parameters = to_parameter_pins(method_type.block, closure, type_alias_decls: type_alias_decls)
                 block_return_type = to_complex_type(method_type.block.type.return_type, type_alias_decls: type_alias_decls)
                 Pin::Signature.new(generics: generics, parameters: block_parameters, return_type: block_return_type, source: :rbs, type_location: closure.location, closure: closure)
@@ -166,15 +165,9 @@ module Solargraph
         when RBS::Types::Proc
           'Proc'
         when RBS::Types::Alias
-          # A top-level type alias use, e.g., 'bool' in "type bool = true | false".
-          #
-          # Expand to the alias's underlying type so structural
-          # conformance checks (e.g., typechecking) can compare against
-          # its actual members rather than its nominal name. Fall back to
-          # the nominal tag if the alias definition isn't known, if it's
-          # recursive, or if it's generic (e.g. "type box[T] = Array[T] |
-          # nil") — expanding those would leak an unbound `generic<T>`
-          # tag, since args aren't substituted into the expansion.
+          # Expand so conformance checks see the members, not the name. A
+          # generic alias falls back: args are not substituted, so expanding
+          # would leak an unbound generic<T>.
           # @sg-ignore flow sensitive typing should support case/when
           alias_name = type.name.to_s
           alias_decl = type_alias_decls[alias_name]
