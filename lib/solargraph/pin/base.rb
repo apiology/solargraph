@@ -649,13 +649,17 @@ module Solargraph
       # @param return_type [ComplexType, ComplexType::UniqueType, nil]
       # @return [self]
       def proxy return_type
+        # Read the docstring before duplicating, so the copy inherits parsed
+        # directives and macro names; nil ones reparse from comments and
+        # would throw away the docstring assigned below.
+        copied_docstring = docstring.dup
         result = dup
         result.return_type = return_type
         result.proxied = true
         result.reset_generated!
-        # dup keeps the old docstring, whose tag still holds the previous
-        # return_type; nil makes #docstring reparse from comments.
-        result.docstring = nil
+        # dup shares this pin's docstring, whose tags hold the old return type
+        result.docstring = copied_docstring
+        result.send(:sync_return_type_tag) if result.return_type.defined?
         # Macros should have been processed already
         result.macro_names.clear
         result
@@ -778,14 +782,12 @@ module Solargraph
       # @return [void]
       def sync_return_type_tag
         rooted_types = @return_type.items.map(&:rooted_tag)
+        # Replace rather than assign #types on the tag in place: a proxy holds
+        # a duplicated docstring whose tag objects the original still shares.
         # @sg-ignore https://github.com/castwide/solargraph/pull/1259
-        if @docstring.tags(return_type_tag_name)&.length == 1
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1259
-          @docstring.tag(return_type_tag_name).types = rooted_types
-        else
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1259
-          @docstring.add_tag(YARD::Tags::Tag.new(return_type_tag_name, '', rooted_types))
-        end
+        @docstring.delete_tags(return_type_tag_name)
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1259
+        @docstring.add_tag(YARD::Tags::Tag.new(return_type_tag_name, '', rooted_types))
       end
 
       # The docstring tag name that holds this pin's return type. Method

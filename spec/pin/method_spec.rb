@@ -192,7 +192,6 @@ describe Solargraph::Pin::Method do
   end
 
   it 'keeps a parameter tag added straight to the docstring when proxied to a new return type' do
-    pending 'https://github.com/castwide/solargraph/pull/1104'
     pin = described_class.new(name: 'baz=', closure: Solargraph::Pin::ROOT_PIN, source: :source, comments: 'Sets baz.')
     pin.docstring.add_tag(YARD::Tags::Tag.new(:param, 'the new value', ['String'], 'value'))
     proxied = pin.proxy(Solargraph::ComplexType.try_parse('String').force_rooted)
@@ -200,12 +199,19 @@ describe Solargraph::Pin::Method do
     expect(proxied.documentation).to include('the new value')
   end
 
-  it 'leaves a docstring that already lists several return types alone when realized' do
-    pending 'https://github.com/castwide/solargraph/pull/1104'
+  it 'merges a docstring that lists several return types into a single realized tag' do
     pin = described_class.new(name: 'multi', closure: Solargraph::Pin::ROOT_PIN, source: :source,
                               comments: "Multi.\n@return [String]\n@return [Integer]")
     realized = pin.realize(Solargraph::ApiMap.new)
-    expect(realized.docstring.tags(:return).length).to eq(2)
+    expect(realized.docstring.tags(:return).map(&:types)).to eq([['::String', '::Integer']])
+  end
+
+  it 'leaves the return tag of the pin it was proxied from untouched' do
+    pin = described_class.new(name: 'foo', closure: Solargraph::Pin::ROOT_PIN, source: :source,
+                              comments: "Foo.\n@return [Integer]")
+    proxied = pin.proxy(Solargraph::ComplexType.try_parse('String').force_rooted)
+    expect(proxied.docstring.tags(:return).map(&:types)).to eq([['::String']])
+    expect(pin.docstring.tags(:return).map(&:types)).to eq([['Integer']])
   end
 
   it 'ignores malformed return tags' do
