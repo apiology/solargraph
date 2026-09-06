@@ -100,22 +100,6 @@ module Solargraph
         @signatures&.each(&:reset_generated!)
       end
 
-      # Apply the `@overload` tags an `@!override` just added. RBS-sourced
-      # signatures cannot be rebuilt from the docstring, so they are kept
-      # behind the new overloads; docstring-derived ones are rebuilt, which
-      # also makes a repeated call idempotent.
-      #
-      # @return [void]
-      def apply_override_overloads!
-        previous = @signatures
-        @overloads = nil
-        return if docstring.tags(:overload).none?(&:parameters)
-
-        keep = previous ? previous.select { |sig| sig.source == :rbs } : []
-        @signatures = keep.empty? ? nil : overloads + keep
-        nil
-      end
-
       def all_rooted?
         super && parameters.all?(&:all_rooted?) && (!block || block&.all_rooted?) && signatures.all?(&:all_rooted?)
       end
@@ -592,6 +576,17 @@ module Solargraph
       # @param other [Pin::Method]
       # @return [Array<Pin::Signature>]
       def combine_signatures other
+        boss = authority_over(other)
+        unless boss.nil?
+          # The authoritative side wins every arity it describes; arities it
+          # says nothing about survive. That is what makes an @!override a
+          # refinement of an RBS signature set rather than a replacement.
+          winner = equal?(boss) ? self : other
+          loser = equal?(boss) ? other : self
+          superseded = winner.signatures.map(&:type_arity)
+          return winner.signatures + loser.signatures.reject { |sig| superseded.include?(sig.type_arity) }
+        end
+
         all_undefined = signatures.all? { |sig| !sig.return_type&.defined? }
         other_all_undefined = other.signatures.all? { |sig| !sig.return_type&.defined? }
         if all_undefined && !other_all_undefined

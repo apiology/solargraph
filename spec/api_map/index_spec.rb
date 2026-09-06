@@ -51,13 +51,13 @@ describe Solargraph::ApiMap::Index do
 
     it 'overrides .new method' do
       method_pin = output_pins.find { |pin| pin.path == 'Foo.new' }
-      first_parameter = method_pin.parameters.first
+      first_parameter = method_pin.signatures.first.parameters.first
       expect(first_parameter.return_type.tag).to eq('String')
     end
 
     it 'overrides #initialize method in signature' do
       method_pin = output_pins.find { |pin| pin.path == 'Foo#initialize' }
-      first_parameter = method_pin.parameters.first
+      first_parameter = method_pin.signatures.first.parameters.first
       expect(first_parameter.return_type.tag).to eq('String')
     end
 
@@ -209,6 +209,10 @@ describe Solargraph::ApiMap::Index do
       count = Solargraph::Pin::Parameter.new(name: 'count',
                                              closure: meth,
                                              return_type: Solargraph::ComplexType.parse('Integer'))
+      meth.signatures << Solargraph::Pin::Signature.new(parameters: [],
+                                                        return_type: Solargraph::ComplexType.parse('String'),
+                                                        closure: meth,
+                                                        source: :rbs)
       meth.signatures << Solargraph::Pin::Signature.new(parameters: [count],
                                                         return_type: Solargraph::ComplexType.parse('Array<String>'),
                                                         closure: meth,
@@ -232,9 +236,9 @@ describe Solargraph::ApiMap::Index do
       ]
     end
 
-    it 'keeps the RBS signature the override did not describe' do
+    it 'keeps the RBS signature whose arity the override did not describe' do
       method_pin = output_pins.find { |pin| pin.path == 'Collection#first' }
-      expect(method_pin.signatures.map { |sig| sig.return_type.tag }).to eq(['Array<Symbol>', 'Array<String>'])
+      expect(method_pin.signatures.map { |sig| sig.return_type.tag }).to eq(['Array<Symbol>', 'String'])
     end
   end
 end
