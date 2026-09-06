@@ -430,7 +430,10 @@ module Solargraph
         types = yield self
         types.each_with_index.flat_map do |ct, i|
           ct.items.flat_map do |ut|
-            context_params = yield context_type if context_type
+            # Positional matching needs one parameter list; a union has one
+            # per member (Hash{String => Integer}, Hash{Symbol => Float}),
+            # so leave the generic unresolved rather than pick a member.
+            context_params = yield context_type if context_type&.each_unique_type&.one?
             if context_params && context_params[i]
               type_arg = context_params[i]
               type_arg.map do |new_unique_context_type|
