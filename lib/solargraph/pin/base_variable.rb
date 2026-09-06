@@ -15,7 +15,20 @@ module Solargraph
       attr_reader :presence
 
       # @return [Boolean]
-      attr_reader :definite
+      attr_accessor :definite
+
+      # Self, or a definite copy of it when the assignment dominates
+      # `location` - see #definite_reaches?.
+      #
+      # @param location [Location, nil]
+      # @return [self]
+      def definite_at location
+        return self if definite || !definite_reaches?(location)
+
+        result = dup
+        result.definite = true
+        result
+      end
 
       # The CompoundStatement this assignment was made within. Used by
       # #definite_reaches? to decide whether it dominates a reference.
@@ -103,17 +116,15 @@ module Solargraph
 
       # @param other [self]
       # @param attrs [Hash]
-      # @param location [Location, nil] Position being resolved, if known -
-      #   lets a non-definite `other` still override within its own range.
-      def combine_with other, attrs = {}, location: nil
-        superseded = override_assignments?(other, location)
+      def combine_with other, attrs = {}
+        superseded = override_assignments?(other)
         # Facts expire only when a *different* assignment overwrote the
         # value they describe.  Two flow-sensitive downcasts of the same
         # assignment - e.g. the one per operand that `a.nil? ||
         # a.empty? || a == 'x'` produces - are additional facts about
         # one value, and must accumulate rather than replace each other.
         facts_superseded = superseded && !same_assignment_sites?(other)
-        new_assignments = combine_assignments(other, location)
+        new_assignments = combine_assignments(other)
         new_attrs = attrs.merge({
                                   # default values don't exist in RBS parameters; it just
                                   # tells you if the arg is optional or not.  Prefer a
@@ -179,10 +190,9 @@ module Solargraph
       end
 
       # @param other [self]
-      # @param location [Location, nil]
       # @return [::Array<Parser::AST::Node>]
-      def combine_assignments other, location = nil
-        return other.assignments.dup if override_assignments?(other, location)
+      def combine_assignments other
+        return other.assignments.dup if override_assignments?(other)
 
         (other.assignments + assignments).uniq
       end
@@ -391,11 +401,9 @@ module Solargraph
       # needs our assignments as the base case.
       #
       # @param other [self]
-      # @param location [Location, nil] Position being resolved, if known -
-      #   lets a conditional `other` still override within its own range.
       # @return [Boolean]
-      def override_assignments? other, location = nil
-        (other.definite || other.definite_reaches?(location)) && other.closure == closure &&
+      def override_assignments? other
+        other.definite && other.closure == closure &&
           other.assignments.none? { |node| references_name?(node) }
       end
 

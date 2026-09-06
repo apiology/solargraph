@@ -416,7 +416,8 @@ module Solargraph
         !pin.visible_at?(closure, location) && !pin.starts_at?(location)
       end
 
-      vars_at_location.inject { |acc, pin| acc.combine_with(pin, location: location) }
+      definite_vars = vars_at_location.map { |pin| pin.definite_at(location) }
+      definite_vars.inject { |acc, pin| acc.combine_with(pin) }
     end
 
     # Get an array of class variable pins for a namespace.
