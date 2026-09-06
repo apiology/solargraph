@@ -664,10 +664,14 @@ module Solargraph
         self.class.can_root_name?(name_to_check)
       end
 
+      # Only a constant path or an RBS interface takes a `::` prefix.
+      # Both start with an uppercase letter, after a leading underscore
+      # for an interface; literals like `:Sym` and `"Index"` do not.
+      ROOTABLE_NAME = /\A_?[A-Z]/
+
       # @param name [String]
       def self.can_root_name? name
-        # name is not lowercase
-        !name.empty? && name != name.downcase
+        name.match?(ROOTABLE_NAME)
       end
 
       UNDEFINED = UniqueType.new('undefined', rooted: false)

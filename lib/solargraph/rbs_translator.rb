@@ -188,11 +188,11 @@ module Solargraph
           # subtype of a consumer of it
           #
           # @sg-ignore flow sensitive typing ought to be able to handle 'when ClassName'
-          build_unique_type(type.name, type.args).tags
+          build_unique_type(type.name, type.args).rooted_tags
         when RBS::Types::ClassSingleton
           # e.g., singleton(String)
           # @sg-ignore flow sensitive typing ought to be able to handle 'when ClassName'
-          build_unique_type(type.name).tags
+          build_unique_type(type.name).rooted_tags
         when RBS::Types::Bases::Any, RBS::Types::Bases::Bottom
           # `Bottom`` is used in contexts where nothing will ever return
           # - e.g., it could be the return type of 'exit()' or 'raise'
