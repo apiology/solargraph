@@ -152,6 +152,20 @@ describe Solargraph::Shell do
         expect(output).to include('Documentation cached for 1 gems.')
       end
     end
+
+    context 'with the core pseudo-gem' do
+      before do
+        allow(Solargraph::RbsMap::CoreMap).to receive(:cache_core)
+      end
+
+      it 'caches core pins' do
+        pending 'Shell#gems calls PinCache.cache_core, which is defined nowhere'
+
+        capture_both { shell.gems('core') }
+
+        expect(Solargraph::RbsMap::CoreMap).to have_received(:cache_core)
+      end
+    end
   end
 
   describe 'cache' do
