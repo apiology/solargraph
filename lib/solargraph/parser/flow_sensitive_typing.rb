@@ -33,6 +33,8 @@ module Solargraph
         process_calls(expression_node, true_ranges, false_ranges)
         process_and(expression_node, true_ranges, false_ranges)
         process_or(expression_node, true_ranges, false_ranges)
+        process_parentheses(expression_node, true_ranges, false_ranges)
+        process_assignment(expression_node, true_ranges, false_ranges)
         process_variable(expression_node, true_ranges, false_ranges)
       end
 
@@ -152,6 +154,8 @@ module Solargraph
           true_ranges << rest_of_returnable_body if always_leaves_compound_statement?(else_clause)
         end
 
+        assert_after_skipped_or_asgn(conditional_node, then_clause, else_clause)
+
         unless then_clause.nil?
           #
           # If the condition is true we can assume things about the then clause
@@ -172,9 +176,10 @@ module Solargraph
                                     get_node_end_position(else_clause))
         end
 
+        return if conditional_node.nil?
+
         process_expression(conditional_node, true_ranges, false_ranges)
 
-        # @sg-ignore RBS Array[self] indexing infers Array instead of self
         process_guarded_reassignment(if_node, conditional_node, then_clause, else_clause)
       end
 
@@ -246,6 +251,43 @@ module Solargraph
                            [], [rest_of_compound_statement])
         assert_after_guard(conditional_node, definitely_assigned_names(else_clause),
                            [rest_of_compound_statement], [])
+      end
+
+      # A leaving guard inside a `x ||= ...` body still dominates the
+      # code after the ||=, but only for x: the body is skipped
+      # exactly when x was truthy, so both paths reach the same
+      # conclusion about x. No other variable gets that guarantee,
+      # hence the restriction to x by name.
+      #
+      # @param conditional_node [Parser::AST::Node, nil]
+      # @param then_clause [Parser::AST::Node, nil]
+      # @param else_clause [Parser::AST::Node, nil]
+      #
+      # @return [void]
+      def assert_after_skipped_or_asgn conditional_node, then_clause, else_clause
+        return if conditional_node.nil?
+
+        or_asgn_pin = enclosing_compound_statement_pin
+        return if or_asgn_pin.nil?
+
+        or_asgn_node = or_asgn_pin.node
+        return if or_asgn_node.nil?
+        return unless or_asgn_node.type == :or_asgn
+
+        parent = or_asgn_pin.compound_statement
+        return if parent.nil?
+
+        parent_node = parent.node
+        return if parent_node.nil?
+
+        lhs_node = or_asgn_node.children[0]
+        return if lhs_node.nil?
+
+        name = lhs_node.children[0].to_s
+        rest = Range.new(get_node_end_position(or_asgn_node), get_node_end_position(parent_node))
+
+        assert_after_guard(conditional_node, [name], [], [rest]) if always_leaves_compound_statement?(then_clause)
+        assert_after_guard(conditional_node, [name], [rest], []) if always_leaves_compound_statement?(else_clause)
       end
 
       # Applies, not checks: `names` is already assigned unconditionally
@@ -326,6 +368,57 @@ module Solargraph
             end
           end
         end
+      end
+
+      # `(foo)` parses as a one-child :begin wrapping the expression,
+      # which is how an assignment used as a condition normally shows
+      # up: `if (md = foo.match(...))`.  A multi-statement :begin
+      # takes its truthiness from the last statement, which isn't
+      # worth handling here.
+      #
+      # @param node [Parser::AST::Node]
+      # @param true_ranges [Array<Range>]
+      # @param false_ranges [Array<Range>]
+      #
+      # @return [void]
+      def process_parentheses node, true_ranges, false_ranges
+        return unless node.type == :begin && node.children.length == 1
+
+        child = node.children[0]
+        return unless child.is_a?(::Parser::AST::Node)
+
+        # @sg-ignore flow sensitive typing doesn't narrow `child` past the guard above
+        process_expression(child, true_ranges, false_ranges)
+      end
+
+      # An assignment used as a condition - `if (md = foo.match(...))`
+      # - evaluates to the value assigned, so the branches tell us the
+      # same thing about the variable that a bare reference to it
+      # would.
+      #
+      # @param node [Parser::AST::Node]
+      # @param true_presences [Array<Range>]
+      # @param false_presences [Array<Range>]
+      #
+      # @return [void]
+      def process_assignment node, true_presences, false_presences
+        return unless %i[lvasgn ivasgn].include?(node.type)
+
+        variable_name = node.children[0]&.to_s
+        return if variable_name.nil? || variable_name.empty?
+
+        # look the variable up at the end of its own assignment, where
+        # the new value has become visible
+        pin = find_var(variable_name, get_node_end_position(node))
+        return unless pin
+
+        # @type Hash{Pin::BaseVariable => Array<Hash{Symbol => ComplexType}>}
+        if_true = { pin => [{ not_type: ComplexType::NIL }] }
+        process_facts(if_true, true_presences)
+
+        # @type Hash{Pin::BaseVariable => Array<Hash{Symbol => ComplexType}>}
+        if_false = { pin => [{ type: ComplexType.parse('nil, false') }] }
+        process_facts(if_false, false_presences)
       end
 
       # @param call_node [Parser::AST::Node]

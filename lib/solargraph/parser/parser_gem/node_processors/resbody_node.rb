@@ -30,22 +30,17 @@ module Solargraph
                 source: :parser
               )
             end
-            # Not pushed onto `pins`: an and/or/orasgn/resbody body has no
-            # identity worth indexing the way a def/class does. It exists only
-            # so the pins below it carry it as `compound_statement`, and is
-            # discarded once processing returns.
-            # @sg-ignore RBS Array[self] indexing infers Array instead of self
+            rescue_body_node = node.children[2]
             rescue_body_cs = Solargraph::Pin::CompoundStatement.new(
-              # @sg-ignore RBS Array[self] indexing infers Array instead of self
-              location: node.children[2] ? get_node_location(node.children[2]) : nil,
+              location: rescue_body_node ? get_node_location(rescue_body_node) : nil,
               closure: region.closure,
               compound_statement: region.compound_statement,
               conditional: true,
-              node: node.children[2],
+              node: rescue_body_node,
               source: :parser
             )
-            # @sg-ignore RBS Array[self] indexing infers Array instead of self
-            NodeProcessor.process(node.children[2], region.update(compound_statement: rescue_body_cs), pins, locals, ivars)
+            pins.push rescue_body_cs
+            NodeProcessor.process(rescue_body_node, region.update(compound_statement: rescue_body_cs), pins, locals, ivars) if rescue_body_node
           end
         end
       end

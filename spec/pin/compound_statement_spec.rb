@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
 describe Solargraph::Pin::CompoundStatement do
-  # The fallback derivation Pin::Base#closure uses when a pin has no
-  # closure: of its own - these specs check the two always agree.
+  # Walks the compound_statement chain and checks it reaches the same
+  # closure, catching a processor that threads one without the other.
   def derive_closure pin
     cs = pin.compound_statement
     cs = cs.compound_statement while cs && !cs.is_a?(Solargraph::Pin::Closure)
@@ -49,25 +49,6 @@ describe Solargraph::Pin::CompoundStatement do
     compound_statement_pins.each do |pin|
       expect(derive_closure(pin)).to eq(pin.closure), "mismatch for #{pin.inspect}"
     end
-  end
-
-  it 'derives the enclosing method as closure for a bare CompoundStatement built only with compound_statement:' do
-    source_map = Solargraph::SourceMap.load_string(%(
-      class Foo
-        def bar
-          1
-        end
-      end
-    ))
-    method_pin = source_map.pins.find { |pin| pin.is_a?(Solargraph::Pin::Method) && pin.name == 'bar' }
-
-    bare_pin = described_class.new(
-      location: method_pin.location,
-      compound_statement: method_pin,
-      source: :parser
-    )
-
-    expect(bare_pin.closure).to eq(method_pin)
   end
 
   describe '#combine_with' do

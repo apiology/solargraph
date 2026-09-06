@@ -707,13 +707,10 @@ module Solargraph
       #   make more sense for super_and_sub? to return true, but there are a
       #   few callers that currently expect this to be false.
       return false if sup.literal? && sub.literal? && sup.to_s != sub.to_s
-      # @sg-ignore flow sensitive typing should be able to handle redefinition
       sup = sup.simplify_literals.to_s
-      # @sg-ignore flow sensitive typing should be able to handle redefinition
       sub = sub.simplify_literals.to_s
       return true if sup == sub
       sc_fqns = sub
-      # @sg-ignore flow sensitive typing unions rather than overrides types across multiple sequential reassignments
       while (sc = store.get_superclass(sc_fqns))
         # @sg-ignore flow sensitive typing needs to handle "if foo = bar"
         sc_new = store.constants.dereference(sc)

@@ -106,6 +106,13 @@ module Solargraph
       # @param location [Location, nil] Position being resolved, if known -
       #   lets a non-definite `other` still override within its own range.
       def combine_with other, attrs = {}, location: nil
+        superseded = override_assignments?(other, location)
+        # Facts expire only when a *different* assignment overwrote the
+        # value they describe.  Two flow-sensitive downcasts of the same
+        # assignment - e.g. the one per operand that `a.nil? ||
+        # a.empty? || a == 'x'` produces - are additional facts about
+        # one value, and must accumulate rather than replace each other.
+        facts_superseded = superseded && !same_assignment_sites?(other)
         new_assignments = combine_assignments(other, location)
         new_attrs = attrs.merge({
                                   # default values don't exist in RBS parameters; it just
@@ -115,16 +122,28 @@ module Solargraph
                                   #
                                   # Skipped when #combine_assignments supersedes: the
                                   # constructor would re-add the dropped node.
-                                  assignment: override_assignments?(other, location) ? nil : choose(other, :assignment),
+                                  assignment: superseded ? nil : choose(other, :assignment),
                                   assignments: new_assignments,
                                   mass_assignment: combine_mass_assignment(other),
                                   return_type: combine_return_type(other),
-                                  intersection_return_type: combine_types(other, :intersection_return_type),
-                                  exclude_return_type: combine_types(other, :exclude_return_type),
+                                  # Narrowing recorded against the old value expires
+                                  # when that value is definitely overwritten, so when
+                                  # `other`'s assignment supersedes ours, keep only the
+                                  # facts asserted about the new value.
+                                  intersection_return_type: if facts_superseded
+                                                              other.intersection_return_type
+                                                            else
+                                                              combine_types(other, :intersection_return_type)
+                                                            end,
+                                  exclude_return_type: if facts_superseded
+                                                         other.exclude_return_type
+                                                       else
+                                                         combine_types(other, :exclude_return_type)
+                                                       end,
                                   presence: combine_presence(other),
                                   # a guaranteed assignment on either side may
                                   # override, not just union with, the rest
-                                  definite: definite || other.definite
+                                  definite: definite || other.definite || superseded
                                 })
         super(other, new_attrs)
       end
@@ -136,6 +155,22 @@ module Solargraph
         # @todo pick first non-nil arbitrarily - we don't yet support
         #   mass assignment merging
         mass_assignment || other.mass_assignment
+      end
+
+      # True when `other`'s assignments are the very same ones as ours,
+      # identified by source position.  Structural node equality is not
+      # usable here - two textually identical assignments on different
+      # lines compare equal, and telling those apart is the whole point.
+      #
+      # @param other [self]
+      # @return [Boolean]
+      def same_assignment_sites? other
+        assignment_sites == other.assignment_sites
+      end
+
+      # @return [::Array<Solargraph::Range, nil>]
+      def assignment_sites
+        assignments.map { |node| Solargraph::Range.from_node(node) }
       end
 
       # @return [Parser::AST::Node, nil]
@@ -392,8 +427,29 @@ module Solargraph
         # @sg-ignore flow sensitive typing doesn't narrow `node` past the guard above
         return true if %i[lvar ivar].include?(node.type) && node.children[0].to_s == name
 
+        # A block parameter of the same name shadows us for the whole
+        # block, so any mention inside the body is the parameter, not
+        # this variable.  The receiver (children[0]) is evaluated
+        # outside the block, so it still counts.
+        # @sg-ignore flow sensitive typing doesn't narrow `node` past the guard above
+        return references_name?(node.children[0]) if shadowed_by_block_parameter?(node)
+
         # @sg-ignore flow sensitive typing doesn't narrow `node` past the guard above
         node.children.any? { |child| references_name?(child) }
+      end
+
+      # @param node [::AST::Node]
+      # @return [Boolean]
+      def shadowed_by_block_parameter? node
+        return false unless node.type == :block
+
+        args = node.children[1]
+        return false unless args.is_a?(::AST::Node)
+
+        # @sg-ignore flow sensitive typing doesn't narrow `args` past the guard above
+        args.children.any? do |arg|
+          arg.is_a?(::AST::Node) && arg.children[0].to_s == name
+        end
       end
 
       # @param api_map [ApiMap]
