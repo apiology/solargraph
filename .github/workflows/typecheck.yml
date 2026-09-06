@@ -29,7 +29,7 @@ jobs:
       with:
         ruby-version: 4.0
         bundler-cache: true
-        cache-version: 2025-06-06
+        cache-version: 2026-01-11
     - name: Install gems
       run: |
         # Add optional gem to be able to typecheck related code

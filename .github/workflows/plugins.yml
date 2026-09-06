@@ -25,7 +25,7 @@ jobs:
       with:
         ruby-version: 4.0 # keep same as typecheck.yml
         bundler-cache: true
-        cache-version: 2025-06-06
+        cache-version: 2026-01-11
     - uses: awalsh128/cache-apt-pkgs-action@latest
       with:
         packages: yq
@@ -73,7 +73,7 @@ jobs:
         # See https://github.com/castwide/solargraph/actions/runs/19000135777/job/54265647107?pr=1119
         rubygems: latest
         bundler-cache: false
-        cache-version: 2025-06-06
+        cache-version: 2026-01-11
     - uses: awalsh128/cache-apt-pkgs-action@latest
       with:
         packages: yq
@@ -118,7 +118,7 @@ jobs:
       with:
         ruby-version: 3.4 # keep same as typecheck.yml
         bundler-cache: false
-        cache-version: 2025-06-06
+        cache-version: 2026-01-11
     - uses: awalsh128/cache-apt-pkgs-action@latest
       with:
         packages: yq
@@ -229,7 +229,7 @@ jobs:
         # This job uses 3.2 due to a problem compiling sqlite3 in earlier versions
         ruby-version: '3.2'
         bundler-cache: false
-        cache-version: 2025-06-06
+        cache-version: 2026-01-11
         # https://github.com/apiology/solargraph/actions/runs/19400815835/job/55508092473?pr=17
         rubygems: latest
         bundler: latest

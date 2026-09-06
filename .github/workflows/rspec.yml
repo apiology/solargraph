@@ -40,7 +40,7 @@ jobs:
       with:
         ruby-version: ${{ matrix.ruby-version }}
         bundler-cache: true
-        cache-version: 2025-06-06
+        cache-version: 2026-01-11
     - name: Set rbs version
       run: echo "gem 'rbs', '${{ matrix.rbs-version }}'" >> .Gemfile
     #  /home/runner/.rubies/ruby-head/lib/ruby/gems/3.5.0+2/gems/rbs-3.9.4/lib/rbs.rb:11:
@@ -80,7 +80,7 @@ jobs:
       with:
         ruby-version: '3.4'
         bundler-cache: true
-        cache-version: 2025-06-06
+        cache-version: 2026-01-11
     - name: Update types
       run: bundle exec rbs collection update
     - name: Run tests
