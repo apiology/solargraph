@@ -47,6 +47,21 @@ module Solargraph
         end
 
         # @return [String]
+        def tags
+          tag
+        end
+
+        # @return [String]
+        def rooted_tags
+          rooted_tag
+        end
+
+        # @return [String]
+        def to_s
+          tags
+        end
+
+        # @return [String]
         def to_rbs
           conjuncts.map(&:to_rbs).join(' & ')
         end
@@ -326,10 +341,6 @@ module Solargraph
         end
 
         def any?(*, **, &)
-          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
-        end
-
-        def rooted_tags(*, **, &)
           raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
         end
 
