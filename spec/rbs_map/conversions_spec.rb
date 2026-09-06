@@ -93,6 +93,38 @@ describe Solargraph::RbsMap::Conversions do
         expect(method_pin.return_type.tag).to eq('undefined')
       end
     end
+
+    context 'with generic modules mixed in' do
+      let(:rbs) do
+        <<~RBS
+          module Prependable[T]
+          end
+          module Extendable[T]
+          end
+          class Foo
+            prepend Prependable[Integer]
+            extend Extendable[String]
+          end
+        RBS
+      end
+
+      # @param klass [Class<Solargraph::Pin::Reference>]
+      # @param name [String]
+      # @return [Array<Solargraph::Pin::Reference>]
+      def references_to klass, name
+        conversions.pins.select { |pin| pin.instance_of?(klass) && pin.name == name }
+      end
+
+      it 'keeps the type arguments on the prepend reference' do
+        pins = references_to(Solargraph::Pin::Reference::Prepend, 'Prependable')
+        expect(pins.map(&:generic_values)).to all(eq(['Integer']))
+      end
+
+      it 'keeps the type arguments on the extend reference' do
+        pins = references_to(Solargraph::Pin::Reference::Extend, 'Extendable')
+        expect(pins.map(&:generic_values)).to all(eq(['String']))
+      end
+    end
   end
 
   context 'with standard loads for solargraph project' do
