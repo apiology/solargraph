@@ -11,7 +11,6 @@ module Solargraph
             # `x ||= y` only assigns when x is falsy/undefined, so
             # it's never a guaranteed override of x's prior type
             #
-            # not pushed onto `pins` - see resbody_node.rb for why
             asgn_cs = Solargraph::Pin::CompoundStatement.new(
               location: get_node_location(node),
               closure: region.closure,
@@ -20,6 +19,7 @@ module Solargraph
               node: node,
               source: :parser
             )
+            pins.push asgn_cs
             NodeProcessor.process(new_node, region.update(compound_statement: asgn_cs), pins, locals, ivars)
           end
         end

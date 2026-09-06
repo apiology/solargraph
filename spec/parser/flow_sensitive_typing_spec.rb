@@ -915,6 +915,30 @@ describe Solargraph::Parser::FlowSensitiveTyping do
     expect(clip.infer.rooted_tags).to eq('::Boolean')
   end
 
+  it 'does not extend a ||= body guard to a variable other than the assignment target' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @param baz [::Boolean, nil]
+        # @param qux [::Boolean, nil]
+        # @return [void]
+        def bar(baz: nil, qux: nil)
+          baz ||= begin
+            return if qux.nil?
+            qux
+          end
+          qux
+        end
+      end
+    ), 'test.rb')
+
+    api_map = Solargraph::ApiMap.new.map(source)
+
+    # skipping the body means baz was truthy, which says nothing
+    # about qux, so the guard does not survive the ||=
+    clip = api_map.clip_at('test.rb', [10, 10])
+    expect(clip.infer.rooted_tags).to eq('::Boolean, nil')
+  end
+
   it 'uses .nil? in a return if() in a try / rescue / ensure to refine types using nil checks' do
     source = Solargraph::Source.load_string(%(
       class Foo

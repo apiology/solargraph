@@ -151,6 +151,8 @@ module Solargraph
           true_ranges << rest_of_returnable_body if always_leaves_compound_statement?(else_clause)
         end
 
+        assert_after_skipped_or_asgn(conditional_node, then_clause, else_clause)
+
         unless then_clause.nil?
           #
           # If the condition is true we can assume things about the then clause
@@ -261,6 +263,43 @@ module Solargraph
                            [], [rest_of_compound_statement])
         assert_after_guard(conditional_node, definitely_assigned_names(else_clause),
                            [rest_of_compound_statement], [])
+      end
+
+      # A leaving guard inside a `x ||= ...` body still dominates the
+      # code after the ||=, but only for x: the body is skipped
+      # exactly when x was truthy, so both paths reach the same
+      # conclusion about x. No other variable gets that guarantee,
+      # hence the restriction to x by name.
+      #
+      # @param conditional_node [Parser::AST::Node, nil]
+      # @param then_clause [Parser::AST::Node, nil]
+      # @param else_clause [Parser::AST::Node, nil]
+      #
+      # @return [void]
+      def assert_after_skipped_or_asgn conditional_node, then_clause, else_clause
+        return if conditional_node.nil?
+
+        or_asgn_pin = enclosing_compound_statement_pin
+        return if or_asgn_pin.nil?
+
+        or_asgn_node = or_asgn_pin.node
+        return if or_asgn_node.nil?
+        return unless or_asgn_node.type == :or_asgn
+
+        parent = or_asgn_pin.compound_statement
+        return if parent.nil?
+
+        parent_node = parent.node
+        return if parent_node.nil?
+
+        lhs_node = or_asgn_node.children[0]
+        return if lhs_node.nil?
+
+        name = lhs_node.children[0].to_s
+        rest = Range.new(get_node_end_position(or_asgn_node), get_node_end_position(parent_node))
+
+        assert_after_guard(conditional_node, [name], [], [rest]) if always_leaves_compound_statement?(then_clause)
+        assert_after_guard(conditional_node, [name], [rest], []) if always_leaves_compound_statement?(else_clause)
       end
 
       # @param conditional_node [Parser::AST::Node]
