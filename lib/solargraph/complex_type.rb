@@ -6,8 +6,8 @@ module Solargraph
   class ComplexType
     GENERIC_TAG_NAME = 'generic'
 
-    # the quote characters that open and close a string literal type
     QUOTE_CHARACTERS = ['"', "'"].freeze
+
     # @!parse
     #   include TypeMethods
     include Equality
