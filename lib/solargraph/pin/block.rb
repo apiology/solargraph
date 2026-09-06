@@ -54,6 +54,26 @@ module Solargraph
         parameters.map.with_index { |_, idx| yield_types[idx] || ComplexType::UNDEFINED }
       end
 
+      # Whether the yielded types line up with the block's parameters one
+      # for one - either a tuple destructured across them, or one yielded
+      # type per parameter. When they do not (Ruby auto-splats a single
+      # yielded value whose arity we cannot match), the fallback in
+      # destructure_yield_types hands position 0 the whole value, which is
+      # worse than leaving the parameters undefined.
+      #
+      # @param yield_types [::Array<ComplexType>]
+      # @param parameters [::Array<Parameter>]
+      # @return [Boolean]
+      def per_position_yield_types? yield_types, parameters
+        return true if yield_types.length == parameters.length
+        return false unless yield_types.length == 1
+
+        only_type = yield_types.first
+        return false if only_type.nil?
+
+        only_type.tuple? && only_type.all_params.length == parameters.length
+      end
+
       # @param api_map [ApiMap]
       # @return [::Array<ComplexType>]
       def typify_parameters api_map
@@ -63,6 +83,8 @@ module Solargraph
         locals = clip.locals - [self]
         # @sg-ignore Need to add nil check here
         meths = chain.define(api_map, closure, locals)
+        # @type [::Array<ComplexType>, nil]
+        partial = nil
         # @todo Convert logic to use signatures
         # @param meth [Pin::Method]
         meths.each do |meth|
@@ -87,8 +109,16 @@ module Solargraph
             end
           end
           return param_types if param_types.all?(&:defined?)
+
+          # remember the best partial result so a single unresolvable
+          # yield type (e.g. an unbound generic) doesn't discard the
+          # positions that did resolve - but only when the positions
+          # actually correspond, never for the auto-splat fallback
+          if per_position_yield_types?(yield_types, parameters) && param_types.any? { |t| t&.defined? }
+            partial ||= param_types
+          end
         end
-        parameters.map { ComplexType::UNDEFINED }
+        partial&.map { |t| t || ComplexType::UNDEFINED } || parameters.map { ComplexType::UNDEFINED }
       end
 
       private
