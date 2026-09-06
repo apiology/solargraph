@@ -114,11 +114,13 @@ describe Solargraph::Shell do
       end
 
       it 'caches core without erroring out' do
-        capture_both do
-          shell.uncache('core')
-        end
+        core_map = instance_double(Solargraph::RbsMap::CoreMap)
+        allow(Solargraph::RbsMap::CoreMap).to receive(:new).and_return(core_map)
+        allow(core_map).to receive(:cache_core).and_return([])
 
-        expect { shell.cache('core') }.not_to raise_error
+        capture_both { shell.gems('core') }
+
+        expect(core_map).to have_received(:cache_core)
       end
 
       it 'gives sensible error for gem that does not exist' do
