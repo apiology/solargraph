@@ -522,7 +522,7 @@ module Solargraph
         return render_parameter_tags(tags) if lists.empty?
 
         bullets = if lists.length == 1
-                    parameter_bullets(lists.first, tags, '')
+                    parameter_bullets(lists.fetch(0), tags, '')
                   else
                     lists.map { |params| "* `(#{params.map(&:full).join(', ')})`\n#{parameter_bullets(params, tags, '  ')}" }
                          .join("\n")
@@ -538,7 +538,9 @@ module Solargraph
       # @return [String]
       def parameter_bullets params, tags, indent
         params.each_with_index.map do |param, index|
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1223
           line = "#{indent}* #{param.name}"
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1223
           line += " [#{escape_brackets(param.return_type.rooted_tags)}]" if param.return_type.defined?
           line + " #{parameter_tag(param, tags, index)&.text}"
         end.join("\n")
