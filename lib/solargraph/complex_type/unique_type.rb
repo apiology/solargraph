@@ -196,23 +196,6 @@ module Solargraph
         @non_literal_name ||= determine_non_literal_name
       end
 
-      # Whether every key_type is a literal, e.g. `Hash{"Index" =>
-      # Float}`'s key is the literal `"Index"`, not a general class.
-      #
-      # @return [Boolean]
-      def literal_keyed?
-        key_types.any? && key_types.all? { |kt| kt.items.all?(&:literal?) }
-      end
-
-      # Whether any key_type has the given literal tag (e.g.
-      # `'"Index"'`) - checks every item, since a key_type may be a union.
-      #
-      # @param tag [String]
-      # @return [Boolean]
-      def key_type_tag? tag
-        key_types.any? { |kt| kt.items.any? { |item| item.tag == tag } }
-      end
-
       # @return [self]
       def without_nil
         return UniqueType::UNDEFINED if nil_type?

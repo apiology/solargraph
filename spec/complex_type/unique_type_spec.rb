@@ -11,33 +11,6 @@ describe Solargraph::ComplexType::UniqueType do
     end
   end
 
-  describe '#literal_keyed?' do
-    it 'is false when there are no key types' do
-      type = described_class.parse('String')
-      expect(type.literal_keyed?).to be(false)
-    end
-
-    it 'is false when a key type is not a literal' do
-      type = Solargraph::ComplexType.parse('Hash{Float => Float}').first
-      expect(type.literal_keyed?).to be(false)
-    end
-  end
-
-  describe '#key_type_tag?' do
-    it 'matches a single literal key type' do
-      type = Solargraph::ComplexType.parse('Hash{"Index" => Float}').first
-      expect(type.key_type_tag?('"Index"')).to be(true)
-      expect(type.key_type_tag?('"Other"')).to be(false)
-    end
-
-    it 'matches every member of a union key type, not just the first' do
-      type = Solargraph::ComplexType.parse('Hash{"Index"|"Name" => Float}').first
-      expect(type.key_type_tag?('"Index"')).to be(true)
-      expect(type.key_type_tag?('"Name"')).to be(true)
-      expect(type.key_type_tag?('"Other"')).to be(false)
-    end
-  end
-
   # UniqueType#narrow_with duplicates ComplexType#narrow_with (see
   # spec/complex_type/narrow_with_spec.rb) but is reachable on its
   # own: BaseVariable#adjust_type calls #exclude before #narrow_with,
