@@ -148,6 +148,26 @@ describe Solargraph::Pin::BaseVariable do
     expect(b_pin.probe(api_map).to_s).to eq('Integer, String')
   end
 
+  it 'gives each non-splat target its own position from a tuple' do
+    pending 'https://github.com/castwide/solargraph/pull/1223'
+    source = Solargraph::Source.load_string(%(
+      class Repro
+        # @param pair [Array(Integer, String)]
+        # @return [void]
+        def call(pair)
+          a, b, c = pair
+        end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+    locals = api_map.source_map('test.rb').locals
+    expect(locals.find { |l| l.name == 'a' }.probe(api_map).to_s).to eq('Integer')
+    expect(locals.find { |l| l.name == 'b' }.probe(api_map).to_s).to eq('String')
+    # The third target runs past the end of the tuple.
+    expect(locals.find { |l| l.name == 'c' }.probe(api_map)).to be_undefined
+  end
+
   it "understands proc kwarg parameters aren't affected by @type" do
     code = %(
       # @return [Proc]
