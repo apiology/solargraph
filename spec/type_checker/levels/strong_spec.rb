@@ -466,14 +466,9 @@ describe Solargraph::TypeChecker do
         # @return [void]
         def foo(a:, b:); end
 
-        # @return [Hash{:a => Integer} & Hash{:b => Integer}]
-        def make_args
-          { a: 1, b: 2 }
-        end
-
+        # @param args [Hash{:a => Integer} & Hash{:b => Integer}]
         # @return [void]
-        def bar
-          args = make_args
+        def bar(args)
           foo(**args)
         end
       ))
@@ -487,14 +482,9 @@ describe Solargraph::TypeChecker do
         # @return [void]
         def foo(a:, b:); end
 
-        # @return [Hash{:b => Integer}]
-        def make_args
-          { b: 2 }
-        end
-
+        # @param args [Hash{:b => Integer}]
         # @return [void]
-        def bar
-          args = make_args
+        def bar(args)
           foo(a: 1, **args)
         end
       ))
@@ -508,14 +498,9 @@ describe Solargraph::TypeChecker do
         # @return [void]
         def foo(a:, b:); end
 
-        # @return [Hash{:a => Integer}]
-        def make_args
-          { a: 1 }
-        end
-
+        # @param args [Hash{:a => Integer}]
         # @return [void]
-        def bar
-          args = make_args
+        def bar(args)
           foo(**args)
         end
       ))
@@ -529,14 +514,9 @@ describe Solargraph::TypeChecker do
         # @return [void]
         def foo(a:, b:); end
 
-        # @return [Hash{:a => String} & Hash{:b => Integer}]
-        def make_args
-          { a: 'x', b: 2 }
-        end
-
+        # @param args [Hash{:a => String} & Hash{:b => Integer}]
         # @return [void]
-        def bar
-          args = make_args
+        def bar(args)
           foo(**args)
         end
       ))
@@ -552,14 +532,9 @@ describe Solargraph::TypeChecker do
         # @return [void]
         def foo(a:, b:); end
 
-        # @return [Hash{:a => Integer} & Hash{:b => Integer} & Hash{:c => Integer}]
-        def make_args
-          { a: 1, b: 2, c: 3 }
-        end
-
+        # @param args [Hash{:a => Integer} & Hash{:b => Integer} & Hash{:c => Integer}]
         # @return [void]
-        def bar
-          args = make_args
+        def bar(args)
           foo(**args)
         end
       ))
