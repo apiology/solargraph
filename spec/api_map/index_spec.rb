@@ -168,4 +168,50 @@ describe Solargraph::ApiMap::Index do
       end
     end
   end
+
+  # The signatures of an RBS-sourced method live only on the pin -- the
+  # docstring cannot express them -- so an override must refine that set
+  # rather than rebuild it from the docstring alone.
+  describe '#map_overrides on a method whose signatures came from RBS' do
+    let(:collection) do
+      Solargraph::Pin::Namespace.new(name: 'Collection')
+    end
+
+    let(:first) do
+      meth = Solargraph::Pin::Method.new(name: 'first',
+                                         scope: :instance,
+                                         parameters: [],
+                                         closure: collection,
+                                         signatures: [])
+      count = Solargraph::Pin::Parameter.new(name: 'count',
+                                             closure: meth,
+                                             return_type: Solargraph::ComplexType.parse('Integer'))
+      meth.signatures << Solargraph::Pin::Signature.new(parameters: [count],
+                                                        return_type: Solargraph::ComplexType.parse('Array<String>'),
+                                                        closure: meth,
+                                                        source: :rbs)
+      meth
+    end
+
+    let(:first_override) do
+      Solargraph::Pin::Reference::Override.from_comment('Collection#first', <<~COMMENT)
+        @overload first(count)
+          @param count [Symbol]
+          @return [Array<Symbol>]
+      COMMENT
+    end
+
+    let(:input_pins) do
+      [
+        collection,
+        first,
+        first_override
+      ]
+    end
+
+    it 'keeps the RBS signature the override did not describe' do
+      method_pin = output_pins.find { |pin| pin.path == 'Collection#first' }
+      expect(method_pin.signatures.map { |sig| sig.return_type.tag }).to eq(['Array<Symbol>', 'Array<String>'])
+    end
+  end
 end

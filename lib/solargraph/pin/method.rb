@@ -101,14 +101,20 @@ module Solargraph
         nil
       end
 
-      # Discards memoized #signatures/#overloads so a docstring mutation
-      # (e.g. `@!override` adding `@overload` tags) takes effect on the
-      # next read. Only call when `@overload` tags changed.
+      # Apply the `@overload` tags an `@!override` just added. RBS-sourced
+      # signatures cannot be rebuilt from the docstring, so they are kept
+      # behind the new overloads; docstring-derived ones are rebuilt, which
+      # also makes a repeated call idempotent.
       #
       # @return [void]
-      def invalidate_signatures!
-        @signatures = nil
+      def apply_override_overloads!
+        previous = @signatures
         @overloads = nil
+        return if docstring.tags(:overload).none?(&:parameters)
+
+        keep = previous ? previous.select { |sig| sig.source == :rbs } : []
+        @signatures = keep.empty? ? nil : overloads + keep
+        nil
       end
 
       def all_rooted?

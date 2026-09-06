@@ -183,18 +183,15 @@ module Solargraph
               pin.docstring.delete_tags tag
               new_pin&.docstring&.delete_tags tag
             end
-            # Add all tags first, or invalidating mid-loop drops later ones.
+            # Add all tags first, or applying mid-loop drops later ones.
             ovr.tags.each do |tag|
               pin.docstring.add_tag(tag)
               new_pin&.docstring&.add_tag(tag)
             end
-            # invalidate_signatures! only runs for @overload tags; see its doc comment.
+            pin.apply_override_overloads!
+            new_pin&.apply_override_overloads!
             pin.reset_generated!
             new_pin&.reset_generated!
-            if ovr.tags.any? { |tag| tag.tag_name == 'overload' }
-              pin.invalidate_signatures!
-              new_pin&.invalidate_signatures!
-            end
             ovr.tags.each do |tag|
               redefine_return_type pin, tag
               redefine_return_type new_pin, tag
