@@ -14,7 +14,6 @@ module Solargraph
         def initialize type, node, splatted = false, pairs = nil
           super(type, node)
           @splatted = splatted
-          # @type [::Array<::Array(Chain, Chain)>, nil]
           @pairs = pairs
         end
 
