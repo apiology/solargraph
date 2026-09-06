@@ -129,6 +129,78 @@ describe Solargraph::Shell do
         expect(output).to include("Gem 'solargraph123' not found")
       end
     end
+
+    context 'with mocked Workspace' do
+      let(:workspace) { instance_double(Solargraph::Workspace) }
+      let(:gemspec) { instance_double(Gem::Specification, name: 'backport') }
+
+      before do
+        allow(Solargraph::Workspace).to receive(:new).and_return(workspace)
+      end
+
+      it 'caches all without erroring out' do
+        allow(workspace).to receive(:cache_all_for_workspace!)
+
+        _output = capture_both { shell.gems }
+
+        expect(workspace).to have_received(:cache_all_for_workspace!)
+      end
+
+      it 'caches single gem without erroring out' do
+        allow(workspace).to receive(:find_gem).with('backport').and_return(gemspec)
+        allow(workspace).to receive(:cache_gem)
+
+        capture_both do
+          shell.options = { rebuild: false }
+          shell.gems('backport')
+        end
+
+        expect(workspace).to have_received(:cache_gem).with(gemspec, out: an_instance_of(StringIO), rebuild: false)
+      end
+
+      it 'reports a gem not found when find_gem raises Gem::MissingSpecError' do
+        allow(workspace).to receive(:find_gem)
+          .and_raise(Gem::MissingSpecError.new('backport', Gem::Requirement.new('>= 0')))
+
+        output = capture_both { shell.gems('backport') }
+
+        expect(output).to include("Gem 'backport' not found")
+      end
+
+      it 'reports the failure when find_gem raises Gem::Requirement::BadRequirementError' do
+        allow(workspace).to receive(:find_gem)
+          .and_raise(Gem::Requirement::BadRequirementError, 'bad requirement')
+
+        output = capture_both { shell.gems('backport') }
+
+        expect(output).to include("Gem 'backport' failed while loading")
+        expect(output).to include('bad requirement')
+      end
+
+      it "caches core pins when name is 'core'" do
+        allow(Solargraph::PinCache).to receive(:core?).and_return(false)
+        allow(Solargraph::PinCache).to receive(:cache_core)
+
+        capture_both do
+          shell.options = { rebuild: false }
+          shell.gems('core')
+        end
+
+        expect(Solargraph::PinCache).to have_received(:cache_core).with(out: an_instance_of(StringIO))
+      end
+
+      it "rebuilds core pins when name is 'core' and --rebuild is set even if already cached" do
+        allow(Solargraph::PinCache).to receive(:core?).and_return(true)
+        allow(Solargraph::PinCache).to receive(:cache_core)
+
+        capture_both do
+          shell.options = { rebuild: true }
+          shell.gems('core')
+        end
+
+        expect(Solargraph::PinCache).to have_received(:cache_core).with(out: an_instance_of(StringIO))
+      end
+    end
   end
 
   describe 'cache' do
@@ -310,56 +382,56 @@ describe Solargraph::Shell do
       end
     end
 
-  describe 'rbs' do
-    let(:api_map) { instance_double(Solargraph::ApiMap) }
+    describe 'rbs' do
+      let(:api_map) { instance_double(Solargraph::ApiMap) }
 
-    before do
-      allow(shell).to receive(:`)
-      allow(Solargraph::ApiMap).to receive(:load).and_return(api_map)
-      allow(api_map).to receive(:source_maps).and_return(source_maps)
-    end
+      before do
+        allow(shell).to receive(:`)
+        allow(Solargraph::ApiMap).to receive(:load).and_return(api_map)
+        allow(api_map).to receive(:source_maps).and_return(source_maps)
+      end
 
-    context 'without inference' do
-      let(:source_maps) { [] }
+      context 'without inference' do
+        let(:source_maps) { [] }
 
-      it 'invokes sord' do
-        capture_both do
-          shell.options = { filename: 'foo.rbs' }
-          shell.rbs
+        it 'invokes sord' do
+          capture_both do
+            shell.options = { filename: 'foo.rbs' }
+            shell.rbs
+          end
+          expect(shell)
+            .to have_received(:`)
+            .with("sord #{Dir.pwd}/sig/foo.rbs --rbs --no-regenerate")
         end
-        expect(shell)
-          .to have_received(:`)
-          .with("sord #{Dir.pwd}/sig/foo.rbs --rbs --no-regenerate")
-      end
-    end
-
-    context 'with inference' do
-      let(:source_maps) { [source_map] }
-      let(:source_map) { instance_double(Solargraph::SourceMap) }
-      let(:pin) do
-        instance_double(Solargraph::Pin::Method,
-                        namespace: 'My::Namespace', path: 'My::Namespace#foo',
-                        visibility: :public,
-                        parameters: [],
-                        scope: :instance,
-                        location: nil,
-                        name: 'foo',
-                        class: Solargraph::Pin::Method,
-                        return_type: Solargraph::ComplexType::UNDEFINED)
       end
 
-      it 'infers unknown types on pins' do
-        allow(source_map).to receive(:pins).and_return([pin])
-        allow(pin).to receive_messages(typify: Solargraph::ComplexType.parse('String'),
-                                       docstring: YARD::Docstring.new(''), macros: [])
-        allow(pin).to receive(:code_object).and_return(nil)
-        capture_both do
-          shell.options = { filename: 'foo.rbs', inference: true }
-          shell.rbs
+      context 'with inference' do
+        let(:source_maps) { [source_map] }
+        let(:source_map) { instance_double(Solargraph::SourceMap) }
+        let(:pin) do
+          instance_double(Solargraph::Pin::Method,
+                          namespace: 'My::Namespace', path: 'My::Namespace#foo',
+                          visibility: :public,
+                          parameters: [],
+                          scope: :instance,
+                          location: nil,
+                          name: 'foo',
+                          class: Solargraph::Pin::Method,
+                          return_type: Solargraph::ComplexType::UNDEFINED)
         end
-        expect(pin).to have_received(:typify)
+
+        it 'infers unknown types on pins' do
+          allow(source_map).to receive(:pins).and_return([pin])
+          allow(pin).to receive_messages(typify: Solargraph::ComplexType.parse('String'),
+                                         docstring: YARD::Docstring.new(''), macros: [])
+          allow(pin).to receive(:code_object).and_return(nil)
+          capture_both do
+            shell.options = { filename: 'foo.rbs', inference: true }
+            shell.rbs
+          end
+          expect(pin).to have_received(:typify)
+        end
       end
     end
-  end
   end
 end
