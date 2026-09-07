@@ -33,4 +33,15 @@ describe Solargraph::Workspace, '#gemspecs_to_cache' do
 
     expect(selected).to eq([bundled, stdlib])
   end
+
+  context 'when there is no bundle to scope to' do
+    before do
+      allow(gemspecs).to receive(:all_gemspecs_from_bundle).and_return([])
+      allow(Solargraph::PinCache).to receive(:possible_stdlibs).and_return([])
+    end
+
+    it 'falls back to the gems installed on the machine' do
+      expect(selected.map(&:name)).to include('yard')
+    end
+  end
 end
