@@ -34,4 +34,10 @@ describe Solargraph::Pin::Namespace do
     expect(pin.generics).to eq(['GenericType'])
     expect(pin.to_rbs).to eq('class ::Foo[GenericType]')
   end
+
+  it 'prefers the YARD pin type when combining with a disagreeing RBS pin' do
+    rbs_pin = described_class.new(name: 'Foo', type: :class, source: :rbs)
+    yard_pin = described_class.new(name: 'Foo', type: :module, source: :yardoc)
+    expect(rbs_pin.combine_with(yard_pin).type).to eq(:module)
+  end
 end
