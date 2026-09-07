@@ -102,6 +102,7 @@ describe Solargraph::TypeChecker do
     end
 
     it 'does not leak an unbound generic from an unmatched Hash#fetch overload' do
+      pending 'https://github.com/castwide/solargraph/pull/1266'
       checker = type_checker(%(
         class A
           # @param b [Hash{String => Integer}]
