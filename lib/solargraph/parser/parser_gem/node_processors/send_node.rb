@@ -1,11 +1,17 @@
 # frozen_string_literal: true
 
+require 'rbs'
+
 module Solargraph
   module Parser
     module ParserGem
       module NodeProcessors
         class SendNode < Parser::NodeProcessor::Base
           include ParserGem::NodeMethods
+
+          # A trailing inline RBS type argument list, e.g. the `#[String]` in
+          # `include Enumerable #[String]`.
+          TRAILING_TYPE_ARGS = /\A\s*\#(?<outer>\[(?<body>(?:[^\[\]]++|\g<outer>)*)\])/
 
           # @sg-ignore @override is adding, not overriding
           def process
@@ -138,6 +144,7 @@ module Solargraph
                 location: get_node_location(i),
                 closure: cp,
                 name: unpack_name(i),
+                generic_values: mixin_generic_values,
                 source: :parser
               )
             end
@@ -153,6 +160,7 @@ module Solargraph
                 location: get_node_location(i),
                 closure: cp,
                 name: unpack_name(i),
+                generic_values: mixin_generic_values,
                 source: :parser
               )
             end
@@ -175,10 +183,60 @@ module Solargraph
                   location: loc,
                   closure: region.closure,
                   name: unpack_name(i),
+                  generic_values: mixin_generic_values,
                   source: :parser
                 )
               end
             end
+          end
+
+          # Type arguments for a generic module mixed in with inline RBS
+          # syntax, e.g. `include Enumerable #[String]`. RBS recognizes this
+          # for one module argument only, so `include A, B` takes none.
+          #
+          # @return [Array<String>]
+          def mixin_generic_values
+            args = node.children[2..]
+            return [] unless args && args.length == 1
+
+            arg = args.first
+            return [] unless arg.is_a?(AST::Node)
+
+            code = trailing_type_args_code(arg)
+            return [] if code.nil?
+
+            parse_type_args(code)
+          end
+
+          # The text inside a trailing `#[...]` on the same line as +arg+.
+          # RBS requires no space between the `#` and the `[`; with one, this
+          # is an ordinary comment. The inner group recurses so that a nested
+          # `Hash[String, Integer]` is not cut short at its first `]`.
+          #
+          # @param arg [AST::Node]
+          # @return [String, nil]
+          def trailing_type_args_code arg
+            source = region.source.code
+            pos = get_node_end_position(arg)
+            offset = Position.line_char_to_offset(source, pos.line, pos.character)
+            eol = source.index("\n", offset) || source.length
+            match = source[offset...eol].to_s.match(TRAILING_TYPE_ARGS)
+            match && match[:body]
+          end
+
+          # Parse an RBS type argument list by wrapping it in a throwaway
+          # generic, which lets RBS split the arguments and gives each one to
+          # RbsTranslator for conversion to Solargraph's own type syntax.
+          #
+          # @param code [String]
+          # @return [Array<String>]
+          def parse_type_args code
+            type = RBS::Parser.parse_type("Object[#{code}]")
+            return [] unless type.is_a?(RBS::Types::ClassInstance)
+
+            type.args.map { |arg| RbsTranslator.to_complex_type(arg).to_s }
+          rescue RBS::ParsingError
+            []
           end
 
           # @return [void]

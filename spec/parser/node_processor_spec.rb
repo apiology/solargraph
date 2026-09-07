@@ -98,4 +98,62 @@ describe Solargraph::Parser::NodeProcessor do
 
     expect(map.pins.last.type.to_s).to eq('Array')
   end
+
+  # @param code [String]
+  # @param klass [Class<Solargraph::Pin::Reference>]
+  # @return [String]
+  def mixin_type_for code, klass
+    map = Solargraph::SourceMap.load_string(code, 'test.rb')
+    map.pins.find { |pin| pin.instance_of?(klass) }.type.to_s
+  end
+
+  it 'parses RBS parameters for included modules' do
+    expect(mixin_type_for(%(
+      class Foo
+        include Bar #[String]
+      end
+    ), Solargraph::Pin::Reference::Include)).to eq('Bar<String>')
+  end
+
+  it 'parses RBS parameters for prepended modules' do
+    expect(mixin_type_for(%(
+      class Foo
+        prepend Bar #[String]
+      end
+    ), Solargraph::Pin::Reference::Prepend)).to eq('Bar<String>')
+  end
+
+  it 'parses RBS parameters for extended modules' do
+    expect(mixin_type_for(%(
+      class Foo
+        extend Bar #[String]
+      end
+    ), Solargraph::Pin::Reference::Extend)).to eq('Bar<String>')
+  end
+
+  it 'translates RBS parameter syntax on mixins into Solargraph syntax' do
+    expect(mixin_type_for(%(
+      class Foo
+        include Bar #[Hash[String, Integer]]
+      end
+    ), Solargraph::Pin::Reference::Include)).to eq('Bar<Hash{String => Integer}>')
+  end
+
+  it 'ignores a bracketed mixin comment separated from the hash' do
+    expect(mixin_type_for(%(
+      class Foo
+        include Bar # [String]
+      end
+    ), Solargraph::Pin::Reference::Include)).to eq('Bar')
+  end
+
+  it 'ignores mixin parameters when one call mixes in several modules' do
+    # RBS rejects this too, as "Mixing multiple modules with one call is
+    # not supported", since the parameters could apply to either module.
+    expect(mixin_type_for(%(
+      class Foo
+        include Bar, Baz #[String]
+      end
+    ), Solargraph::Pin::Reference::Include)).to eq('Bar')
+  end
 end
