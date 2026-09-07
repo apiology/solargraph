@@ -241,4 +241,29 @@ describe Solargraph::ApiMap::Index do
       expect(method_pin.signatures.map { |sig| sig.return_type.tag }).to eq(['Array<Symbol>', 'String'])
     end
   end
+
+  # A method that defines a macro is cached by name before overrides run, and
+  # process_macros matches that cache against the store by pin equality.
+  describe '#map_overrides on a method that defines a macro' do
+    let(:macro_owner) { Solargraph::Pin::Namespace.new(name: 'Widget') }
+
+    let(:define_thing) do
+      Solargraph::Pin::Method.new(name: 'define_thing', scope: :class, closure: macro_owner,
+                                  comments: "@!macro thing\n  @return [String]")
+    end
+
+    let(:input_pins) do
+      [
+        macro_owner,
+        define_thing,
+        Solargraph::Pin::Reference::Override.from_comment('Widget.define_thing', '@return [Symbol]')
+      ]
+    end
+
+    it 'points the macro cache at the pin the override produced' do
+      index = described_class.new(input_pins)
+      overridden = index.pins.find { |pin| pin.path == 'Widget.define_thing' }
+      expect(index.macro_method_name_pins['define_thing']).to include(overridden)
+    end
+  end
 end

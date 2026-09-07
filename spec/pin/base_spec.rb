@@ -146,6 +146,18 @@ describe Solargraph::Pin::Base do
       expect(combined.comments).to eq("#{combined.docstring.to_raw}\n")
     end
 
+    it 'wins from either side of the combine' do
+      expect(boss.combine_with(base).docstring.tag(:return).types).to eq(['String'])
+    end
+
+    it 'prefers the higher priority when both pins declare one' do
+      lower = Solargraph::Pin::Method.new(name: 'bar', closure: closure,
+                                          comments: '@return [Integer]', combine_priority: 1)
+      higher = Solargraph::Pin::Method.new(name: 'bar', closure: closure,
+                                           comments: '@return [String]', combine_priority: 2)
+      expect(lower.combine_with(higher).docstring.tag(:return).types).to eq(['String'])
+    end
+
     it 'merges by the ordinary rules when neither pin has priority' do
       plain = Solargraph::Pin::Method.new(name: 'bar', closure: closure, comments: '@return [String]')
       expect(base.combine_with(plain).docstring.tag(:param).name).to eq('baz')
