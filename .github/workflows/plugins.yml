@@ -20,10 +20,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-      with:
-        # fetch all history for all branches and tags so we can
-        # compare against origin/master
-        fetch-depth: 0
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
       with:
@@ -52,16 +48,13 @@ jobs:
       # @todo Temporary, expect to revert in 0.60
       continue-on-error: true
     - name: Ensure specs still run
-      run: bundle exec rake spec
+      # full_spec, not spec: skip the embedded undercover check
+      run: bundle exec rake full_spec
   rails:
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v3
-      with:
-        # fetch all history for all branches and tags so we can
-        # compare against origin/master
-        fetch-depth: 0
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
       with:
@@ -91,16 +84,13 @@ jobs:
       # @todo Temporary, expect to revert in 0.60
       continue-on-error: true
     - name: Ensure specs still run
-      run: bundle exec rake spec
+      # full_spec, not spec: skip the embedded undercover check
+      run: bundle exec rake full_spec
   rspec:
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v3
-      with:
-        # fetch all history for all branches and tags so we can
-        # compare against origin/master
-        fetch-depth: 0
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
       with:
@@ -128,7 +118,8 @@ jobs:
       # @todo Temporary, expect to revert in 0.60
       continue-on-error: true
     - name: Ensure specs still run
-      run: bundle exec rake spec
+      # full_spec, not spec: skip the embedded undercover check
+      run: bundle exec rake full_spec
 
   run_solargraph_rspec_specs:
     # check out solargraph-rspec as well as this project, and point the former to use the latter as a local gem
