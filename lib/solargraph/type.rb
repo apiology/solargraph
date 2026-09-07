@@ -171,7 +171,7 @@ module Solargraph
       @namespace ||= lambda do
         return 'Object' if duck_type?
         return 'NilClass' if nil_type?
-        %w[Class Module].include?(name) && !subtypes.empty? ? subtypes.first.name : name
+        (%w[Class Module].include?(name) ? subtypes.first&.name : nil) || name
       end.call
     end
 
