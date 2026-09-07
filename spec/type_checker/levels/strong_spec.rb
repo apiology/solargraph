@@ -1000,8 +1000,6 @@ describe Solargraph::TypeChecker do
 
     it 'resolves a repeated core-method call on a var reassigned mid-method after a reopened-class call' do
       # https://github.com/castwide/solargraph/pull/1288#issuecomment-5273022388
-      # Regression guard: reproduces only with a not-yet-merged combination of
-      # flow-sensitive-typing fixes, not from any one of them alone.
       checker = type_checker(%(
         class String
           # @return [String]
