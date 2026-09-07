@@ -167,7 +167,12 @@ module Solargraph
       # @sg-ignore Wrong argument type for Solargraph::Workspace::Gemspecs#find_gem: out expected IO, nil, received NilClass
       stdlib_gemspecs = PinCache.possible_stdlibs.map { |name| gemspecs.find_gem(name, out: nil) }.compact
 
-      (all_gemspecs_from_bundle + stdlib_gemspecs).uniq { |gemspec| [gemspec.name, gemspec.version] }
+      # Outside a bundle there is nothing to scope to, so every installed gem
+      # is a candidate - the same set master always cached.
+      bundled_gemspecs = all_gemspecs_from_bundle
+      bundled_gemspecs = Gem::Specification.to_a if bundled_gemspecs.empty?
+
+      (bundled_gemspecs + stdlib_gemspecs).uniq { |gemspec| [gemspec.name, gemspec.version] }
     end
 
     # Synchronize the workspace from the provided updater.
