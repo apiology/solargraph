@@ -33,7 +33,7 @@ module Solargraph
         # @param conjuncts [Array<ComplexType>]
         def initialize conjuncts
           @conjuncts = conjuncts
-          super(intersection_tag(:tags), rooted: true)
+          super(intersection_tag(:tags), rooted: conjuncts.all?(&:rooted?))
         end
 
         # @return [String]
