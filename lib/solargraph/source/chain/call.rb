@@ -182,9 +182,8 @@ module Solargraph
             # @param ol [Pin::Signature]
             sorted_overloads.each do |ol|
               type, new_signature_pin = match_overload_type(ol, p, api_map, name_pin, locals, type, new_signature_pin)
-              # Signatures are tried in preference order, so the first to
-              # match is the best available match. A later one may replace
-              # it only by supplying the return type it could not.
+              # Keep the first candidate; replace it only with a later one
+              # that resolves the return type this one couldn't.
               selected_signature_pin = new_signature_pin if selected_signature_pin.nil? || type.defined?
               break if type.defined?
             end
@@ -219,37 +218,16 @@ module Solargraph
           end
         end
 
-        # Orders overload signatures for dispatch.
-        #
-        # If we are passing a block, we want to find a signature
-        # that will use it, so block-taking overloads go first.
-        #
-        # If we did NOT pass a block, a block-taking YARD overload
-        # is not guaranteed to be rejected by arity_matches?: YARD
-        # signatures have no way to express a required block, so
-        # Pin::Callable#block_required? defaults false for them,
-        # and arity_matches? only rejects a missing block when
-        # block_required? is true. Without a block at the call
-        # site, try the non-block overloads first instead, so a
-        # sibling overload that differs only by block presence
-        # (e.g. two @overload tags with identical explicit params,
-        # one plain and one block-taking) resolves to the plain
-        # one rather than to the block overload's possibly-
-        # unresolved block-bound generic.
+        # Orders overloads for dispatch. With a block, a signature that
+        # declares yielded parameters is preferred (more informative) to
+        # one that doesn't. Without a block, non-block overloads go
+        # first: YARD can't express a required block, so arity_matches?
+        # would otherwise still accept an inapplicable block overload.
         #
         # @param overloads [::Array<Pin::Signature>]
         # @return [::Array<Pin::Signature>]
         def dispatch_order overloads
           with_block, without_block = overloads.partition(&:block?)
-          # A signature whose block declares no yielded parameters
-          # (e.g. a `&block` parameter documented with no @yieldparam,
-          # which yields `{ () -> }`) says nothing about what the block
-          # receives. When a sibling signature declares yielded
-          # parameters, try that one first: the block's parameters
-          # resolve from whichever signature is selected here, and Ruby
-          # blocks accept fewer arguments than are yielded, so the
-          # parameterized signature is the strictly more informative
-          # match whenever both are otherwise equally applicable.
           yielding, non_yielding = with_block.partition { |sig| !sig.block.parameters.empty? }
           if with_block?
             yielding + non_yielding + without_block

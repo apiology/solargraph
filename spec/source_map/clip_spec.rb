@@ -1966,10 +1966,9 @@ describe Solargraph::SourceMap::Clip do
   end
 
   it 'yields the block parameter type declared by a cross-file @!parse stub' do
-    # The plain implementation (e.g., as it would be defined in a gem)
-    # documents only that it takes a block, yielding the signature
-    # `{ () -> }`. It's mapped first, simulating a gem's pins being
-    # loaded before the workspace's.
+    # The plain implementation only documents that it takes a block (no
+    # @yieldparam), simulating a gem's pins loading before a workspace
+    # @!parse stub that adds the block's parameter type.
     plain_impl = Solargraph::SourceMap.load_string(%(
       module Widgetbox
         class Collection
@@ -2049,10 +2048,9 @@ describe Solargraph::SourceMap::Clip do
   end
 
   it 'keeps the matched block signature when a blockless sibling signature also matches' do
-    # Neither signature declares a return type, so no signature can end
-    # the search by producing one. The blockless `def build; end` matches
-    # the call as well - Ruby accepts a block for any method - and is
-    # tried after the block-carrying signature from the @!parse stub.
+    # Neither signature declares a return type, and Ruby accepts a block
+    # for any method, so the blockless `def build; end` matches the call
+    # too - this checks the reorder still prefers the block-carrying one.
     plain_impl = Solargraph::SourceMap.load_string(%(
       module Widgetbox
         class Collection
