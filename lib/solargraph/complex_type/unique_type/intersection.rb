@@ -116,6 +116,11 @@ module Solargraph
           false
         end
 
+        # @return [Boolean]
+        def void?
+          conjuncts.all?(&:void?)
+        end
+
         # @yieldparam [UniqueType]
         # @return [void]
         # @overload each_unique_type()
