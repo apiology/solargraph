@@ -1918,10 +1918,9 @@ describe Solargraph::SourceMap::Clip do
   end
 
   it 'binds generics through a cross-file @!parse stub that adds @generic to an existing class' do
-    # The plain implementation (e.g., as it would be defined in a gem) is
-    # unaware of any generics. It's mapped first, simulating a gem's pins
-    # being loaded before the workspace's.
-    plain_impl = Solargraph::SourceMap.load_string(%(
+    # gem_source has no `@generic` tag or `@!parse` stub, and is mapped
+    # before the workspace's stub.
+    gem_source = Solargraph::SourceMap.load_string(%(
       module Widgetbox
         class Collection
           def self.make
@@ -1959,7 +1958,7 @@ describe Solargraph::SourceMap::Clip do
       Widgetbox::Collection.make.last.resource_subtype
     ), 'test.rb')
     api_map = Solargraph::ApiMap.new
-    api_map.catalog Solargraph::Bench.new(source_maps: [plain_impl, parse_stub, Solargraph::SourceMap.map(caller_source)])
+    api_map.catalog Solargraph::Bench.new(source_maps: [gem_source, parse_stub, Solargraph::SourceMap.map(caller_source)])
     clip = api_map.clip_at('test.rb', [1, 40])
     type = clip.infer
     expect(type.tag).to eq('String')
