@@ -156,4 +156,12 @@ describe Solargraph::Parser::NodeProcessor do
       end
     ), Solargraph::Pin::Reference::Include)).to eq('Bar')
   end
+
+  it 'ignores mixin parameters that RBS cannot parse as a type' do
+    expect(mixin_type_for(%(
+      class Foo
+        include Bar #[def]
+      end
+    ), Solargraph::Pin::Reference::Include)).to eq('Bar')
+  end
 end
