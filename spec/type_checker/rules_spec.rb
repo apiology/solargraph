@@ -11,6 +11,13 @@ describe Solargraph::TypeChecker::Rules do
     expect(Solargraph.logger).to have_received(:warn)
   end
 
+  it 'falls back to the rule default when an override names an unrecognized level' do
+    allow(Solargraph.logger).to receive(:warn)
+    rules = described_class.new(:strong, { validate_calls: :not_a_real_level })
+    expect(rules.validate_calls?).to be(true)
+    expect(Solargraph.logger).to have_received(:warn)
+  end
+
   it 'sets normal rules' do
     rules = described_class.new(:normal, {})
     expect(rules.ignore_all_undefined?).to be(true)
