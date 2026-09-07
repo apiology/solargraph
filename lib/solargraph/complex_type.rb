@@ -386,12 +386,9 @@ module Solargraph
 
       types = items - exclude_types.items
       if types.empty?
-        # An exhausted exclusion (e.g., a `x.nil? || x.is_a?(Foo)`
-        # guard that together covers every member of the declared
-        # type) means the code past this point is unreachable, not a
-        # real type error. Tag it `bot` - a subtype of every type -
-        # instead of `undefined`, so calls made on it downstream are
-        # treated as vacuously valid rather than flagged unresolved.
+        # Exhausting every excluded type means the code here is unreachable,
+        # not a type error - `bot` (a subtype of everything) keeps calls on
+        # it vacuously valid instead of flagged unresolved.
         types = [ComplexType::UniqueType::BOT]
       end
       ComplexType.new(types)

@@ -13,14 +13,6 @@ describe Solargraph::Pin::BaseVariable do
   end
 
   it 'treats combine_with results with the same location but different presence as unequal' do
-    # combine_with results choose the earliest assignment's #location,
-    # so two combine_with results over a different number of
-    # assignments to the same variable can share #location while
-    # covering different #presence ranges. Pin::Base#== only compared
-    # location, not presence, so these looked equal to any caller
-    # keying off of #== (e.g. Array#include?, used by Chain's inference
-    # recursion guard) even though they represent different sets of
-    # possible values for the variable.
     source = Solargraph::Source.load_string(%(
       def go(str)
         str = str.gsub('a', 'b')

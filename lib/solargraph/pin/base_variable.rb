@@ -206,14 +206,9 @@ module Solargraph
         return false unless other.is_a?(BaseVariable)
         return false unless super
         return false unless assignment == other.assignment
-        # combine_with results choose the earliest assignment's
-        # #location, so two combined pins covering a different number
-        # of assignments to the same variable can share #location while
-        # covering different #presence ranges - e.g. one pin combined
-        # through a variable's first reassignment, another combined
-        # through its second. Base#== doesn't compare presence, so
-        # without this check those pins looked identical to any caller
-        # keying off of #== (e.g. Array#include?).
+        # combine_with keeps the earliest assignment's #location, so two
+        # combined pins can share it while covering different #presence
+        # ranges - Base#== alone can't tell them apart (e.g. Array#include?).
         presence == other.presence &&
           intersection_return_type == other.intersection_return_type &&
           exclude_return_type == other.exclude_return_type

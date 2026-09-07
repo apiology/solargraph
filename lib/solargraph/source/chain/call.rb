@@ -60,20 +60,12 @@ module Solargraph
           # @sg-ignore Need to handle duck-typed method calls on union types
           pin_groups = binder.each_unique_type.map do |context|
             if context.bot?
-              # bot is a subtype of every type, so any method call on a
-              # bot-typed receiver is vacuously valid - the code is
-              # unreachable, so there's no real pin to resolve against,
-              # but flagging it as "unresolved" would be a false
-              # positive. A DuckMethod pin (same one used for `#read`-
-              # style duck typing) gives downstream resolution a real
-              # Pin::Method to work with - explicit: false skips arity
-              # checking - while its return type stays bot, so bot
-              # keeps propagating through the rest of the chain instead
-              # of being treated as a real value. closure is threaded
-              # through from name_pin since DuckMethod pins have no
-              # location of their own to derive one from - without
-              # it, Pin::Base#closure raises under strict assertions
-              # the first time anything downstream reads it.
+              # bot is a subtype of everything, so a call on a bot receiver is
+              # unreachable code, not unresolved. A DuckMethod pin gives
+              # resolution a real Pin::Method (explicit: false skips arity
+              # checks) whose bot return type keeps propagating; closure comes
+              # from name_pin since DuckMethod pins have none of their own,
+              # or Pin::Base#closure raises the first time it's read.
               [Pin::DuckMethod.new(name: word, source: :chain, explicit: false, return_type: ComplexType::BOT,
                                    closure: name_pin.closure)]
             else
