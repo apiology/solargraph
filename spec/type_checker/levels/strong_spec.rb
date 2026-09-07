@@ -1375,13 +1375,7 @@ describe Solargraph::TypeChecker do
                   'for Factory#use'])
       end
 
-      it 'reports a missing inference, not the call site\'s own class, when a duck-typed #new is called with arguments the synthesized signature rejects' do
-        # clazz.new(**{}) doesn't match the zero-arg signature Chain::Call
-        # synthesizes for the #new conjunct, so match_overload_type never
-        # resolves it - regression coverage for #new falling through to
-        # Pin::Method#typify_from_super, which walked ClassTest's own
-        # ancestor chain (found ClassTest's inherited Class#new) and
-        # returned ClassTest itself instead of leaving this unresolved.
+      it "reports a missing inference rather than the call site's own class for a duck-typed #new" do
         checker = type_checker(%(
           class ClassTest
             # @generic T

@@ -6,11 +6,8 @@ module Solargraph
     # use duck typing, e.g., `@param file [#read]`.
     #
     class DuckMethod < Pin::Method
-      # A duck-type tag like `#new` has no syntax to declare the arguments
-      # the real method takes, so leaving #parameters at Callable's default
-      # of [] synthesizes a zero-arg signature - any real call with
-      # arguments fails to match it and falls through unresolved instead of
-      # reaching the type the call would actually produce.
+      # A duck-type tag has no syntax for arguments, so the default empty
+      # #parameters would synthesize a zero-arg signature no real call matches.
       #
       # @param splat [Hash{Symbol => Object}]
       def initialize **splat
@@ -25,16 +22,8 @@ module Solargraph
         ]
       end
 
-      # A DuckMethod is a synthetic placeholder for "whatever type responds
-      # to this method" - it isn't a real method in #closure's namespace, so
-      # it has no ancestor chain of its own. #typify_from_super otherwise
-      # walks #closure's real method stack looking for a same-named,
-      # same-scope method to inherit a type from; since #closure is the
-      # call site (e.g. the method whose body calls clazz.new), and most
-      # classes have their own unrelated #new inherited from Class, that
-      # walk finds it and returns the call site's own enclosing class - a
-      # confidently wrong type, not the unresolved one this method should
-      # produce when its own signature can't answer the call.
+      # A synthetic pin sits in no ancestor chain, and #closure is the call
+      # site - inheriting would return that namespace's own Class#new type.
       #
       # @param _api_map [ApiMap]
       # @return [Array<Pin::Method>]

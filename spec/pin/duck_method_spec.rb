@@ -13,9 +13,8 @@ describe Solargraph::Pin::DuckMethod do
     end
   end
 
-  # The closure is the call site rather than the receiver, and ClassTest
-  # carries its own inherited Class#new for an ancestor walk to find.
-  let(:duck_new) do
+  # ClassTest carries its own inherited Class#new for an ancestor walk to find.
+  let(:duck_new_at_call_site) do
     described_class.new(name: 'new', source: :api_map,
                         closure: api_map.get_path_pins('ClassTest#create_object').first)
   end
@@ -27,10 +26,10 @@ describe Solargraph::Pin::DuckMethod do
   end
 
   it 'has no ancestor chain of its own to walk' do
-    expect(duck_new.rest_of_stack(api_map)).to be_empty
+    expect(duck_new_at_call_site.rest_of_stack(api_map)).to be_empty
   end
 
   it "infers nothing rather than the call site's own inherited #new" do
-    expect(duck_new.typify(api_map)).to be_undefined
+    expect(duck_new_at_call_site.typify(api_map)).to be_undefined
   end
 end
