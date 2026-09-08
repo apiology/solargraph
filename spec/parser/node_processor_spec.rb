@@ -80,6 +80,15 @@ describe Solargraph::Parser::NodeProcessor do
     expect(map.pins.last.type.to_s).to eq('Array<String>')
   end
 
+  it 'translates RBS parameter syntax on a superclass into Solargraph syntax' do
+    map = Solargraph::SourceMap.load_string(%(
+      class Foo < Array #[Hash[String, Integer]]
+      end
+    ), 'test.rb')
+
+    expect(map.pins.last.type.to_s).to eq('Array<Hash{String => Integer}>')
+  end
+
   it 'ignores bracketed comments in the class body' do
     map = Solargraph::SourceMap.load_string(%(
       class Foo < Array
