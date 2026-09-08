@@ -611,6 +611,21 @@ module Solargraph
         named_types[name] || self
       end
 
+      # A literal tag has to survive qualification: widening `:a` to Symbol
+      # erases which key the type names. map (not flat_map) keeps each
+      # entry as one parameter position.
+      #
+      # @param cts [::Array<ComplexType>]
+      # @param api_map [ApiMap]
+      # @param gates [::Array<String>]
+      # @return [::Array<ComplexType>]
+      def qualify_positions cts, api_map, gates
+        cts.map do |ct|
+          ComplexType.new(ct.items.map { |ut| ut.literal_tag? ? ut : ut.qualify(api_map, *gates) })
+        end
+      end
+      private :qualify_positions
+
       # Generate a ComplexType that fully qualifies this type's namespaces.
       #
       # @param api_map [ApiMap] The ApiMap that performs qualification
@@ -621,21 +636,8 @@ module Solargraph
           new_key_types = @key_types
           new_subtypes = @subtypes
         else
-          # A literal key tag is the one place a literal has to survive
-          # qualification: widening `:a` to Symbol in `Hash{:a => String}`
-          # would erase which key the type is talking about. Literals
-          # elsewhere still widen to their class.
-          #
-          # map (not flat_map) over @key_types/@subtypes: each entry is one
-          # parameter position, and must stay one position - flat_map would
-          # splice a union position's qualified members in as extra
-          # positions instead of keeping them together in one ComplexType.
-          new_key_types = @key_types.map do |ct|
-            ComplexType.new(ct.items.map { |ut| ut.literal_tag? ? ut : ut.qualify(api_map, *gates) })
-          end
-          new_subtypes = @subtypes.map do |ct|
-            ComplexType.new(ct.items.map { |ut| ut.qualify(api_map, *gates) })
-          end
+          new_key_types = qualify_positions(@key_types, api_map, gates)
+          new_subtypes = qualify_positions(@subtypes, api_map, gates)
         end
         qualified = recreate(new_key_types: new_key_types, new_subtypes: new_subtypes)
         return qualified if name == GENERIC_TAG_NAME || duck_type? || void? || undefined? || literal?
