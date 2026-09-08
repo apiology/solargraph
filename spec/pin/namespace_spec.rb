@@ -40,4 +40,10 @@ describe Solargraph::Pin::Namespace do
     yard_pin = described_class.new(name: 'Foo', type: :module, source: :yardoc)
     expect(rbs_pin.combine_with(yard_pin).type).to eq(:module)
   end
+
+  it 'falls back to its own type when neither disagreeing pin is from YARD' do
+    rbs_pin1 = described_class.new(name: 'Foo', type: :class, source: :rbs)
+    rbs_pin2 = described_class.new(name: 'Foo', type: :module, source: :rbs)
+    expect(rbs_pin1.combine_with(rbs_pin2).type).to eq(:class)
+  end
 end
