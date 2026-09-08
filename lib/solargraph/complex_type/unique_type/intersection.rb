@@ -139,6 +139,7 @@ module Solargraph
         # @param other [Object]
         # @return [Boolean]
         def eql? other
+          # @sg-ignore flow sensitive typing should support .class == .class
           self.class == other.class && sorted_conjuncts == other.sorted_conjuncts
         end
 
