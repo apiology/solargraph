@@ -998,7 +998,7 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message)).not_to include('Unresolved call to bar on Base')
     end
 
-    it 'accepts a non-nil @type on a local assigned from a bare accessor guarded by .nil?' do
+    it 'passes a narrowed local assigned from a bare accessor to a non-nil param, guarded by .nil?' do
       checker = type_checker(%(
         class Repro
           # @return [Array<Hash>, nil]
@@ -1012,7 +1012,6 @@ describe Solargraph::TypeChecker do
           def unwrap
             return nil if steps.nil?
 
-            # @type [Array<Hash>]
             steps_list = steps
             consume(steps_list)
           end
@@ -1022,7 +1021,7 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message)).to eq([])
     end
 
-    it 'accepts a non-nil @type on a local assigned from a bare accessor guarded by a non-nil return' do
+    it 'passes a narrowed local assigned from a bare accessor to a non-nil param, guarded by a non-nil return' do
       checker = type_checker(%(
         class Repro
           # @return [Array<Hash>, nil]
@@ -1036,7 +1035,6 @@ describe Solargraph::TypeChecker do
           def extract
             return ['', nil] if substeps.nil?
 
-            # @type [Array<Hash>]
             steps_list = substeps
             consume(steps_list)
           end
