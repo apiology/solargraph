@@ -186,11 +186,7 @@ module Solargraph
       def apply_override pin, ovr
         combined = pin.combine_with(override_pin_for(pin, ovr))
         # combined belongs to us alone, so deleting from it touches nothing shared.
-        # @sg-ignore Wrong argument type for
-        #   YARD::Docstring#delete_tags: name expected String,
-        #   received String, Symbol - delete_tags is ok with a
-        #   _ToS, but we should fix anyway
-        ovr.delete.each { |name| combined.docstring.delete_tags(name) }
+        ovr.delete.each { |name| combined.docstring.delete_tags(name.to_s) }
         ovr.tags.each { |tag| redefine_return_type combined, tag }
         rebind_parameters combined
         combined.reset_generated!
