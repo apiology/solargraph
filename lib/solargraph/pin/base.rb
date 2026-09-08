@@ -8,6 +8,7 @@ module Solargraph
       include Common
       include Conversions
       include Documenting
+      include Abstractable
       include Logging
 
       # @return [YARD::CodeObjects::Base]
@@ -157,32 +158,9 @@ module Solargraph
         merged
       end
 
-      # @param other [self]
-      # @return [self, nil] Returns either the pin chosen based on priority or nil
-      #   A nil return means that the combination process must proceed
       # The pin whose values win a field-by-field merge, or nil when neither
       # outranks the other. A nil combine_priority ranks below any number.
       #
-      # @return [Boolean]
-      def abstract?
-        !abstract.nil? || docstring.has_tag?('abstract')
-      end
-
-      # The text explaining why this pin is abstract, from either channel.
-      #
-      # @return [String, nil]
-      def abstract_note
-        abstract || docstring.tag(:abstract)&.text
-      end
-
-      # @return [String]
-      def documentation
-        note = abstract_note
-        return super if note.to_s.empty?
-
-        [super, "Abstract: #{note}"].reject(&:empty?).join("\n\n")
-      end
-
       # @param other [Pin::Base]
       # @return [Pin::Base, nil]
       def authority_over other
