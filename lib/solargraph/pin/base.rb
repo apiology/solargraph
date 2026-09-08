@@ -33,6 +33,12 @@ module Solargraph
       #   Between 2 pins, the one with the higher priority gets chosen. If the priorities are equal, they are combined.
       attr_reader :combine_priority
 
+      # Why this pin is abstract, when that came from something other than a
+      # YARD @abstract tag. nil when it did not.
+      #
+      # @return [String, nil]
+      attr_reader :abstract
+
       def presence_certain?
         true
       end
@@ -46,8 +52,9 @@ module Solargraph
       # @param docstring [YARD::Docstring, nil]
       # @param directives [::Array<YARD::Tags::Directive>, nil]
       # @param combine_priority [::Numeric, nil] See attr_reader for combine_priority
+      # @param abstract [::String, nil] See attr_reader for abstract
       def initialize location: nil, type_location: nil, closure: nil, source: nil, name: '', comments: '',
-                     docstring: nil, directives: nil, combine_priority: nil
+                     docstring: nil, directives: nil, combine_priority: nil, abstract: nil
         @location = location
         @type_location = type_location
         @closure = closure
@@ -58,6 +65,7 @@ module Solargraph
         @docstring = docstring
         @directives = directives
         @combine_priority = combine_priority
+        @abstract = abstract
         # @type [ComplexType, ComplexType::UniqueType, nil]
         @binder = nil
 
@@ -107,7 +115,8 @@ module Solargraph
           source: :combined,
           docstring: combined_docstring,
           directives: combine_directives(other),
-          combine_priority: combine_priority
+          combine_priority: combine_priority,
+          abstract: abstract || other.abstract
         }.merge(attrs)
         assert_same_macros(other)
         logger.debug do
@@ -154,6 +163,26 @@ module Solargraph
       # The pin whose values win a field-by-field merge, or nil when neither
       # outranks the other. A nil combine_priority ranks below any number.
       #
+      # @return [Boolean]
+      def abstract?
+        !abstract.nil? || docstring.has_tag?('abstract')
+      end
+
+      # The text explaining why this pin is abstract, from either channel.
+      #
+      # @return [String, nil]
+      def abstract_note
+        abstract || docstring.tag(:abstract)&.text
+      end
+
+      # @return [String]
+      def documentation
+        note = abstract_note
+        return super if note.to_s.empty?
+
+        [super, "Abstract: #{note}"].reject(&:empty?).join("\n\n")
+      end
+
       # @param other [Pin::Base]
       # @return [Pin::Base, nil]
       def authority_over other

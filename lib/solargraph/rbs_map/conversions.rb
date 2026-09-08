@@ -306,9 +306,9 @@ module Solargraph
           # HACK: Using :hidden to keep interfaces from appearing in
           # autocompletion
           visibility: :hidden,
-          source: :rbs
+          source: :rbs,
+          abstract: '(RBS interface)'
         )
-        class_pin.docstring.add_tag(YARD::Tags::Tag.new(:abstract, '(RBS interface)'))
         pins.push class_pin
         convert_members_to_pins decl, class_pin
       end
