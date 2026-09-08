@@ -159,6 +159,11 @@ module Solargraph
       @items
     end
 
+    # @return [Array<ComplexType::UniqueType>]
+    def unioned_items
+      @items
+    end
+
     # @param index [Integer]
     # @return [UniqueType]
     def [] index

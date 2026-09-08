@@ -249,6 +249,11 @@ module Solargraph
           self
         end
 
+        # @return [Array<ComplexType::UniqueType>]
+        def unioned_items
+          [self]
+        end
+
         # Unanswerable for an intersection: each would report from @name
         # (the whole compound tag) or from subtype and parameter state an
         # intersection never populates.

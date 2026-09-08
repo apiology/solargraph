@@ -540,6 +540,11 @@ module Solargraph
         [self]
       end
 
+      # @return [Array<ComplexType::UniqueType>]
+      def unioned_items
+        [self]
+      end
+
       # @param new_name [String, nil]
       # @param make_rooted [Boolean, nil]
       # @param new_key_types [Array<ComplexType>, nil]
