@@ -41,9 +41,16 @@ module Solargraph
       types = red.items.map do |t|
         next t if %w[nil void undefined].include?(t.rooted_tags)
         next t if ['::Boolean'].include?(t.rooted_tags)
-        api_map.unalias(t.name) || t.qualify(api_map, *gates)
+        t.unalias_and_qualify(api_map, *gates)
       end
       ComplexType.new(types).reduce_object
+    end
+
+    # @param api_map [ApiMap]
+    # @param gates [Array<String>]
+    # @return [ComplexType]
+    def unalias_and_qualify api_map, *gates
+      ComplexType.new(map { |t| t.unalias_and_qualify(api_map, *gates) })
     end
 
     # Pins for calling +word+ on each alternative of this union

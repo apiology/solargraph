@@ -232,6 +232,13 @@ module Solargraph
           Intersection.new(conjuncts.map { |conjunct| conjunct.transform(&transform_type) })
         end
 
+        # @param api_map [ApiMap]
+        # @param gates [Array<String>]
+        # @return [Intersection]
+        def unalias_and_qualify api_map, *gates
+          Intersection.new(conjuncts.map { |conjunct| conjunct.unalias_and_qualify(api_map, *gates) })
+        end
+
         # @return [self]
         def erase_parameters
           self

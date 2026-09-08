@@ -620,6 +620,15 @@ module Solargraph
         end
       end
 
+      # Expand this type if it names a type alias; otherwise qualify it.
+      #
+      # @param api_map [ApiMap]
+      # @param gates [Array<String>]
+      # @return [ComplexType, UniqueType]
+      def unalias_and_qualify api_map, *gates
+        api_map.unalias(name) || qualify(api_map, *gates)
+      end
+
       def selfy?
         @name == 'self' || @key_types.any?(&:selfy?) || @subtypes.any?(&:selfy?)
       end
