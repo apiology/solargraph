@@ -279,10 +279,11 @@ module Solargraph
       end
     end
 
-    # A default gem ships no documentation of its own, so a combined cache
-    # entry could never hold more than the stdlib RBS already does. Reading
-    # that RBS directly also skips the wait for `solargraph gems` to write
-    # the entry.
+    # RbsMap.from_gemspec already checks RbsMap::StdlibMap first and
+    # returns it whenever resolved, regardless of what else the gem
+    # ships. Reading it directly here returns the identical pins that
+    # path would resolve to, without waiting for `solargraph gems` to
+    # write a combined cache entry.
     #
     # @param gemspec [Gem::Specification]
     # @return [Boolean]
