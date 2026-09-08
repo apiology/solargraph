@@ -12,6 +12,10 @@ describe Solargraph::PinCache do
     described_class.new(rbs_collection_path: nil, rbs_collection_config_path: nil)
   end
 
+  after do
+    described_class.all_combined_pins_in_memory.clear
+  end
+
   describe '#cache_key_for' do
     it 'differs between configurations that resolve the gem differently' do
       gemspec = Gem::Specification.find_by_name('addressable')
@@ -45,9 +49,5 @@ describe Solargraph::PinCache do
 
       expect(described_class.all_combined_pins_in_memory).not_to have_key(key)
     end
-  end
-
-  after do
-    described_class.all_combined_pins_in_memory.clear
   end
 end
