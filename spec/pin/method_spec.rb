@@ -128,6 +128,24 @@ describe Solargraph::Pin::Method do
     expect(result.length).to eq(signatures.length)
   end
 
+  it 'keeps a signature per parameter type when combining, so an argument type can still select its own return type' do
+    pending 'parameter types never widen when combining, so the type_arity check that would keep the signatures apart cannot fire'
+    closure = Solargraph::Pin::Namespace.new(name: 'Foo', type: :class)
+    integer_pin = described_class.new(closure: closure, name: 'add', scope: :instance, comments: %(
+@overload add(bar)
+  @param bar [Integer]
+  @return [Integer]
+    ))
+    float_pin = described_class.new(closure: closure, name: 'add', scope: :instance, comments: %(
+@overload add(bar)
+  @param bar [Float]
+  @return [Float]
+    ))
+    combined = integer_pin.combine_with(float_pin)
+    expect(combined.signatures.length).to eq(2)
+    expect(combined.signatures.flat_map { |sig| sig.parameters.map { |param| param.return_type.rooted_tags } }).to contain_exactly('Integer', 'Float')
+  end
+
   it 'does not merge with changes in parameters' do
     # @todo Method pin parameters are pins now
     pin1 = described_class.new(name: 'bar', parameters: %w[one two])
