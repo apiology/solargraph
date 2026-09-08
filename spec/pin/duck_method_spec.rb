@@ -5,6 +5,7 @@ describe Solargraph::Pin::DuckMethod do
     Solargraph::ApiMap.new.tap do |map|
       map.map Solargraph::Source.load_string(%(
         class ClassTest
+          # @param clazz [#new]
           def create_object(clazz)
             clazz.new
           end
@@ -13,16 +14,22 @@ describe Solargraph::Pin::DuckMethod do
     end
   end
 
-  # ClassTest carries its own inherited Class#new for an ancestor walk to find.
+  # The one place these are built: a duck-type tag reaches ApiMap via its
+  # parsed ComplexType, not via the source that declared it.
+  let(:duck_new) do
+    api_map.get_complex_type_methods(Solargraph::ComplexType.parse('#new'))
+           .grep(described_class).first
+  end
+
+  # ApiMap leaves #closure nil; the call site is what gives an ancestor
+  # walk somewhere to go, since ClassTest inherits its own Class#new.
   let(:duck_new_at_call_site) do
     described_class.new(name: 'new', source: :api_map,
                         closure: api_map.get_path_pins('ClassTest#create_object').first)
   end
 
   it 'synthesizes a signature that accepts any arguments' do
-    pin = described_class.new(name: 'new', source: :api_map)
-    parameters = pin.signatures.first.parameters
-    expect(parameters.map(&:decl)).to eq(%i[restarg kwrestarg])
+    expect(duck_new.signatures.first.parameters.map(&:decl)).to eq(%i[restarg kwrestarg])
   end
 
   it 'has no ancestor chain of its own to walk' do
