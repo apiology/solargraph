@@ -93,11 +93,7 @@ module Solargraph
       # @todo :api_map_namespace_pin_stack triggers in a badly handled
       #   self type case - 'keeps track of self type in method
       #   parameters in subclass' in call_spec.rb
-      # @todo :combine_with_type can legitimately disagree when an RBS
-      #   signature goes stale relative to the gem's real source (a
-      #   class redeclared a module in a newer gem release than the
-      #   signature was written against)
-      return if %i[api_map_namespace_pin_stack combine_with_visibility combine_with_type].include?(type)
+      return if %i[api_map_namespace_pin_stack combine_with_visibility].include?(type)
 
       raise msg
     end
