@@ -34,7 +34,9 @@ class Protocol
   end
 end
 
-describe Protocol do
+# order: :defined - every example shares the one Host built in before(:all),
+# and initialize, initialized and didOpen set up the state the rest read.
+describe Protocol, order: :defined do
   before :all do
     @protocol = described_class.new(Solargraph::LanguageServer::Host.new)
   end
