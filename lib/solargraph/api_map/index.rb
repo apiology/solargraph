@@ -168,7 +168,7 @@ module Solargraph
       # @return [void]
       def map_overrides
         pins_by_class(Pin::Reference::Override).each do |ovr|
-          # Dup: applying an override rewrites the array being iterated.
+          # Iterate a copy: applying an override rewrites this array.
           (path_pin_hash[ovr.name] || []).dup.each do |pin|
             new_pin = ((path_pin_hash[pin.path.sub('#initialize', '.new')] || []).first if pin.path.end_with?('#initialize'))
             apply_override pin, ovr
