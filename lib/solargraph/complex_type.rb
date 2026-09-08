@@ -386,9 +386,8 @@ module Solargraph
 
       types = items - exclude_types.items
       if types.empty?
-        # Exhausting every excluded type means the code here is unreachable,
-        # not a type error - `bot` (a subtype of everything) keeps calls on
-        # it vacuously valid instead of flagged unresolved.
+        # Exhausting every excluded type means the code here is unreachable, not
+        # a type error - `bot` keeps calls on it vacuously valid, not unresolved.
         types = [ComplexType::UniqueType::BOT]
       end
       ComplexType.new(types)
