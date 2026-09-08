@@ -121,6 +121,17 @@ module Solargraph
           conjuncts.all?(&:void?)
         end
 
+        # @param other [Object]
+        # @return [Boolean]
+        def eql? other
+          self.class == other.class && sorted_conjuncts == other.sorted_conjuncts
+        end
+
+        # @return [Integer]
+        def hash
+          [self.class, sorted_conjuncts].hash
+        end
+
         # @yieldparam [UniqueType]
         # @return [void]
         # @overload each_unique_type()
@@ -385,6 +396,15 @@ module Solargraph
 
         def equality_fields(*, **, &)
           raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        # Conjunct order is not part of the type. rooted_tags keys the
+        # sort rather than tag, which reports only a union conjunct's
+        # first member and drops the :: from a rooted one.
+        #
+        # @return [Array<ComplexType>]
+        def sorted_conjuncts
+          conjuncts.sort_by(&:rooted_tags)
         end
 
         private
