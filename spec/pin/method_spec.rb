@@ -126,7 +126,6 @@ describe Solargraph::Pin::Method do
   end
 
   it 'keeps a signature per parameter type when combining, so an argument type can still select its own return type' do
-    pending 'parameter types never widen when combining, so the type_arity check that would keep the signatures apart cannot fire'
     closure = Solargraph::Pin::Namespace.new(name: 'Foo', type: :class)
     integer_pin = described_class.new(closure: closure, name: 'add', scope: :instance, comments: %(
 @overload add(bar)
