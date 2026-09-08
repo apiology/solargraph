@@ -343,7 +343,7 @@ module Solargraph
       # @return [Solargraph::Pin::LocalVariable, Solargraph::Pin::InstanceVariable, nil]
       def chain_pin chain_words, node, position
         if chain_words.length == 1
-          # 'steps' is ambiguous here: :lvar is a tracked local, :send a self call.
+          # A bare word is ambiguous: :lvar is a tracked local, :send a self call (e.g. 'steps').
           # @sg-ignore chain_words is never empty - callers already checked
           return find_var(chain_words.first, position) unless node.is_a?(::Parser::AST::Node) && node.type == :send
 
