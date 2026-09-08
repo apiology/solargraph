@@ -759,7 +759,7 @@ module Solargraph
     end
 
     # @param fq_reference_tag [String] A fully qualified whose method should be pulled in
-    # @param namespace_pin [Pin::Base, nil] Namespace pin for the rooted_type
+    # @param namespace_pin [Pin::Base] Namespace pin for the rooted_type
     #   parameter - used to pull generics information
     # @param type [ComplexType] The type which is having its
     #   methods supplemented from fq_reference_tag
