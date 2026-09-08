@@ -136,6 +136,11 @@ module Solargraph
           conjuncts.all?(&:nil_type?)
         end
 
+        # @return [Boolean]
+        def selfy?
+          conjuncts.any?(&:selfy?)
+        end
+
         # @param other [Object]
         # @return [Boolean]
         def eql? other
@@ -316,10 +321,6 @@ module Solargraph
         end
 
         def nullable?(*, **, &)
-          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
-        end
-
-        def selfy?(*, **, &)
           raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
         end
 
