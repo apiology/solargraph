@@ -1964,6 +1964,48 @@ describe Solargraph::SourceMap::Clip do
     expect(type.tag).to eq('String')
   end
 
+  it 'yields the block parameter type declared by a cross-file @!parse stub' do
+    # The plain implementation only documents that it takes a block (no
+    # @yieldparam), simulating a gem's pins loading before a workspace
+    # @!parse stub that adds the block's parameter type.
+    plain_impl = Solargraph::SourceMap.load_string(%(
+      module Widgetbox
+        class Collection
+          # @return [String]
+          def name
+            'collection'
+          end
+        end
+
+        class << self
+          # @return [Widgetbox::Collection]
+          def build(&block)
+            Collection.new
+          end
+        end
+      end
+    ), 'widgetbox.rb')
+    parse_stub = Solargraph::SourceMap.load_string(%(
+      # @!parse
+      #   module Widgetbox
+      #     class << self
+      #       # @yieldparam config [Widgetbox::Collection]
+      #       # @return [Widgetbox::Collection]
+      #       def build(&block); end
+      #     end
+      #   end
+    ), 'annotations.rb')
+    caller_source = Solargraph::Source.load_string(%(
+      Widgetbox.build do |config|
+        config
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.catalog Solargraph::Bench.new(source_maps: [plain_impl, parse_stub, Solargraph::SourceMap.map(caller_source)])
+    clip = api_map.clip_at('test.rb', [2, 14])
+    expect(clip.infer.tag).to eq('Widgetbox::Collection')
+  end
+
   it 'uses simple return value of block to infer return value of Enumerable#map' do
     source = Solargraph::Source.load_string(%(
       a = ['a'].map { 123 }

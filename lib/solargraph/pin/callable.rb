@@ -34,18 +34,21 @@ module Solargraph
         closure.namespace
       end
 
+      # A block declaring no yielded parameters says nothing about
+      # what it yields, so it loses to a sibling that documents
+      # them, rather than being picked between arbitrarily.
+      #
       # @param other [self]
       #
       # @return [Pin::Signature, nil]
       def combine_blocks other
-        if block.nil?
-          other.block
-        elsif other.block.nil?
-          block
-        else
-          # @type [Pin::Signature, nil]
-          choose_pin_attr(other, :block)
-        end
+        return other.block if block.nil? ||
+                              (block.parameters.empty? && !other.block.nil? && !other.block.parameters.empty?)
+        return block if other.block.nil? || (other.block.parameters.empty? && !block.parameters.empty?)
+        return block.combine_with(other.block) if block.arity == other.block.arity
+
+        # @type [Pin::Signature, nil]
+        choose_pin_attr(other, :block)
       end
 
       # @param other [self]

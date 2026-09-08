@@ -128,6 +128,32 @@ describe Solargraph::Pin::Method do
     expect(result.length).to eq(signatures.length)
   end
 
+  it 'merges a block signature that declares parameters with one that does not' do
+    plain_impl = Solargraph::SourceMap.load_string(%(
+      module Widgetbox
+        class << self
+          # @return [String]
+          def build(&block) = 'x'
+        end
+      end
+    ), 'widgetbox.rb')
+    parse_stub = Solargraph::SourceMap.load_string(%(
+      # @!parse
+      #   module Widgetbox
+      #     class << self
+      #       # @yieldparam config [String]
+      #       # @return [String]
+      #       def build(&block); end
+      #     end
+      #   end
+    ), 'annotations.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.catalog Solargraph::Bench.new(source_maps: [plain_impl, parse_stub])
+    method = api_map.get_method_stack('Widgetbox', 'build', scope: :class).first
+    expect(method.signatures.length).to eq(1)
+    expect(method.signatures.first.block.parameters.map(&:name)).to eq(['config'])
+  end
+
   it 'does not merge with changes in parameters' do
     # @todo Method pin parameters are pins now
     pin1 = described_class.new(name: 'bar', parameters: %w[one two])
