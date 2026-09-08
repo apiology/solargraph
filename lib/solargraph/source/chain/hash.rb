@@ -55,7 +55,9 @@ module Solargraph
           pairs = @pairs
           return @complex_type if pairs.nil? || pairs.empty?
 
+          # @type [::Array<ComplexType>]
           key_types = []
+          # @type [::Array<ComplexType>]
           value_types = []
           pairs.each do |pair|
             key_chain, value_chain = pair
