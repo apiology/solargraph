@@ -131,6 +131,11 @@ module Solargraph
           conjuncts.any?(&:defined?)
         end
 
+        # @return [Boolean]
+        def nil_type?
+          conjuncts.all?(&:nil_type?)
+        end
+
         # @param other [Object]
         # @return [Boolean]
         def eql? other
