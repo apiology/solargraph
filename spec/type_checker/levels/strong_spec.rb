@@ -1004,14 +1004,17 @@ describe Solargraph::TypeChecker do
           # @return [Array<Hash>, nil]
           attr_reader :steps
 
-          # @return [Array<Hash>, nil]
+          # @param steps [Array<Hash>]
+          # @return [void]
+          def consume(steps); end
+
+          # @return [void]
           def unwrap
             return nil if steps.nil?
 
             # @type [Array<Hash>]
             steps_list = steps
-            steps_list.each { |step| step }
-            steps_list
+            consume(steps_list)
           end
         end
       ))
@@ -1025,13 +1028,17 @@ describe Solargraph::TypeChecker do
           # @return [Array<Hash>, nil]
           attr_reader :substeps
 
-          # @return [Array]
+          # @param substeps [Array<Hash>]
+          # @return [void]
+          def consume(substeps); end
+
+          # @return [void]
           def extract
             return ['', nil] if substeps.nil?
 
             # @type [Array<Hash>]
             steps_list = substeps
-            [steps_list]
+            consume(steps_list)
           end
         end
       ))
