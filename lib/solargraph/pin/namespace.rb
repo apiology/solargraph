@@ -149,7 +149,7 @@ module Solargraph
       def combine_type other
         return type if type == other.type
 
-        Solargraph.logger.warn { "Namespace#combine_with: :type disagreement for #{path} - self=#{inspect}, other=#{other.inspect}" }
+        Solargraph.logger.debug { "Namespace#combine_with: :type disagreement for #{path} - self=#{inspect}, other=#{other.inspect}" }
         return type if source == :yardoc
         return other.type if other.source == :yardoc
 
