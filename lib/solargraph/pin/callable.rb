@@ -108,6 +108,25 @@ module Solargraph
         [generics, blockless_parameters.map(&:arity_decl), block&.arity]
       end
 
+      # Whether +other+ declares the same parameter types, so merging cannot
+      # take away an argument type's ability to select a return type.  Return
+      # types are excluded: widening one is the purpose of merging.
+      #
+      # @param other [Callable]
+      # @return [Boolean]
+      def same_parameter_types? other
+        return false unless generics == other.generics
+        return false unless block.nil? == other.block.nil?
+        return false unless parameter_type_tags == other.parameter_type_tags
+
+        block.nil? || block.same_parameter_types?(other.block)
+      end
+
+      # @return [Array<String>]
+      def parameter_type_tags
+        blockless_parameters.map { |param| param.return_type.rooted_tags }
+      end
+
       # e.g., [["T"], "1", "?3", "foo:5"] - parameter arity
       #   declarations, including the number of unique types in each
       #   parameter.  Used to determine whether combining two
