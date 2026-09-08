@@ -20,7 +20,7 @@ module Solargraph
     def initialize types = [UniqueType::UNDEFINED]
       # @todo @items here should not need an annotation
       # @type [Array<UniqueType>]
-      items = types.flat_map(&:items).uniq(&:to_s)
+      items = types.flat_map(&:items).uniq(&:rooted_tags)
       if items.any? { |i| i.name == 'false' } && items.any? { |i| i.name == 'true' }
         items.delete_if { |i| %w[false true].include?(i.name) }
         items.unshift(UniqueType::BOOLEAN)
