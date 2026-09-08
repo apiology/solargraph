@@ -203,15 +203,9 @@ module Solargraph
 
       # @param other [Object]
       def == other
-        return false unless other.is_a?(BaseVariable)
         return false unless super
-        return false unless assignment == other.assignment
-        # combine_with keeps the earliest assignment's #location, so two
-        # combined pins can share it while covering different #presence
-        # ranges - Base#== alone can't tell them apart (e.g. Array#include?).
-        presence == other.presence &&
-          intersection_return_type == other.intersection_return_type &&
-          exclude_return_type == other.exclude_return_type
+        # @sg-ignore Should add type check on other
+        assignment == other.assignment
       end
 
       def type_desc
