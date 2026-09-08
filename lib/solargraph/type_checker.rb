@@ -445,11 +445,7 @@ module Solargraph
     def signature_argument_problems_for location, locals, closure_pin, params, arguments, sig, pin
       errors = []
       splat_keywords, unverifiable_splat = keyword_splat_types(arguments.last, closure_pin, locals)
-      # @sg-ignore "Wrong argument type for
-      #   Solargraph::TypeChecker#keyword_splat_problems_for: unverifiable_splat
-      #   expected Solargraph::ComplexType, nil, received Hash{Symbol =>
-      #   Solargraph::ComplexType}" - multiple assignment from an Array(A, B)
-      #   return type gives every variable the type of the first element
+      # @sg-ignore multiple assignment from a tuple gives every variable the first element type
       errors.concat keyword_splat_problems_for(sig, pin, location, arguments, splat_keywords, unverifiable_splat)
       # @todo add logic mapping up restarg parameters with
       #   arguments (including restarg arguments).  Use tuples
@@ -505,11 +501,7 @@ module Solargraph
               end
             end
           else
-            # @sg-ignore "Wrong argument type for
-            #   Solargraph::TypeChecker#kwarg_problems_for: unverifiable_splat
-            #   expected Solargraph::ComplexType, nil, received Hash{Symbol =>
-            #   Solargraph::ComplexType}" - multiple assignment from an
-            #   Array(A, B) return type gives every variable the first element's type
+            # @sg-ignore multiple assignment from a tuple gives every variable the first element type
             errors.concat kwarg_problems_for(sig, argchain, api_map, closure_pin, locals, location, pin, params,
                                              idx, splat_keywords, unverifiable_splat)
             next
@@ -541,8 +533,7 @@ module Solargraph
       kwargs = convert_hash(argchain.node)
       # idx comes from an each_with_index over these same parameters.
       #
-      # @sg-ignore "Declared type Solargraph::Pin::Parameter does not match
-      #   inferred type Solargraph::Pin::Parameter, nil for variable par"
+      # @sg-ignore Array#[] is nilable even with an in-range index
       # @type [Pin::Parameter]
       par = sig.parameters[idx]
       if par.decl == :kwrestarg || (par.decl == :optarg && idx == pin.parameters.length - 1 && par.asgn_code == '{}')
@@ -570,10 +561,7 @@ module Solargraph
       ptype = ptype.self_to_type(pin.context)
       return result if ptype.undefined?
 
-      # @sg-ignore "Unresolved call to defined?" and "Wrong argument type for
-      #   Solargraph::TypeChecker#arg_conforms_to?: inferred expected
-      #   Solargraph::ComplexType, Solargraph::ComplexType::UniqueType, received
-      #   Solargraph::ComplexType, nil" - the nil case returned above
+      # @sg-ignore defined? is unresolved and the nil case above is not narrowed
       if argtype.defined? && !arg_conforms_to?(argtype, ptype)
         result.push Problem.new(location,
                                 "Wrong argument type for #{pin.path}: #{par.name} expected #{ptype}, received #{argtype}")
