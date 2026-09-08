@@ -1211,6 +1211,26 @@ describe Solargraph::SourceMap::Clip do
     expect(clip.infer.to_s).to eq('Complex')
   end
 
+  it 'infers the return type of the signature matching the argument type when two pins for one method are combined' do
+    namespace = Solargraph::Pin::Namespace.new(name: 'Widget', type: :class)
+    integer_pin = Solargraph::Pin::Method.new(closure: namespace, name: 'scan', scope: :instance, comments: %(
+@overload scan(count)
+  @param count [Integer]
+  @return [Symbol]
+    ))
+    float_pin = Solargraph::Pin::Method.new(closure: namespace, name: 'scan', scope: :instance, comments: %(
+@overload scan(count)
+  @param count [Float]
+  @return [String]
+    ))
+    source = Solargraph::Source.load_string('Widget.new.scan(1.5)', 'test.rb')
+    source_map = Solargraph::SourceMap.map(source)
+    api_map = Solargraph::ApiMap.new
+    api_map.index([namespace, integer_pin.combine_with(float_pin)] + source_map.pins)
+    api_map.send(:source_map_hash)['test.rb'] = source_map
+    expect(api_map.clip_at('test.rb', [0, 12]).infer.to_s).to eq('String')
+  end
+
   it 'infers overloads with splats' do
     source = Solargraph::Source.load_string(%(
       class Foo
