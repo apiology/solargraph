@@ -673,6 +673,18 @@ module Solargraph
         result
       end
 
+      # Builds a union of the given types, dropping duplicates. A
+      # lone type comes back as itself rather than as a union of one,
+      # so union(A, A) is A.
+      #
+      # @param types [Array<ComplexType, ComplexType::UniqueType>]
+      # @return [ComplexType, ComplexType::UniqueType]
+      def union *types
+        items = types.flat_map(&:items).uniq(&:rooted_tags)
+        return items.fetch(0) if items.length == 1
+        ComplexType.new(items)
+      end
+
       # @param strings [Array<String>]
       # @return [ComplexType]
       def try_parse *strings
@@ -740,8 +752,7 @@ module Solargraph
       # @param disjuncts [Array<ComplexType, ComplexType::UniqueType>]
       # @return [ComplexType::UniqueType, ComplexType]
       def close_disjunction disjuncts
-        return disjuncts.fetch(0) if disjuncts.length == 1
-        ComplexType.new(disjuncts)
+        union(*disjuncts)
       end
     end
 
