@@ -507,13 +507,14 @@ module Solargraph
         by_type_arity.values.flatten
       end
 
-      # A block that declares no yielded parameters (e.g. `&block`
-      # with no @yieldparam) differs in type_arity from one that
-      # does, so combine_signatures_by_type_arity's bucketing would
-      # otherwise keep them as separate overloads. They're the same
-      # overload, just documented with different completeness -
-      # merge them here, before that bucketing, so the merged
-      # signature carries the informative block onward.
+      # A block documented with fewer yielded parameters than a
+      # sibling signature's block (including zero, e.g. `&block` with
+      # no @yieldparam at all) differs in type_arity from it, so
+      # combine_signatures_by_type_arity's bucketing would otherwise
+      # keep them as separate overloads. They're the same overload,
+      # just documented with different completeness - merge them
+      # here, before that bucketing, so the merged signature carries
+      # the more complete block onward.
       #
       # @param signature_pins [Array<Pin::Signature>]
       # @return [Array<Pin::Signature>]
@@ -542,7 +543,7 @@ module Solargraph
       # @return [Boolean]
       def combinable_by_block_informativeness? sig1, sig2
         return false if sig1.block.nil? || sig2.block.nil?
-        return false if sig1.block.parameters.empty? == sig2.block.parameters.empty?
+        return false if sig1.block.parameters.length == sig2.block.parameters.length
         sig1.type_arity[0..-2] == sig2.type_arity[0..-2]
       end
 

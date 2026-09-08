@@ -154,6 +154,34 @@ describe Solargraph::Pin::Method do
     expect(method.signatures.first.block.parameters.map(&:name)).to eq(['config'])
   end
 
+  it 'merges a block signature with more declared parameters than one with fewer' do
+    fewer_params = Solargraph::SourceMap.load_string(%(
+      module Widgetbox
+        class << self
+          # @yieldparam a [String]
+          # @return [String]
+          def build(&block) = 'x'
+        end
+      end
+    ), 'widgetbox.rb')
+    more_params = Solargraph::SourceMap.load_string(%(
+      # @!parse
+      #   module Widgetbox
+      #     class << self
+      #       # @yieldparam a [String]
+      #       # @yieldparam b [Integer]
+      #       # @return [String]
+      #       def build(&block); end
+      #     end
+      #   end
+    ), 'annotations.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.catalog Solargraph::Bench.new(source_maps: [fewer_params, more_params])
+    method = api_map.get_method_stack('Widgetbox', 'build', scope: :class).first
+    expect(method.signatures.length).to eq(1)
+    expect(method.signatures.first.block.parameters.map(&:name)).to eq(%w[a b])
+  end
+
   it 'does not merge with changes in parameters' do
     # @todo Method pin parameters are pins now
     pin1 = described_class.new(name: 'bar', parameters: %w[one two])
