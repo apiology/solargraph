@@ -999,7 +999,6 @@ describe Solargraph::TypeChecker do
     end
 
     it 'resolves a repeated core-method call on a var reassigned mid-method after a reopened-class call' do
-      # https://github.com/castwide/solargraph/pull/1288#issuecomment-5273022388
       checker = type_checker(%(
         class String
           # @return [String]
