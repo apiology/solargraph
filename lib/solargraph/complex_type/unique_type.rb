@@ -545,6 +545,17 @@ module Solargraph
         [self]
       end
 
+      # A lone type has one member, so there is one pair to make.
+      #
+      # @param other [ComplexType, UniqueType]
+      # @yieldparam mine [self]
+      # @yieldparam theirs [ComplexType, UniqueType]
+      # @yieldreturn [ComplexType, UniqueType]
+      # @return [ComplexType, UniqueType]
+      def combine_via other
+        yield self, other
+      end
+
       # @param new_name [String, nil]
       # @param make_rooted [Boolean, nil]
       # @param new_key_types [Array<ComplexType>, nil]

@@ -254,6 +254,24 @@ module Solargraph
           [self]
         end
 
+        # Pairs conjunct by conjunct with another intersection and
+        # rebuilds one from the results. Any other type has no
+        # conjuncts to line up with, so it pairs with the whole.
+        #
+        # @param other [ComplexType, ComplexType::UniqueType]
+        # @yieldparam mine [ComplexType, ComplexType::UniqueType]
+        # @yieldparam theirs [ComplexType, ComplexType::UniqueType]
+        # @yieldreturn [ComplexType, ComplexType::UniqueType]
+        # @return [ComplexType, ComplexType::UniqueType]
+        def combine_via other, &block
+          return block.call(self, other) unless other.is_a?(Intersection)
+
+          # @param members [Array<ComplexType>]
+          gather = ->(members) { members.length == 1 ? members.fetch(0) : Intersection.new(members) }
+          results = TypeMethods.combine_members(conjuncts, other.conjuncts, gather, &block)
+          Intersection.new(results.map { |type| ComplexType.new([type]) })
+        end
+
         # Unanswerable for an intersection: each would report from @name
         # (the whole compound tag) or from subtype and parameter state an
         # intersection never populates.

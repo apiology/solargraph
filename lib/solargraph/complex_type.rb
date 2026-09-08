@@ -164,6 +164,20 @@ module Solargraph
       @items
     end
 
+    # Pairs this union up with another type member by member, yields
+    # each pair, and reassembles the results into one union.
+    #
+    # @param other [ComplexType, ComplexType::UniqueType]
+    # @yieldparam mine [ComplexType, ComplexType::UniqueType]
+    # @yieldparam theirs [ComplexType, ComplexType::UniqueType]
+    # @yieldreturn [ComplexType, ComplexType::UniqueType]
+    # @return [ComplexType, ComplexType::UniqueType]
+    def combine_via other, &block
+      # @param members [Array<ComplexType, ComplexType::UniqueType>]
+      gather = ->(members) { ComplexType.union(*members) }
+      ComplexType.union(*TypeMethods.combine_members(unioned_items, other.unioned_items, gather, &block))
+    end
+
     # @param index [Integer]
     # @return [UniqueType]
     def [] index
