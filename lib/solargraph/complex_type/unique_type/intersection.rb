@@ -121,6 +121,16 @@ module Solargraph
           conjuncts.all?(&:void?)
         end
 
+        # @return [Boolean]
+        def undefined?
+          conjuncts.all?(&:undefined?)
+        end
+
+        # @return [Boolean]
+        def defined?
+          conjuncts.any?(&:defined?)
+        end
+
         # @param other [Object]
         # @return [Boolean]
         def eql? other
