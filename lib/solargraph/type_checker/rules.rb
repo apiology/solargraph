@@ -74,6 +74,8 @@ module Solargraph
       # @todo 281: Need to add nil check here
       # @todo 22: Translate to something flow sensitive typing understands
       # @todo 3: Need a downcast here
+      # @todo 2: multiple assignment from a tuple gives every variable the first element type
+      # @todo 1: defined? is unresolved and the nil case above is not narrowed
       #
       # flow sensitive typing could handle (103):
       #
@@ -114,6 +116,7 @@ module Solargraph
       # @todo 1: flow sensitive typing needs to create separate ranges for postfix if
       # @todo 1: flow sensitive typing needs to handle constants
       # @todo 1: flow sensitive typing needs to eliminate literal from union with return if foo == :bar
+      # @todo 1: Array#[] is nilable even with an in-range index
       def require_all_unique_types_match_expected?
         report?(:require_all_unique_types_match_expected, :strong)
       end
