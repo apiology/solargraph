@@ -208,14 +208,17 @@ module Solargraph
         #   multiple assignments
         unless @mass_assignment.nil?
           mass_node, index = @mass_assignment
-          types = return_types_from_node(mass_node, api_map)
-          types.map! do |type|
-            if type.tuple?
-              type.all_params[index]
-            elsif ['::Array', '::Set', '::Enumerable'].include?(type.rooted_name)
-              type.all_params.first
+          # Destructure each union member separately: ComplexType#tuple?
+          # and #all_params report on the first member only.
+          types = return_types_from_node(mass_node, api_map).flat_map do |type|
+            type.items.filter_map do |member|
+              if member.tuple?
+                member.all_params[index]
+              elsif ['::Array', '::Set', '::Enumerable'].include?(member.rooted_name)
+                member.all_params.first
+              end
             end
-          end.compact!
+          end
 
           return ComplexType::UNDEFINED if types.empty?
 

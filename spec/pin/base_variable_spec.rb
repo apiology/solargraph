@@ -2,7 +2,6 @@
 
 describe Solargraph::Pin::BaseVariable do
   it 'keeps each union member\'s own element type in a multiple assignment' do
-    pending 'a union member contributes only its first element, so the nil is lost'
     source = Solargraph::Source.load_string(%(
       class Foo
         # @return [Array(String, Integer), Array(String, nil)]
