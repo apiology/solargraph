@@ -85,6 +85,62 @@ describe Solargraph::ApiMap::Index do
     end
   end
 
+  describe '#map_overrides on pins that declare a source' do
+    let(:sourced_class) do
+      Solargraph::Pin::Namespace.new(name: 'Sourced', source: :core_fill)
+    end
+
+    let(:sourced_method) do
+      Solargraph::Pin::Method.new(name: 'run', scope: :instance, parameters: [],
+                                  closure: sourced_class, source: :core_fill)
+    end
+
+    let(:sourced_override) do
+      Solargraph::Pin::Reference::Override.from_comment('Sourced#run', '@return [String]',
+                                                        source: :core_fill)
+    end
+
+    let(:input_pins) { [sourced_class, sourced_method, sourced_override] }
+
+    it 'gives the pin it synthesizes for the override a source' do
+      original = ENV.fetch('SOLARGRAPH_ASSERTS', nil)
+      ENV['SOLARGRAPH_ASSERTS'] = 'on'
+      expect { output_pins }.not_to raise_error
+    ensure
+      ENV['SOLARGRAPH_ASSERTS'] = original
+    end
+  end
+
+  describe '#map_overrides on a method alias' do
+    let(:aliasing_class) do
+      Solargraph::Pin::Namespace.new(name: 'Aliasing', source: :core_fill)
+    end
+
+    let(:aliased_method) do
+      Solargraph::Pin::Method.new(name: 'module_eval', scope: :instance, parameters: [],
+                                  closure: aliasing_class, source: :core_fill)
+    end
+
+    let(:alias_pin) do
+      Solargraph::Pin::MethodAlias.new(name: 'class_eval', original: 'module_eval',
+                                       scope: :instance, closure: aliasing_class,
+                                       source: :core_fill)
+    end
+
+    let(:alias_override) do
+      Solargraph::Pin::Reference::Override.from_comment('Aliasing#class_eval',
+                                                        '@yieldreceiver [::Class<self>]',
+                                                        source: :core_fill)
+    end
+
+    let(:input_pins) { [aliasing_class, aliased_method, alias_pin, alias_override] }
+
+    it 'keeps the name of the method the alias points at' do
+      combined = output_pins.find { |pin| pin.path == 'Aliasing#class_eval' }
+      expect(combined.original).to eq('module_eval')
+    end
+  end
+
   describe '#map_overrides with @overload tags' do
     let(:passthrough) do
       Solargraph::Pin::Namespace.new(name: 'Passthrough')

@@ -227,7 +227,8 @@ module Solargraph
       def override_pin_for pin, ovr
         docstring = YARD::Docstring.new('')
         ovr.tags.each { |tag| docstring.add_tag(tag) }
-        attrs = { name: pin.name, closure: pin.closure, docstring: docstring, combine_priority: 1 }
+        attrs = { name: pin.name, closure: pin.closure, docstring: docstring,
+                  combine_priority: 1, source: :override }
         if pin.is_a?(Pin::Method)
           attrs[:scope] = pin.scope
           # Without these, choose picks the empty array as the lesser of the two
