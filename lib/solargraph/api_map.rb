@@ -753,6 +753,7 @@ module Solargraph
       with_resolved_aliases = pins.map do |pin|
         next pin unless pin.is_a?(Pin::MethodAlias)
         resolved = resolve_method_alias(pin)
+        # @sg-ignore respond_to? guards need a sound narrowing mechanism; the prior duck-type narrowing here was ruled unsound and removed in castwide/solargraph#1297
         next nil if resolved.respond_to?(:visibility) && !visibility.include?(resolved.visibility)
         resolved
       end.compact

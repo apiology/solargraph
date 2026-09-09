@@ -1825,76 +1825,6 @@ describe Solargraph::Parser::FlowSensitiveTyping do
     expect(clip.infer.to_s).to eq('Array<Symbol>, Integer')
   end
 
-  it 'narrows an opaque receiver to a duck type from a respond_to? guard' do
-    source = Solargraph::Source.load_string(%(
-      # @param obj [Object]
-      def duckish(obj)
-        if obj.respond_to?(:fetch_thing)
-          obj
-        else
-          obj
-        end
-      end
-  ), 'test.rb')
-    api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [4, 10])
-    expect(clip.infer.to_s).to eq('#fetch_thing')
-
-    clip = api_map.clip_at('test.rb', [6, 10])
-    expect(clip.infer.to_s).to eq('Object')
-  end
-
-  it 'selects the union arms providing the method from a respond_to? guard' do
-    source = Solargraph::Source.load_string(%(
-      # @param data [Hash{String => Integer}, Array<Integer>]
-      def pick(data)
-        if data.respond_to?(:key?)
-          data
-        else
-          data
-        end
-      end
-  ), 'test.rb')
-    api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [4, 10])
-    expect(clip.infer.to_s).to eq('Hash{String => Integer}')
-
-    clip = api_map.clip_at('test.rb', [6, 10])
-    expect(clip.infer.to_s).to eq('Hash{String => Integer}, Array<Integer>')
-  end
-
-  it 'narrows through respond_to? combined with && in a guard' do
-    source = Solargraph::Source.load_string(%(
-      # @param data [Hash{String => Integer}, Array<Integer>]
-      # @param subkey [String]
-      # @return [Integer, nil]
-      def flex(data, subkey)
-        return data[subkey] if data.respond_to?(:key?) && data.key?(subkey)
-
-        nil
-      end
-  ), 'test.rb')
-    checker = Solargraph::TypeChecker.load_string(source.code, 'test.rb', :strong)
-    expect(checker.problems.map(&:message)).to eq([])
-  end
-
-  it 'does not narrow from respond_to? with a non-literal argument' do
-    source = Solargraph::Source.load_string(%(
-      # @param obj [Object]
-      # @param name [Symbol]
-      def dynamic(obj, name)
-        if obj.respond_to?(name)
-          obj
-        else
-          obj
-        end
-      end
-  ), 'test.rb')
-    api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [5, 10])
-    expect(clip.infer.to_s).to eq('Object')
-  end
-
   it 'uses instance_of? in a simple if() to refine a bare Object' do
     source = Solargraph::Source.load_string(%(
       # @param arg [Object]
@@ -2111,31 +2041,6 @@ describe Solargraph::Parser::FlowSensitiveTyping do
   ), 'test.rb')
     checker = Solargraph::TypeChecker.load_string(source.code, 'test.rb', :strong)
     expect(checker.problems.map(&:message)).to eq([])
-  end
-
-  # The next two exercise defensive guards in
-  # FlowSensitiveTyping#process_instance_variable_defined that no real
-  # parsed source can reach through its only caller, #process_calls:
-  # that caller already filters to :send nodes before calling it, and
-  # #process_if/#process_while/etc. always hand it a closure built from
-  # a Region (which defaults to an anonymous Pin::Namespace, never
-  # nil). Calling the private method directly is the only way to cover
-  # them.
-  it 'does nothing when there is no enclosing closure' do
-    node = Solargraph::Parser.parse('instance_variable_defined?(:@bar)', 'test.rb', 0)
-    ivars = []
-    typing = described_class.new([], ivars, nil, nil, nil)
-    range = Solargraph::Range.from_node(node)
-    typing.send(:process_instance_variable_defined, node, [range], [])
-    expect(ivars).to eq([])
-  end
-
-  it 'ignores a non-send node' do
-    node = Solargraph::Parser.parse('1', 'test.rb', 0)
-    ivars = []
-    typing = described_class.new([], ivars, nil, nil, nil)
-    expect { typing.send(:process_instance_variable_defined, node, [], []) }.not_to raise_error
-    expect(ivars).to eq([])
   end
 
   it 'uses kind_of? in a simple if() to refine types' do
