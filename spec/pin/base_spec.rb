@@ -55,13 +55,13 @@ describe Solargraph::Pin::Base do
     # if this fails you might not have an rbs collection installed
     api_map = Solargraph::ApiMap.load ''
 
-    # catalog first so doc_map registers 'yard' as required before we
-    # try to cache it - cache_gem is a no-op for gems doc_map doesn't
-    # yet know it needs
-    bench = Solargraph::Bench.new(external_requires: ['yard'])
+    bench = Solargraph::Bench.new(workspace: api_map.workspace, external_requires: ['yard'])
+    # cache_gem is a no-op for a gem the ApiMap's DocMap doesn't know it
+    # needs yet, so catalog (which tells DocMap about external_requires)
+    # has to run before caching, and again afterward to pick up the
+    # newly-cached pins.
     api_map.catalog bench
-    spec = Gem::Specification.find_by_name('yard')
-    api_map.cache_gem(spec)
+    api_map.cache_all_for_doc_map!
     api_map.catalog bench
 
     pins = api_map.get_method_stack('YARD::Docstring', 'parser', scope: :class)
@@ -86,15 +86,15 @@ describe Solargraph::Pin::Base do
   describe '#macro_names' do
     it 'returns names' do
       pin = described_class.new(name: 'Example', comments: "@macro addcomment\n@macro returnself")
-      expect(pin.macro_names).to eq(['addcomment', 'returnself'])
+      expect(pin.macro_names).to eq(%w[addcomment returnself])
     end
   end
 
   describe '#nearly?' do
     it 'avoids recursion when two pins have the same closure' do
-      pin1 = Solargraph::Pin::Base.new(name: 'foo')
+      pin1 = described_class.new(name: 'foo')
       pin1.closure = pin1
-      pin2 = Solargraph::Pin::Base.new(name: 'foo', closure: pin1)
+      pin2 = described_class.new(name: 'foo', closure: pin1)
       expect { pin1.nearly?(pin2) }.not_to raise_error
     end
   end

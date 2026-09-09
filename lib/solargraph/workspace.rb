@@ -20,7 +20,9 @@ module Solargraph
     attr_reader :gemnames
     alias source_gems gemnames
 
-    # @param directory [String] TODO: Remove '' and '*' special cases
+    # @todo Remove '*' special case
+    # @param directory [String] If empty, no config will be loaded,
+    #   and no RBS collection will be used.  Useful for specs.
     # @param config [Config, nil]
     # @param server [Hash]
     def initialize directory = '', config = nil, server = {}
@@ -135,10 +137,11 @@ module Solargraph
 
     # @return [String, nil]
     def rbs_collection_config_path
-      @rbs_collection_config_path ||= unless directory.empty? || directory == '*'
-                                        yaml_file = File.join(directory, 'rbs_collection.yaml')
-                                        yaml_file if File.file?(yaml_file)
-                                      end
+      @rbs_collection_config_path ||=
+        unless directory.empty? || directory == '*'
+          yaml_file = File.join(directory, 'rbs_collection.yaml')
+          yaml_file if File.file?(yaml_file)
+        end
     end
 
     # @param name [String]
