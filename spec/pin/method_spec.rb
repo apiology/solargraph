@@ -698,7 +698,7 @@ describe Solargraph::Pin::Method do
       api_map.map source
       pin = api_map.get_path_pins('#foo').first
       expect(pin.return_type.to_s).to eq('String & Comparable')
-      expect(pin.return_type.first).to be_a(Solargraph::ComplexType::UniqueType::Intersection)
+      expect(pin.return_type.items.first).to be_a(Solargraph::ComplexType::UniqueType::Intersection)
     end
 
     # RBS nests `&`/`|` freely, unlike the YARD/tag-string grammar, so
@@ -712,7 +712,7 @@ describe Solargraph::Pin::Method do
         api_map = Solargraph::ApiMap.new
         api_map.map source
         pin = api_map.get_path_pins('#foo').first
-        intersection = pin.return_type.first
+        intersection = pin.return_type.items.first
         expect(intersection).to be_a(Solargraph::ComplexType::UniqueType::Intersection)
         expect(intersection.conjuncts.length).to eq(2)
         expect(intersection.conjuncts.first.items.length).to eq(2)
@@ -728,7 +728,7 @@ describe Solargraph::Pin::Method do
         api_map = Solargraph::ApiMap.new
         api_map.map source
         pin = api_map.get_path_pins('#foo').first
-        intersection = pin.return_type.first
+        intersection = pin.return_type.items.first
         expect(intersection.conjuncts.last.items.length).to eq(2)
         expect(intersection.to_rbs).to eq('::Comparable & (::String | ::Integer)')
       end
@@ -741,7 +741,7 @@ describe Solargraph::Pin::Method do
         api_map = Solargraph::ApiMap.new
         api_map.map source
         pin = api_map.get_path_pins('#foo').first
-        intersection = pin.return_type.first
+        intersection = pin.return_type.items.first
         expect(intersection.to_rbs).to eq('::String & ::Comparable & ::Enumerable')
       end
 
@@ -760,7 +760,7 @@ describe Solargraph::Pin::Method do
         expect(original.tag).to eq('[String, Integer] & Comparable')
         reparsed = Solargraph::ComplexType.parse(original.tag)
         expect(reparsed.items.length).to eq(1)
-        expect(reparsed.first.conjuncts.map(&:tags)).to eq(['String, Integer', 'Comparable'])
+        expect(reparsed.items.first.conjuncts.map(&:tags)).to eq(['String, Integer', 'Comparable'])
 
         # rooted_tag keeps the `::` prefixes that tag drops, so it is
         # the form that round-trips to an identical RBS rendering.
@@ -771,7 +771,7 @@ describe Solargraph::Pin::Method do
         rbs_type = RBS::Parser.parse_type(original.to_rbs)
         reparsed_via_rbs = Solargraph::RbsTranslator.to_complex_type(rbs_type)
         expect(reparsed_via_rbs.items.length).to eq(1)
-        expect(reparsed_via_rbs.first.conjuncts.map(&:tags)).to eq(['String, Integer', 'Comparable'])
+        expect(reparsed_via_rbs.items.first.conjuncts.map(&:tags)).to eq(['String, Integer', 'Comparable'])
       end
     end
 

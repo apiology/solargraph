@@ -84,7 +84,7 @@ module Solargraph
                        type.tag == 'Boolean'
 
         gates.push '' unless gates.include?('')
-        unique_type = type.first
+        unique_type = type.items.first
         if unique_type.is_a?(ComplexType::UniqueType::Intersection)
           return qualify_conjuncts(unique_type, gates)
         end

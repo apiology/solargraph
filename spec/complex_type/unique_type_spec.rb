@@ -13,13 +13,13 @@ describe Solargraph::ComplexType::UniqueType do
 
   describe '#rooted_tags' do
     it 'leaves a symbol literal alone, so the tag can be parsed back' do
-      type = Solargraph::ComplexType.parse('Array<:Sym>').first.force_rooted
+      type = Solargraph::ComplexType.parse('Array<:Sym>').items.first.force_rooted
       expect(type.rooted_tags).to eq('::Array<:Sym>')
       expect(Solargraph::ComplexType.parse(type.rooted_tags).tags).to eq('Array<:Sym>')
     end
 
     it 'leaves a capitalized string literal alone when it is a hash key' do
-      type = Solargraph::ComplexType.parse('Hash{"Index" => Float}').first.force_rooted
+      type = Solargraph::ComplexType.parse('Hash{"Index" => Float}').items.first.force_rooted
       expect(type.rooted_tags).to eq('::Hash{"Index" => ::Float}')
     end
   end
@@ -77,7 +77,7 @@ describe Solargraph::ComplexType::UniqueType do
         type = described_class.parse('T')
         narrowing = Solargraph::ComplexType.parse('M')
         narrowed = type.narrow_with(narrowing, api_map)
-        expect(narrowed.first).to be_a(described_class::Intersection)
+        expect(narrowed.items.first).to be_a(described_class::Intersection)
         expect(narrowed.tag).to eq('T & M')
       end
     end

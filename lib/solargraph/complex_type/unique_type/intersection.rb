@@ -555,7 +555,7 @@ module Solargraph
         # @return [Intersection, nil]
         def sole_intersection expected
           return expected if expected.is_a?(Intersection)
-          return expected.first if expected.is_a?(ComplexType) && expected.items.length == 1 && expected.first.is_a?(Intersection)
+          return expected.items.first if expected.is_a?(ComplexType) && expected.items.length == 1 && expected.items.first.is_a?(Intersection)
           nil
         end
       end

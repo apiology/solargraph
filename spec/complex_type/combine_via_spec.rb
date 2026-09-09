@@ -24,7 +24,7 @@ describe Solargraph::ComplexType do
 
   describe '.union' do
     it 'returns a repeated type as itself rather than as a union of one' do
-      type = described_class.parse('A').first
+      type = described_class.parse('A').items.first
       expect(described_class.union(type, type)).to be(type)
     end
   end

@@ -84,11 +84,6 @@ module Solargraph
       end)
     end
 
-    # @return [UniqueType]
-    def first
-      @items.first
-    end
-
     # @return [String]
     def to_rbs
       ((@items.length > 1 ? '(' : '') +
