@@ -55,7 +55,7 @@ describe Solargraph::RbsTranslator do
   context 'when translating at the top level (already correct)' do
     it 'builds a real intersection from a union conjunct' do
       type = translate('(Integer | String) & Comparable')
-      expect(type.length).to eq(1)
+      expect(type.items.length).to eq(1)
       expect(type.to_rbs).to eq('(::Integer | ::String) & ::Comparable')
     end
   end
@@ -93,7 +93,7 @@ describe Solargraph::RbsTranslator do
       # T? is T | nil - a 2-item union of [the intersection, nil], not a
       # 3-item union that leaks the intersection's own first conjunct
       # out to the top level.
-      expect(type.length).to eq(2)
+      expect(type.items.length).to eq(2)
       expect(type.to_rbs).to eq('((::Integer | ::String) & ::Comparable | nil)')
     end
 
@@ -101,7 +101,7 @@ describe Solargraph::RbsTranslator do
       # NilClass renders as the literal `nil` tag everywhere in this
       # codebase (see RBS_TO_YARD_TYPE), independent of this fix.
       type = translate('((Integer | String) & Comparable) | NilClass')
-      expect(type.length).to eq(2)
+      expect(type.items.length).to eq(2)
       expect(type.to_rbs).to eq('((::Integer | ::String) & ::Comparable | nil)')
     end
 

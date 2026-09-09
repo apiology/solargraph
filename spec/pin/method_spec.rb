@@ -715,7 +715,7 @@ describe Solargraph::Pin::Method do
         intersection = pin.return_type.first
         expect(intersection).to be_a(Solargraph::ComplexType::UniqueType::Intersection)
         expect(intersection.conjuncts.length).to eq(2)
-        expect(intersection.conjuncts.first.length).to eq(2)
+        expect(intersection.conjuncts.first.items.length).to eq(2)
         expect(intersection.conjuncts.first.tags).to eq('String, Integer')
         expect(intersection.to_rbs).to eq('(::String | ::Integer) & ::Comparable')
       end
@@ -729,7 +729,7 @@ describe Solargraph::Pin::Method do
         api_map.map source
         pin = api_map.get_path_pins('#foo').first
         intersection = pin.return_type.first
-        expect(intersection.conjuncts.last.length).to eq(2)
+        expect(intersection.conjuncts.last.items.length).to eq(2)
         expect(intersection.to_rbs).to eq('::Comparable & (::String | ::Integer)')
       end
 
@@ -759,7 +759,7 @@ describe Solargraph::Pin::Method do
         # keeps its brackets and re-parses to the same structure.
         expect(original.tag).to eq('[String, Integer] & Comparable')
         reparsed = Solargraph::ComplexType.parse(original.tag)
-        expect(reparsed.length).to eq(1)
+        expect(reparsed.items.length).to eq(1)
         expect(reparsed.first.conjuncts.map(&:tags)).to eq(['String, Integer', 'Comparable'])
 
         # rooted_tag keeps the `::` prefixes that tag drops, so it is
@@ -770,7 +770,7 @@ describe Solargraph::Pin::Method do
         # RBS's parser rather than Solargraph's tag parser.
         rbs_type = RBS::Parser.parse_type(original.to_rbs)
         reparsed_via_rbs = Solargraph::RbsTranslator.to_complex_type(rbs_type)
-        expect(reparsed_via_rbs.length).to eq(1)
+        expect(reparsed_via_rbs.items.length).to eq(1)
         expect(reparsed_via_rbs.first.conjuncts.map(&:tags)).to eq(['String, Integer', 'Comparable'])
       end
     end

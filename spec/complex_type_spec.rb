@@ -12,18 +12,18 @@ describe 'YARD type specifier list parsing' do
     #
     it 'parses zero types as separate arguments' do
       types = Solargraph::ComplexType.parse
-      expect(types.length).to eq(0)
+      expect(types.items.length).to eq(0)
     end
 
     it 'parses zero types as a string' do
       pending('special case being added')
       types = Solargraph::ComplexType.parse ''
-      expect(types.length).to eq(0)
+      expect(types.items.length).to eq(0)
     end
 
     it 'parses a single type' do
       types = Solargraph::ComplexType.parse 'String'
-      expect(types.length).to eq(1)
+      expect(types.items.length).to eq(1)
       expect(types.first.tag).to eq('String')
       expect(types.first.name).to eq('String')
       expect(types.first.subtypes).to be_empty
@@ -32,7 +32,7 @@ describe 'YARD type specifier list parsing' do
 
     it 'parses multiple types as separate arguments' do
       types = Solargraph::ComplexType.parse 'String', 'Integer'
-      expect(types.length).to eq(2)
+      expect(types.items.length).to eq(2)
       expect(types.items[0].tag).to eq('String')
       expect(types.items[1].tag).to eq('Integer')
       expect(types.to_rbs).to eq('(String | Integer)')
@@ -40,7 +40,7 @@ describe 'YARD type specifier list parsing' do
 
     it 'parses multiple types in a string' do
       types = Solargraph::ComplexType.parse 'String, Integer'
-      expect(types.length).to eq(2)
+      expect(types.items.length).to eq(2)
       expect(types.items[0].tag).to eq('String')
       expect(types.items[1].tag).to eq('Integer')
       expect(types.to_rbs).to eq('(String | Integer)')
@@ -55,7 +55,7 @@ describe 'YARD type specifier list parsing' do
     #   def find(query) finder_code_here end
     it 'parses class, generic class and literal in a string' do
       types = Solargraph::ComplexType.parse 'String, Array<String>, nil'
-      expect(types.length).to eq(3)
+      expect(types.items.length).to eq(3)
       expect(types.items[0].tag).to eq('String')
       expect(types.items[1].tag).to eq('Array<String>')
       expect(types.items[2].tag).to eq('nil')
@@ -72,7 +72,7 @@ describe 'YARD type specifier list parsing' do
     # allowed.
     it 'parses duck types' do
       types = Solargraph::ComplexType.parse('#method')
-      expect(types.length).to eq(1)
+      expect(types.items.length).to eq(1)
       expect(types.first.namespace).to eq('Object')
       expect(types.first.scope).to eq(:instance)
       expect(types.first.duck_type?).to be(true)
@@ -141,7 +141,7 @@ describe 'YARD type specifier list parsing' do
 
     it 'parses a subtype' do
       types = Solargraph::ComplexType.parse 'Array<String>'
-      expect(types.length).to eq(1)
+      expect(types.items.length).to eq(1)
       expect(types.first.tag).to eq('Array<String>')
       expect(types.first.name).to eq('Array')
       expect(types.first.subtypes.length).to eq(1)
@@ -153,7 +153,7 @@ describe 'YARD type specifier list parsing' do
 
     it 'parses multiple subtypes' do
       types = Solargraph::ComplexType.parse 'Array<Symbol, String>'
-      expect(types.length).to eq(1)
+      expect(types.items.length).to eq(1)
       expect(types.first.tag).to eq('Array<Symbol, String>')
       expect(types.first.name).to eq('Array')
       expect(types.first.subtypes.length).to eq(2)
@@ -190,7 +190,7 @@ describe 'YARD type specifier list parsing' do
     # specific syntax: Hash{KeyTypes=>ValueTypes}.
     it 'parses Hash using hash rocket notation' do
       types = Solargraph::ComplexType.parse('Hash{String => Integer}')
-      expect(types.length).to eq(1)
+      expect(types.items.length).to eq(1)
       expect(types.first.tag).to eq('Hash{String => Integer}')
       expect(types.first.namespace).to eq('Hash')
       expect(types.first.substring).to eq('{String => Integer}')
@@ -201,7 +201,7 @@ describe 'YARD type specifier list parsing' do
 
     it 'parses Hash using <> notation' do
       types = Solargraph::ComplexType.parse 'Hash<Symbol, String>'
-      expect(types.length).to eq(1)
+      expect(types.items.length).to eq(1)
       expect(types.first.tag).to eq('Hash<Symbol, String>')
       expect(types.first.name).to eq('Hash')
       expect(types.first.key_types.length).to eq(1)
@@ -215,7 +215,7 @@ describe 'YARD type specifier list parsing' do
     # types separated by commas."
     it 'parses multiple key/value types in hash parameters' do
       types = Solargraph::ComplexType.parse('Hash{String, Symbol => Integer, BigDecimal}')
-      expect(types.length).to eq(1)
+      expect(types.items.length).to eq(1)
       type = types.first
       expect(type.hash_parameters?).to be(true)
       expect(type.key_types.map(&:name)).to eq(%w[String Symbol])
@@ -290,7 +290,7 @@ describe 'YARD type specifier list parsing' do
     ['"a,b"', '"a|b"', '"a&b"', '"a<b>"', '"[]"', "'a,b'"].each do |tag|
       it "treats #{tag} as one literal, not a separator" do
         type = Solargraph::ComplexType.parse(tag)
-        expect(type.length).to eq(1)
+        expect(type.items.length).to eq(1)
         expect(type.tag).to eq(tag)
         expect(type.first.name).to eq(tag)
       end
@@ -374,7 +374,7 @@ describe 'YARD type specifier list parsing' do
 
     it 'parses two conjuncts as a single unique type' do
       types = Solargraph::ComplexType.parse('String & Comparable')
-      expect(types.length).to eq(1)
+      expect(types.items.length).to eq(1)
       expect(types.first).to be_a(Solargraph::ComplexType::UniqueType::Intersection)
       expect(types.first.tag).to eq('String & Comparable')
       expect(types.to_rbs).to eq('String & Comparable')
@@ -382,13 +382,13 @@ describe 'YARD type specifier list parsing' do
 
     it 'parses more than two conjuncts' do
       types = Solargraph::ComplexType.parse('String & Comparable & Enumerable')
-      expect(types.length).to eq(1)
+      expect(types.items.length).to eq(1)
       expect(types.first.conjuncts.map(&:tag)).to eq(%w[String Comparable Enumerable])
     end
 
     it 'distinguishes intersections from unions in the same list' do
       types = Solargraph::ComplexType.parse('String & Comparable, Integer')
-      expect(types.length).to eq(2)
+      expect(types.items.length).to eq(2)
       expect(types.items[0].tag).to eq('String & Comparable')
       expect(types.items[1].tag).to eq('Integer')
     end
@@ -492,28 +492,28 @@ describe 'YARD type specifier list parsing' do
     context 'with & and , precedence' do
       it 'binds & tighter than , when & comes first' do
         types = Solargraph::ComplexType.parse('A & B, C')
-        expect(types.length).to eq(2)
+        expect(types.items.length).to eq(2)
         expect(types.items[0].tag).to eq('A & B')
         expect(types.items[1].tag).to eq('C')
       end
 
       it 'binds & tighter than , when , comes first' do
         types = Solargraph::ComplexType.parse('A, B & C')
-        expect(types.length).to eq(2)
+        expect(types.items.length).to eq(2)
         expect(types.items[0].tag).to eq('A')
         expect(types.items[1].tag).to eq('B & C')
       end
 
       it 'handles multiple intersections in the same union' do
         types = Solargraph::ComplexType.parse('A & B, C & D')
-        expect(types.length).to eq(2)
+        expect(types.items.length).to eq(2)
         expect(types.items[0].tag).to eq('A & B')
         expect(types.items[1].tag).to eq('C & D')
       end
 
       it 'handles intersections of different sizes in the same union' do
         types = Solargraph::ComplexType.parse('A & B & C, D & E')
-        expect(types.length).to eq(2)
+        expect(types.items.length).to eq(2)
         expect(types.items[0].conjuncts.map(&:tags)).to eq(%w[A B C])
         expect(types.items[1].conjuncts.map(&:tags)).to eq(%w[D E])
       end
@@ -526,7 +526,7 @@ describe 'YARD type specifier list parsing' do
         # it still means "intersected with", not "and one more tuple
         # element".
         types = Solargraph::ComplexType.parse('Array(A, B) & C')
-        expect(types.length).to eq(1)
+        expect(types.items.length).to eq(1)
         intersection = types.first
         expect(intersection.conjuncts.map(&:tags)).to eq(['Array(A, B)', 'C'])
       end
@@ -539,7 +539,7 @@ describe 'YARD type specifier list parsing' do
         # grouped union. `[...]` (below) is the actual grouping
         # syntax; `(...)` never is, with or without a leading name.
         types = Solargraph::ComplexType.parse('(A, B) & C')
-        expect(types.length).to eq(1)
+        expect(types.items.length).to eq(1)
         intersection = types.first
         expect(intersection.conjuncts.length).to eq(2)
         tuple_conjunct = intersection.conjuncts.first.first
@@ -553,20 +553,20 @@ describe 'YARD type specifier list parsing' do
     context 'with the | union operator' do
       it 'parses a top-level union the same as a comma-separated one' do
         types = Solargraph::ComplexType.parse('String | Integer')
-        expect(types.length).to eq(2)
+        expect(types.items.length).to eq(2)
         expect(types.tags).to eq('String, Integer')
       end
 
       it 'binds looser than &' do
         types = Solargraph::ComplexType.parse('A & B | C')
-        expect(types.length).to eq(2)
+        expect(types.items.length).to eq(2)
         expect(types.items[0].tag).to eq('A & B')
         expect(types.items[1].tag).to eq('C')
       end
 
       it 'binds looser than & on either side' do
         types = Solargraph::ComplexType.parse('A | B & C')
-        expect(types.length).to eq(2)
+        expect(types.items.length).to eq(2)
         expect(types.items[0].tag).to eq('A')
         expect(types.items[1].tag).to eq('B & C')
       end
@@ -605,7 +605,7 @@ describe 'YARD type specifier list parsing' do
     context 'with [...] grouping brackets' do
       it 'groups a union so it can be one conjunct of an intersection' do
         types = Solargraph::ComplexType.parse('[Foo | Bar] & Baz')
-        expect(types.length).to eq(1)
+        expect(types.items.length).to eq(1)
         intersection = types.first
         expect(intersection).to be_a(Solargraph::ComplexType::UniqueType::Intersection)
         expect(intersection.conjuncts.map(&:tags)).to eq(['Foo, Bar', 'Baz'])
@@ -764,7 +764,7 @@ describe 'YARD type specifier list parsing' do
 
       it 'detects namespace and scope for simple types' do
         types = Solargraph::ComplexType.parse 'Class'
-        expect(types.length).to eq(1)
+        expect(types.items.length).to eq(1)
         expect(types.first.namespace).to eq('Class')
         expect(types.first.scope).to eq(:instance)
         expect(types.to_rbs).to eq('Class')
@@ -772,7 +772,7 @@ describe 'YARD type specifier list parsing' do
 
       it 'detects namespace and scope for classes with subtypes' do
         types = Solargraph::ComplexType.parse 'Class<String>'
-        expect(types.length).to eq(1)
+        expect(types.items.length).to eq(1)
         expect(types.first.namespace).to eq('String')
         expect(types.first.scope).to eq(:class)
         # RBS doesn't support individual class types like this
@@ -781,12 +781,12 @@ describe 'YARD type specifier list parsing' do
 
       it 'detects namespace and scope for modules with subtypes' do
         types = Solargraph::ComplexType.parse 'Module<Foo>'
-        expect(types.length).to eq(1)
+        expect(types.items.length).to eq(1)
         expect(types.first.namespace).to eq('Foo')
         expect(types.first.scope).to eq(:class)
         expect(types.to_rbs).to eq('Module')
         multiple_types = Solargraph::ComplexType.parse 'Module<Foo>, Class<Bar>, String, nil'
-        expect(multiple_types.length).to eq(4)
+        expect(multiple_types.items.length).to eq(4)
         expect(multiple_types.namespaces).to eq(%w[Foo Bar String NilClass])
         # RBS doesn't support individual module types like this
         expect(multiple_types.to_rbs).to eq('(Module | Class | String | nil)')
@@ -824,7 +824,7 @@ describe 'YARD type specifier list parsing' do
     it 'identifies nil types regardless of capitalization' do
       %w[nil Nil NIL].each do |t|
         types = Solargraph::ComplexType.parse(t)
-        expect(types.length).to eq(1)
+        expect(types.items.length).to eq(1)
         expect(types.first.namespace).to eq('NilClass')
         expect(types.first.scope).to eq(:instance)
         expect(types.first.nil_type?).to be(true)
@@ -908,7 +908,7 @@ describe 'YARD type specifier list parsing' do
           let(:generic_value) { unfrozen_input_map.transform_values! { |tag| Solargraph::ComplexType.parse(tag) } }
 
           it "#{tag} is a unique type" do
-            expect(complex_type.length).to eq(1)
+            expect(complex_type.items.length).to eq(1)
           end
 
           it "resolves to #{expected_tag} with updated map #{expected_output_map}" do
@@ -945,7 +945,7 @@ describe 'YARD type specifier list parsing' do
 
     it 'identifies hash parameters' do
       types = Solargraph::ComplexType.parse('Hash{String => Integer}')
-      expect(types.length).to eq(1)
+      expect(types.items.length).to eq(1)
       expect(types.first.hash_parameters?).to be(true)
     end
   end
@@ -994,7 +994,7 @@ describe 'YARD type specifier list parsing' do
 
     it 'parses recursive subtypes' do
       types = Solargraph::ComplexType.parse('Array<Hash{String => Integer}>')
-      expect(types.length).to eq(1)
+      expect(types.items.length).to eq(1)
       expect(types.first.namespace).to eq('Array')
       expect(types.first.substring).to eq('<Hash{String => Integer}>')
       expect(types.first.subtypes.length).to eq(1)

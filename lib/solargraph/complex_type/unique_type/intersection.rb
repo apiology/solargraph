@@ -542,7 +542,7 @@ module Solargraph
         # @param variance [:invariant, :covariant, :contravariant]
         # @return [Boolean]
         def any_union_alternative_conforms? api_map, expected, situation, rules, variance
-          return false unless expected.is_a?(ComplexType) && expected.length > 1
+          return false unless expected.is_a?(ComplexType) && expected.items.length > 1
 
           expected.items.any? do |item|
             conforms_to?(api_map, ComplexType.new([item]), situation, rules, variance: variance)
@@ -555,7 +555,7 @@ module Solargraph
         # @return [Intersection, nil]
         def sole_intersection expected
           return expected if expected.is_a?(Intersection)
-          return expected.first if expected.is_a?(ComplexType) && expected.length == 1 && expected.first.is_a?(Intersection)
+          return expected.first if expected.is_a?(ComplexType) && expected.items.length == 1 && expected.first.is_a?(Intersection)
           nil
         end
       end
