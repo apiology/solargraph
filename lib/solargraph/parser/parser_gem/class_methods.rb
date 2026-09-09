@@ -152,7 +152,7 @@ module Solargraph
           if node.type == :dstr && node.children.last.nil?
             # @sg-ignore Translate to something flow sensitive typing understands
             last = node.children[-2]
-            # @sg-ignore Need to add nil check here
+            # @sg-ignore Translate to something flow sensitive typing understands
             unless last.nil?
               rng = Range.from_node(last)
               # @sg-ignore Need to add nil check here

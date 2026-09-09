@@ -62,7 +62,7 @@ module Solargraph
             result.concat NodeChainer.chain(n.children[0], @filename, n).links
           elsif n.type == :send
             if n.children[0].is_a?(::Parser::AST::Node)
-              # @sg-ignore Need to add nil check here
+              # @sg-ignore Translate to something flow sensitive typing understands
               result.concat generate_links(n.children[0])
               result.push Chain::Call.new(n.children[1].to_s, Location.from_node(n), node_args(n), passed_block(n))
             elsif n.children[0].nil?
@@ -76,7 +76,7 @@ module Solargraph
             end
           elsif n.type == :csend
             if n.children[0].is_a?(::Parser::AST::Node)
-              # @sg-ignore Need to add nil check here
+              # @sg-ignore Translate to something flow sensitive typing understands
               result.concat generate_links(n.children[0])
               result.push Chain::QCall.new(n.children[1].to_s, Location.from_node(n), node_args(n))
             elsif n.children[0].nil?
@@ -137,7 +137,7 @@ module Solargraph
             result.push Chain::Or.new([or_lhs_chain, or_rhs_chain], rhs_never_returns: or_rhs_never_returns)
           elsif n.type == :if
             then_clause = if n.children[1]
-                            # @sg-ignore Need to add nil check here
+                            # @sg-ignore Translate to something flow sensitive typing understands
                             NodeChainer.chain(n.children[1], @filename, n)
                           else
                             Source::Chain.new([Source::Chain::Literal.new('nil', nil)], n)
@@ -213,7 +213,7 @@ module Solargraph
         def passed_block node
           return unless node == @node && %i[block numblock].include?(@parent&.type)
 
-          # @sg-ignore Need to add nil check here
+          # @sg-ignore Translate to something flow sensitive typing understands
           NodeChainer.chain(@parent.children[2], @filename)
         end
 

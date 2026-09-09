@@ -242,7 +242,7 @@ module Solargraph
             result.push node
             # @sg-ignore https://github.com/castwide/solargraph/issues/1251
             if Parser.is_ast_node?(node.children[0]) && node.children[0].children.length > 2
-              # @sg-ignore Need to add nil check here
+              # @sg-ignore Translate to something flow sensitive typing understands
               node.children[0].children[2..].each { |child| result.concat call_nodes_from(child) }
             end
             # @sg-ignore Need to add nil check here

@@ -44,7 +44,7 @@ module Solargraph
           closure_name = if [Solargraph::Pin::ROOT_PIN, nil].include?(closure)
                            ''
                          else
-                           # @sg-ignore Need to add nil check here
+                           # @sg-ignore Translate to something flow sensitive typing understands
                            "#{closure.full_context.namespace}::"
                          end
           closure_name += parts.join('::')

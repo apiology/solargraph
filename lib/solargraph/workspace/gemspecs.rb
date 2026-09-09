@@ -351,10 +351,10 @@ module Solargraph
       # @sg-ignore Declared return type ::Gem::Specification does not match inferred type ::Gem::Specification, nil for Solargraph::Workspace::Gemspecs#gemspec_or_preference
       def gemspec_or_preference gemspec
         return to_gem_specification(gemspec) unless preference_map.key?(gemspec.name)
-        # @sg-ignore Need to add nil check here
+        # @sg-ignore Translate to something flow sensitive typing understands
         return to_gem_specification(gemspec) if gemspec.version == preference_map[gemspec.name].version
 
-        # @sg-ignore Need to add nil check here
+        # @sg-ignore Translate to something flow sensitive typing understands
         change_gemspec_version gemspec, preference_map[gemspec.name].version
       end
 

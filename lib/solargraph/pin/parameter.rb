@@ -312,7 +312,7 @@ module Solargraph
         params.each do |p|
           return p if p.name == name
         end
-        # @sg-ignore Need to add nil check here
+        # @sg-ignore Translate to something flow sensitive typing understands
         params[index] if index && params[index] && (params[index].name.nil? || params[index].name.empty?)
       end
 

@@ -23,7 +23,7 @@ module Solargraph
             base = word
             gates = name_pin.gates
           end
-          # @sg-ignore Need to add nil check here
+          # @sg-ignore Translate to something flow sensitive typing understands
           fqns = api_map.resolve(base, gates)
           # @sg-ignore Need to add nil check here
           api_map.get_path_pins(fqns)
