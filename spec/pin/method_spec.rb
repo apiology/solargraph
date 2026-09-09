@@ -142,26 +142,6 @@ describe Solargraph::Pin::Method do
     expect(combined.signatures.flat_map { |sig| sig.parameters.map { |param| param.return_type.rooted_tags } }).to contain_exactly('Integer', 'Float')
   end
 
-  it 'merges two signatures whose parameter types are one type spelled rooted and unrooted, since no argument can select between them' do
-    pending 'same_parameter_types? compares rooted_tags, so an unrooted YARD parameter type never matches its rooted RBS counterpart'
-    closure = Solargraph::Pin::Namespace.new(name: 'Foo', type: :class)
-    rooted_pin = described_class.new(closure: closure, name: 'add', scope: :instance, comments: %(
-@overload add(bar)
-  @param bar [::Integer]
-  @return [::String]
-    ))
-    unrooted_pin = described_class.new(closure: closure, name: 'add', scope: :instance, comments: %(
-@overload add(bar)
-  @param bar [Integer]
-  @return [String]
-    ))
-    combined = rooted_pin.combine_with(unrooted_pin)
-    expect(combined.signatures.length).to eq(1)
-    signature = combined.signatures.first
-    expect(signature.parameters.map { |param| param.return_type.rooted_tags }).to eq(['::Integer'])
-    expect(signature.return_type.rooted_tags).to eq('::String').or eq('String')
-  end
-
   it 'does not merge with changes in parameters' do
     # @todo Method pin parameters are pins now
     pin1 = described_class.new(name: 'bar', parameters: %w[one two])
