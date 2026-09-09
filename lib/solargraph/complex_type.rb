@@ -38,7 +38,7 @@ module Solargraph
     # @return [ComplexType]
     def qualify api_map, *gates
       red = reduce_object
-      types = red.items.map do |t|
+      types = red.unioned_items.map do |t|
         next t if %w[nil void undefined].include?(t.rooted_tags)
         next t if ['::Boolean'].include?(t.rooted_tags)
         t.unalias_and_qualify(api_map, *gates)
