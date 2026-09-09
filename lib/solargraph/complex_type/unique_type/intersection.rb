@@ -141,6 +141,14 @@ module Solargraph
           conjuncts.any?(&:selfy?)
         end
 
+        # A value of the intersection satisfies every conjunct, so one
+        # literal conjunct fixes it to that literal value.
+        #
+        # @return [Boolean]
+        def literal?
+          conjuncts.any?(&:literal?)
+        end
+
         # @param other [Object]
         # @return [Boolean]
         def eql? other
@@ -160,6 +168,18 @@ module Solargraph
         def each_unique_type &block
           return enum_for(__method__) unless block_given?
           conjuncts.each { |conjunct| conjunct.each_unique_type(&block) }
+        end
+
+        # Substituting one type for another where this one is expected
+        # is safe only where it is safe for every conjunct, so the
+        # variance is whatever the conjuncts agree on - and invariant
+        # when they disagree, since no one direction then holds for all.
+        #
+        # @param situation [:method_call, :return_type, :assignment]
+        # @return [:invariant, :covariant, :contravariant]
+        def erased_variance situation = :method_call
+          variances = conjuncts.map { |conjunct| conjunct.erased_variance(situation) }.uniq
+          variances.length == 1 ? variances.fetch(0) : :invariant
         end
 
         # An intersection can be assigned wherever any one of its
@@ -216,6 +236,16 @@ module Solargraph
             conjunct.resolve_generics_from_context(generics_to_resolve, context_type,
                                                    resolved_generic_values: resolved_generic_values)
           end)
+        end
+
+        # Each conjunct probes the same definitions and receiver, as in
+        # #resolve_generics_from_context above.
+        #
+        # @param definitions [Pin::Namespace, Pin::Method] The module/class/method which uses generic types
+        # @param context_type [ComplexType] The receiver type
+        # @return [Intersection]
+        def resolve_generics definitions, context_type
+          Intersection.new(conjuncts.map { |conjunct| conjunct.resolve_generics(definitions, context_type) })
         end
 
         # Applies the transformation to each conjunct independently
@@ -359,10 +389,6 @@ module Solargraph
           raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
         end
 
-        def resolve_generics(*, **, &)
-          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
-        end
-
         def erase_generics(*, **, &)
           raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
         end
@@ -411,15 +437,7 @@ module Solargraph
           raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
         end
 
-        def erased_variance(*, **, &)
-          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
-        end
-
         def parameter_variance(*, **, &)
-          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
-        end
-
-        def literal?(*, **, &)
           raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
         end
 
