@@ -566,7 +566,6 @@ module Solargraph
       # @param new_name [String, nil]
       # @param make_rooted [Boolean, nil]
       # @param new_key_types [Array<UniqueType, Intersection, ComplexType>, nil]
-      # @param make_rooted [Boolean, nil]
       # @param new_subtypes [Array<UniqueType, Intersection, ComplexType>, nil]
       # @return [self]
       def recreate new_name: nil, make_rooted: nil, new_key_types: nil, new_subtypes: nil
@@ -620,6 +619,10 @@ module Solargraph
         yield new_type
       end
 
+      # Substitutes a named type for this one when the name is bound.
+      #
+      # @param named_types [Hash{String => ComplexType}]
+      # @return [ComplexType, self]
       def expand named_types
         named_types[name] || self
       end

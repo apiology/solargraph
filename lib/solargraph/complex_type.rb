@@ -377,6 +377,8 @@ module Solargraph
       ComplexType.new(map { |ut| ut.transform(new_name, &transform_type) })
     end
 
+    # @param named_types [Hash{String => ComplexType}]
+    # @return [ComplexType]
     def expand named_types
       ComplexType.new(map { |ut| ut.expand(named_types) })
     end
