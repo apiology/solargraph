@@ -22,8 +22,8 @@ Gemspec/RequireMFA:
 # This cop supports safe autocorrection (--autocorrect).
 Layout/ElseAlignment:
   Exclude:
+    - 'lib/solargraph/pin/method.rb'
     - 'lib/solargraph/rbs_translator.rb'
-    - 'lib/solargraph/source/chain/call.rb'
 
 # This cop supports safe autocorrection (--autocorrect).
 # Configuration parameters: EnforcedStyleAlignWith, Severity.
@@ -31,25 +31,33 @@ Layout/ElseAlignment:
 Layout/EndAlignment:
   Exclude:
     - 'lib/solargraph/parser/parser_gem/node_processors/namespace_node.rb'
+    - 'lib/solargraph/pin/method.rb'
     - 'lib/solargraph/rbs_translator.rb'
     - 'lib/solargraph/shell.rb'
-    - 'lib/solargraph/source/chain/call.rb'
+
+# This cop supports safe autocorrection (--autocorrect).
+# Configuration parameters: EnforcedStyle.
+# SupportedStyles: normal, indented_internal_methods
+Layout/IndentationConsistency:
+  Exclude:
+    - 'spec/shell_spec.rb'
 
 # This cop supports safe autocorrection (--autocorrect).
 # Configuration parameters: Width, AllowedPatterns.
 Layout/IndentationWidth:
   Exclude:
     - 'lib/solargraph/parser/parser_gem/node_processors/namespace_node.rb'
+    - 'lib/solargraph/pin/method.rb'
     - 'lib/solargraph/rbs_map/conversions.rb'
     - 'lib/solargraph/rbs_translator.rb'
     - 'lib/solargraph/shell.rb'
-    - 'lib/solargraph/source/chain/call.rb'
 
 # This cop supports safe autocorrection (--autocorrect).
 # Configuration parameters: AllowInHeredoc.
 Layout/TrailingWhitespace:
   Exclude:
     - 'lib/solargraph/pin/base.rb'
+    - 'spec/api_map_method_spec.rb'
 
 Lint/BinaryOperatorWithIdenticalOperands:
   Exclude:
@@ -66,19 +74,11 @@ Lint/ConstantDefinitionInBlock:
   Exclude:
     - 'spec/complex_type_spec.rb'
 
-Lint/CopDirectiveSyntax:
-  Exclude:
-    - 'lib/solargraph/rbs_map/conversions.rb'
-
 # Configuration parameters: IgnoreLiteralBranches, IgnoreConstantBranches, IgnoreDuplicateElseBranch.
 Lint/DuplicateBranch:
   Exclude:
     - 'lib/solargraph/parser/parser_gem/node_chainer.rb'
     - 'lib/solargraph/pin/base.rb'
-
-Lint/DuplicateMethods:
-  Exclude:
-    - 'lib/solargraph/rbs_map/conversions.rb'
 
 # This cop supports unsafe autocorrection (--autocorrect-all).
 Lint/InterpolationCheck:
@@ -124,7 +124,7 @@ Metrics/AbcSize:
 # Configuration parameters: CountComments, CountAsOne, AllowedMethods, AllowedPatterns, inherit_mode.
 # AllowedMethods: refine
 Metrics/BlockLength:
-  Max: 58
+  Max: 57
 
 # Configuration parameters: CountBlocks, CountModifierForms.
 Metrics/BlockNesting:
@@ -151,7 +151,6 @@ Metrics/MethodLength:
     - 'lib/solargraph/convention/struct_definition.rb'
     - 'lib/solargraph/parser/parser_gem/node_chainer.rb'
     - 'lib/solargraph/shell.rb'
-    - 'lib/solargraph/source/chain/call.rb'
 
 # Configuration parameters: CountComments, CountAsOne.
 Metrics/ModuleLength:
@@ -230,8 +229,6 @@ RSpec/BeforeAfterAll:
     - 'spec/api_map_spec.rb'
     - 'spec/language_server/host/dispatch_spec.rb'
     - 'spec/language_server/protocol_spec.rb'
-    - 'spec/library_spec.rb'
-    - 'spec/yard_map/mapper_spec.rb'
 
 # Configuration parameters: IgnoredMetadata.
 RSpec/DescribeClass:
@@ -248,6 +245,8 @@ RSpec/DescribeClass:
 # SupportedStyles: described_class, explicit
 RSpec/DescribedClass:
   Exclude:
+    - 'spec/api_map_method_spec.rb'
+    - 'spec/pin/base_spec.rb'
     - 'spec/rbs_map/stdlib_map_spec.rb'
 
 # This cop supports safe autocorrection (--autocorrect).
@@ -270,7 +269,7 @@ RSpec/MultipleExpectations:
 
 # Configuration parameters: AllowSubject.
 RSpec/MultipleMemoizedHelpers:
-  Max: 7
+  Max: 8
 
 # Configuration parameters: AllowedGroups.
 RSpec/NestedGroups:
@@ -358,6 +357,13 @@ Style/MutableConstant:
     - 'lib/solargraph/rbs_map/conversions.rb'
     - 'lib/solargraph/rbs_translator.rb'
 
+# This cop supports safe autocorrection (--autocorrect).
+# Configuration parameters: EnforcedStyle, MinBodyLength, AllowConsecutiveConditionals.
+# SupportedStyles: skip_modifier_ifs, always
+Style/Next:
+  Exclude:
+    - 'lib/solargraph/api_map.rb'
+
 # This cop supports unsafe autocorrection (--autocorrect-all).
 # Configuration parameters: EnforcedStyle, AllowedMethods, AllowedPatterns.
 # SupportedStyles: predicate, comparison
@@ -375,6 +381,13 @@ Style/OpenStructUse:
 # AllowedMethods: respond_to_missing?
 Style/OptionalBooleanParameter:
   Enabled: false
+
+# This cop supports unsafe autocorrection (--autocorrect-all).
+# Configuration parameters: Methods.
+Style/RedundantArgument:
+  Exclude:
+    - 'lib/solargraph/source.rb'
+    - 'lib/solargraph/source_map/mapper.rb'
 
 # This cop supports safe autocorrection (--autocorrect).
 Style/RedundantParentheses:
@@ -408,6 +421,13 @@ Style/SuperArguments:
   Exclude:
     - 'lib/solargraph/pin/callable.rb'
     - 'lib/solargraph/pin/method.rb'
+
+# This cop supports safe autocorrection (--autocorrect).
+# Configuration parameters: WordRegex.
+# SupportedStyles: percent, brackets
+Style/WordArray:
+  EnforcedStyle: percent
+  MinSize: 3
 
 # This cop supports safe autocorrection (--autocorrect).
 # Configuration parameters: EnforcedStylePrototypeName.
