@@ -43,7 +43,7 @@ jobs:
         yq -yi '.plugins += ["solargraph-rspec"]' .solargraph.yml
     - name: Compute yardoc cache key
       id: yardoc-cache-key
-      run: echo "v=$(bundle list | shasum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+      run: echo "v=$({ ruby -v; bundle list; } | shasum | cut -c1-16)" >> "$GITHUB_OUTPUT"
     - name: Cache gem yardocs
       uses: actions/cache@v4
       with:
@@ -52,9 +52,14 @@ jobs:
         # safe. The sibling .ser pins are keyed on Solargraph::VERSION, which is
         # identical across commits, so carrying those would serve pins built by
         # different lib/ code.
+        #
+        # ruby -v and github.job are in the key so jobs sharing one gem
+        # set do not race to reserve the same entry and fail to save.
         path: ~/.cache/solargraph/yard-*
-        key: sg-yard-${{ runner.os }}-${{ steps.yardoc-cache-key.outputs.v }}
-        restore-keys: sg-yard-${{ runner.os }}-
+        key: sg-yard-${{ runner.os }}-${{ github.job }}-${{ steps.yardoc-cache-key.outputs.v }}
+        restore-keys: |
+          sg-yard-${{ runner.os }}-${{ github.job }}-
+          sg-yard-${{ runner.os }}-
     - name: Install gem types
       run: bundle exec rbs collection update
     - name: Ensure typechecking still works
@@ -88,7 +93,7 @@ jobs:
         yq -yi '.plugins += ["solargraph-rspec"]' .solargraph.yml
     - name: Compute yardoc cache key
       id: yardoc-cache-key
-      run: echo "v=$(bundle list | shasum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+      run: echo "v=$({ ruby -v; bundle list; } | shasum | cut -c1-16)" >> "$GITHUB_OUTPUT"
     - name: Cache gem yardocs
       uses: actions/cache@v4
       with:
@@ -97,9 +102,14 @@ jobs:
         # safe. The sibling .ser pins are keyed on Solargraph::VERSION, which is
         # identical across commits, so carrying those would serve pins built by
         # different lib/ code.
+        #
+        # ruby -v and github.job are in the key so jobs sharing one gem
+        # set do not race to reserve the same entry and fail to save.
         path: ~/.cache/solargraph/yard-*
-        key: sg-yard-${{ runner.os }}-${{ steps.yardoc-cache-key.outputs.v }}
-        restore-keys: sg-yard-${{ runner.os }}-
+        key: sg-yard-${{ runner.os }}-${{ github.job }}-${{ steps.yardoc-cache-key.outputs.v }}
+        restore-keys: |
+          sg-yard-${{ runner.os }}-${{ github.job }}-
+          sg-yard-${{ runner.os }}-
     - name: Install gem types
       run: |
         bundle exec rbs collection update
@@ -149,7 +159,7 @@ jobs:
         yq -yi '.plugins += ["solargraph-rails"]' .solargraph.yml
     - name: Compute yardoc cache key
       id: yardoc-cache-key
-      run: echo "v=$(bundle list | shasum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+      run: echo "v=$({ ruby -v; bundle list; } | shasum | cut -c1-16)" >> "$GITHUB_OUTPUT"
     - name: Cache gem yardocs
       uses: actions/cache@v4
       with:
@@ -158,9 +168,14 @@ jobs:
         # safe. The sibling .ser pins are keyed on Solargraph::VERSION, which is
         # identical across commits, so carrying those would serve pins built by
         # different lib/ code.
+        #
+        # ruby -v and github.job are in the key so jobs sharing one gem
+        # set do not race to reserve the same entry and fail to save.
         path: ~/.cache/solargraph/yard-*
-        key: sg-yard-${{ runner.os }}-${{ steps.yardoc-cache-key.outputs.v }}
-        restore-keys: sg-yard-${{ runner.os }}-
+        key: sg-yard-${{ runner.os }}-${{ github.job }}-${{ steps.yardoc-cache-key.outputs.v }}
+        restore-keys: |
+          sg-yard-${{ runner.os }}-${{ github.job }}-
+          sg-yard-${{ runner.os }}-
     - name: Install gem types
       run: bundle exec rbs collection update
     - name: Ensure typechecking still works
@@ -193,7 +208,7 @@ jobs:
         yq -yi '.plugins += ["solargraph-rails"]' .solargraph.yml
     - name: Compute yardoc cache key
       id: yardoc-cache-key
-      run: echo "v=$(bundle list | shasum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+      run: echo "v=$({ ruby -v; bundle list; } | shasum | cut -c1-16)" >> "$GITHUB_OUTPUT"
     - name: Cache gem yardocs
       uses: actions/cache@v4
       with:
@@ -202,9 +217,14 @@ jobs:
         # safe. The sibling .ser pins are keyed on Solargraph::VERSION, which is
         # identical across commits, so carrying those would serve pins built by
         # different lib/ code.
+        #
+        # ruby -v and github.job are in the key so jobs sharing one gem
+        # set do not race to reserve the same entry and fail to save.
         path: ~/.cache/solargraph/yard-*
-        key: sg-yard-${{ runner.os }}-${{ steps.yardoc-cache-key.outputs.v }}
-        restore-keys: sg-yard-${{ runner.os }}-
+        key: sg-yard-${{ runner.os }}-${{ github.job }}-${{ steps.yardoc-cache-key.outputs.v }}
+        restore-keys: |
+          sg-yard-${{ runner.os }}-${{ github.job }}-
+          sg-yard-${{ runner.os }}-
     - name: Install gem types
       run: |
         bundle exec rbs collection update
@@ -252,7 +272,7 @@ jobs:
         yq -yi '.plugins += ["solargraph-rspec"]' .solargraph.yml
     - name: Compute yardoc cache key
       id: yardoc-cache-key
-      run: echo "v=$(bundle list | shasum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+      run: echo "v=$({ ruby -v; bundle list; } | shasum | cut -c1-16)" >> "$GITHUB_OUTPUT"
     - name: Cache gem yardocs
       uses: actions/cache@v4
       with:
@@ -261,9 +281,14 @@ jobs:
         # safe. The sibling .ser pins are keyed on Solargraph::VERSION, which is
         # identical across commits, so carrying those would serve pins built by
         # different lib/ code.
+        #
+        # ruby -v and github.job are in the key so jobs sharing one gem
+        # set do not race to reserve the same entry and fail to save.
         path: ~/.cache/solargraph/yard-*
-        key: sg-yard-${{ runner.os }}-${{ steps.yardoc-cache-key.outputs.v }}
-        restore-keys: sg-yard-${{ runner.os }}-
+        key: sg-yard-${{ runner.os }}-${{ github.job }}-${{ steps.yardoc-cache-key.outputs.v }}
+        restore-keys: |
+          sg-yard-${{ runner.os }}-${{ github.job }}-
+          sg-yard-${{ runner.os }}-
     - name: Install gem types
       run: bundle exec rbs collection update
     - name: Ensure typechecking still works
@@ -295,7 +320,7 @@ jobs:
         yq -yi '.plugins += ["solargraph-rspec"]' .solargraph.yml
     - name: Compute yardoc cache key
       id: yardoc-cache-key
-      run: echo "v=$(bundle list | shasum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+      run: echo "v=$({ ruby -v; bundle list; } | shasum | cut -c1-16)" >> "$GITHUB_OUTPUT"
     - name: Cache gem yardocs
       uses: actions/cache@v4
       with:
@@ -304,9 +329,14 @@ jobs:
         # safe. The sibling .ser pins are keyed on Solargraph::VERSION, which is
         # identical across commits, so carrying those would serve pins built by
         # different lib/ code.
+        #
+        # ruby -v and github.job are in the key so jobs sharing one gem
+        # set do not race to reserve the same entry and fail to save.
         path: ~/.cache/solargraph/yard-*
-        key: sg-yard-${{ runner.os }}-${{ steps.yardoc-cache-key.outputs.v }}
-        restore-keys: sg-yard-${{ runner.os }}-
+        key: sg-yard-${{ runner.os }}-${{ github.job }}-${{ steps.yardoc-cache-key.outputs.v }}
+        restore-keys: |
+          sg-yard-${{ runner.os }}-${{ github.job }}-
+          sg-yard-${{ runner.os }}-
     - name: Install gem types
       run: |
         set -x
