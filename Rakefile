@@ -41,6 +41,10 @@ end
 desc 'Run all RSpec tests'
 task :full_spec do
   warn 'starting spec'
+  # Build the pins the suite leans on hardest before forking. Four
+  # workers racing to generate the same ones is what takes
+  # rbs_map/conversions_spec from 17s to over four minutes.
+  sh 'bundle exec solargraph gems core stdlib ast parser'
   sh 'TEST_COVERAGE_COMMAND_NAME=full-new bundle exec parallel_rspec --runtime-log spec/parallel_runtime_rspec.log --verbose-command spec/' #  --profile'
   # clear now-outdated coverage
   FileUtils.rm_rf('coverage/full')
