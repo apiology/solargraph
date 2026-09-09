@@ -85,7 +85,7 @@ module Solargraph
       # @todo 6: need boolish support for ? methods
       # @todo 6: flow sensitive typing needs better handling of ||= on lvars
       # @todo 5: literal arrays in this module turn into ::Solargraph::Source::Chain::Array
-      # @todo 5: flow sensitive typing needs to handle 'raise if'
+      # @todo 2: flow sensitive typing needs to handle 'raise if'
       # @todo 4: flow sensitive typing needs to eliminate literal from union with [:bar].include?(foo)
       # @todo 4: nil? support in flow sensitive typing
       # @todo 3: flow sensitive typing ought to be able to handle 'when ClassName'
