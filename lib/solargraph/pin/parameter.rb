@@ -321,24 +321,19 @@ module Solargraph
       #
       # @param api_map [ApiMap]
       # @return [ComplexType]
-      # @sg-ignore Declared return type does not match inferred - loop-reassigned
-      #   `type` union widens under this branch's newer or/branch inference
-      #   (castwide/solargraph#1309); apiology/solargraph#60 predates it. Specs green.
+      # @sg-ignore flow sensitive typing unions rather than overrides types across multiple sequential reassignments
       def typify_mlhs_element api_map
         block_pin = closure
         path = mlhs_path
         return ComplexType::UNDEFINED unless path && block_pin.is_a?(Pin::Block) && block_pin.receiver
 
-        # @sg-ignore Array#[] arg Integer, nil - path.first is nilable in general
-        #   but an mlhs_path always has at least one element
+        # @sg-ignore Array#first/#last is nilable per RBS even though this array is provably non-empty here
         type = block_pin.typify_parameters(api_map)[path.first]
         path.drop(1).each do |idx|
-          # @sg-ignore Unresolved call to tuple? - loop-reassignment of `type`
-          #   not narrowed (known loop-reassignment family); post-merge dogfood only
+          # @sg-ignore flow sensitive typing unions rather than overrides types across multiple sequential reassignments
           return ComplexType::UNDEFINED if type.nil? || !type.tuple?
 
-          # @sg-ignore Unresolved call to all_params / Array#[] idx Integer, nil -
-          #   same loop-reassignment gap as above; mlhs_path elements are Integers
+          # @sg-ignore flow sensitive typing unions rather than overrides types across multiple sequential reassignments
           type = type.all_params[idx]
         end
         type || ComplexType::UNDEFINED

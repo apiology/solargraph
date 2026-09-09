@@ -92,7 +92,7 @@ module Solargraph
         arg_num += 1
       end
       if method_type.type.rest_positionals
-        # @sg-ignore Unresolved call to rest_positionals on generic<D>
+        # @sg-ignore Unresolved call to rest_positionals/rest_keywords on generic<D>
         rest_positionals = method_type.type.rest_positionals
         # @sg-ignore Unresolved call to name on RBS::Types::Function::Param
         rest_name = rest_positionals.name&.to_s || parameter_names[arg_num] || "arg_#{arg_num}"
@@ -110,7 +110,7 @@ module Solargraph
         arg_num += 1
       end
       if method_type.type.rest_keywords
-        # @sg-ignore Unresolved call to rest_keywords on generic<D>
+        # @sg-ignore Unresolved call to rest_positionals/rest_keywords on generic<D>
         rest_keywords = method_type.type.rest_keywords
         # @sg-ignore Unresolved call to name on RBS::Types::Function::Param
         rest_keywords_name = rest_keywords.name&.to_s || parameter_names[arg_num] || "arg_#{arg_num}"

@@ -156,7 +156,7 @@ module Solargraph
 
         # try to resolve the stdlib name
         # @type [Array<String>]
-        # @sg-ignore Wrong argument type for Solargraph::Workspace#stdlib_dependencies: stdlib_name expected String, received String, nil
+        # @sg-ignore Array#first/#last is nilable per RBS even though this array is provably non-empty here
         deps = workspace.stdlib_dependencies(stdlib_name_guess) || []
         [stdlib_name_guess, *deps].compact.each do |potential_stdlib_name|
           # @sg-ignore Need to support splatting in literal array

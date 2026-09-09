@@ -25,7 +25,7 @@ module Solargraph
       def namespace_hash
         # @param h [String]
         # @param k [Array<Pin::Namespace>]
-        # @sg-ignore Wrong argument type for String#[]=: range expected Range<generic<T>>, _Range<generic<T>>, received Array<Solargraph::Pin::Namespace>
+        # @sg-ignore Hash.new block's @param h [String] mistypes h; h is the Hash, not a String
         @namespace_hash ||= Hash.new { |h, k| h[k] = [] }
       end
 
@@ -71,7 +71,7 @@ module Solargraph
       def include_reference_pins
         # @param h [String]
         # @param k [Array<Pin::Reference::Include>]
-        # @sg-ignore Wrong argument type for String#[]=: range expected Range<generic<T>>, _Range<generic<T>>, received Array<Solargraph::Pin::Reference::Include>
+        # @sg-ignore Hash.new block's @param h [String] mistypes h; h is the Hash, not a String
         @include_reference_pins ||= Hash.new { |h, k| h[k] = [] }
       end
 

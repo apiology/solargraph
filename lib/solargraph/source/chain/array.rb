@@ -25,7 +25,7 @@ module Solargraph
           end
           type = if child_types.empty? || child_types.any?(&:undefined?)
                    ComplexType::UniqueType.new('Array', rooted: true)
-                 # @sg-ignore Unresolved call to defined? on Solargraph::ComplexType, nil
+                 # @sg-ignore Array#first/#last is nilable per RBS even though this array is provably non-empty here
                  elsif child_types.uniq.length == 1 && child_types.first.defined?
                    ComplexType::UniqueType.new('Array', [], child_types.uniq, rooted: true, parameters_type: :list)
                  else

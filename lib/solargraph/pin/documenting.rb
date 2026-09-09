@@ -89,7 +89,7 @@ module Solargraph
               # Regular documentation
               sections.push DocSection.new(false)
             end
-            # @sg-ignore Unresolved call to concat on Solargraph::Pin::Documenting::DocSection, nil
+            # @sg-ignore Array#first/#last is nilable per RBS even though this array is provably non-empty here
             sections.last.concat l
           end
           sections.map(&:to_s).join.strip

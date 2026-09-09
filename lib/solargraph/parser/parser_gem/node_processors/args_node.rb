@@ -86,8 +86,7 @@ module Solargraph
               decl: :mlhs,
               source: :parser
             )
-            # @sg-ignore Wrong argument type for Array#push - locals.last is the
-            #   Parameter pushed just above; post-merge inference sees LocalVariable, nil
+            # @sg-ignore flow sensitive typing doesn't track that .last is the Parameter just pushed
             callable.parameters.push locals.last
             add_mlhs_locals callable, mlhs_node, [callable.parameters.length - 1]
           end

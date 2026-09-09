@@ -28,7 +28,7 @@ module Solargraph
         YARD::Registry.clear
         code_object_map.clear
         store.namespace_pins.each do |pin|
-          # @sg-ignore Unresolved call to empty?
+          # @sg-ignore pin.path/pin.code_object narrowing not covered by castwide/solargraph#1258 (pin is a block param)
           next if pin.path.nil? || pin.path.empty?
           if pin.code_object
             # @sg-ignore Unresolved call to path
@@ -76,7 +76,7 @@ module Solargraph
         end
         store.method_pins.each do |pin|
           if pin.code_object
-            # @sg-ignore Unresolved call to code_object
+            # @sg-ignore pin.path/pin.code_object narrowing not covered by castwide/solargraph#1258 (pin is a block param)
             code_object_map[pin.path] ||= pin.code_object
             next
           end

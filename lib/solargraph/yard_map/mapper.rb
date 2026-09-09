@@ -48,16 +48,16 @@ module Solargraph
           @namespace_pins[code_object.path] = nspin
           result.push nspin
           result.concat ToStructInitializer.make(code_object, nspin, @spec)
-          # @sg-ignore Unresolved call to superclass on YARD::CodeObjects::NamespaceObject, YARD::CodeObjects::ClassObject
+          # @sg-ignore is_a?(ClassObject) doesn't narrow within the && chain, so superclass and everything chained off it are unresolved
           if code_object.is_a?(YARD::CodeObjects::ClassObject) && !code_object.superclass.nil?
             # This method of superclass detection is a bit of a hack. If
             # the superclass is a Proxy, it is assumed to be undefined in its
             # yardoc and converted to a fully qualified namespace.
-            # @sg-ignore Unresolved call to is_a?
+            # @sg-ignore is_a?(ClassObject) doesn't narrow within the && chain, so superclass and everything chained off it are unresolved
             superclass = if code_object.superclass.is_a?(YARD::CodeObjects::Proxy)
                            "::#{code_object.superclass}"
                          else
-                           # @sg-ignore Unresolved call to to_s
+                           # @sg-ignore is_a?(ClassObject) doesn't narrow within the && chain, so superclass and everything chained off it are unresolved
                            code_object.superclass.to_s
                          end
             # YARD fills in `Object` for every class whose definition it never
