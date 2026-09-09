@@ -153,6 +153,17 @@ module Solargraph
       @resolved
     end
 
+    # A standalone substitute for the combined pins of this gem, for a
+    # caller that needs something before a combined cache entry exists.
+    # A base RbsMap has none to offer: a combined entry merges these pins
+    # with separately-cached YARD pins, and dropping the YARD half is not
+    # safe in general.
+    #
+    # @return [Array<Pin::Base>, nil]
+    def fallback_pins
+      nil
+    end
+
     # @return [RBS::Repository]
     def repository
       @repository ||= RBS::Repository.new(no_stdlib: false).tap do |repo|

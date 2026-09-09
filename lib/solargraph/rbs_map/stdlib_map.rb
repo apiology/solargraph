@@ -61,6 +61,14 @@ module Solargraph
         true
       end
 
+      # Stdlib pins need no merge with YARD pins, so they stand alone
+      # as a substitute for a combined cache entry.
+      #
+      # @return [Array<Pin::Base>, nil]
+      def fallback_pins
+        pins if resolved?
+      end
+
       # @param library [String]
       # @return [StdlibMap]
       def self.load library
