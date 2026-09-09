@@ -156,7 +156,8 @@ describe Solargraph::ComplexType do
     # :list), not YARD's `{K => V}` hash tag - the same reshape must
     # apply to both param shapes.
     source = Solargraph::Source.load_string(%(
-      # @generic A, B
+      # @generic A
+      # @generic B
       class Pair
         include Enumerable
 
@@ -182,7 +183,8 @@ describe Solargraph::ComplexType do
 
   it 'does not reshape a 2-arity :list type that does not include Enumerable' do
     source = Solargraph::Source.load_string(%(
-      # @generic A, B
+      # @generic A
+      # @generic B
       class NotEnumerablePair
         # @param a [generic<A>]
         # @param b [generic<B>]
@@ -201,7 +203,9 @@ describe Solargraph::ComplexType do
 
   it 'reshapes a 3-arity :list type into a 3-tuple to conform to a lower-arity Enumerable ancestor' do
     source = Solargraph::Source.load_string(%(
-      # @generic A, B, C
+      # @generic A
+      # @generic B
+      # @generic C
       class Triple
         include Enumerable
 
@@ -240,7 +244,8 @@ describe Solargraph::ComplexType do
       module Taggable
       end
 
-      # @generic A, B
+      # @generic A
+      # @generic B
       class Pair
         include Taggable
 
@@ -261,11 +266,14 @@ describe Solargraph::ComplexType do
 
   it 'does not reshape a 3-arity :list type into a tuple for a 2-arity non-Enumerable ancestor' do
     source = Solargraph::Source.load_string(%(
-      # @generic X, Y
+      # @generic X
+      # @generic Y
       module Labeled
       end
 
-      # @generic A, B, C
+      # @generic A
+      # @generic B
+      # @generic C
       class Triple2
         include Labeled
 
