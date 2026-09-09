@@ -63,6 +63,17 @@ module Solargraph
 
         return false unless erased_type_conforms?
 
+        # Where the ancestry declares how the ancestor's params derive from
+        # ours - Hash's `include Enumerable[[K, V]]` - resolve them and
+        # compare against that rather than guessing a shape.
+        declared = declared_ancestor_view
+        return with_new_types(declared, expected).conforms_to_unique_type? if declared
+
+        # Hash{K=>V} and <A,B>-generic types yield their params together as
+        # one tuple via #each, not one at a time - compare against that
+        # tuple shape, not raw per-param types, for a lower-arity ancestor.
+        return with_new_types(pair_shaped_as_pairs, expected).conforms_to_unique_type? if pair_shaped_viewed_as_pairs?
+
         return true if inferred.all_params.empty? && rules.include?(:allow_empty_params)
 
         # at this point we know the erased type is fine - time to look at parameters
@@ -77,6 +88,20 @@ module Solargraph
       end
 
       private
+
+      # @return [UniqueType, nil] `inferred` expressed as `expected`'s
+      #   ancestor, when that ancestor is declared with arguments derived
+      #   from `inferred`'s own params. nil when the ancestry declares none
+      #   (a bare include), leaving nothing to resolve.
+      def declared_ancestor_view
+        return nil if inferred.name == expected.name
+        return nil if inferred.all_params.empty? || expected.all_params.empty?
+
+        view = api_map.type_as_ancestor(inferred, expected.name)
+        return nil if view.nil? || view.all_params.empty?
+
+        view
+      end
 
       def only_inferred_parameters?
         !expected.parameters? && inferred.parameters?
@@ -125,6 +150,31 @@ module Solargraph
           # :nocov:
         end
         true
+      end
+
+      # @return [Boolean] true if `inferred`'s 2+ ordered params need to be
+      #   viewed as one tuple, not compared one-for-one, against a
+      #   mismatched-arity Enumerable/_Each expectation
+      def pair_shaped_viewed_as_pairs?
+        return false unless inferred.all_params.size >= 2
+        return false unless api_map.yields_type_parameter?(expected.name)
+
+        return expected.parameters_type != :hash if inferred.parameters_type == :hash
+
+        inferred.parameters_type == :list && inferred.all_params.size != expected.all_params.size
+      end
+
+      # @return [UniqueType] `inferred` reshaped as `expected`'s name,
+      #   parametrized with a single tuple of its own params - [key, value]
+      #   for hash-shaped, or its ordered params for a list-generic type
+      def pair_shaped_as_pairs
+        ordered_params = if inferred.parameters_type == :hash
+                           [ComplexType.new(inferred.key_types), ComplexType.new(inferred.subtypes)]
+                         else
+                           inferred.all_params
+                         end
+        pair = UniqueType.new('Array', [], ordered_params, rooted: true, parameters_type: :fixed)
+        UniqueType.new(expected.name, [], [pair], rooted: inferred.rooted?, parameters_type: :list)
       end
 
       def key_types_conform?
