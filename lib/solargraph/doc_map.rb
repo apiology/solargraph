@@ -231,7 +231,7 @@ module Solargraph
     end
 
     # @param gemspec [Gem::Specification]
-    # @return [void]
+    # @return [Array<Pin::Base>, nil]
     def deserialize_combined_pin_cache gemspec
       unless combined_pins_in_memory[[gemspec.name, gemspec.version]].nil?
         return combined_pins_in_memory[[gemspec.name, gemspec.version]]
@@ -270,7 +270,13 @@ module Solargraph
         combined_pins_in_memory[[gemspec.name, gemspec.version]]
       else
         logger.debug { "Pins not yet cached for #{gemspec.name}:#{gemspec.version}" }
-        nil
+        # Not stored in combined_pins_in_memory: that index is process-wide
+        # and keyed only by name and version, so a provisional set there would
+        # outlive the build that supersedes it. The gemspec stays on the
+        # uncached lists the two deserialize calls above pushed it onto.
+        fallback = rbs_map.fallback_pins
+        logger.debug { "Using fallback RBS pins for #{gemspec.name}:#{gemspec.version}" } if fallback
+        fallback
       end
     end
 
