@@ -27,10 +27,10 @@ module Solargraph
       # @see https://github.com/ruby/rbs/blob/master/docs/syntax.md#intersection-type
       # @see https://github.com/lsegal/yard/issues/1644
       class Intersection < UniqueType
-        # @return [Array<ComplexType>]
+        # @return [Array<UniqueType, Intersection, ComplexType>]
         attr_reader :conjuncts
 
-        # @param conjuncts [Array<ComplexType>]
+        # @param conjuncts [Array<UniqueType, Intersection, ComplexType>]
         def initialize conjuncts
           @conjuncts = conjuncts
           super(intersection_tag(:tags), rooted: conjuncts.all?(&:rooted?))
