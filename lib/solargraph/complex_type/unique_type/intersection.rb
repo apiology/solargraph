@@ -149,6 +149,14 @@ module Solargraph
           conjuncts.any?(&:literal?)
         end
 
+        # The tag is the compound `"A & B"` string, never a literal value,
+        # so #qualify descends into the conjuncts rather than keeping it whole.
+        #
+        # @return [Boolean]
+        def literal_tag?
+          false
+        end
+
         # @param other [Object]
         # @return [Boolean]
         def eql? other

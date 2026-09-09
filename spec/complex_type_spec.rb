@@ -1049,6 +1049,12 @@ describe 'YARD type specifier list parsing' do
       expect(qualified.rooted_tag).to eq('::Hash{:a => ::Foo::Bar} & ::Hash{:b => ::String}')
     end
 
+    it 'qualifies a record intersection nested in a value position' do
+      original = Solargraph::ComplexType.parse('Hash{:a => Hash{:b => Bar} & Hash{:c => String}}').first
+      qualified = original.qualify(foo_bar_api_map, 'Foo')
+      expect(qualified.rooted_tag).to eq('::Hash{:a => ::Hash{:b => ::Foo::Bar} & ::Hash{:c => ::String}}')
+    end
+
     it 'parses tuples of tuples with same type twice in a row' do
       type = Solargraph::ComplexType.parse('Array(Symbol, String, Array(Integer, Integer))')
       expect(type.tag).to eq('Array(Symbol, String, Array(Integer, Integer))')
