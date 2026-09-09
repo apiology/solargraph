@@ -768,15 +768,13 @@ module Solargraph
     #   the keywords found, and the type of the first splat that records no keys
     def keyword_splat_types argchain, closure_pin, locals
       node = argchain&.node
-      # @sg-ignore Translate to something flow sensitive typing understands
-      return [{}, nil] unless Parser.is_ast_node?(node) && node.type == :hash
+      return [{}, nil] unless node.is_a?(::Parser::AST::Node) && node.type == :hash
 
       keywords = {}
-      # @sg-ignore Translate to something flow sensitive typing understands
       node.children.each do |child|
-        next unless Parser.is_ast_node?(child) && child.type == :kwsplat
+        next unless child.is_a?(::Parser::AST::Node) && child.type == :kwsplat
         inner = child.children[0]
-        next if Parser.is_ast_node?(inner) && inner.type == :hash
+        next if inner.is_a?(::Parser::AST::Node) && inner.type == :hash
 
         type = Solargraph::Parser.chain(inner).infer(api_map, closure_pin, locals)
         recorded = recorded_keyword_types(type)

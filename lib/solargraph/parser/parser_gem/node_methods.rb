@@ -88,16 +88,16 @@ module Solargraph
         def drill_signature node, signature
           return signature unless node.is_a?(AST::Node)
           if %i[const cbase].include?(node.type)
-            # @sg-ignore Translate to something flow sensitive typing understands
-            signature += drill_signature(node.children[0], signature) unless node.children[0].nil?
+            child = node.children[0]
+            signature += drill_signature(child, signature) unless child.nil?
             signature += '::' unless signature.empty?
             signature += node.children[1].to_s
           elsif %i[lvar ivar cvar].include?(node.type)
             signature += '.' unless signature.empty?
             signature += node.children[0].to_s
           elsif node.type == :send
-            # @sg-ignore Translate to something flow sensitive typing understands
-            signature += drill_signature(node.children[0], signature) unless node.children[0].nil?
+            child = node.children[0]
+            signature += drill_signature(child, signature) unless child.nil?
             signature += '.' unless signature.empty?
             signature += node.children[1].to_s
           end
@@ -155,21 +155,20 @@ module Solargraph
         # @param node [Parser::AST::Node, nil]
         # @return [Hash{Symbol => Chain}]
         def convert_hash node
-          return {} unless Parser.is_ast_node?(node)
-          # @sg-ignore Translate to something flow sensitive typing understands
+          return {} unless node.is_a?(::Parser::AST::Node)
           return convert_hash(node.children[0]) if node.type == :kwsplat
-          # @sg-ignore Translate to something flow sensitive typing understands
           return {} unless node.type == :hash
           result = {}
-          # @sg-ignore Translate to something flow sensitive typing understands
           node.children.each do |pair|
             next unless Parser.is_ast_node?(pair)
             if pair.type == :kwsplat
               result.merge!(convert_hash(pair))
               next
             end
-            next unless Parser.is_ast_node?(pair.children[0])
-            result[pair.children[0].children[0]] = Solargraph::Parser.chain(pair.children[1])
+            key_node = pair.children[0]
+            next unless key_node.is_a?(::Parser::AST::Node)
+
+            result[key_node.children[0]] = Solargraph::Parser.chain(pair.children[1])
           end
           result
         end
