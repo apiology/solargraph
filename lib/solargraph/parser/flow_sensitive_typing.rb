@@ -687,7 +687,7 @@ module Solargraph
           # 0-arg method call to self (node.type == :send, since the
           # parser only emits :lvar for a name already assigned as a
           # local in this scope). Only the former is a tracked variable.
-          # @sg-ignore chain_words is never empty - callers already checked
+          # @sg-ignore https://github.com/apiology/solargraph/pull/53
           return find_var(chain_words.first, position) unless node.is_a?(::Parser::AST::Node) && node.type == :send
 
           return unless closure
