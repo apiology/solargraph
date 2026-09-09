@@ -48,10 +48,14 @@ module Solargraph
     # @return [Array<Pin::Base>]
     def self.combine yard_pins, rbs_pins
       in_yard = Set.new
-      rbs_api_map = Solargraph::ApiMap.new(pins: rbs_pins)
+      # Index this gem's own pins rather than looking them up through an
+      # ApiMap, which also loads Ruby core: for a method the gem adds to a
+      # core class, core's pin would be found instead of the gem's, and the
+      # gem's signature dropped.
+      rbs_methods_by_path = rbs_pins.select { |pin| pin.is_a?(Pin::Method) }.group_by(&:path)
       combined = yard_pins.map do |yard_pin|
         in_yard.add yard_pin.path
-        rbs_pin = rbs_api_map.get_path_pins(yard_pin.path).filter { |pin| pin.is_a? Pin::Method }.first
+        rbs_pin = rbs_methods_by_path[yard_pin.path]&.first
         next yard_pin unless rbs_pin && yard_pin.instance_of?(Pin::Method)
 
         unless rbs_pin
