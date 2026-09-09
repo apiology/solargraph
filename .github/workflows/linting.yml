@@ -40,17 +40,25 @@ jobs:
           echo "gem 'vernier', '>1.0', '<2'" >> .Gemfile
           bundle install
 
-      - name: Restore cache of gem annotations
-        id: dot-cache-restore
-        uses: actions/cache/restore@v4
+      - name: Compute yardoc cache key
+        id: yardoc-cache-key
+        run: echo "v=$({ ruby -v; bundle list; } | shasum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+      - name: Cache gem yardocs
+        uses: actions/cache@v4
         with:
-          key: |
-            2025-06-26-09-${{ runner.os }}-dot-cache-${{ hashFiles('Gemfile.lock') }}
+          # Only the yardoc subtree: its path embeds each gem name and version, so a
+          # restored entry is either correct or never looked up, and a prefix hit is
+          # safe. The sibling .ser pins are keyed on Solargraph::VERSION, which is
+          # identical across commits, so carrying those would serve pins built by
+          # different lib/ code.
+          #
+          # ruby -v and github.job are in the key so jobs sharing one gem
+          # set do not race to reserve the same entry and fail to save.
+          path: ~/.cache/solargraph/yard-*
+          key: sg-yard-${{ runner.os }}-${{ github.job }}-${{ steps.yardoc-cache-key.outputs.v }}
           restore-keys: |
-            2025-06-26-09-${{ runner.os }}-dot-cache
-            2025-06-26-09-${{ runner.os }}-dot-cache-
-          path: |
-            /home/runner/.cache/solargraph
+            sg-yard-${{ runner.os }}-${{ github.job }}-
+            sg-yard-${{ runner.os }}-
 
       - name: Install gem types
         run: bundle exec rbs collection install
