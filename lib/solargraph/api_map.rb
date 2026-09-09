@@ -600,7 +600,6 @@ module Solargraph
                 else
                   get_methods(rooted_tag, scope: scope, visibility: visibility).select { |p| p.name == name }
                 end
-      # @sg-ignore Need to add nil check here
       methods = erase_generics(namespace_pin, rooted_type, methods) unless preserve_generics
       methods
     end
@@ -1063,7 +1062,7 @@ module Solargraph
       resolved_pin
     end
 
-    # @param namespace_pin [Pin::Namespace]
+    # @param namespace_pin [Pin::Namespace, nil]
     # @param rooted_type [ComplexType]
     # @param pins [Enumerable<Pin::Base>]
     # @return [Array<Pin::Base>]
@@ -1072,22 +1071,24 @@ module Solargraph
 
       logger.debug("Erasing generics on namespace_pin=#{namespace_pin} / rooted_type=#{rooted_type}")
       pins.map do |method_pin|
+        # @sg-ignore should_erase_generics_when_done? already confirmed
+        #   namespace_pin is a real Pin::Namespace via has_generics?
         method_pin.erase_generics(namespace_pin.generics)
       end
     end
 
-    # @param namespace_pin [Pin::Namespace]
+    # @param namespace_pin [Pin::Namespace, nil]
     # @param rooted_type [ComplexType]
     def should_erase_generics_when_done? namespace_pin, rooted_type
       has_generics?(namespace_pin) && !can_resolve_generics?(namespace_pin, rooted_type)
     end
 
-    # @param namespace_pin [Pin::Namespace, Pin::Constant]
+    # @param namespace_pin [Pin::Namespace, Pin::Constant, nil]
     def has_generics? namespace_pin
       namespace_pin.is_a?(Pin::Namespace) && !namespace_pin.generics.empty?
     end
 
-    # @param namespace_pin [Pin::Namespace]
+    # @param namespace_pin [Pin::Namespace, nil]
     # @param rooted_type [ComplexType]
     def can_resolve_generics? namespace_pin, rooted_type
       has_generics?(namespace_pin) && !rooted_type.all_params.empty?
