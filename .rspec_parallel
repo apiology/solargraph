@@ -4,9 +4,14 @@
 --profile
 --order defined
 --format progress
+# Each ParallelTests formatter below also dumps a full RSpec summary to
+# stdout, so every group reports its totals twice and parallel_tests
+# doubles the numbers it sums from them. Give any you enable an --out.
+#
 # to update test relative timings for better balancing in CI,
 # uncomment the next line, run the specs, and PR in the changes:
 # --format ParallelTests::RSpec::RuntimeLogger --out spec/parallel_runtime_rspec.log
---format ParallelTests::RSpec::SummaryLogger # --out tmp/spec_summary.log
-# useful for debugging concurrency issues:
---format ParallelTests::RSpec::VerboseLogger
+# collects every group's failures into one file:
+# --format ParallelTests::RSpec::SummaryLogger --out tmp/spec_summary.log
+# per-example start/finish lines, for debugging concurrency issues:
+# --format ParallelTests::RSpec::VerboseLogger --out tmp/verbose.log
