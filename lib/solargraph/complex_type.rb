@@ -173,12 +173,6 @@ module Solargraph
       ComplexType.union(*TypeMethods.combine_members(unioned_items, other.unioned_items, gather, &block))
     end
 
-    # @param index [Integer]
-    # @return [UniqueType]
-    def [] index
-      @items[index]
-    end
-
     # @return [String]
     def namespace
       # cache this attr for high frequency call

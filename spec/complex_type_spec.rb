@@ -33,16 +33,16 @@ describe 'YARD type specifier list parsing' do
     it 'parses multiple types as separate arguments' do
       types = Solargraph::ComplexType.parse 'String', 'Integer'
       expect(types.length).to eq(2)
-      expect(types[0].tag).to eq('String')
-      expect(types[1].tag).to eq('Integer')
+      expect(types.items[0].tag).to eq('String')
+      expect(types.items[1].tag).to eq('Integer')
       expect(types.to_rbs).to eq('(String | Integer)')
     end
 
     it 'parses multiple types in a string' do
       types = Solargraph::ComplexType.parse 'String, Integer'
       expect(types.length).to eq(2)
-      expect(types[0].tag).to eq('String')
-      expect(types[1].tag).to eq('Integer')
+      expect(types.items[0].tag).to eq('String')
+      expect(types.items[1].tag).to eq('Integer')
       expect(types.to_rbs).to eq('(String | Integer)')
     end
 
@@ -56,9 +56,9 @@ describe 'YARD type specifier list parsing' do
     it 'parses class, generic class and literal in a string' do
       types = Solargraph::ComplexType.parse 'String, Array<String>, nil'
       expect(types.length).to eq(3)
-      expect(types[0].tag).to eq('String')
-      expect(types[1].tag).to eq('Array<String>')
-      expect(types[2].tag).to eq('nil')
+      expect(types.items[0].tag).to eq('String')
+      expect(types.items[1].tag).to eq('Array<String>')
+      expect(types.items[2].tag).to eq('nil')
       expect(types.to_rbs).to eq('(String | Array[String] | nil)')
     end
 
@@ -389,8 +389,8 @@ describe 'YARD type specifier list parsing' do
     it 'distinguishes intersections from unions in the same list' do
       types = Solargraph::ComplexType.parse('String & Comparable, Integer')
       expect(types.length).to eq(2)
-      expect(types[0].tag).to eq('String & Comparable')
-      expect(types[1].tag).to eq('Integer')
+      expect(types.items[0].tag).to eq('String & Comparable')
+      expect(types.items[1].tag).to eq('Integer')
     end
 
     it 'parses a record type in a value position' do
@@ -493,29 +493,29 @@ describe 'YARD type specifier list parsing' do
       it 'binds & tighter than , when & comes first' do
         types = Solargraph::ComplexType.parse('A & B, C')
         expect(types.length).to eq(2)
-        expect(types[0].tag).to eq('A & B')
-        expect(types[1].tag).to eq('C')
+        expect(types.items[0].tag).to eq('A & B')
+        expect(types.items[1].tag).to eq('C')
       end
 
       it 'binds & tighter than , when , comes first' do
         types = Solargraph::ComplexType.parse('A, B & C')
         expect(types.length).to eq(2)
-        expect(types[0].tag).to eq('A')
-        expect(types[1].tag).to eq('B & C')
+        expect(types.items[0].tag).to eq('A')
+        expect(types.items[1].tag).to eq('B & C')
       end
 
       it 'handles multiple intersections in the same union' do
         types = Solargraph::ComplexType.parse('A & B, C & D')
         expect(types.length).to eq(2)
-        expect(types[0].tag).to eq('A & B')
-        expect(types[1].tag).to eq('C & D')
+        expect(types.items[0].tag).to eq('A & B')
+        expect(types.items[1].tag).to eq('C & D')
       end
 
       it 'handles intersections of different sizes in the same union' do
         types = Solargraph::ComplexType.parse('A & B & C, D & E')
         expect(types.length).to eq(2)
-        expect(types[0].conjuncts.map(&:tags)).to eq(%w[A B C])
-        expect(types[1].conjuncts.map(&:tags)).to eq(%w[D E])
+        expect(types.items[0].conjuncts.map(&:tags)).to eq(%w[A B C])
+        expect(types.items[1].conjuncts.map(&:tags)).to eq(%w[D E])
       end
     end
 
@@ -560,15 +560,15 @@ describe 'YARD type specifier list parsing' do
       it 'binds looser than &' do
         types = Solargraph::ComplexType.parse('A & B | C')
         expect(types.length).to eq(2)
-        expect(types[0].tag).to eq('A & B')
-        expect(types[1].tag).to eq('C')
+        expect(types.items[0].tag).to eq('A & B')
+        expect(types.items[1].tag).to eq('C')
       end
 
       it 'binds looser than & on either side' do
         types = Solargraph::ComplexType.parse('A | B & C')
         expect(types.length).to eq(2)
-        expect(types[0].tag).to eq('A')
-        expect(types[1].tag).to eq('B & C')
+        expect(types.items[0].tag).to eq('A')
+        expect(types.items[1].tag).to eq('B & C')
       end
 
       it 'groups multiple types into a single positional slot of a fixed tuple' do
