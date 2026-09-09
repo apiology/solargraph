@@ -32,7 +32,7 @@ module Solargraph
           result.fetch(:capabilities).merge! static_completion unless dynamic_registration_for?('textDocument', 'completion')
           result.fetch(:capabilities).merge! static_signature_help unless dynamic_registration_for?('textDocument',
                                                                                                     'signatureHelp')
-          # result[:capabilities].merge! static_on_type_formatting unless dynamic_registration_for?('textDocument', 'onTypeFormatting')
+          # result.fetch(:capabilities).merge! static_on_type_formatting unless dynamic_registration_for?('textDocument', 'onTypeFormatting')
           result.fetch(:capabilities).merge! static_hover unless dynamic_registration_for?('textDocument', 'hover')
           result.fetch(:capabilities).merge! static_document_formatting unless dynamic_registration_for?('textDocument',
                                                                                                          'formatting')
@@ -49,7 +49,7 @@ module Solargraph
           result.fetch(:capabilities).merge! static_highlights unless dynamic_registration_for?('textDocument',
                                                                                                 'documentHighlight')
           # @todo Temporarily disabled
-          # result[:capabilities].merge! static_code_action unless dynamic_registration_for?('textDocument', 'codeAction')
+          # result.fetch(:capabilities).merge! static_code_action unless dynamic_registration_for?('textDocument', 'codeAction')
           set_result result
         end
 
