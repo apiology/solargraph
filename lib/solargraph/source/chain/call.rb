@@ -388,9 +388,9 @@ module Solargraph
           end
         end
 
-        # @param type [ComplexType]
+        # @param type [ComplexType, ComplexType::UniqueType]
         # @param context [ComplexType, ComplexType::UniqueType]
-        # @return [ComplexType]
+        # @return [ComplexType, ComplexType::UniqueType]
         def with_params type, context
           return type unless type.to_s.include?('$')
           ComplexType.try_parse(type.to_s.gsub('$', context.value_types.map(&:rooted_tag).join(', ')).gsub('<>', ''))

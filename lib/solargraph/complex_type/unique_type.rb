@@ -660,7 +660,7 @@ module Solargraph
       end
 
       # @param dst [ComplexType]
-      # @return [self]
+      # @return [ComplexType, self]
       def self_to_type dst
         object_type_dst = dst.reduce_class_type
         transform do |t|
