@@ -600,7 +600,7 @@ module Solargraph
 
       pending = api_map.uncached_gemspecs.length - cache_errors.length - 1
 
-      if Yardoc.processing?(spec)
+      if Yardoc.processing?(PinCache.yardoc_path(spec))
         logger.info "Enqueuing cache of #{spec.name} #{spec.version} (already being processed)"
         queued_gemspec_cache.push(spec)
         return if pending - queued_gemspec_cache.length < 1
