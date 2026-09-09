@@ -38,7 +38,7 @@ module Solargraph
     # @return [ComplexType]
     def qualify api_map, *gates
       red = reduce_object
-      types = red.items.map do |t|
+      types = red.unioned_items.map do |t|
         next t if %w[nil void undefined].include?(t.rooted_tags)
         next t if ['::Boolean'].include?(t.rooted_tags)
         t.unalias_and_qualify(api_map, *gates)
@@ -377,6 +377,8 @@ module Solargraph
       ComplexType.new(map { |ut| ut.transform(new_name, &transform_type) })
     end
 
+    # @param named_types [Hash{String => ComplexType}]
+    # @return [ComplexType]
     def expand named_types
       ComplexType.new(map { |ut| ut.expand(named_types) })
     end

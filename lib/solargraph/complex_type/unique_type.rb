@@ -11,7 +11,14 @@ module Solargraph
 
       autoload :Intersection, 'solargraph/complex_type/unique_type/intersection'
 
-      attr_reader :all_params, :subtypes, :key_types
+      # @return [Array<UniqueType, Intersection, ComplexType>]
+      attr_reader :all_params
+
+      # @return [Array<UniqueType, Intersection, ComplexType>]
+      attr_reader :subtypes
+
+      # @return [Array<UniqueType, Intersection, ComplexType>]
+      attr_reader :key_types
 
       # @type [Hash{String => String}]
       ANONYMOUS_NAME_BY_STARTING_TAG = {
@@ -77,8 +84,8 @@ module Solargraph
       end
 
       # @param name [String]
-      # @param key_types [Array<ComplexType>]
-      # @param subtypes [Array<ComplexType>]
+      # @param key_types [Array<UniqueType, Intersection, ComplexType>]
+      # @param subtypes [Array<UniqueType, Intersection, ComplexType>]
       # @param rooted [Boolean]
       # @param parameters_type [Symbol, nil]
       def initialize name, key_types = [], subtypes = [], rooted:, parameters_type: nil
@@ -558,9 +565,8 @@ module Solargraph
 
       # @param new_name [String, nil]
       # @param make_rooted [Boolean, nil]
-      # @param new_key_types [Array<ComplexType>, nil]
-      # @param make_rooted [Boolean, nil]
-      # @param new_subtypes [Array<ComplexType>, nil]
+      # @param new_key_types [Array<UniqueType, Intersection, ComplexType>, nil]
+      # @param new_subtypes [Array<UniqueType, Intersection, ComplexType>, nil]
       # @return [self]
       def recreate new_name: nil, make_rooted: nil, new_key_types: nil, new_subtypes: nil
         raise "Please remove leading :: and set rooted instead - #{new_name}" if new_name&.start_with?('::')
@@ -613,6 +619,10 @@ module Solargraph
         yield new_type
       end
 
+      # Substitutes a named type for this one when the name is bound.
+      #
+      # @param named_types [Hash{String => ComplexType}]
+      # @return [ComplexType, self]
       def expand named_types
         named_types[name] || self
       end

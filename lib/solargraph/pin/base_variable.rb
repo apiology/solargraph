@@ -354,8 +354,7 @@ module Solargraph
         # @type [ComplexType, nil]
         type2 = other.send(attr)
         if type1 && type2
-          types = (type1.items + type2.items).uniq
-          ComplexType.new(types)
+          ComplexType.new([type1, type2])
         else
           type1 || type2
         end
