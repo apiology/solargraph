@@ -112,12 +112,6 @@ module Solargraph
     end
 
     # @yieldparam [UniqueType]
-    # @return [Enumerable<UniqueType>]
-    def each &block
-      @items.each(&block)
-    end
-
-    # @yieldparam [UniqueType]
     # @return [void]
     # @overload each_unique_type()
     #   @return [Enumerator<UniqueType>]
@@ -271,7 +265,7 @@ module Solargraph
     def duck_types_match? api_map, expected, inferred, rules = []
       raise ArgumentError, 'Expected type must be duck type' unless expected.duck_type?
       allow_any_match = rules.include?(:allow_any_match)
-      expected.each do |exp|
+      expected.items.each do |exp|
         next unless exp.duck_type?
         quack = exp.to_s[1..] || ''
         matched = allow_any_match ? inferred.items.any? { |inf| duck_type_provides?(api_map, inf, quack) } : inferred.items.all? { |inf| duck_type_provides?(api_map, inf, quack) }
@@ -438,7 +432,7 @@ module Solargraph
       types = []
       # try to find common types via conformance
       items.each do |ut|
-        narrowing_type.each do |candidate|
+        narrowing_type.items.each do |candidate|
           if candidate.conforms_to?(api_map, ut, :assignment)
             types << candidate
           elsif ut.conforms_to?(api_map, candidate, :assignment)

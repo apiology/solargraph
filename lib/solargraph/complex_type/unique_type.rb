@@ -153,7 +153,7 @@ module Solargraph
         types = []
         # try to find common types via conformance
         items.each do |ut|
-          narrowing_type.each do |candidate|
+          narrowing_type.items.each do |candidate|
             if candidate.conforms_to?(api_map, ut, :assignment)
               types << candidate
             elsif ut.conforms_to?(api_map, candidate, :assignment)
@@ -528,13 +528,6 @@ module Solargraph
       # @return [Array<self>]
       def map &block
         [block.yield(self)]
-      end
-
-      # @yieldparam t [self]
-      # @yieldreturn [self]
-      # @return [Enumerable<self>]
-      def each(&)
-        [self].each(&)
       end
 
       # @return [Array<ComplexType::UniqueType>]

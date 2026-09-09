@@ -542,7 +542,7 @@ module Solargraph
       # protected and private methods are visible.
       return [] if complex_type.undefined? || complex_type.void?
       result = Set.new
-      complex_type.each do |type|
+      complex_type.items.each do |type|
         if type.duck_type?
           result.add Pin::DuckMethod.new(name: type.to_s[1..], source: :api_map)
           result.merge get_methods('Object')
