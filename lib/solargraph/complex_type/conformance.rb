@@ -63,6 +63,12 @@ module Solargraph
 
         return false unless erased_type_conforms?
 
+        # Where the ancestry declares how the ancestor's params derive from
+        # ours - Hash's `include Enumerable[[K, V]]` - resolve them and
+        # compare against that rather than guessing a shape.
+        declared = declared_ancestor_view
+        return with_new_types(declared, expected).conforms_to_unique_type? if declared
+
         # Hash{K=>V} and <A,B>-generic types yield their params together as
         # one tuple via #each, not one at a time - compare against that
         # tuple shape, not raw per-param types, for a lower-arity ancestor.
@@ -81,12 +87,21 @@ module Solargraph
         subtypes_conform?
       end
 
-      # Ancestors whose single generic param means "all params yielded as
-      # one tuple" (Hash's RBS: `include Enumerable[[K, V]]`; `_Each` backs
-      # the same #each shape). Any other ancestor's param means its own thing.
-      TUPLE_YIELDING_ANCESTOR_NAMES = %w[Enumerable _Each].freeze
-
       private
+
+      # @return [UniqueType, nil] `inferred` expressed as `expected`'s
+      #   ancestor, when that ancestor is declared with arguments derived
+      #   from `inferred`'s own params. nil when the ancestry declares none
+      #   (a bare include), leaving nothing to resolve.
+      def declared_ancestor_view
+        return nil if inferred.name == expected.name
+        return nil if inferred.all_params.empty? || expected.all_params.empty?
+
+        view = api_map.type_as_ancestor(inferred, expected.name)
+        return nil if view.nil? || view.all_params.empty?
+
+        view
+      end
 
       def only_inferred_parameters?
         !expected.parameters? && inferred.parameters?
@@ -142,7 +157,7 @@ module Solargraph
       #   mismatched-arity Enumerable/_Each expectation
       def pair_shaped_viewed_as_pairs?
         return false unless inferred.all_params.size >= 2
-        return false unless TUPLE_YIELDING_ANCESTOR_NAMES.include?(expected.name)
+        return false unless api_map.yields_type_parameter?(expected.name)
 
         return expected.parameters_type != :hash if inferred.parameters_type == :hash
 
