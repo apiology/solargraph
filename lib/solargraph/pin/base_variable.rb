@@ -15,12 +15,23 @@ module Solargraph
       attr_reader :presence
 
       # @return [Boolean]
-      attr_reader :definite
+      attr_accessor :definite
 
-      # The CompoundStatement pin this variable's (re)assignment was
-      # made within - i.e. Region#compound_statement at the point of
-      # assignment. Used by #definite_reaches? to decide whether a
-      # non-definite assignment still dominates a given reference.
+      # Self, or a definite copy of it when the assignment dominates
+      # `location` - see #definite_reaches?.
+      #
+      # @param location [Location, nil]
+      # @return [self]
+      def definite_at location
+        return self if definite || !definite_reaches?(location)
+
+        result = dup
+        result.definite = true
+        result
+      end
+
+      # The CompoundStatement this assignment was made within. Used by
+      # #definite_reaches? to decide whether it dominates a reference.
       #
       # @return [Pin::CompoundStatement, nil]
       attr_reader :compound_statement
@@ -60,19 +71,12 @@ module Solargraph
       # @see https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#union-types
       # @see https://www.typescriptlang.org/docs/handbook/2/narrowing.html
       # @param presence [Range, nil]
-      # @param definite [Boolean] True if this pin's assignment(s) are
-      #   guaranteed to have executed at (and after) its presence's
-      #   start position, as opposed to being inside a conditional
-      #   branch or loop that may not run. Used to decide whether a
-      #   reassignment's type may safely override a variable's
-      #   previously declared/inferred type instead of merely being
-      #   unioned with it.
-      # @param compound_statement [Pin::CompoundStatement, nil] The
-      #   CompoundStatement this variable's (re)assignment was made
-      #   within. When `definite` is false, a reference whose location
-      #   falls within this pin's own range may still treat the
-      #   assignment as an override rather than merely unioning it
-      #   with earlier possible types - see #definite_reaches?.
+      # @param definite [Boolean] True if the assignment is guaranteed to
+      #   have run by its presence start, so its type may override rather
+      #   than union with earlier ones.
+      # @param compound_statement [Pin::CompoundStatement, nil] Where the
+      #   assignment was made; lets a non-definite one still override
+      #   within its own range - see #definite_reaches?.
       # @param [Hash{Symbol => Object}] splat
       def initialize assignment: nil, assignments: [], mass_assignment: nil,
                      presence: nil, return_type: nil,
@@ -116,29 +120,23 @@ module Solargraph
 
       # @param other [self]
       # @param attrs [Hash]
-      # @param location [Location, nil] The position being resolved,
-      #   if known - used to decide whether a not-globally-definite
-      #   `other` should still override us because the position falls
-      #   within `other`'s compound_statement.
-      def combine_with other, attrs = {}, location: nil
-        superseded = override_assignments?(other, location)
+      def combine_with other, attrs = {}
+        superseded = override_assignments?(other)
         # Facts expire only when a *different* assignment overwrote the
         # value they describe.  Two flow-sensitive downcasts of the same
         # assignment - e.g. the one per operand that `a.nil? ||
         # a.empty? || a == 'x'` produces - are additional facts about
         # one value, and must accumulate rather than replace each other.
         facts_superseded = superseded && !same_assignment_sites?(other)
-        new_assignments = combine_assignments(other, location)
+        new_assignments = combine_assignments(other)
         new_attrs = attrs.merge({
                                   # default values don't exist in RBS parameters; it just
                                   # tells you if the arg is optional or not.  Prefer a
                                   # provided value if we have one here since we can't rely on
                                   # it from RBS so we can infer from it and typecheck on it.
                                   #
-                                  # When #combine_assignments supersedes rather than unions,
-                                  # skip this - the constructor prepends `assignment:` to
-                                  # `assignments:` unconditionally, which would re-introduce
-                                  # the dropped node.
+                                  # Skipped when #combine_assignments supersedes: the
+                                  # constructor would re-add the dropped node.
                                   assignment: superseded ? nil : choose(other, :assignment),
                                   assignments: new_assignments,
                                   mass_assignment: combine_mass_assignment(other),
@@ -158,10 +156,8 @@ module Solargraph
                                                          combine_types(other, :exclude_return_type)
                                                        end,
                                   presence: combine_presence(other),
-                                  # if either side had an assignment guaranteed to
-                                  # have executed, that assignment's type is
-                                  # eligible to override (not just be unioned
-                                  # with) the variable's other possible types
+                                  # a guaranteed assignment on either side may
+                                  # override, not just union with, the rest
                                   definite: definite || other.definite || superseded
                                 })
         super(other, new_attrs)
@@ -198,12 +194,9 @@ module Solargraph
       end
 
       # @param other [self]
-      #
-      # @param other [self]
-      # @param location [Location, nil]
       # @return [::Array<Parser::AST::Node>]
-      def combine_assignments other, location = nil
-        return other.assignments.dup if override_assignments?(other, location)
+      def combine_assignments other
+        return other.assignments.dup if override_assignments?(other)
 
         (other.assignments + assignments).uniq
       end
@@ -493,16 +486,9 @@ module Solargraph
 
       public
 
-      # True if `other_loc` falls inside the source range of one of this
-      # pin's own assignment value nodes - i.e., `other_loc` is
-      # resolving a reference that occurs *while* one of this
-      # variable's own assignments is still being evaluated, such as
-      # the receiver `x` in a self-referential reassignment (`x =
-      # x.length`, or `index += 1` desugared to `index = index + 1`).
-      # That reference must resolve against this variable's *other*
-      # assignments, not against the not-yet-assigned value being
-      # derived here, even though `other_loc` otherwise falls within
-      # this pin's presence.
+      # True if `other_loc` sits inside one of our own assignment value
+      # nodes - the receiver `x` in `x = x.length`. Such a reference must
+      # resolve against our other assignments, not the value being derived.
       #
       # @param other_loc [Location]
       # @return [Boolean]
@@ -515,48 +501,31 @@ module Solargraph
           rng = Range.from_node(assignment_node)
           next false if rng.nil?
 
-          # The position immediately at/after the assignment node's own
-          # end is where its new value becomes visible - only exclude
-          # positions strictly *inside* the node (i.e. still being
-          # evaluated), not that boundary itself.
+          # The new value is visible from the node end onward, so exclude
+          # only positions strictly inside it.
           rng.contain?(other_loc.range.start) && other_loc.range.start != rng.ending
         end
       end
 
       private
 
-      # True if `other`'s assignment(s) should supersede ours
-      # instead of merely being unioned with them: `other` reassigns
-      # the same variable, in the same scope, via an assignment
-      # guaranteed to have executed, so by the time `other`'s
-      # presence begins our value has definitely been overwritten.
-      #
-      # Excludes self-referential reassignments (`x = x.foo`,
-      # desugared `+=`, etc.) - resolving their right-hand side needs
-      # our assignment(s) as the base case, so dropping them would
-      # leave nothing to resolve against.
+      # True if `other` supersedes us rather than unioning: it reassigns
+      # the same variable in the same scope, guaranteed to have run.
+      # Excludes self-referential reassignments (`x = x.foo`), whose RHS
+      # needs our assignments as the base case.
       #
       # @param other [self]
-      # @param location [Location, nil] The position being resolved,
-      #   if known - lets a conditional `other` still override us when
-      #   `location` falls within `other`'s compound_statement.
       # @return [Boolean]
-      def override_assignments? other, location = nil
-        (other.definite || other.definite_reaches?(location)) && other.closure == closure &&
+      def override_assignments? other
+        other.definite && other.closure == closure &&
           other.assignments.none? { |node| references_name?(node) }
       end
 
       public
 
-      # True if this pin's assignment, though not globally definite,
-      # is still guaranteed to dominate `location` - i.e., `location`
-      # falls within the CompoundStatement body (an if/while/until/
-      # rescue/&&/||/||= branch) this assignment was made in, so no
-      # earlier branch exit could have skipped it by the time
-      # `location` is reached. A nested CompoundStatement's location
-      # is always a subrange of its parent's, so this single
-      # containment check already accounts for arbitrarily nested
-      # branches without walking the compound_statement chain further.
+      # True if this assignment, though not globally definite, still
+      # dominates `location`: `location` falls inside the branch body it
+      # was made in. Nesting needs no walk - inner ranges are subranges.
       #
       # @param location [Location, nil]
       # @return [Boolean]
