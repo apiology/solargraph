@@ -319,7 +319,7 @@ module Solargraph
 
         # complex types as expectations are unions - we only need to
         # match one of their unique types
-        expected.any? do |expected_unique_type|
+        expected.items.any? do |expected_unique_type|
           # :nocov:
           raise "Expected type must be a UniqueType in #{expected.inspect}" unless expected_unique_type.is_a?(UniqueType)
           # :nocov:
@@ -662,11 +662,6 @@ module Solargraph
           next t if t.name != 'self'
           object_type_dst
         end
-      end
-
-      # @yieldreturn [Boolean]
-      def any? &block
-        block.yield self
       end
 
       # @return [ComplexType]

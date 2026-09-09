@@ -107,7 +107,7 @@ module Solargraph
       end
 
       def ignore_interface?
-        (expected.any?(&:interface?) && rules.include?(:allow_unmatched_interface)) ||
+        (expected.items.any?(&:interface?) && rules.include?(:allow_unmatched_interface)) ||
           (inferred.interface? && rules.include?(:allow_unmatched_interface))
       end
 

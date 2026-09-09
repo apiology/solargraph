@@ -251,7 +251,7 @@ module Solargraph
       return duck_types_match?(api_map, expected, inferred, rules) if expected.duck_type?
 
       if rules.include? :allow_any_match
-        inferred.any? do |inf|
+        inferred.items.any? do |inf|
           inf.conforms_to?(api_map, expected, situation, rules,
                            variance: variance)
         end
@@ -274,7 +274,7 @@ module Solargraph
       expected.each do |exp|
         next unless exp.duck_type?
         quack = exp.to_s[1..] || ''
-        matched = allow_any_match ? inferred.any? { |inf| duck_type_provides?(api_map, inf, quack) } : inferred.all? { |inf| duck_type_provides?(api_map, inf, quack) }
+        matched = allow_any_match ? inferred.items.any? { |inf| duck_type_provides?(api_map, inf, quack) } : inferred.items.all? { |inf| duck_type_provides?(api_map, inf, quack) }
         return false unless matched
       end
       true
@@ -320,19 +320,12 @@ module Solargraph
       @items.all?(&block)
     end
 
-    # @yieldparam [UniqueType]
-    # @yieldreturn [Boolean]
-    # @return [Boolean]
-    def any? &block
-      @items.compact.any?(&block)
-    end
-
     def selfy?
       @items.any?(&:selfy?)
     end
 
     def generic?
-      any?(&:generic?)
+      items.any?(&:generic?)
     end
 
     # @return [self]
