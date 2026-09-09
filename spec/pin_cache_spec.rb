@@ -1,56 +1,54 @@
 # frozen_string_literal: true
 
+require 'bundler'
+require 'benchmark'
+require 'tmpdir'
+
 describe Solargraph::PinCache do
-  let(:workspace) { Solargraph::Workspace.new(Dir.pwd) }
-
-  let(:configured) do
-    described_class.new(rbs_collection_path: workspace.rbs_collection_path,
-                        rbs_collection_config_path: workspace.rbs_collection_config_path)
+  subject(:pin_cache) do
+    described_class.new(rbs_collection_path: '.gem_rbs_collection',
+                        rbs_collection_config_path: 'rbs_collection.yaml',
+                        directory: Dir.pwd,
+                        yard_plugins: ['activesupport-concern'])
   end
 
+  # The same gems, resolved with no RBS collection at all.
   let(:unconfigured) do
-    described_class.new(rbs_collection_path: nil, rbs_collection_config_path: nil)
+    described_class.new(rbs_collection_path: nil,
+                        rbs_collection_config_path: nil,
+                        directory: Dir.pwd,
+                        yard_plugins: ['activesupport-concern'])
   end
 
-  after do
-    described_class.all_combined_pins_in_memory.clear
+  describe '#cached?' do
+    it 'returns true for a gem that is cached' do
+      allow(File).to receive(:file?).with(%r{.*stdlib/backport.ser$}).and_return(false)
+      allow(File).to receive(:file?).with(%r{.*combined/.*/backport-.*.ser$}).and_return(true)
+
+      gemspec = Gem::Specification.find_by_name('backport')
+      expect(pin_cache.cached?(gemspec)).to be true
+    end
+
+    it 'returns false for a gem that is not cached' do
+      gemspec = Gem::Specification.new.tap do |spec|
+        spec.name = 'nonexistent'
+        spec.version = '0.0.1'
+      end
+      expect(pin_cache.cached?(gemspec)).to be false
+    end
   end
 
-  describe '.possible_stdlibs' do
-    it 'lists names from the stdlib directory without the .rb suffix' do
-      allow(Dir).to receive(:glob).and_return(['/ruby/3.2.0/set.rb', '/ruby/3.2.0/json'])
+  describe '.core?' do
+    it 'returns true when core pins exist' do
+      allow(File).to receive(:file?).with(%r{.*/core.ser$}).and_return(true)
 
-      expect(described_class.possible_stdlibs).to eq(%w[json set])
+      expect(described_class.core?).to be true
     end
 
-    it 'is tolerant of less usual Ruby installations' do
-      stub_const('Gem::RUBYGEMS_DIR', nil)
+    it "returns true when core pins don't" do
+      allow(File).to receive(:file?).with(%r{.*/core.ser$}).and_return(false)
 
-      expect(described_class.possible_stdlibs).to eq([])
-    end
-  end
-
-  describe '.suppress_yard_cache?' do
-    let(:parser_gemspec) { Gem::Specification.new('parser', '3.3.7.1') }
-    let(:other_gemspec) { Gem::Specification.new('backport', '1.2.0') }
-
-    it 'suppresses YARD when the gem has resolved RBS collection types' do
-      expect(described_class.suppress_yard_cache?(parser_gemspec,
-                                                  Solargraph::RbsMap::CACHE_KEY_GEM_EXPORT)).to be true
-    end
-
-    it 'suppresses YARD for any resolved RBS source, including a collection digest' do
-      expect(described_class.suppress_yard_cache?(parser_gemspec, 'abc123')).to be true
-    end
-
-    it 'builds YARD when the gem has no RBS types to fall back on' do
-      expect(described_class.suppress_yard_cache?(parser_gemspec,
-                                                  Solargraph::RbsMap::CACHE_KEY_UNRESOLVED)).to be false
-    end
-
-    it 'builds YARD for a gem outside the suppression list' do
-      expect(described_class.suppress_yard_cache?(other_gemspec,
-                                                  Solargraph::RbsMap::CACHE_KEY_GEM_EXPORT)).to be false
+      expect(described_class.core?).to be false
     end
   end
 
@@ -58,34 +56,253 @@ describe Solargraph::PinCache do
     it 'differs between configurations that resolve the gem differently' do
       gemspec = Gem::Specification.find_by_name('addressable')
 
-      expect(configured.cache_key_for(gemspec)).not_to eq(unconfigured.cache_key_for(gemspec))
+      expect(pin_cache.cache_key_for(gemspec)).not_to eq(unconfigured.cache_key_for(gemspec))
     end
   end
 
-  describe '#deserialize_combined_gem' do
-    it 'does not serve one configuration the pins held for another' do
-      gemspec = Gem::Specification.find_by_name('addressable')
-      pins = [Solargraph::Pin::Namespace.new(name: 'Fixture')]
-      described_class.all_combined_pins_in_memory[
-        [gemspec.name, gemspec.version, configured.cache_key_for(gemspec)]
-      ] = pins
+  describe '#suppress_yard_cache?' do
+    let(:parser_gemspec) { Gem::Specification.new('parser', '3.3.7.1') }
+    let(:other_gemspec) { Gem::Specification.new('backport', '1.2.0') }
 
-      allow(described_class).to receive(:deserialize_combined_gem).and_return(nil)
+    it 'suppresses YARD when the gem has resolved RBS collection types' do
+      expect(pin_cache.suppress_yard_cache?(parser_gemspec,
+                                            Solargraph::RbsMap::CACHE_KEY_GEM_EXPORT)).to be true
+    end
 
-      expect(unconfigured.deserialize_combined_gem(gemspec)).to be_nil
+    it 'suppresses YARD for any resolved RBS source, including a collection digest' do
+      expect(pin_cache.suppress_yard_cache?(parser_gemspec, 'abc123')).to be true
+    end
+
+    it 'builds YARD when the gem has no RBS types to fall back on' do
+      expect(pin_cache.suppress_yard_cache?(parser_gemspec,
+                                            Solargraph::RbsMap::CACHE_KEY_UNRESOLVED)).to be false
+    end
+
+    it 'builds YARD for a gem outside the suppression list' do
+      expect(pin_cache.suppress_yard_cache?(other_gemspec,
+                                            Solargraph::RbsMap::CACHE_KEY_GEM_EXPORT)).to be false
+    end
+  end
+
+  describe '#deserialize_combined_pin_cache' do
+    # A version nothing will ever have cached on disk, so the read path
+    # takes the uncached branch however much of the suite ran first.
+    def uncached_gemspec name
+      Gem::Specification.new(name, '999.0.0')
+    end
+
+    it 'serves RBS stdlib pins when no combined entry has been built' do
+      pins = pin_cache.deserialize_combined_pin_cache(uncached_gemspec('logger'))
+
+      expect(pins.map(&:path)).to include('Logger#info')
+    end
+
+    it 'has no fallback for a gem outside the RBS stdlib' do
+      expect(pin_cache.deserialize_combined_pin_cache(uncached_gemspec('backport'))).to be_nil
+    end
+  end
+
+  describe '#possible_stdlibs' do
+    it 'lists names from the stdlib directory without the .rb suffix' do
+      allow(Dir).to receive(:glob).and_return(['/ruby/3.2.0/set.rb', '/ruby/3.2.0/json'])
+
+      expect(pin_cache.possible_stdlibs).to eq(%w[json set])
+    end
+
+    it 'is tolerant of less usual Ruby installations' do
+      stub_const('Gem::RUBYGEMS_DIR', nil)
+
+      expect(pin_cache.possible_stdlibs).to eq([])
+    end
+  end
+
+  describe '#cache_all_stdlibs' do
+    it 'creates stdlibmaps' do
+      allow(Solargraph::RbsMap::StdlibMap).to receive(:new).and_return(instance_double(Solargraph::RbsMap::StdlibMap))
+
+      pin_cache.cache_all_stdlibs
+
+      expect(Solargraph::RbsMap::StdlibMap).to have_received(:new).at_least(:once)
+    end
+  end
+
+  describe '#cache_gem' do
+    context 'with an already in-memory gem' do
+      let(:backport_gemspec) { Gem::Specification.find_by_name('backport') }
+
+      before do
+        pin_cache.cache_gem(gemspec: backport_gemspec, out: nil)
+      end
+
+      it 'does not load the gem again' do
+        allow(Marshal).to receive(:load).and_call_original
+
+        pin_cache.cache_gem(gemspec: backport_gemspec, out: nil)
+
+        expect(Marshal).not_to have_received(:load).with(anything)
+      end
+    end
+
+    context 'with the parser gem' do
+      before do
+        pin_cache.uncache_gem(Gem::Specification.find_by_name('parser'), out: nil)
+        allow(Solargraph::Yardoc).to receive(:build_docs)
+      end
+
+      it 'chooses not to use YARD' do
+        parser_gemspec = Gem::Specification.find_by_name('parser')
+        pin_cache.cache_gem(gemspec: parser_gemspec, out: nil)
+        # if this fails, you may not have run `bundle exec rbs collection update`
+        expect(Solargraph::Yardoc).not_to have_received(:build_docs).with(any_args)
+      end
+    end
+
+    context 'with an installed gem' do
+      before do
+        pin_cache.cache_gem(gemspec: Gem::Specification.find_by_name('kramdown'), out: nil)
+      end
+
+      it 'uncaches when asked' do
+        gemspec = Gem::Specification.find_by_name('kramdown')
+        expect do
+          pin_cache.uncache_gem(gemspec, out: nil)
+        end.not_to raise_error
+      end
+    end
+
+    context 'with the rebuild flag' do
+      before do
+        allow(Solargraph::Yardoc).to receive(:build_docs)
+      end
+
+      it 'chooses not to use YARD' do
+        parser_gemspec = Gem::Specification.find_by_name('parser')
+        pin_cache.cache_gem(gemspec: parser_gemspec, rebuild: true, out: nil)
+        # if this fails, you may not have run `bundle exec rbs collection update`
+        expect(Solargraph::Yardoc).not_to have_received(:build_docs).with(any_args)
+      end
+    end
+
+    context 'with a stdlib gem' do
+      let(:gem_name) { 'logger' }
+
+      before do
+        pin_cache.uncache_gem(Gem::Specification.find_by_name(gem_name), out: nil)
+      end
+
+      it 'caches' do
+        yaml_gemspec = Gem::Specification.find_by_name(gem_name)
+        allow(File).to receive(:write).and_call_original
+
+        pin_cache.cache_gem(gemspec: yaml_gemspec, out: nil)
+
+        # match arguments with regexp using rspec-matchers syntax
+        expect(File).to have_received(:write).with(%r{combined/.*/logger-.*-stdlib.ser$}, any_args).once
+      end
+    end
+
+    context 'with gem packaged with its own RBS' do
+      let(:gem_name) { 'rubocop-yard' }
+
+      before do
+        pin_cache.uncache_gem(Gem::Specification.find_by_name(gem_name), out: nil)
+      end
+
+      it 'caches' do
+        yaml_gemspec = Gem::Specification.find_by_name(gem_name)
+        allow(File).to receive(:write).and_call_original
+
+        pin_cache.cache_gem(gemspec: yaml_gemspec, out: nil)
+
+        # match arguments with regexp using rspec-matchers syntax
+        expect(File).to have_received(:write).with(%r{combined/.*/rubocop-yard-.*-export.ser$}, any_args,
+                                                   mode: 'wb').once
+      end
     end
   end
 
   describe '#uncache_gem' do
-    it 'drops the in-memory entry as well as the files' do
-      gemspec = Gem::Specification.find_by_name('backport')
-      key = [gemspec.name, gemspec.version, configured.cache_key_for(gemspec)]
-      described_class.all_combined_pins_in_memory[key] = []
-      allow(described_class).to receive(:uncache_gem)
+    subject(:call) { pin_cache.uncache_gem(gemspec, out: out) }
 
-      configured.uncache_gem(gemspec, out: nil)
+    let(:out) { StringIO.new }
 
-      expect(described_class.all_combined_pins_in_memory).not_to have_key(key)
+    before do
+      allow(FileUtils).to receive(:rm_rf)
+    end
+
+    context 'with an already cached gem' do
+      let(:gemspec) { Gem::Specification.find_by_name('backport') }
+
+      it 'deletes files' do
+        call
+
+        expect(FileUtils).to have_received(:rm_rf).at_least(:once)
+      end
+    end
+
+    context 'with a non-existent gem' do
+      let(:gemspec) { instance_double(Gem::Specification, name: 'nonexistent', version: '0.0.1') }
+
+      it 'does not raise an error' do
+        expect { call }.not_to raise_error
+      end
+
+      it 'logs a message' do
+        call
+
+        expect(out.string).to include('does not exist')
+      end
+
+      it 'does not delete files' do
+        call
+
+        expect(FileUtils).not_to have_received(:rm_rf)
+      end
+    end
+  end
+
+  describe '.uncache_by_prefix' do
+    it 'deletes every file matching the prefix and logs each one' do
+      Dir.mktmpdir do |dir|
+        prefix = File.join(dir, 'some-gem-1.0.0')
+        File.write("#{prefix}-yard.ser", '')
+        File.write("#{prefix}-rbs.ser", '')
+        File.write(File.join(dir, 'unrelated-file'), '')
+        out = StringIO.new
+
+        described_class.uncache_by_prefix(prefix, out: out)
+
+        expect(Dir.glob("#{prefix}*")).to be_empty
+        expect(File.exist?(File.join(dir, 'unrelated-file'))).to be(true)
+        expect(out.string).to include('Clearing pin cache in')
+      end
+    end
+
+    it 'skips directories matching the prefix glob' do
+      Dir.mktmpdir do |dir|
+        prefix = File.join(dir, 'some-gem-1.0.0')
+        Dir.mkdir("#{prefix}-dir")
+
+        expect { described_class.uncache_by_prefix(prefix) }.not_to raise_error
+        expect(Dir.exist?("#{prefix}-dir")).to be(true)
+      end
+    end
+  end
+
+  describe '.exist?' do
+    it 'is true when the joined path is a file' do
+      Dir.mktmpdir do |dir|
+        path = File.join(dir, 'cached.ser')
+        File.write(path, '')
+
+        expect(described_class.exist?(dir, 'cached.ser')).to be(true)
+      end
+    end
+
+    it 'is false when the joined path does not exist' do
+      Dir.mktmpdir do |dir|
+        expect(described_class.exist?(dir, 'missing.ser')).to be(false)
+      end
     end
   end
 end

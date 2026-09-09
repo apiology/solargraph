@@ -5,13 +5,15 @@ describe Solargraph::Workspace, '#gemspecs_to_cache' do
 
   let(:workspace) { described_class.new('spec/fixtures/workspace') }
   let(:gemspecs) { instance_double(Solargraph::Workspace::Gemspecs) }
+  let(:pin_cache) { instance_double(Solargraph::PinCache) }
   let(:bundled) { instance_double(Gem::Specification, name: 'rspec', version: '3.13.0') }
   let(:stdlib) { instance_double(Gem::Specification, name: 'json', version: '2.7.0') }
 
   before do
     allow(Solargraph::Workspace::Gemspecs).to receive(:new).and_return(gemspecs)
     allow(gemspecs).to receive(:all_gemspecs_from_bundle).and_return([bundled])
-    allow(Solargraph::PinCache).to receive(:possible_stdlibs).and_return(%w[json notagem])
+    allow(workspace).to receive(:pin_cache).and_return(pin_cache)
+    allow(pin_cache).to receive(:possible_stdlibs).and_return(%w[json notagem])
     allow(gemspecs).to receive(:find_gem).with('json', out: nil).and_return(stdlib)
     allow(gemspecs).to receive(:find_gem).with('notagem', out: nil).and_return(nil)
   end

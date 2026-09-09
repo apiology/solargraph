@@ -9,6 +9,8 @@ module Solargraph
   # in an associated Library or ApiMap.
   #
   class Workspace
+    include Logging
+
     autoload :Config, 'solargraph/workspace/config'
     autoload :Gemspecs, 'solargraph/workspace/gemspecs'
     autoload :RequirePaths, 'solargraph/workspace/require_paths'
@@ -49,6 +51,72 @@ module Solargraph
     # @return [Solargraph::Workspace::Config]
     def config
       @config ||= Solargraph::Workspace::Config.new(directory)
+    end
+
+    # @param require [String] the string passed to require, e.g. 'rails', 'bundler/require'
+    # @return [Array<Gem::Specification>, nil]
+    def resolve_require require
+      gemspecs.resolve_require(require)
+    end
+
+    # @param gemspec [Gem::Specification]
+    # @param out [IO, nil] output stream for logging
+    # @return [Array<Gem::Specification>]
+    def fetch_dependencies gemspec, out: $stderr
+      gemspecs.fetch_dependencies(gemspec, out: out)
+    end
+
+    # @param stdlib_name [String]
+    # @return [Array<String>]
+    def stdlib_dependencies stdlib_name
+      gemspecs.stdlib_dependencies(stdlib_name)
+    end
+
+    # The pin cache scoped to this workspace's RBS configuration and YARD
+    # plugins. Memoized: callers share one in-memory pin index.
+    #
+    # @return [Solargraph::PinCache]
+    def pin_cache
+      @pin_cache ||= fresh_pincache
+    end
+
+    # A cache instance not shared with anyone else, for a caller that must
+    # not publish what it loads into the memoized one.
+    #
+    # @return [Solargraph::PinCache]
+    def fresh_pincache
+      PinCache.new(rbs_collection_path: rbs_collection_path,
+                   rbs_collection_config_path: rbs_collection_config_path,
+                   yard_plugins: yard_plugins,
+                   directory: directory)
+    end
+
+    # @return [Array<String>]
+    def yard_plugins
+      @yard_plugins ||= global_environ.yard_plugins.sort.uniq
+    end
+
+    # The conventions that apply whatever the requires, so the answer holds
+    # in any context this workspace is used from.
+    #
+    # @return [Environ]
+    def global_environ
+      @global_environ ||= Convention.for_global(DocMap.new([], self, out: nil))
+    end
+
+    # @param gemspec [Gem::Specification]
+    # @param out [StringIO, IO, nil] output stream for logging
+    # @param rebuild [Boolean] whether to rebuild the pins even if they are cached
+    # @return [void]
+    def cache_gem gemspec, out: nil, rebuild: false
+      pin_cache.cache_gem(gemspec: gemspec, out: out, rebuild: rebuild)
+    end
+
+    # @param gemspec [Gem::Specification, Bundler::LazySpecification]
+    # @param out [StringIO, IO, nil] output stream for logging
+    # @return [void]
+    def uncache_gem gemspec, out: nil
+      pin_cache.uncache_gem(gemspec, out: out)
     end
 
     # @param level [Symbol]
@@ -147,7 +215,7 @@ module Solargraph
     #
     # @return [Gem::Specification, nil]
     def find_gem name, version = nil, out: nil
-      Gem::Specification.find_by_name(name, version)
+      gemspecs.find_gem(name, version, out: out)
     end
 
     # Gemspecs the bundle depends on directly. Empty when the
@@ -165,7 +233,7 @@ module Solargraph
     # @return [Array<Gem::Specification>]
     def gemspecs_to_cache
       # @sg-ignore Wrong argument type for Solargraph::Workspace::Gemspecs#find_gem: out expected IO, nil, received NilClass
-      stdlib_gemspecs = PinCache.possible_stdlibs.map { |name| gemspecs.find_gem(name, out: nil) }.compact
+      stdlib_gemspecs = pin_cache.possible_stdlibs.map { |name| gemspecs.find_gem(name, out: nil) }.compact
 
       # Outside a bundle there is nothing to scope to, so every installed gem
       # is a candidate - the same set master always cached.
@@ -173,6 +241,30 @@ module Solargraph
       bundled_gemspecs = Gem::Specification.to_a if bundled_gemspecs.empty?
 
       (bundled_gemspecs + stdlib_gemspecs).uniq { |gemspec| [gemspec.name, gemspec.version] }
+    end
+
+    # Cache core, then every gem this workspace could need, then the
+    # standard library.
+    #
+    # @param out [StringIO, IO, nil] output stream for logging
+    # @param rebuild [Boolean] whether to rebuild the pins even if they are cached
+    # @return [void]
+    def cache_all_for_workspace! out, rebuild: false
+      PinCache.cache_core(out: out) if !PinCache.core? || rebuild
+
+      gemspecs = gemspecs_to_cache
+      gemspecs.each do |gemspec|
+        next if !rebuild && pin_cache.cached?(gemspec)
+
+        pin_cache.cache_gem(gemspec: gemspec, rebuild: rebuild, out: out)
+      end
+      out&.puts "Documentation cached for #{gemspecs.length} gems."
+
+      # After the gems, so a require answered by a gem wins over the same
+      # name in the standard library; the gem copy is usually newer.
+      pin_cache.cache_all_stdlibs(out: out, rebuild: rebuild)
+
+      out&.puts 'Documentation cached for core, standard library and gems.'
     end
 
     # Synchronize the workspace from the provided updater.
