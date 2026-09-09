@@ -1232,7 +1232,6 @@ describe Solargraph::SourceMap::Clip do
   end
 
   it 'offers one signature help entry when a rooted and an unrooted spelling of one parameter type are combined, since both signatures describe the same overload' do
-    pending 'same_parameter_types? compares rooted_tags, so an unrooted YARD parameter type never matches its rooted RBS counterpart and both signatures survive'
     namespace = Solargraph::Pin::Namespace.new(name: 'Widget', type: :class)
     rooted_pin = Solargraph::Pin::Method.new(closure: namespace, name: 'scan', scope: :instance, comments: %(
 @overload scan(count)

@@ -122,9 +122,13 @@ module Solargraph
         block.nil? || block.same_parameter_types?(other.block)
       end
 
+      # Rootedness is ignored deliberately: GemPins.combine matches a YARD
+      # pin, whose types are still unqualified, against its RBS counterpart,
+      # whose types are rooted, so String and ::String are one overload here.
+      #
       # @return [Array<String>]
       def parameter_type_tags
-        blockless_parameters.map { |param| param.return_type.rooted_tags }
+        blockless_parameters.map { |param| param.return_type.tags }
       end
 
       # e.g., [["T"], "1", "?3", "foo:5"] - parameter arity
