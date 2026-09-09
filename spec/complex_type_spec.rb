@@ -847,7 +847,7 @@ describe 'YARD type specifier list parsing' do
       ['generic<T>', 'nil', 'true', 'false', ':123', '123'].each do |tag|
         it "treats #{tag} as rooted" do
           types = Solargraph::ComplexType.parse(tag)
-          expect(types.all?(&:rooted?)).to be(true)
+          expect(types.items.all?(&:rooted?)).to be(true)
         end
       end
     end
@@ -1007,7 +1007,7 @@ describe 'YARD type specifier list parsing' do
 
     it 'allows various parameterized types as parameterized type' do
       types = Solargraph::ComplexType.parse('Array<String>, Hash{String => Symbol}, Array(String, Integer)')
-      expect(types.all?(&:parameters?)).to be(true)
+      expect(types.items.all?(&:parameters?)).to be(true)
       expect(types.to_rbs).to eq('(Array[String] | Hash[String, Symbol] | [String, Integer])')
     end
 

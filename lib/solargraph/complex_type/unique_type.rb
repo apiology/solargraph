@@ -425,11 +425,6 @@ module Solargraph
         nil_type?
       end
 
-      # @yieldreturn [Boolean]
-      def all? &block
-        block.yield self
-      end
-
       # @return [UniqueType]
       def downcast_to_literal_if_possible
         return self

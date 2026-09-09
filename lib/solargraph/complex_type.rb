@@ -256,7 +256,7 @@ module Solargraph
                            variance: variance)
         end
       else
-        inferred.all? do |inf|
+        inferred.items.all? do |inf|
           inf.conforms_to?(api_map, expected, situation, rules,
                            variance: variance)
         end
@@ -302,7 +302,7 @@ module Solargraph
     def intersection_conjunct_quacks? api_map, quack, unique_type
       if unique_type.is_a?(UniqueType::Intersection)
         return unique_type.conjuncts.any? do |conjunct|
-          conjunct.all? { |ut| intersection_conjunct_quacks?(api_map, quack, ut) }
+          conjunct.items.all? { |ut| intersection_conjunct_quacks?(api_map, quack, ut) }
         end
       end
       # A duck-typed conjunct only vouches for its own named method.
@@ -313,11 +313,6 @@ module Solargraph
     # @return [String]
     def rooted_tags
       map(&:rooted_tag).join(', ')
-    end
-
-    # @yieldparam [UniqueType]
-    def all? &block
-      @items.all?(&block)
     end
 
     def selfy?
@@ -395,7 +390,7 @@ module Solargraph
     # every type and subtype in this union have been resolved to be
     # fully qualified
     def all_rooted?
-      all?(&:all_rooted?)
+      items.all?(&:all_rooted?)
     end
 
     # @param other [ComplexType, UniqueType]
@@ -408,7 +403,7 @@ module Solargraph
     # every top-level type has resolved to be fully qualified; see
     # #all_rooted? to check their subtypes as well
     def rooted?
-      all?(&:rooted?)
+      items.all?(&:rooted?)
     end
 
     attr_reader :items

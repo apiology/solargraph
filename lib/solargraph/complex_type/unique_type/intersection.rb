@@ -453,11 +453,6 @@ module Solargraph
         end
 
         # @sg-ignore https://github.com/castwide/solargraph/pull/1277
-        def all?(*, **, &)
-          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
-        end
-
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1277
         def desc(*, **, &)
           raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
         end
