@@ -103,6 +103,7 @@ module Solargraph
           # @return [String, nil]
           def cop_list value
             # @type [String]
+            # @sg-ignore respond_to? guards need a sound narrowing mechanism, see castwide/solargraph#1297
             value = value.join(',') if value.respond_to?(:join)
             return nil if value == '' || !value.is_a?(String)
             value

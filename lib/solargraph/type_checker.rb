@@ -271,7 +271,9 @@ module Solargraph
     def record_assignment_conforms_to? pin, declared
       return false unless pin.respond_to?(:record_type)
 
+      # @sg-ignore respond_to? guards need a sound narrowing mechanism, see castwide/solargraph#1297
       record_inferred = pin.record_type(api_map)
+      # @sg-ignore respond_to? guards need a sound narrowing mechanism, see castwide/solargraph#1297
       return false if record_inferred.nil?
 
       assignment_conforms_to?(record_inferred, declared)
