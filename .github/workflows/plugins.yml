@@ -48,7 +48,6 @@ jobs:
       # @todo Temporary, expect to revert in 0.60
       continue-on-error: true
     - name: Ensure specs still run
-      # full_spec, not spec: skip the embedded undercover check
       run: bundle exec rake full_spec
   rails:
     runs-on: ubuntu-latest
@@ -84,7 +83,6 @@ jobs:
       # @todo Temporary, expect to revert in 0.60
       continue-on-error: true
     - name: Ensure specs still run
-      # full_spec, not spec: skip the embedded undercover check
       run: bundle exec rake full_spec
   rspec:
     runs-on: ubuntu-latest
@@ -118,7 +116,6 @@ jobs:
       # @todo Temporary, expect to revert in 0.60
       continue-on-error: true
     - name: Ensure specs still run
-      # full_spec, not spec: skip the embedded undercover check
       run: bundle exec rake full_spec
 
   run_solargraph_rspec_specs:
