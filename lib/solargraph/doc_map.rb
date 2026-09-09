@@ -98,7 +98,7 @@ module Solargraph
       rbs_version_cache_key = rbs_map.cache_key
       # cache pins even if result is zero, so we don't retry building pins
       pins ||= []
-      PinCache.serialize_rbs_collection_gem(gemspec, rbs_version_cache_key, pins)
+      pin_cache.serialize_rbs_collection_gem(gemspec, pins)
       logger.info { "Cached #{pins.length} RBS collection pins for gem #{gemspec.name} #{gemspec.version} with cache_key #{rbs_version_cache_key.inspect}" unless pins.empty? }
     end
 
@@ -151,15 +151,12 @@ module Solargraph
       self.class.all_rbs_collection_gems_in_memory[rbs_collection_path] ||= {}
     end
 
-    # @return [Hash{Array(String, String) => Array<Pin::Base>}] Indexed by gemspec name and version
-    def self.all_combined_pins_in_memory
-      @all_combined_pins_in_memory ||= {}
-    end
-
-    # @todo this should also include an index by the hash of the RBS collection
-    # @return [Hash{Array(String, String) => Array<Pin::Base>}] Indexed by gemspec name and version
-    def combined_pins_in_memory
-      self.class.all_combined_pins_in_memory
+    # The cache scoped to this doc map's RBS configuration.
+    #
+    # @return [PinCache]
+    def pin_cache
+      @pin_cache ||= PinCache.new(rbs_collection_path: rbs_collection_path,
+                                  rbs_collection_config_path: rbs_collection_config_path)
     end
 
     # @return [Hash{String => String}] Indexed by gemspec full name
@@ -220,8 +217,7 @@ module Solargraph
     # @param gemspec [Gem::Specification]
     # @return [String]
     def rbs_cache_key gemspec
-      rbs_cache_keys[gemspec.full_name] ||=
-        RbsMap.from_gemspec(gemspec, rbs_collection_path, rbs_collection_config_path).cache_key
+      rbs_cache_keys[gemspec.full_name] ||= pin_cache.cache_key_for(gemspec)
     end
 
     # @param gemspec [Gem::Specification]
@@ -246,20 +242,15 @@ module Solargraph
     # @param gemspec [Gem::Specification]
     # @return [Array<Pin::Base>, nil]
     def deserialize_combined_pin_cache gemspec
-      unless combined_pins_in_memory[[gemspec.name, gemspec.version]].nil?
-        return combined_pins_in_memory[[gemspec.name, gemspec.version]]
-      end
-
       rbs_version_cache_key = rbs_cache_key(gemspec)
 
-      cached = PinCache.deserialize_combined_gem(gemspec, rbs_version_cache_key)
+      cached = pin_cache.deserialize_combined_gem(gemspec)
       if cached
         logger.info { "Loaded #{cached.length} cached YARD pins from #{gemspec.name}:#{gemspec.version}" }
-        combined_pins_in_memory[[gemspec.name, gemspec.version]] = cached
-        return combined_pins_in_memory[[gemspec.name, gemspec.version]]
+        return cached
       end
 
-      rbs_collection_pins = deserialize_rbs_collection_cache gemspec, rbs_version_cache_key
+      rbs_collection_pins = deserialize_rbs_collection_cache gemspec
 
       # A suppressed gem never gets a YARD cache, so combine against an
       # empty set rather than treating its absence as a cache miss.
@@ -269,26 +260,23 @@ module Solargraph
       if !rbs_collection_pins.nil? && (suppress_yard || !yard_pins.nil?)
         logger.debug { "Combining pins for #{gemspec.name}:#{gemspec.version}" }
         combined_pins = GemPins.combine(yard_pins || [], rbs_collection_pins)
-        PinCache.serialize_combined_gem(gemspec, rbs_version_cache_key, combined_pins)
-        combined_pins_in_memory[[gemspec.name, gemspec.version]] = combined_pins
-        logger.info { "Generated #{combined_pins_in_memory[[gemspec.name, gemspec.version]].length} combined pins for #{gemspec.name} #{gemspec.version}" }
+        pin_cache.serialize_combined_gem(gemspec, combined_pins)
+        logger.info { "Generated #{combined_pins.length} combined pins for #{gemspec.name} #{gemspec.version}" }
         return combined_pins
       end
 
       if !yard_pins.nil?
         logger.debug { "Using only YARD pins for #{gemspec.name}:#{gemspec.version}" }
-        combined_pins_in_memory[[gemspec.name, gemspec.version]] = yard_pins
-        combined_pins_in_memory[[gemspec.name, gemspec.version]]
+        yard_pins
       elsif !rbs_collection_pins.nil?
         logger.debug { "Using only RBS collection pins for #{gemspec.name}:#{gemspec.version}" }
-        combined_pins_in_memory[[gemspec.name, gemspec.version]] = rbs_collection_pins
-        combined_pins_in_memory[[gemspec.name, gemspec.version]]
+        rbs_collection_pins
       else
         logger.debug { "Pins not yet cached for #{gemspec.name}:#{gemspec.version}" }
-        # Not stored in combined_pins_in_memory: that index is process-wide
-        # and keyed only by name and version, so a provisional set there would
-        # outlive the build that supersedes it. The gemspec stays on the
-        # uncached lists the two deserialize calls above pushed it onto.
+        # Not stored in the pin cache: its in-memory index is process-wide, so
+        # a provisional set there would outlive the build that supersedes it.
+        # The gemspec stays on the uncached lists the two deserialize calls
+        # above pushed it onto.
         fallback = RbsMap.from_gemspec(gemspec, rbs_collection_path, rbs_collection_config_path).fallback_pins
         logger.debug { "Using fallback RBS pins for #{gemspec.name}:#{gemspec.version}" } if fallback
         fallback
@@ -312,11 +300,11 @@ module Solargraph
     end
 
     # @param gemspec [Gem::Specification]
-    # @param rbs_version_cache_key [String]
     # @return [Array<Pin::Base>, nil]
-    def deserialize_rbs_collection_cache gemspec, rbs_version_cache_key
+    def deserialize_rbs_collection_cache gemspec
+      rbs_version_cache_key = pin_cache.cache_key_for(gemspec)
       return if rbs_collection_pins_in_memory.key?([gemspec, rbs_version_cache_key])
-      cached = PinCache.deserialize_rbs_collection_gem(gemspec, rbs_version_cache_key)
+      cached = pin_cache.deserialize_rbs_collection_gem(gemspec)
       if cached
         logger.info { "Loaded #{cached.length} pins from RBS collection cache for #{gemspec.name}:#{gemspec.version}" } unless cached.empty?
         rbs_collection_pins_in_memory[[gemspec, rbs_version_cache_key]] = cached

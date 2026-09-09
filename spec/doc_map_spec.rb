@@ -138,7 +138,8 @@ describe Solargraph::DocMap do
     it 'does not record the fallback as if it were a real build' do
       gemspec = uncached_gemspec('logger')
       doc_map.send(:deserialize_combined_pin_cache, gemspec)
-      expect(doc_map.combined_pins_in_memory).not_to have_key([gemspec.name, gemspec.version])
+      key = [gemspec.name, gemspec.version, doc_map.send(:pin_cache).cache_key_for(gemspec)]
+      expect(Solargraph::PinCache.all_combined_pins_in_memory).not_to have_key(key)
       expect(doc_map.uncached_gemspecs).to include(gemspec)
     end
 
