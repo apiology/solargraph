@@ -33,7 +33,7 @@ module Solargraph
         # @param conjuncts [Array<ComplexType>]
         def initialize conjuncts
           @conjuncts = conjuncts
-          super(intersection_tag(:tags), rooted: true)
+          super(intersection_tag(:tags), rooted: conjuncts.all?(&:rooted?))
         end
 
         # @return [String]
@@ -47,18 +47,33 @@ module Solargraph
         end
 
         # @return [String]
+        def tags
+          tag
+        end
+
+        # @return [String]
+        def rooted_tags
+          rooted_tag
+        end
+
+        # @return [String]
+        def to_s
+          tags
+        end
+
+        # @return [String]
         def to_rbs
           conjuncts.map(&:to_rbs).join(' & ')
         end
 
         # @return [String]
         def namespace
-          conjuncts.fetch(0).namespace
+          raise NotImplementedError, "Intersection #{tag} has no single namespace - resolve each conjunct instead"
         end
 
         # @return [::Symbol]
         def scope
-          conjuncts.fetch(0).scope
+          raise NotImplementedError, "Intersection #{tag} has no single scope - resolve each conjunct instead"
         end
 
         # Pins from the conjuncts defining the method - one is enough -
@@ -101,6 +116,51 @@ module Solargraph
           false
         end
 
+        # @return [Boolean]
+        def void?
+          conjuncts.all?(&:void?)
+        end
+
+        # @return [Boolean]
+        def undefined?
+          conjuncts.all?(&:undefined?)
+        end
+
+        # @return [Boolean]
+        def defined?
+          conjuncts.any?(&:defined?)
+        end
+
+        # @return [Boolean]
+        def nil_type?
+          conjuncts.all?(&:nil_type?)
+        end
+
+        # @return [Boolean]
+        def selfy?
+          conjuncts.any?(&:selfy?)
+        end
+
+        # A value of the intersection satisfies every conjunct, so one
+        # literal conjunct fixes it to that literal value.
+        #
+        # @return [Boolean]
+        def literal?
+          conjuncts.any?(&:literal?)
+        end
+
+        # @param other [Object]
+        # @return [Boolean]
+        def eql? other
+          # @sg-ignore flow sensitive typing should support .class == .class
+          self.class == other.class && sorted_conjuncts == other.sorted_conjuncts
+        end
+
+        # @return [Integer]
+        def hash
+          [self.class, sorted_conjuncts].hash
+        end
+
         # @yieldparam [UniqueType]
         # @return [void]
         # @overload each_unique_type()
@@ -108,6 +168,18 @@ module Solargraph
         def each_unique_type &block
           return enum_for(__method__) unless block_given?
           conjuncts.each { |conjunct| conjunct.each_unique_type(&block) }
+        end
+
+        # Substituting one type for another where this one is expected
+        # is safe only where it is safe for every conjunct, so the
+        # variance is whatever the conjuncts agree on - and invariant
+        # when they disagree, since no one direction then holds for all.
+        #
+        # @param situation [:method_call, :return_type, :assignment]
+        # @return [:invariant, :covariant, :contravariant]
+        def erased_variance situation = :method_call
+          variances = conjuncts.map { |conjunct| conjunct.erased_variance(situation) }.uniq
+          variances.length == 1 ? variances.fetch(0) : :invariant
         end
 
         # An intersection can be assigned wherever any one of its
@@ -166,6 +238,16 @@ module Solargraph
           end)
         end
 
+        # Each conjunct probes the same definitions and receiver, as in
+        # #resolve_generics_from_context above.
+        #
+        # @param definitions [Pin::Namespace, Pin::Method] The module/class/method which uses generic types
+        # @param context_type [ComplexType] The receiver type
+        # @return [Intersection]
+        def resolve_generics definitions, context_type
+          Intersection.new(conjuncts.map { |conjunct| conjunct.resolve_generics(definitions, context_type) })
+        end
+
         # Applies the transformation to each conjunct independently
         # and rebuilds the intersection from the results.
         #
@@ -195,12 +277,220 @@ module Solargraph
           Intersection.new(conjuncts.map { |conjunct| conjunct.qualify(api_map, *gates) })
         end
 
+        # @param api_map [ApiMap]
+        # @param gates [Array<String>]
+        # @return [Intersection]
+        def unalias_and_qualify api_map, *gates
+          Intersection.new(conjuncts.map { |conjunct| conjunct.unalias_and_qualify(api_map, *gates) })
+        end
+
         # @return [self]
         def erase_parameters
           self
         end
 
+        # @return [Array<ComplexType::UniqueType>]
+        def unioned_items
+          [self]
+        end
+
+        # Pairs conjunct by conjunct with another intersection and
+        # rebuilds one from the results. Any other type has no
+        # conjuncts to line up with, so it pairs with the whole.
+        #
+        # @param other [ComplexType, ComplexType::UniqueType]
+        # @yieldparam mine [ComplexType, ComplexType::UniqueType]
+        # @yieldparam theirs [ComplexType, ComplexType::UniqueType]
+        # @yieldreturn [ComplexType, ComplexType::UniqueType]
+        # @return [ComplexType, ComplexType::UniqueType]
+        def combine_via other, &block
+          return block.call(self, other) unless other.is_a?(Intersection)
+
+          # @param members [Array<ComplexType>]
+          gather = ->(members) { members.length == 1 ? members.fetch(0) : Intersection.new(members) }
+          results = TypeMethods.combine_members(conjuncts, other.conjuncts, gather, &block)
+          Intersection.new(results.map { |type| ComplexType.new([type]) })
+        end
+
+        # Unanswerable for an intersection: each would report from @name
+        # (the whole compound tag) or from subtype and parameter state an
+        # intersection never populates.
+        def rooted_namespace(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def namespace_type(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def recreate(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def erased_version_of?(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def value_types(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def parameters?(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def list_parameters?(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def fixed_parameters?(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def hash_parameters?(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def substring(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def rooted_substring(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def generate_substring_from(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def parameters_as_rbs(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def resolve_param_generics_from_context(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def rbs_name(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def non_literal_name(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def determine_non_literal_name(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def nullable?(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def expand(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def without_nil(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def narrow_with(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def erase_generics(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def simplify_literals(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def force_rooted(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def self_to_type(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def exclude(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def reduce_class_type(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def to_a(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def each(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def map(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def all?(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def any?(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def desc(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def parameter_variance(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def simplifyable_literal?(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def tuple?(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def downcast_to_literal_if_possible(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def rbs_union(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        protected
+
+        def equality_fields(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        # Conjunct order is not part of the type. rooted_tags keys the
+        # sort rather than tag, which reports only a union conjunct's
+        # first member and drops the :: from a rooted one.
+        #
+        # @return [Array<ComplexType>]
+        def sorted_conjuncts
+          conjuncts.sort_by(&:rooted_tags)
+        end
+
         private
+
+        def mixin_pairing?(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        def namespace_kind(*, **, &)
+          raise NotImplementedError, "Intersection #{tag} cannot answer ##{__method__} - resolve each conjunct instead"
+        end
 
         # Renders conjuncts as a tag, bracketing multi-item ones since
         # `&` binds tighter than `,`/`|` (`[A|B] & C`, not `A, B & C`).

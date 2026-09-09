@@ -20,7 +20,7 @@ module Solargraph
     def initialize types = [UniqueType::UNDEFINED]
       # @todo @items here should not need an annotation
       # @type [Array<UniqueType>]
-      items = types.flat_map(&:items).uniq(&:to_s)
+      items = types.flat_map(&:items).uniq(&:rooted_tags)
       if items.any? { |i| i.name == 'false' } && items.any? { |i| i.name == 'true' }
         items.delete_if { |i| %w[false true].include?(i.name) }
         items.unshift(UniqueType::BOOLEAN)
@@ -39,11 +39,18 @@ module Solargraph
     def qualify api_map, *gates
       red = reduce_object
       types = red.items.map do |t|
-        next t if %w[nil void undefined].include?(t.name)
-        next t if ['::Boolean'].include?(t.rooted_name)
-        api_map.unalias(t.name) || t.qualify(api_map, *gates)
+        next t if %w[nil void undefined].include?(t.rooted_tags)
+        next t if ['::Boolean'].include?(t.rooted_tags)
+        t.unalias_and_qualify(api_map, *gates)
       end
       ComplexType.new(types).reduce_object
+    end
+
+    # @param api_map [ApiMap]
+    # @param gates [Array<String>]
+    # @return [ComplexType]
+    def unalias_and_qualify api_map, *gates
+      ComplexType.new(map { |t| t.unalias_and_qualify(api_map, *gates) })
     end
 
     # Pins for calling +word+ on each alternative of this union
@@ -150,6 +157,25 @@ module Solargraph
     # @return [Array<UniqueType>]
     def to_a
       @items
+    end
+
+    # @return [Array<ComplexType::UniqueType>]
+    def unioned_items
+      @items
+    end
+
+    # Pairs this union up with another type member by member, yields
+    # each pair, and reassembles the results into one union.
+    #
+    # @param other [ComplexType, ComplexType::UniqueType]
+    # @yieldparam mine [ComplexType, ComplexType::UniqueType]
+    # @yieldparam theirs [ComplexType, ComplexType::UniqueType]
+    # @yieldreturn [ComplexType, ComplexType::UniqueType]
+    # @return [ComplexType, ComplexType::UniqueType]
+    def combine_via other, &block
+      # @param members [Array<ComplexType, ComplexType::UniqueType>]
+      gather = ->(members) { ComplexType.union(*members) }
+      ComplexType.union(*TypeMethods.combine_members(unioned_items, other.unioned_items, gather, &block))
     end
 
     # @param index [Integer]
@@ -661,6 +687,18 @@ module Solargraph
         result
       end
 
+      # Builds a union of the given types, dropping duplicates. A
+      # lone type comes back as itself rather than as a union of one,
+      # so union(A, A) is A.
+      #
+      # @param types [Array<ComplexType, ComplexType::UniqueType>]
+      # @return [ComplexType, ComplexType::UniqueType]
+      def union *types
+        items = types.flat_map(&:items).uniq(&:rooted_tags)
+        return items.fetch(0) if items.length == 1
+        ComplexType.new(items)
+      end
+
       # @param strings [Array<String>]
       # @return [ComplexType]
       def try_parse *strings
@@ -728,8 +766,7 @@ module Solargraph
       # @param disjuncts [Array<ComplexType, ComplexType::UniqueType>]
       # @return [ComplexType::UniqueType, ComplexType]
       def close_disjunction disjuncts
-        return disjuncts.fetch(0) if disjuncts.length == 1
-        ComplexType.new(disjuncts)
+        union(*disjuncts)
       end
     end
 

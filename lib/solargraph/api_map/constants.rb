@@ -84,6 +84,11 @@ module Solargraph
                        type.tag == 'Boolean'
 
         gates.push '' unless gates.include?('')
+        unique_type = type.first
+        if unique_type.is_a?(ComplexType::UniqueType::Intersection)
+          return qualify_conjuncts(unique_type, gates)
+        end
+
         fqns = resolve(type.rooted_namespace, *gates)
         return unless fqns
         pin = store.get_path_pins(fqns).first
@@ -105,6 +110,23 @@ module Solargraph
 
       # @return [Store]
       attr_reader :store
+
+      # An intersection has no single namespace, so each conjunct is
+      # qualified on its own; a conjunct that cannot be resolved
+      # leaves the whole type unresolvable.
+      #
+      # @param intersection [ComplexType::UniqueType::Intersection]
+      # @param gates [Array<String>]
+      # @return [ComplexType, nil]
+      def qualify_conjuncts intersection, gates
+        qualified = intersection.conjuncts.map do |conjunct|
+          qualified_conjunct = qualify_type(conjunct, *gates)
+          return nil if qualified_conjunct.nil?
+
+          qualified_conjunct
+        end
+        ComplexType.new([ComplexType::UniqueType::Intersection.new(qualified)])
+      end
 
       # @param name [String]
       # @param gates [Array<String>]

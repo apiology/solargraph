@@ -22,13 +22,14 @@ module Solargraph
       # @param level [Symbol]
       # @param overrides [Hash{Symbol => Symbol}]
       def initialize level, overrides
-        @rank = if LEVELS.key?(level)
-                  LEVELS[level]
-                else
-                  Solargraph.logger.warn "Unrecognized TypeChecker level #{level}, assuming normal"
-                  0
-                end
-        @level = LEVELS[LEVELS.values.index(@rank)]
+        if LEVELS.key?(level)
+          @rank = LEVELS.fetch(level)
+          @level = level
+        else
+          Solargraph.logger.warn "Unrecognized TypeChecker level #{level}, assuming normal"
+          @rank = 0
+          @level = :normal
+        end
         @overrides = overrides
       end
 
@@ -77,14 +78,14 @@ module Solargraph
       # @todo 2: multiple assignment from a tuple gives every variable the first element type
       # @todo 1: defined? is unresolved and the nil case above is not narrowed
       #
-      # flow sensitive typing could handle (103):
+      # flow sensitive typing could handle (104):
       #
       # @todo 36: flow sensitive typing needs to handle attrs
       # @todo 29: flow sensitive typing should be able to handle redefinition
       # @todo 19: flow sensitive typing needs to narrow down type with an if is_a? check
       # @todo 13: Need to validate config
       # @todo 10: flow sensitive typing ought to be able to handle 'when ClassName'
-      # @todo 8: flow sensitive typing should support .class == .class
+      # @todo 9: flow sensitive typing should support .class == .class
       # @todo 6: need boolish support for ? methods
       # @todo 6: flow sensitive typing needs better handling of ||= on lvars
       # @todo 5: literal arrays in this module turn into ::Solargraph::Source::Chain::Array
@@ -154,7 +155,7 @@ module Solargraph
       # @param type [Symbol]
       # @param level [Symbol]
       def report? type, level
-        rank >= LEVELS[@overrides.fetch(type, level)]
+        rank >= LEVELS.fetch(@overrides.fetch(type, level))
       end
     end
   end

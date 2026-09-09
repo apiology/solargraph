@@ -321,7 +321,7 @@ module Solargraph
       def maybe_nil type, api_map
         return type if type.undefined? || type.void? || type.nullable?
         return type unless nullable?(api_map)
-        ComplexType.new(type.items + [ComplexType::NIL])
+        ComplexType.new([type, ComplexType::NIL])
       end
 
       protected

@@ -101,6 +101,32 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message)).to be_empty
     end
 
+    it 'does not leak an unbound generic from an unmatched Hash#fetch overload' do
+      checker = type_checker(%(
+        class A
+          # @param b [Hash{String => Integer}]
+          # @return [Integer]
+          def a b
+            b.fetch('x')
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
+    it 'infers nil as part of Hash#[] on a plainly-typed Hash' do
+      checker = type_checker(%(
+        class A
+          # @param b [Hash{String => Integer}]
+          # @return [Integer, nil]
+          def a b
+            b['x']
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
     it 'respects pin visibility in if/nil? pattern' do
       checker = type_checker(%(
         class Foo

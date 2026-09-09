@@ -550,6 +550,22 @@ module Solargraph
         [self]
       end
 
+      # @return [Array<ComplexType::UniqueType>]
+      def unioned_items
+        [self]
+      end
+
+      # A lone type has one member, so there is one pair to make.
+      #
+      # @param other [ComplexType, UniqueType]
+      # @yieldparam mine [self]
+      # @yieldparam theirs [ComplexType, UniqueType]
+      # @yieldreturn [ComplexType, UniqueType]
+      # @return [ComplexType, UniqueType]
+      def combine_via other
+        yield self, other
+      end
+
       # @param new_name [String, nil]
       # @param make_rooted [Boolean, nil]
       # @param new_key_types [Array<ComplexType>, nil]
@@ -648,6 +664,15 @@ module Solargraph
           return UniqueType::UNDEFINED
         end
         qualified.recreate(new_name: fqns, make_rooted: true)
+      end
+
+      # Expand this type if it names a type alias; otherwise qualify it.
+      #
+      # @param api_map [ApiMap]
+      # @param gates [Array<String>]
+      # @return [ComplexType, UniqueType]
+      def unalias_and_qualify api_map, *gates
+        api_map.unalias(name) || qualify(api_map, *gates)
       end
 
       def selfy?
