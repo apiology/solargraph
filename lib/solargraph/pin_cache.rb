@@ -11,6 +11,10 @@ module Solargraph
     # minute.
     YARD_SUPPRESSED_GEMS = ['parser'].freeze
 
+    # Stands in for a YARD plugin whose gem cannot be resolved, so its
+    # entries stay separate from any version we can name.
+    UNRESOLVED_PLUGIN_VERSION = 'unresolved'
+
     include Logging
 
     attr_reader :directory, :rbs_collection_path, :rbs_collection_config_path, :yard_plugins
@@ -307,10 +311,25 @@ module Solargraph
       cached
     end
 
+    # Version each plugin as well as naming it: an upgraded plugin can
+    # produce different pins from the same source, and must not be served
+    # the ones its predecessor built.
+    #
     # @return [Array<String>]
     def yard_path_components
-      ["yard-#{YARD::VERSION}",
-       yard_plugins.sort.uniq.join('-')]
+      plugins = yard_plugins.sort.uniq.map { |plugin| "#{plugin}-#{yard_plugin_version(plugin)}" }
+      ["yard-#{YARD::VERSION}", plugins.join('-')]
+    end
+
+    # YARD plugins are named without the `yard-` prefix their gems carry.
+    #
+    # @param plugin [String]
+    # @return [String]
+    def yard_plugin_version plugin
+      Gem.loaded_specs["yard-#{plugin}"]&.version&.to_s ||
+        Gem::Specification.find_by_name("yard-#{plugin}").version.to_s
+    rescue Gem::MissingSpecError
+      UNRESOLVED_PLUGIN_VERSION
     end
 
     # @param gemspec [Gem::Specification, Bundler::LazySpecification]

@@ -620,7 +620,13 @@ module Solargraph
         logger.info "Caching #{spec.name} #{spec.version}"
         Thread.new do
           report_cache_progress spec.name, pending
-          _o, e, s = Open3.capture3(workspace.command_path, 'cache', spec.name, spec.version.to_s)
+          # The subprocess derives its cache key from the RBS collection it
+          # finds in its own working directory, so run it in the workspace's
+          # or it writes an entry under a key we will not look up.
+          kwargs = {}
+          kwargs[:chdir] = workspace.directory.to_s if workspace.directory && !workspace.directory.empty?
+          _o, e, s = Open3.capture3(workspace.command_path, 'cache', spec.name, spec.version.to_s,
+                                    **kwargs)
           if s.success?
             logger.info "Cached #{spec.name} #{spec.version}"
           else
