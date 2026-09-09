@@ -46,4 +46,25 @@ describe Solargraph::GemPins do
       expect(pin.location.filename).to end_with('task.rb')
     end
   end
+
+  context 'with a gem method on a class core also defines' do
+    let(:requires) { ['bigdecimal'] }
+
+    it "offers the gem's signature alongside core's" do
+      gemspec = Gem::Specification.find_by_name('bigdecimal')
+      # GemPins.combine only runs when the combined entry is absent, so a
+      # stale one would leave this asserting on cached output.
+      Solargraph::PinCache.uncache_gem(gemspec, out: nil)
+      map = Solargraph::DocMap.new(['bigdecimal'], workspace, out: nil)
+      map.cache_all!(nil)
+
+      # ApiMap loads core too, so this is where bigdecimal's Integer#+ and
+      # core's meet - the layer the signature goes missing at.
+      api_map = Solargraph::ApiMap.new(pins: map.pins)
+      plus = api_map.get_method_stack('Integer', '+', scope: :instance).first
+
+      expect(plus.signatures.map { |sig| sig.parameters.map { |param| param.return_type.to_s } })
+        .to include(['BigDecimal'])
+    end
+  end
 end
