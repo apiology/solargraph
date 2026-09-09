@@ -154,11 +154,6 @@ module Solargraph
       @items.length
     end
 
-    # @return [Array<UniqueType>]
-    def to_a
-      @items
-    end
-
     # @return [Array<ComplexType::UniqueType>]
     def unioned_items
       @items

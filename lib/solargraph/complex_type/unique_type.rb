@@ -542,11 +542,6 @@ module Solargraph
         [self].each(&)
       end
 
-      # @return [Array<UniqueType>]
-      def to_a
-        [self]
-      end
-
       # @return [Array<ComplexType::UniqueType>]
       def unioned_items
         [self]
