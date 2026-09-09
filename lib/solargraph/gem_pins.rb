@@ -11,6 +11,19 @@ module Solargraph
       include Logging
     end
 
+    # Combine method pins sharing a path. Core and a gem that reopens a
+    # core class are cached separately, so a method described by both only
+    # meets here.
+    #
+    # @param pins [Array<Pin::Base>]
+    # @return [Array<Pin::Base>]
+    def self.combine_method_pins_by_path pins
+      method_pins, other_pins = pins.partition { |pin| pin.instance_of?(Pin::Method) }
+      by_path = method_pins.group_by(&:path)
+      by_path.transform_values! { |same_path| combine_method_pins(*same_path) }
+      by_path.values + other_pins
+    end
+
     # @param pins [Array<Pin::Method>]
     # @return [Pin::Method, nil]
     def self.combine_method_pins(*pins)
