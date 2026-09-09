@@ -73,8 +73,8 @@ module Solargraph
               raise ComplexTypeError,
                     "Bad hash type: name=#{name}, substring=#{substring} - must have exactly two parameters"
             end
-            key_types.concat(subs[0].map { |u| ComplexType.new([u]) })
-            subtypes.concat(subs[1].map { |u| ComplexType.new([u]) })
+            key_types.concat(subs[0].items.map { |u| ComplexType.new([u]) })
+            subtypes.concat(subs[1].items.map { |u| ComplexType.new([u]) })
           else
             subtypes.concat subs
           end
@@ -475,7 +475,7 @@ module Solargraph
             context_params = yield context_type if context_type
             if context_params && context_params[i]
               type_arg = context_params[i]
-              type_arg.map do |new_unique_context_type|
+              type_arg.items.map do |new_unique_context_type|
                 ut.resolve_generics_from_context generics_to_resolve, new_unique_context_type,
                                                  resolved_generic_values: resolved_generic_values
               end
@@ -521,13 +521,6 @@ module Solargraph
             t
           end
         end
-      end
-
-      # @yieldparam t [self]
-      # @yieldreturn [self]
-      # @return [Array<self>]
-      def map &block
-        [block.yield(self)]
       end
 
       # @return [Array<ComplexType::UniqueType>]

@@ -50,7 +50,7 @@ module Solargraph
     # @param gates [Array<String>]
     # @return [ComplexType]
     def unalias_and_qualify api_map, *gates
-      ComplexType.new(map { |t| t.unalias_and_qualify(api_map, *gates) })
+      ComplexType.new(items.map { |t| t.unalias_and_qualify(api_map, *gates) })
     end
 
     # Pins for calling +word+ on each alternative of this union
@@ -102,16 +102,6 @@ module Solargraph
     end
 
     # @yieldparam [UniqueType]
-    # @yieldreturn [UniqueType]
-    # @return [Array<UniqueType>]
-    # @sg-ignore Declared return type
-    #   ::Array<::Solargraph::ComplexType::UniqueType> does not match
-    #   inferred type ::Array<::Proc> for Solargraph::ComplexType#map
-    def map &block
-      @items.map(&block)
-    end
-
-    # @yieldparam [UniqueType]
     # @return [void]
     # @overload each_unique_type()
     #   @return [Enumerator<UniqueType>]
@@ -130,7 +120,7 @@ module Solargraph
     # @param new_subtypes [Array<ComplexType>, nil]
     # @return [self]
     def recreate new_name: nil, make_rooted: nil, new_key_types: nil, new_subtypes: nil
-      ComplexType.new(map do |ut|
+      ComplexType.new(items.map do |ut|
                         ut.recreate(new_name: new_name,
                                     make_rooted: make_rooted,
                                     new_key_types: new_key_types,
@@ -185,12 +175,12 @@ module Solargraph
     end
 
     def to_s
-      map(&:tag).join(', ')
+      items.map(&:tag).join(', ')
     end
 
     # @return [String]
     def tags
-      map(&:tag).join(', ')
+      items.map(&:tag).join(', ')
     end
 
     # @return [String]
@@ -306,7 +296,7 @@ module Solargraph
 
     # @return [String]
     def rooted_tags
-      map(&:rooted_tag).join(', ')
+      items.map(&:rooted_tag).join(', ')
     end
 
     def selfy?
@@ -319,7 +309,7 @@ module Solargraph
 
     # @return [self]
     def simplify_literals
-      ComplexType.new(map(&:simplify_literals))
+      ComplexType.new(items.map(&:simplify_literals))
     end
 
     # @param new_name [String, nil]
@@ -330,13 +320,13 @@ module Solargraph
       if new_name&.start_with?('::')
         raise "Please remove leading :: and set rooted with recreate() instead - #{new_name}"
       end
-      ComplexType.new(map { |ut| ut.transform(new_name, &transform_type) })
+      ComplexType.new(items.map { |ut| ut.transform(new_name, &transform_type) })
     end
 
     # @param named_types [Hash{String => ComplexType}]
     # @return [ComplexType]
     def expand named_types
-      ComplexType.new(map { |ut| ut.expand(named_types) })
+      ComplexType.new(items.map { |ut| ut.expand(named_types) })
     end
 
     # @return [self]

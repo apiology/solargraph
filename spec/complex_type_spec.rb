@@ -835,13 +835,13 @@ describe 'YARD type specifier list parsing' do
     context 'when defining rooted and unrooted concept' do
       it 'identify rooted types' do
         types = Solargraph::ComplexType.parse '::Array'
-        expect(types.map(&:rooted?)).to eq([true])
+        expect(types.items.map(&:rooted?)).to eq([true])
         expect(types.to_rbs).to eq('::Array')
       end
 
       it 'identify unrooted types' do
         types = Solargraph::ComplexType.parse 'Array'
-        expect(types.map(&:rooted?)).to eq([false])
+        expect(types.items.map(&:rooted?)).to eq([false])
       end
 
       ['generic<T>', 'nil', 'true', 'false', ':123', '123'].each do |tag|
