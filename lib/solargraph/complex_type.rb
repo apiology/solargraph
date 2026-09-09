@@ -179,11 +179,6 @@ module Solargraph
       @items[index]
     end
 
-    # @return [Array<UniqueType>]
-    def select &block
-      @items.select(&block)
-    end
-
     # @return [String]
     def namespace
       # cache this attr for high frequency call
