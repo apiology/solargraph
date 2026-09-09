@@ -4,7 +4,6 @@ module Solargraph
   module Pin
     class Keyword < Base
       def initialize(name, **kwargs)
-        # @sg-ignore "Unrecognized keyword argument kwargs to Solargraph::Pin::Base#initialize"
         super(name: name, **kwargs)
       end
 

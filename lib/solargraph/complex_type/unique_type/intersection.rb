@@ -149,6 +149,14 @@ module Solargraph
           conjuncts.any?(&:literal?)
         end
 
+        # The tag is the compound `"A & B"` string, never a literal value,
+        # so #qualify descends into the conjuncts rather than keeping it whole.
+        #
+        # @return [Boolean]
+        def literal_tag?
+          false
+        end
+
         # @param other [Object]
         # @return [Boolean]
         def eql? other
@@ -265,6 +273,16 @@ module Solargraph
         # @return [self]
         def transform _new_name = nil, &transform_type
           Intersection.new(conjuncts.map { |conjunct| conjunct.transform(&transform_type) })
+        end
+
+        # UniqueType#qualify walks key_types and subtypes; an
+        # intersection holds neither, so it qualifies its conjuncts.
+        #
+        # @param api_map [ApiMap]
+        # @param gates [Array<String>]
+        # @return [Intersection]
+        def qualify api_map, *gates
+          Intersection.new(conjuncts.map { |conjunct| conjunct.qualify(api_map, *gates) })
         end
 
         # @param api_map [ApiMap]

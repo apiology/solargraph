@@ -191,6 +191,16 @@ module Solargraph
         non_literal_name != name
       end
 
+      # Whether this type's tag is a literal value (`:a`, `"Index"`, `1`,
+      # `true`) rather than a class name. Unlike #literal?, this does not
+      # take part in type inference; it only reports what the tag says, so
+      # a literal written in an annotation survives qualification.
+      #
+      # @return [Boolean]
+      def literal_tag?
+        non_literal_name != name
+      end
+
       # @return [String]
       def non_literal_name
         @non_literal_name ||= determine_non_literal_name
@@ -617,23 +627,43 @@ module Solargraph
         named_types[name] || self
       end
 
+      # A literal tag has to survive qualification: widening `:a` to Symbol
+      # erases which key the type names. map (not flat_map) keeps each
+      # entry as one parameter position.
+      #
+      # @param cts [::Array<ComplexType>]
+      # @param api_map [ApiMap]
+      # @param gates [::Array<String>]
+      # @return [::Array<ComplexType>]
+      def qualify_positions cts, api_map, gates
+        cts.map do |ct|
+          ComplexType.new(ct.items.map { |ut| ut.literal_tag? ? ut : ut.qualify(api_map, *gates) })
+        end
+      end
+      private :qualify_positions
+
       # Generate a ComplexType that fully qualifies this type's namespaces.
       #
       # @param api_map [ApiMap] The ApiMap that performs qualification
       # @param gates [Array<String>] The namespaces from which to resolve names
       # @return [self, ComplexType, UniqueType] The generated ComplexType
       def qualify api_map, *gates
-        transform do |t|
-          next t if t.name == GENERIC_TAG_NAME
-          next t if t.duck_type? || t.void? || t.undefined? || t.literal?
-          open = t.rooted? ? [''] : gates
-          fqns = api_map.qualify(t.non_literal_name, *open)
-          if fqns.nil?
-            next UniqueType::BOOLEAN if t.tag == 'Boolean'
-            next UniqueType::UNDEFINED
-          end
-          t.recreate(new_name: fqns, make_rooted: true)
+        if name == GENERIC_TAG_NAME
+          new_key_types = @key_types
+          new_subtypes = @subtypes
+        else
+          new_key_types = qualify_positions(@key_types, api_map, gates)
+          new_subtypes = qualify_positions(@subtypes, api_map, gates)
         end
+        qualified = recreate(new_key_types: new_key_types, new_subtypes: new_subtypes)
+        return qualified if name == GENERIC_TAG_NAME || duck_type? || void? || undefined? || literal?
+        open = rooted? ? [''] : gates
+        fqns = api_map.qualify(non_literal_name, *open)
+        if fqns.nil?
+          return UniqueType::BOOLEAN if tag == 'Boolean'
+          return UniqueType::UNDEFINED
+        end
+        qualified.recreate(new_name: fqns, make_rooted: true)
       end
 
       # Expand this type if it names a type alias; otherwise qualify it.
