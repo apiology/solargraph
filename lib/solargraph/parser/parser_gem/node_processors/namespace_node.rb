@@ -8,6 +8,7 @@ module Solargraph
           include ParserGem::NodeMethods
 
           def process
+            # @sg-ignore Need to add nil check here
             name = unpack_name(node.children[0])
             comments = comments_for(node)
 
@@ -20,10 +21,12 @@ module Solargraph
               type: node.type,
               location: loc,
               closure: region.closure,
+              compound_statement: region.compound_statement,
               name: name,
               comments: comments,
               visibility: :public,
               gates: region.closure.gates.freeze,
+              node: node,
               source: :parser
             )
             pins.push nspin
@@ -35,7 +38,7 @@ module Solargraph
                 source: :parser
               )
             end
-            process_children region.update(closure: nspin, visibility: :public)
+            process_children region.update(closure: nspin, visibility: :public, compound_statement: nspin)
           end
 
           private
@@ -57,13 +60,18 @@ module Solargraph
             match = source[offset...eol].to_s.match(/\A\s*#\[([^\]]*)\]/)
             return unless match
 
-            code = match[1].strip
+            captured = match[1]
+            return unless captured
+
+            code = captured.strip
             return if code.empty?
 
             "<#{code}>"
           end
 
+          # @return [String, nil]
           def type_from_node
+            # @sg-ignore Need to add nil check here
             unpack_name(node.children[1]) if node.children[1]&.type == :const
           end
         end

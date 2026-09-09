@@ -24,6 +24,7 @@ module Solargraph
               if sclass.children[0].nil? && names.last != sclass.children[1].to_s
                 names << sclass.children[1].to_s
               else
+                # @sg-ignore https://github.com/castwide/solargraph/issues/1251
                 names.push NodeMethods.unpack_name(sclass.children[0]), sclass.children[1].to_s
               end
               name = names.reject(&:empty?).join('::')

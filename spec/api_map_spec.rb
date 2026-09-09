@@ -758,15 +758,15 @@ describe Solargraph::ApiMap do
     expect(api_map.qualify('Boolean')).to eq('Boolean')
   end
 
-  # it 'knows that true is a "subtype" of Boolean' do
-  #   api_map = described_class.new
-  #   expect(api_map.super_and_sub?('Boolean', 'true')).to be(true)
-  # end
+  it 'knows that true is a "subtype" of Boolean' do
+    api_map = described_class.new
+    expect(api_map.super_and_sub?('Boolean', 'true')).to be(true)
+  end
 
-  # it 'knows that false is a "subtype" of Boolean' do
-  #   api_map = described_class.new
-  #   expect(api_map.super_and_sub?('Boolean', 'false')).to be(true)
-  # end
+  it 'knows that false is a "subtype" of Boolean' do
+    api_map = described_class.new
+    expect(api_map.super_and_sub?('Boolean', 'false')).to be(true)
+  end
 
   it 'resolves aliases for YARD methods' do
     dir = File.absolute_path(File.join('spec', 'fixtures', 'yard_map'))
@@ -925,6 +925,34 @@ describe Solargraph::ApiMap do
     expect(pins.map(&:return_type).map(&:tag)).to eq(%w[Integer Integer])
   end
 
+  it 'preserves duck type return tags in attached macros' do
+    source = Solargraph::SourceMap.load_string(%(
+      class Macro
+        # @!macro [new] duck_attr
+        #   @!method $1
+        #     @return [#quack]
+        # @param name [Symbol]
+        # @return [void]
+        def self.duck_attr(name); end
+
+        # @!macro [new] class_attr
+        #   @!method $1
+        #     @return [String]
+        # @param name [Symbol]
+        # @return [void]
+        def self.class_attr(name); end
+
+        duck_attr :ducky
+        class_attr :stringy
+      end
+    ), 'test.rb')
+    @api_map.catalog(Solargraph::Bench.new(source_maps: [source]))
+    expect(@api_map.get_path_pins('Macro#ducky').first.return_type.tag).to eq('#quack')
+    expect(@api_map.get_path_pins('Macro#stringy').first.return_type.tag).to eq('String')
+    methods = @api_map.get_complex_type_methods(Solargraph::ComplexType.parse('#quack'))
+    expect(methods.map(&:name)).to include('quack')
+  end
+
   it 'generates methods from @!attribute tag in attached dsl macros' do
     source = Solargraph::SourceMap.load_string(%(
       class Macro
@@ -1004,5 +1032,23 @@ describe Solargraph::ApiMap do
     expect(pins.first.comments).to include('create a foo')
     # @todo Undefined because the return tag expands to `type: String`
     expect(pins.map(&:return_type).map(&:tag)).to eq(%w[undefined])
+  end
+
+  # @!override on a constant used to abort cataloging with NoMethodError
+  # because Pin::Constant does not respond to #signatures.
+  # https://github.com/castwide/solargraph/issues/1302
+  it 'applies override directives to constants without aborting' do
+    source = Solargraph::Source.load_string(%(
+      # @!override Overridable::CONST
+      #   @return [Integer]
+
+      module Overridable
+        CONST = 'a string'
+      end
+    ), 'test.rb')
+    api_map = described_class.new
+    expect { api_map.map source }.not_to raise_error
+    pin = api_map.get_path_pins('Overridable::CONST').first
+    expect(pin.return_type.tag).to eq('Integer')
   end
 end

@@ -23,6 +23,19 @@ describe Solargraph::Convention::StructDefinition do
       expect(param_baz.return_type.tag).to eql('Integer')
     end
 
+    it 'treats keyword args as optional, since Ruby defaults omitted members to nil' do
+      source = Solargraph::SourceMap.load_string(%(
+        # @param bar [String]
+        # @param baz [Integer]
+        Foo = Struct.new(:bar, :baz, keyword_init: true)
+      ), 'test.rb')
+
+      # @type [Array<Solargraph::Pin::Parameter>]
+      params = source.pins.find { |p| p.path == 'Foo#initialize' }.parameters
+
+      expect(params.map(&:decl)).to eql(%i[kwoptarg kwoptarg])
+    end
+
     it 'sets closure to method on assignment operator parameters' do
       source = Solargraph::SourceMap.load_string(%(
         # @param bar [String]
@@ -135,6 +148,20 @@ describe Solargraph::Convention::StructDefinition do
         expect(iv_baz.return_type.tag).to eql('Integer')
       end
     end
+
+    it 'supports assignment to a namespaced constant' do
+      source = Solargraph::SourceMap.load_string(%(
+        # @param bar [String]
+        # @param baz [Integer]
+        Foo::Baz = Struct.new(:bar, :baz)
+      ), 'test.rb')
+
+      # @type [Array<Solargraph::Pin::Parameter>]
+      params = source.pins.find { |p| p.path == 'Foo::Baz#initialize' }.parameters
+
+      expect(params.map(&:name)).to eql(%w[bar baz])
+      expect(params.map(&:return_type).map(&:tag)).to eql(%w[String Integer])
+    end
   end
 
   context 'with typechecking' do
@@ -147,6 +174,32 @@ describe Solargraph::Convention::StructDefinition do
         Foo = Struct.new(:bar, :baz)
       ))
       expect { checker.problems }.not_to raise_error
+    end
+
+    it 'does not report a missing keyword argument when a keyword_init member is omitted' do
+      checker = type_checker(%(
+        class Watch < Struct.new(:name, :time, keyword_init: true); end
+
+        class Caller
+          # @return [Watch]
+          def go
+            Watch.new(name: 'foo')
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).not_to include(a_string_matching(/Missing keyword argument/))
+    end
+
+    it 'maps a Struct whose attribute tag will not parse, giving that attribute an undefined type' do
+      source = nil
+      expect do
+        source = Solargraph::SourceMap.load_string(%(
+          # @param dimensions [Hash{Symbol => Integer]
+          Box = Struct.new(:dimensions)
+        ), 'test.rb')
+      end.not_to raise_error
+
+      expect(source.pins.find { |p| p.path == 'Box#dimensions' }.return_type.tag).to eql('undefined')
     end
   end
 end

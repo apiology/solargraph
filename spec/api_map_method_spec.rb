@@ -21,6 +21,20 @@ describe Solargraph::ApiMap do
   describe '#qualify' do
     let(:external_requires) { ['yaml'] }
 
+    it 'resolves a constant that aliases a namespace' do
+      source = Solargraph::Source.load_string(%(
+        class Foo; end
+
+        module Bar
+          Baz = ::Foo
+        end
+      ), 'test.rb')
+
+      api_map = described_class.new.map(source)
+
+      expect(api_map.qualify('Bar::Baz')).to eq('Foo')
+    end
+
     it 'understands alias namespaces resolving types' do
       source = Solargraph::Source.load_string(%(
         class Foo
@@ -135,6 +149,15 @@ describe Solargraph::ApiMap do
       let(:method_stack) { api_map.get_method_stack('Thor', 'desc', scope: :class) }
 
       it 'handles finding Thor.desc' do
+        # catalog first so doc_map registers 'thor' as required before we
+        # try to cache it - cache_gem is a no-op for gems doc_map doesn't
+        # yet know it needs
+        api_map.catalog bench
+        specs = api_map.resolve_require('thor')
+        specs.each { |spec| api_map.cache_gem(spec) }
+        api_map.catalog bench
+
+        # if this fails you may not have an rbs collection installed
         expect(method_stack).not_to be_empty
       end
     end
@@ -143,10 +166,10 @@ describe Solargraph::ApiMap do
   describe '#cache_all_for_doc_map!' do
     it 'can cache gems without a bench' do
       api_map = described_class.new
-      doc_map = instance_double(Solargraph::DocMap, cache_all!: true)
+      doc_map = instance_double(Solargraph::DocMap, cache_doc_map_gems!: true)
       allow(Solargraph::DocMap).to receive(:new).and_return(doc_map)
       api_map.cache_all_for_doc_map!(out: $stderr)
-      expect(doc_map).to have_received(:cache_all!).with($stderr, rebuild: false)
+      expect(doc_map).to have_received(:cache_doc_map_gems!).with($stderr, rebuild: false)
     end
   end
 

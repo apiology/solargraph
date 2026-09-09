@@ -28,8 +28,15 @@ module Solargraph
         # @param api_map [ApiMap]
         # @param name_pin [Pin::Base]
         # @param locals [::Array<Pin::Base>]
+        # @param receiver_path [::Array<String>, nil] Dotted-word path of the
+        #   receiver chain leading up to (but not including) this link, when
+        #   every preceding link is a simple, argument-less variable/call
+        #   reference. Used by Chain::Call to look up flow-sensitive-typing
+        #   facts recorded against repeated calls to the same accessor. nil
+        #   once the chain includes something that breaks that guarantee
+        #   (arguments, a block, a literal, etc).
         # @return [::Array<Pin::Base>]
-        def resolve api_map, name_pin, locals
+        def resolve api_map, name_pin, locals, receiver_path = nil
           []
         end
 
@@ -74,13 +81,6 @@ module Solargraph
 
         protected
 
-        # @sg-ignore two problems - Declared return type
-        #   ::Solargraph::Source::Chain::Array does not match inferred
-        #   type ::Array(::Class<::Solargraph::Source::Chain::Link>,
-        #   ::String) for
-        #   Solargraph::Source::Chain::Link#equality_fields
-        #   and
-        #   Not enough arguments to Module#protected
         def equality_fields
           [self.class, word]
         end

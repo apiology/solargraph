@@ -53,13 +53,16 @@ module Solargraph
         # @return [Array<Chain::Link>]
         def generate_links n
           return [] unless n.is_a?(::Parser::AST::Node)
+          # @sg-ignore Need to add nil check here
           return generate_links(n.children[0]) if n.type == :splat
           # @type [Array<Chain::Link>]
           result = []
-          if n.type == :block
+          if %i[block numblock].include?(n.type)
+            # @sg-ignore Need to add nil check here
             result.concat NodeChainer.chain(n.children[0], @filename, n).links
           elsif n.type == :send
             if n.children[0].is_a?(::Parser::AST::Node)
+              # @sg-ignore Need to add nil check here
               result.concat generate_links(n.children[0])
               result.push Chain::Call.new(n.children[1].to_s, Location.from_node(n), node_args(n), passed_block(n))
             elsif n.children[0].nil?
@@ -73,6 +76,7 @@ module Solargraph
             end
           elsif n.type == :csend
             if n.children[0].is_a?(::Parser::AST::Node)
+              # @sg-ignore Need to add nil check here
               result.concat generate_links(n.children[0])
               result.push Chain::QCall.new(n.children[1].to_s, Location.from_node(n), node_args(n))
             elsif n.children[0].nil?
@@ -107,32 +111,46 @@ module Solargraph
             # s(:or_asgn,
             #   s(:ivasgn, :@bar),
             #   s(:int, 123))
+            or_asgn_rhs_node = n.children[1] # s(:int, 123)
+            raise "Or-assignment node missing right-hand side: #{n}" if or_asgn_rhs_node.nil?
+
+            # @sg-ignore Wrong argument type for Solargraph::Parser::ParserGem::NodeChainer.chain: node expected Parser::AST::Node, received Parser::AST::Node, nil
             lhs_chain = NodeChainer.chain n.children[0] # s(:ivasgn, :@bar)
-            rhs_chain = NodeChainer.chain n.children[1] # s(:int, 123)
-            or_link = Chain::Or.new([lhs_chain, rhs_chain])
+            rhs_chain = NodeChainer.chain or_asgn_rhs_node
+            or_asgn_rhs_never_returns = always_leaves_compound_statement?(or_asgn_rhs_node)
+            or_link = Chain::Or.new([lhs_chain, rhs_chain], rhs_never_returns: or_asgn_rhs_never_returns)
             # this is just for a call chain, so we don't need to record the assignment
             result.push(or_link)
           elsif %i[class module def defs].include?(n.type)
             # @todo Undefined or what?
             result.push Chain::UNDEFINED_CALL
           elsif n.type == :and
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1223
             result.concat generate_links(n.children.last)
           elsif n.type == :or
-            result.push Chain::Or.new([NodeChainer.chain(n.children[0], @filename),
-                                       NodeChainer.chain(n.children[1], @filename, n)])
+            or_rhs_node = n.children[1]
+            # @sg-ignore Need to add nil check here
+            or_lhs_chain = NodeChainer.chain(n.children[0], @filename)
+            # @sg-ignore Need to add nil check here
+            or_rhs_chain = NodeChainer.chain(or_rhs_node, @filename, n)
+            or_rhs_never_returns = always_leaves_compound_statement?(or_rhs_node)
+            result.push Chain::Or.new([or_lhs_chain, or_rhs_chain], rhs_never_returns: or_rhs_never_returns)
           elsif n.type == :if
             then_clause = if n.children[1]
+                            # @sg-ignore Need to add nil check here
                             NodeChainer.chain(n.children[1], @filename, n)
                           else
                             Source::Chain.new([Source::Chain::Literal.new('nil', nil)], n)
                           end
             else_clause = if n.children[2]
+                            # @sg-ignore Need to add nil check here
                             NodeChainer.chain(n.children[2], @filename, n)
                           else
                             Source::Chain.new([Source::Chain::Literal.new('nil', nil)], n)
                           end
             result.push Chain::If.new([then_clause, else_clause])
           elsif %i[begin kwbegin].include?(n.type)
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1223
             result.concat generate_links(n.children.last)
           elsif n.type == :block_pass
             block_variable_name_node = n.children[0]
@@ -146,32 +164,54 @@ module Solargraph
               result.push Chain::BlockVariable.new("&#{block_variable_name_node.children[0]}")
             end
           elsif n.type == :hash
-            result.push Chain::Hash.new('::Hash', n, hash_is_splatted?(n))
+            result.push Chain::Hash.new('::Hash', n, hash_is_splatted?(n), hash_pairs(n))
           elsif n.type == :array
             chained_children = n.children.map { |c| NodeChainer.chain(c) }
             result.push Source::Chain::Array.new(chained_children, n)
           else
             lit = infer_literal_node_type(n)
             result.push(lit ? Chain::Literal.new(lit, n) : Chain::Link.new)
-            # result.push Chain::Link.new
           end
           result
         end
 
+        # Whether the hash passes along keys that are not in the node -
+        # `foo(**args)` or `foo(a: 1, **args)`, but not `foo(**{ a: 1 })`,
+        # whose keys are right there.
+        #
         # @param node [Parser::AST::Node]
         def hash_is_splatted? node
           return false unless Parser.is_ast_node?(node) && node.type == :hash
-          return false unless Parser.is_ast_node?(node.children.last) && node.children.last.type == :kwsplat
-          if Parser.is_ast_node?(node.children.last.children[0]) && node.children.last.children[0].type == :hash
-            return false
+          node.children.any? do |child|
+            next false unless Parser.is_ast_node?(child) && child.type == :kwsplat
+            # @sg-ignore Translate to something flow sensitive typing understands
+            !(Parser.is_ast_node?(child.children[0]) && child.children[0].type == :hash)
           end
-          true
+        end
+
+        # Chains each key/value pair of a literal hash so Chain::Hash
+        # can infer Hash{K => V} from its actual contents, the same
+        # way Chain::Array infers Array<T> from its elements. Returns
+        # nil (falling back to a bare, unparameterized Hash) when any
+        # entry isn't a plain `key => value` pair - a `**splat` entry
+        # contributes key/value types we have no node to chain.
+        #
+        # @param node [Parser::AST::Node]
+        # @return [::Array<::Array(Chain, Chain)>, nil]
+        def hash_pairs node
+          return nil unless Parser.is_ast_node?(node) && node.type == :hash
+          return nil unless node.children.all? { |pair| Parser.is_ast_node?(pair) && pair.type == :pair }
+
+          node.children.map do |pair|
+            key_node, value_node = pair.children
+            [NodeChainer.chain(key_node, @filename, pair), NodeChainer.chain(value_node, @filename, pair)]
+          end
         end
 
         # @param node [Parser::AST::Node]
         # @return [Source::Chain, nil]
         def passed_block node
-          return unless node == @node && @parent&.type == :block
+          return unless node == @node && %i[block numblock].include?(@parent&.type)
 
           # @sg-ignore Need to add nil check here
           NodeChainer.chain(@parent.children[2], @filename)

@@ -23,13 +23,11 @@ module Solargraph
         @variance = variance
         # :nocov:
         unless expected.is_a?(UniqueType)
-          # @sg-ignore This should never happen and the typechecker is angry about it
           raise "Expected type must be a UniqueType, got #{expected.class} in #{expected.inspect}"
         end
         # :nocov:
         return if inferred.is_a?(UniqueType)
         # :nocov:
-        # @sg-ignore This should never happen and the typechecker is angry about it
         raise "Inferred type must be a UniqueType, got #{inferred.class} in #{inferred.inspect}"
         # :nocov:
       end
@@ -41,7 +39,15 @@ module Solargraph
           # :nocov:
         end
 
-        return true if ignore_interface?
+        # An expectation of `A & B` can only be satisfied by
+        # something that conforms to every conjunct (A & B <: A and
+        # A & B <: B, so satisfying the intersection requires
+        # satisfying both).
+        return conforms_to_intersection_expectation? if expected.is_a?(UniqueType::Intersection)
+
+        interface_verdict = interface_bypass_verdict
+        return interface_verdict unless interface_verdict.nil?
+
         return true if conforms_via_reverse_match?
 
         downcast_inferred = inferred.downcast_to_literal_if_possible
@@ -78,6 +84,21 @@ module Solargraph
 
       private
 
+      # @return [Boolean]
+      def conforms_to_intersection_expectation?
+        # only called when expected.is_a?(UniqueType::Intersection)
+        # @type [UniqueType::Intersection]
+        intersection = expected
+        # Wrap inferred in a ComplexType (rather than calling
+        # UniqueType#conforms_to? directly) so each conjunct check
+        # gets ComplexType#conforms_to?'s special-case handling (e.g.
+        # duck_type? conjuncts), not just UniqueType's.
+        wrapped_inferred = ComplexType.new([inferred])
+        intersection.conjuncts.all? do |conjunct|
+          wrapped_inferred.conforms_to?(api_map, conjunct, situation, rules, variance: variance)
+        end
+      end
+
       def only_inferred_parameters?
         !expected.parameters? && inferred.parameters?
       end
@@ -86,9 +107,18 @@ module Solargraph
         with_new_types(inferred, expected.erase_parameters).conforms_to_unique_type?
       end
 
-      def ignore_interface?
-        (expected.any?(&:interface?) && rules.include?(:allow_unmatched_interface)) ||
-          (inferred.interface? && rules.include?(:allow_unmatched_interface))
+      # Settles interface conformance before subtype checks (which don't
+      # apply once an interface is involved); doesn't verify an
+      # interface's own type params, see https://github.com/castwide/solargraph/issues/1267
+      # @return [Boolean, nil] settled verdict, or nil to fall through
+      def interface_bypass_verdict
+        return nil unless expected.interface?
+
+        verdict = structural_interface_verdict
+        return verdict unless verdict.nil?
+        return true if rules.include?(:allow_unmatched_interface)
+
+        nil
       end
 
       def can_strip_expected_parameters?
@@ -125,6 +155,23 @@ module Solargraph
           # :nocov:
         end
         true
+      end
+
+      # The methods `expected` declares directly on itself, excluding ones
+      # inherited from `Object` and other ancestors.
+      #
+      # @return [Array<Pin::Method>]
+      def required_interface_methods
+        api_map.get_own_methods(expected.name)
+      end
+
+      # @return [Boolean, nil] verdict against `inferred`'s method stack,
+      #   or nil if the interface has no pin or declares no methods
+      def structural_interface_verdict
+        required = required_interface_methods
+        return nil if required.empty?
+
+        required.all? { |pin| !api_map.get_method_stack(inferred.name, pin.name, scope: :instance).empty? }
       end
 
       def key_types_conform?

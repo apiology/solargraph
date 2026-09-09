@@ -82,7 +82,7 @@ describe Solargraph::RbsMap::CoreMap do
     #   correctly. It would be better to test RbsMap or RbsMap::Conversions
     #   with an RBS fixture.
     core_map = described_class.new
-    pins = core_map.pins.select { |pin| pin.is_a?(Solargraph::Pin::Reference::Include) && pin.name == 'Enumerable' }
+    pins = core_map.pins.select { |pin| pin.is_a?(Solargraph::Pin::Reference::Include) && pin.name == '::Enumerable' }
     expect(pins.map(&:closure).map(&:namespace)).to include('Enumerator')
   end
 
@@ -107,8 +107,8 @@ describe Solargraph::RbsMap::CoreMap do
     ), 'test.rb')
     api_map = Solargraph::ApiMap.new.map(source)
     clip = api_map.clip_at('test.rb', [3, 6])
-    expect(clip.infer.to_s).to eq('String')
-    expect(clip.infer.to_rbs).to eq('::String')
+    expect(clip.infer.to_s).to eq('""')
+    expect(clip.infer.to_rbs).to eq('""')
   end
 
   it 'treats literal nil as NilClass for method resolution' do
@@ -118,6 +118,6 @@ describe Solargraph::RbsMap::CoreMap do
     ), 'test.rb')
     api_map = Solargraph::ApiMap.new.map(source)
     clip = api_map.clip_at('test.rb', [2, 6])
-    expect(clip.infer.to_s).to eq('String')
+    expect(clip.infer.to_s).to eq('""')
   end
 end

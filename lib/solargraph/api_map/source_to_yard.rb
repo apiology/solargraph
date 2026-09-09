@@ -28,36 +28,44 @@ module Solargraph
         YARD::Registry.clear
         code_object_map.clear
         store.namespace_pins.each do |pin|
+          # @sg-ignore Unresolved call to empty?
           next if pin.path.nil? || pin.path.empty?
           if pin.code_object
+            # @sg-ignore Unresolved call to path
             code_object_map[pin.path] ||= pin.code_object
             next
           end
           if pin.type == :class
             # @param obj [YARD::CodeObjects::RootObject]
+            # @sg-ignore Unresolved call to path
             code_object_map[pin.path] ||= YARD::CodeObjects::ClassObject.new(root_code_object, pin.path) do |obj|
-              # @sg-ignore flow sensitive typing needs to handle attrs
+              # @sg-ignore Unresolved call to filename
               next if pin.location.nil? || pin.location.filename.nil?
-              # @sg-ignore flow sensitive typing needs to handle attrs
+              # @sg-ignore Unresolved call to filename
               obj.add_file(pin.location.filename, pin.location.range.start.line, !pin.comments.empty?)
             end
           else
             # @param obj [YARD::CodeObjects::RootObject]
+            # @sg-ignore Unresolved call to path
             code_object_map[pin.path] ||= YARD::CodeObjects::ModuleObject.new(root_code_object, pin.path) do |obj|
-              # @sg-ignore flow sensitive typing needs to handle attrs
+              # @sg-ignore Unresolved call to filename
               next if pin.location.nil? || pin.location.filename.nil?
-              # @sg-ignore flow sensitive typing needs to handle attrs
+              # @sg-ignore Unresolved call to filename
               obj.add_file(pin.location.filename, pin.location.range.start.line, !pin.comments.empty?)
             end
           end
+          # @sg-ignore Need to add nil check here
           code_object_map[pin.path].docstring = pin.docstring
           store.get_includes(pin.path).each do |ref|
+            # @sg-ignore Unresolved call to path
             include_object = code_object_at(pin.path, YARD::CodeObjects::ClassObject)
             unless include_object.nil? || include_object.nil?
+              # @sg-ignore Wrong argument type for Array#push: objects expected YARD::CodeObjects::ModuleObject, received YARD::CodeObjects::Base, nil
               include_object.instance_mixins.push code_object_map[ref.type.to_s]
             end
           end
           store.get_extends(pin.path).each do |ref|
+            # @sg-ignore Unresolved call to path
             extend_object = code_object_at(pin.path, YARD::CodeObjects::ClassObject)
             next unless extend_object
             code_object = code_object_map[ref.type.to_s]
@@ -68,6 +76,7 @@ module Solargraph
         end
         store.method_pins.each do |pin|
           if pin.code_object
+            # @sg-ignore Unresolved call to code_object
             code_object_map[pin.path] ||= pin.code_object
             next
           end
@@ -77,9 +86,9 @@ module Solargraph
           code_object_map[pin.path] ||= YARD::CodeObjects::MethodObject.new(
             code_object_at(pin.namespace, YARD::CodeObjects::NamespaceObject), pin.name, pin.scope
           ) do |obj|
-            # @sg-ignore flow sensitive typing needs to handle attrs
+            # @sg-ignore Unresolved call to filename
             next if pin.location.nil? || pin.location.filename.nil?
-            # @sg-ignore flow sensitive typing needs to handle attrs
+            # @sg-ignore Unresolved call to filename
             obj.add_file pin.location.filename, pin.location.range.start.line
           end
           method_object = code_object_at(pin.path, YARD::CodeObjects::MethodObject)

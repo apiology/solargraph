@@ -45,8 +45,6 @@ jobs:
       run: bundle exec rbs collection update
     - name: Ensure typechecking still works
       run: bundle exec solargraph typecheck --level strong
-      # @todo Temporary, expect to revert in 0.60
-      continue-on-error: true
     - name: Ensure specs still run
       run: bundle exec rake spec
   rails:
@@ -80,8 +78,6 @@ jobs:
       run: bundle exec rbs collection update
     - name: Ensure typechecking still works
       run: bundle exec solargraph typecheck --level strong
-      # @todo Temporary, expect to revert in 0.60
-      continue-on-error: true
     - name: Ensure specs still run
       run: bundle exec rake spec
   rspec:
@@ -113,8 +109,6 @@ jobs:
       run: bundle exec rbs collection update
     - name: Ensure typechecking still works
       run: bundle exec solargraph typecheck --level strong
-      # @todo Temporary, expect to revert in 0.60
-      continue-on-error: true
     - name: Ensure specs still run
       run: bundle exec rake spec
 
@@ -126,10 +120,13 @@ jobs:
       BUNDLE_PATH: ${{ github.workspace }}/../solargraph-rspec/vendor/bundle
     steps:
     - uses: actions/checkout@v3
-    - name: clone https://github.com/lekemula/solargraph-rspec/
+    # lekemula/solargraph-rspec#36 raises the expectations this branch's
+    # more precise Array literal inference now satisfies.
+    - name: clone https://github.com/lekemula/solargraph-rspec/ pull/36
       run: |
        cd ..
-       git clone https://github.com/lekemula/solargraph-rspec.git
+       # git clone https://github.com/lekemula/solargraph-rspec.git
+       git clone --branch fix-hash-literal-type-precision https://github.com/apiology/solargraph-rspec.git
        cd solargraph-rspec
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
@@ -192,7 +189,7 @@ jobs:
         # solargraph-rails supports Ruby 3.0+
         # This job uses 3.2 due to a problem compiling sqlite3 in earlier versions
         ruby-version: '3.2'
-        bundler-cache: false
+        bundler-cache: true
         # https://github.com/apiology/solargraph/actions/runs/19400815835/job/55508092473?pr=17
         rubygems: latest
         bundler: latest
@@ -231,5 +228,3 @@ jobs:
         ALLOW_IMPROVEMENTS=true bundle exec rake spec
       env:
         MATRIX_RAILS_VERSION: "7.0"
-      # @todo Temporary, expect to revert in 0.60
-      continue-on-error: true

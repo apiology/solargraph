@@ -18,8 +18,10 @@ module Solargraph
         # @param type [Symbol]
         # @param cls [Class<NodeProcessor::Base>]
         # @return [Array<Class<NodeProcessor::Base>>]
+        # @sg-ignore flow sensitive typing needs better handling of ||= on lvars
         def register type, cls
           @@processors[type] ||= []
+          # @sg-ignore flow sensitive typing needs better handling of ||= on lvars
           @@processors[type] << cls
         end
 
@@ -28,6 +30,7 @@ module Solargraph
         #
         # @return [void]
         def deregister type, cls
+          # @sg-ignore Need to add nil check here
           @@processors[type].delete(cls)
         end
       end
@@ -43,6 +46,7 @@ module Solargraph
           pins.push Pin::Namespace.new(
             location: region.source.location,
             name: '',
+            node: node,
             source: :parser
           )
         end

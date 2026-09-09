@@ -17,6 +17,18 @@ describe Solargraph::Parser::NodeMethods do
     expect(described_class.infer_literal_node_type(ast.children[1])).to eq '::String'
   end
 
+  it 'infers backticks as strings' do
+    ast = parse('x = `echo hi`')
+    expect(described_class.infer_literal_node_type(ast.children[1])).to eq '::String'
+  end
+
+  it 'infers interpolated backticks as strings' do
+    ast = parse(<<~'RUBY')
+      x = `echo #{y}`
+    RUBY
+    expect(described_class.infer_literal_node_type(ast.children[1])).to eq '::String'
+  end
+
   it 'infers literal hashes' do
     ast = parse('x = {}')
     expect(described_class.infer_literal_node_type(ast.children[1])).to eq '::Hash'
@@ -121,6 +133,21 @@ describe Solargraph::Parser::NodeMethods do
     expect(returns.map(&:to_s)).to eq(['(true)', '(int 73)', '(false)', '(nil)', '(false)', '(true)'])
   end
 
+  it 'keeps an or-node whole when it is a conditional branch value' do
+    node = parse(%(
+      if m.nil?
+        fallback
+      else
+        m <= expected || fallback
+      end
+    ))
+    returns = described_class.returns_from_method_body(node)
+    # The or-node must stay intact so chain inference (Chain::Or) can
+    # strip nil from the left operand when the right operand is not
+    # nullable; flattening it into both operands loses that.
+    expect(returns.map(&:type)).to eq(%i[send or])
+  end
+
   it 'handles return nodes from case statements with boolean conditions' do
     node = parse(%(
       case true
@@ -166,9 +193,10 @@ describe Solargraph::Parser::NodeMethods do
   it "handles nested 'or' nodes" do
     node = parse('return 1 || "2"')
     rets = described_class.returns_from_method_body(node)
-    expect(rets.length).to eq(2)
-    expect(described_class.infer_literal_node_type(rets[0])).to eq('::Integer')
-    expect(described_class.infer_literal_node_type(rets[1])).to eq('::String')
+    # The or-node stays whole so Chain::Or can union the operands and
+    # strip nil from the left one when the right is not nullable
+    expect(rets.length).to eq(1)
+    expect(rets[0].type).to eq(:or)
   end
 
   it 'finds return nodes in blocks' do
@@ -190,6 +218,82 @@ describe Solargraph::Parser::NodeMethods do
     ))
     rets = described_class.returns_from_method_body(node)
     expect(rets.map(&:type)).to eq([:str])
+  end
+
+  it 'uses the body value for a method with an ensure clause' do
+    node = parse(%(
+      begin
+        'hello'
+      ensure
+        nil
+      end
+    ))
+    rets = described_class.returns_from_method_body(node)
+    expect(rets.map(&:type)).to eq([:str])
+  end
+
+  it 'includes explicit returns from an ensure clause' do
+    node = parse(%(
+      begin
+        'hello'
+      ensure
+        return 'goodbye' if foo
+      end
+    ))
+    rets = described_class.returns_from_method_body(node)
+    expect(rets.map(&:type)).to eq(%i[str str])
+  end
+
+  it 'uses the body value for a method-level ensure clause with no begin/end' do
+    def_node = parse(%(
+      def foo
+        'hello'
+      ensure
+        nil
+      end
+    ))
+    rets = described_class.returns_from_method_body(def_node.children[2])
+    expect(rets.map(&:type)).to eq([:str])
+  end
+
+  it 'includes explicit returns from a method-level ensure clause with no begin/end' do
+    def_node = parse(%(
+      def foo
+        'hello'
+      ensure
+        return 1 if bar
+      end
+    ))
+    rets = described_class.returns_from_method_body(def_node.children[2])
+    expect(rets.map(&:type)).to eq(%i[str int])
+  end
+
+  it 'uses the body and rescue values for a method with both a rescue and an ensure clause' do
+    def_node = parse(%(
+      def foo
+        'hello'
+      rescue StandardError
+        'goodbye'
+      ensure
+        nil
+      end
+    ))
+    rets = described_class.returns_from_method_body(def_node.children[2])
+    expect(rets.map(&:type)).to eq(%i[str str])
+  end
+
+  it 'includes explicit returns from an ensure clause alongside a rescue clause' do
+    def_node = parse(%(
+      def foo
+        'hello'
+      rescue StandardError
+        'goodbye'
+      ensure
+        return 1 if bar
+      end
+    ))
+    rets = described_class.returns_from_method_body(def_node.children[2])
+    expect(rets.map(&:type)).to eq(%i[str str int])
   end
 
   it 'returns nested return blocks' do
@@ -295,7 +399,7 @@ describe Solargraph::Parser::NodeMethods do
   it "handles nested 'or' nodes from return" do
     node = parse('return 1 || "2"')
     rets = described_class.returns_from_method_body(node)
-    expect(rets.map(&:type)).to eq(%i[int str])
+    expect(rets.map(&:type)).to eq(%i[or])
   end
 
   it 'handles return nodes from case statements' do
@@ -345,6 +449,24 @@ describe Solargraph::Parser::NodeMethods do
       node = parse('some_call')
       hash = described_class.convert_hash(node)
       expect(hash).to eq({})
+    end
+
+    it 'keeps literal keys alongside an opaque ** splat' do
+      node = parse('some_call(foo: :bar, **args)').children[2]
+      hash = described_class.convert_hash(node)
+      expect(hash.keys).to eq([:foo])
+    end
+
+    it 'keeps literal keys given after an opaque ** splat' do
+      node = parse('some_call(**args, foo: :bar)').children[2]
+      hash = described_class.convert_hash(node)
+      expect(hash.keys).to eq([:foo])
+    end
+
+    it 'collects the keys of a splatted literal hash' do
+      node = parse('some_call(**{foo: :bar})').children[2]
+      hash = described_class.convert_hash(node)
+      expect(hash.keys).to eq([:foo])
     end
   end
 

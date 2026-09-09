@@ -74,6 +74,50 @@ describe Solargraph::RbsMap::Conversions do
       end
     end
 
+    context 'with a module function' do
+      let(:rbs) do
+        <<~RBS
+          module Foo
+            def self?.bar: () -> String
+          end
+        RBS
+      end
+
+      it 'makes the instance copy private' do
+        pin = api_map.get_method_stack('Foo', 'bar', scope: :instance).first
+        expect(pin).not_to be_nil
+        expect(pin.visibility).to eq(:private)
+      end
+
+      it 'leaves the singleton copy public' do
+        pin = api_map.get_method_stack('Foo', 'bar', scope: :class).first
+        expect(pin).not_to be_nil
+        expect(pin.visibility).to eq(:public)
+      end
+    end
+
+    context 'with a module function on Kernel whose instance copy Ruby marks private' do
+      let(:rbs) do
+        <<~RBS
+          module Kernel
+            def self?.loop: () { () -> void } -> void
+          end
+        RBS
+      end
+
+      it 'makes the instance copy private' do
+        pin = api_map.get_method_stack('Kernel', 'loop', scope: :instance).first
+        expect(pin).not_to be_nil
+        expect(pin.visibility).to eq(:private)
+      end
+
+      it 'leaves the singleton copy public' do
+        pin = api_map.get_method_stack('Kernel', 'loop', scope: :class).first
+        expect(pin).not_to be_nil
+        expect(pin.visibility).to eq(:public)
+      end
+    end
+
     context 'with untyped response' do
       subject(:method_pin) { conversions.pins.find { |pin| pin.path == 'Foo#bar' } }
 
@@ -93,11 +137,178 @@ describe Solargraph::RbsMap::Conversions do
         expect(method_pin.return_type.tag).to eq('undefined')
       end
     end
+
+    # https://github.com/castwide/solargraph/issues/1255
+    context 'with a type alias used as a parameter type' do
+      subject(:parameter) { method_pin.signatures.first.parameters.first }
+
+      let(:method_pin) { api_map.get_method_stack('Foo', 'bar', scope: :instance).first }
+
+      let(:rbs) do
+        <<~RBS
+          type path = String | Integer
+
+          class Foo
+            def bar: (path src) -> void
+          end
+        RBS
+      end
+
+      it 'expands the alias to its underlying union instead of a nominal tag' do
+        expect(parameter.return_type.rooted_tags).to eq('::String, ::Integer')
+      end
+    end
+
+    # https://github.com/castwide/solargraph/issues/1255
+    context 'with a type alias declared after the class that references it' do
+      subject(:parameter) { method_pin.signatures.first.parameters.first }
+
+      let(:method_pin) { api_map.get_method_stack('Foo', 'bar', scope: :instance).first }
+
+      let(:rbs) do
+        <<~RBS
+          class Foo
+            def bar: (path src) -> void
+          end
+
+          type path = String | Integer
+        RBS
+      end
+
+      it 'still expands the alias to its underlying union' do
+        expect(parameter.return_type.rooted_tags).to eq('::String, ::Integer')
+      end
+    end
+
+    # https://github.com/castwide/solargraph/pull/1281#issuecomment-5270350329
+    context 'with a type alias that references a name declared only in RBS core' do
+      subject(:parameter) { method_pin.signatures.first.parameters.first }
+
+      let(:method_pin) { api_map.get_method_stack('Foo', 'bar', scope: :instance).first }
+
+      let(:rbs) do
+        <<~RBS
+          type wrapped_path = ::path
+
+          class Foo
+            def bar: (wrapped_path src) -> void
+          end
+        RBS
+      end
+
+      it 'expands the alias instead of falling back to a self-referential nominal tag' do
+        expect(parameter.return_type.rooted_tags).to eq('::String, ::_ToStr, ::_ToPath')
+      end
+    end
+
+    # https://github.com/castwide/solargraph/issues/1255
+    context 'with a recursive type alias' do
+      subject(:parameter) { method_pin.signatures.first.parameters.first }
+
+      let(:method_pin) { api_map.get_method_stack('Foo', 'bar', scope: :instance).first }
+
+      let(:rbs) do
+        <<~RBS
+          type json = String | Array[json]
+
+          class Foo
+            def bar: (json src) -> void
+          end
+        RBS
+      end
+
+      it 'does not crash expanding it' do
+        expect { conversions.pins }.not_to raise_error
+      end
+
+      it 'falls back to the nominal alias tag once a cycle is detected' do
+        expect(parameter.return_type.rooted_tags).to eq('::String, ::Array<json>')
+      end
+    end
+
+    # https://github.com/castwide/solargraph/issues/1255
+    context 'with a generic type alias' do
+      subject(:parameter) { method_pin.signatures.first.parameters.first }
+
+      let(:method_pin) { api_map.get_method_stack('Foo', 'bar', scope: :instance).first }
+
+      let(:rbs) do
+        <<~RBS
+          type box[T] = Array[T] | nil
+
+          class Foo
+            def bar: (box[String] src) -> void
+          end
+        RBS
+      end
+
+      it 'falls back to the nominal alias tag instead of leaking an unbound generic' do
+        expect(parameter.return_type.rooted_tags).not_to include('generic<')
+      end
+    end
+
+    context 'with implicitly-returns-nil on some overloads' do
+      subject(:method_pin) { conversions.pins.find { |pin| pin.path == 'Foo#bar' } }
+
+      let(:rbs) do
+        <<~RBS
+          class Foo
+            def bar: %a{implicitly-returns-nil} () -> String
+                   | %a{implicitly-returns-nil} () { (String a) -> Integer } -> String
+                   | (Integer n) -> Array[String]
+                   | (Integer n) { (String a) -> Integer? } -> Array[String]
+          end
+        RBS
+      end
+
+      it 'adds nil to the return type of the annotated overloads' do
+        expect(method_pin.signatures[0..1].map { |sig| sig.return_type.to_s }).to eq(['String, nil'] * 2)
+      end
+
+      it 'leaves the return type of the unannotated overloads alone' do
+        expect(method_pin.signatures[2..3].map { |sig| sig.return_type.to_s }).to eq(['Array<String>'] * 2)
+      end
+
+      it 'does not add nil to a block return type' do
+        expect(method_pin.signatures[1].block.return_type.to_s).to eq('Integer')
+      end
+
+      it 'keeps nil in a block return type declared optional in RBS' do
+        expect(method_pin.signatures[3].block.return_type.to_s).to eq('Integer, nil')
+      end
+    end
+
+    context 'with a prepended module' do
+      subject(:prepend_pin) do
+        conversions.pins.find { |pin| pin.is_a?(Solargraph::Pin::Reference::Prepend) && pin.namespace == 'Foo' }
+      end
+
+      let(:rbs) do
+        <<~RBS
+          module Bar
+            def baz: () -> String
+          end
+
+          class Foo
+            prepend Bar
+          end
+        RBS
+      end
+
+      it 'generates a prepend reference naming the module' do
+        expect(prepend_pin.name).to eq('::Bar')
+      end
+    end
   end
 
   context 'with standard loads for solargraph project' do
     before :all do # rubocop:disable RSpec/BeforeAfterAll
-      @api_map = Solargraph::ApiMap.load_with_cache('.')
+      @api_map = Solargraph::ApiMap.load('.')
+      gems = %w[parser ast open3]
+      bench = Solargraph::Bench.new(workspace: @api_map.workspace, external_requires: gems)
+      @api_map.catalog(bench)
+      @api_map.cache_all_for_doc_map!
+      @api_map.catalog(bench)
     end
 
     let(:api_map) { @api_map }
@@ -160,7 +371,9 @@ describe Solargraph::RbsMap::Conversions do
   if Gem::Version.new(RBS::VERSION) >= Gem::Version.new('3.9.1')
     context 'with method pin for Open3.capture2e' do
       it 'accepts chdir kwarg' do
-        api_map = Solargraph::ApiMap.load_with_cache('.', $stdout)
+        api_map = Solargraph::ApiMap.load('.')
+        bench = Solargraph::Bench.new(external_requires: ['open3'])
+        api_map.catalog(bench)
 
         method_pin = api_map.pins.find do |pin|
           pin.is_a?(Solargraph::Pin::Method) && pin.path == 'Open3.capture2e'

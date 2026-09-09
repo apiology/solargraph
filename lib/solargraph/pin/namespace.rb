@@ -14,8 +14,13 @@ module Solargraph
       # does not assert like super, as a namespace without a closure
       # may be the root level namespace, or it may not yet be
       # qualified
+      # @return [Solargraph::Pin::Closure, nil]
+      # @sg-ignore flow sensitive typing needs better handling of reassignment in #initialize
       attr_reader :closure
 
+      # node: (see CompoundStatement) carries this namespace body, which
+      # flow-sensitive typing scans to bound where a narrowed type holds.
+      #
       # @param type [::Symbol] :class or :module
       # @param visibility [::Symbol] :public or :private
       # @param gates [::Array<String>]
@@ -56,6 +61,7 @@ module Solargraph
       end
 
       def to_rbs
+        # @sg-ignore Need to add nil check here
         "#{@type} #{return_type.all_params.first.to_rbs}#{rbs_generics}".strip
       end
 

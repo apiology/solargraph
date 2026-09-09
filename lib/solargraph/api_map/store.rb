@@ -43,8 +43,10 @@ module Solargraph
                                       @indexes[changed + idx - 1].merge(pins)
                                     end
         end
+        # @sg-ignore Need to add nil check here
         # @type [Index]
         @index = @indexes.last.clone
+        # @sg-ignore Need to add nil check here
         @index = @index.merge(block.call) if block
         constants.clear
         cached_qualify_superclass.clear
@@ -64,7 +66,6 @@ module Solargraph
       # @return [Enumerable<Solargraph::Pin::Namespace, Solargraph::Pin::Constant>]
       def get_constants fqns, visibility = [:public]
         namespace_children(fqns).select do |pin|
-          # @sg-ignore flow sensitive typing not smart enough to handle this case
           !pin.name.empty? && (pin.is_a?(Pin::Namespace) || pin.is_a?(Pin::Constant)) && visibility.include?(pin.visibility)
         end
       end
@@ -72,11 +73,12 @@ module Solargraph
       # @param fqns [String]
       # @param scope [Symbol]
       # @param visibility [Array<Symbol>]
-      # @return [Enumerable<Solargraph::Pin::Method>]
+      # @return [Array<Solargraph::Pin::Method>]
       def get_methods fqns, scope: :instance, visibility: [:public]
-        namespace_children(fqns).select do |pin|
+        pins = namespace_children(fqns).select do |pin|
           pin.is_a?(Pin::Method) && pin.scope == scope && visibility.include?(pin.visibility)
         end
+        combine_duplicate_method_pins(pins)
       end
 
       BOOLEAN_SUPERCLASS_PIN = Pin::Reference::Superclass.new(name: 'Boolean', closure: Pin::ROOT_PIN,
@@ -90,6 +92,7 @@ module Solargraph
         return nil if fqns.nil? || fqns.empty?
         return BOOLEAN_SUPERCLASS_PIN if %w[TrueClass FalseClass].include?(fqns)
 
+        # @sg-ignore Need to add nil check here
         superclass_references[fqns].first || try_special_superclasses(fqns)
       end
 
@@ -98,7 +101,7 @@ module Solargraph
       def qualify_superclass fq_sub_tag
         cached_qualify_superclass[fq_sub_tag] || qualify_and_cache_superclass(fq_sub_tag)
         type = ComplexType.try_parse(fq_sub_tag)
-        return type.simplify_literals.to_s if type.literal?
+        return type.non_literal_type.to_s if type.literal?
         ref = get_superclass(fq_sub_tag)
         return unless ref
         res = constants.dereference(ref)
@@ -127,7 +130,7 @@ module Solargraph
       # @param path [String]
       # @return [Array<Solargraph::Pin::Base>]
       def get_path_pins path
-        index.path_pin_hash[path]
+        index.path_pin_hash[path] || []
       end
 
       # @param fqns [String, nil]
@@ -215,7 +218,7 @@ module Solargraph
           base = ''
           name = fqns
         end
-        fqns_pins_map[[base, name]]
+        fqns_pins_map[[base, name]] || []
       end
 
       # Get all ancestors (superclasses, includes, prepends, extends) for a namespace
@@ -248,11 +251,8 @@ module Solargraph
             next if refs.nil?
             # @param ref [String]
             refs.map(&:type).map(&:to_s).each do |ref|
-              # @sg-ignore flow sensitive typing should be able to handle redefinition
               next if ref.nil? || ref.empty? || visited.include?(ref)
-              # @sg-ignore flow sensitive typing should be able to handle redefinition
               ancestors << ref
-              # @sg-ignore flow sensitive typing should be able to handle redefinition
               queue << ref
             end
           end
@@ -279,12 +279,12 @@ module Solargraph
         index.alias_hash[name]
       end
 
-      # @return [Array<String>]
+      # @return [Set<String>]
       def macro_method_names
         index.macro_method_names
       end
 
-      # @return [Hash{String => Array<Pin::Method>}]
+      # @return [Hash{String => Set<Pin::Method>}]
       def macro_method_name_pins
         index.macro_method_name_pins
       end
@@ -294,6 +294,41 @@ module Solargraph
       # @return [Index]
       def index
         @index ||= Index.new
+      end
+
+      # A method can be defined by more than one pin with the same
+      # path - e.g., a gem's own implementation plus a `@!parse` stub
+      # in a separate file that overrides its documentation. Combine
+      # them into a single pin so callers see one consistent signature
+      # instead of an arbitrary pick among duplicates.
+      #
+      # Aliases are skipped: combining a MethodAlias pin with a
+      # non-alias pin at the same path produces a `:combined` pin that
+      # #resolve_method_alias can't trace back to its original target,
+      # which raises under SOLARGRAPH_ASSERTS=on.
+      #
+      # DelegatedMethod pins are skipped for the same reason, but they
+      # raise outright rather than degrade: Pin::Base#combine_with rebuilds
+      # the merged pin with self.class.new(**new_attrs) carrying only
+      # generic pin attributes, and DelegatedMethod#initialize requires
+      # exactly one of :method / :receiver. Each pin's delegation target is
+      # per-pin state that a merged pin has no way to represent, so both
+      # are kept.
+      #
+      # @param pins [Array<Pin::Method>]
+      # @return [Array<Pin::Method>]
+      def combine_duplicate_method_pins pins
+        result = []
+        pins.group_by(&:path).each_value do |group|
+          if group.length == 1 || group.any? { |pin| pin.is_a?(Pin::MethodAlias) || pin.is_a?(Pin::DelegatedMethod) }
+            result.concat(group)
+          else
+            # @sg-ignore group is never empty here (group_by never yields an empty group)
+            combined = group[1..].reduce(group.first) { |memo, pin| memo.combine_with(pin) }
+            result.push(combined)
+          end
+        end
+        result
       end
 
       # @param pinsets [Array<Array<Pin::Base>>]
@@ -311,6 +346,7 @@ module Solargraph
           end
         end
         @index = @indexes.last.clone
+        # @sg-ignore Need to add nil check here
         @index = @index.merge(block.call) if block
         constants.clear
         cached_qualify_superclass.clear
@@ -360,6 +396,7 @@ module Solargraph
 
       # @param name [String]
       # @return [Enumerable<Solargraph::Pin::Base>]
+      # @sg-ignore Need to add nil check here
       def namespace_children name
         return [] unless index.namespace_hash.key?(name)
         index.namespace_hash[name]
@@ -377,7 +414,7 @@ module Solargraph
         return OBJECT_SUPERCLASS_PIN if !%w[BasicObject Object].include?(fqns) && namespace_exists?(fqns)
 
         sub = ComplexType.try_parse(fqns)
-        return get_superclass(sub.simplify_literals.name) if sub.literal?
+        return get_superclass(sub.non_literal_type.name) if sub.literal?
 
         get_superclass(sub.namespace) if sub.namespace != fqns
       end
@@ -397,7 +434,7 @@ module Solargraph
       # @return [String, nil]
       def uncached_qualify_superclass fq_sub_tag
         type = ComplexType.try_parse(fq_sub_tag)
-        return type.simplify_literals.to_s if type.literal?
+        return type.non_literal_type.to_s if type.literal?
         ref = get_superclass(fq_sub_tag)
         return unless ref
         res = constants.dereference(ref)
