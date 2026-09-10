@@ -796,4 +796,32 @@ describe 'YARD type specifier list parsing' do
       expect(narrowed.rooted_tags).to eq('::A & ::M, ::B_with_M')
     end
   end
+  context 'when narrowing a union whose module member could satisfy a class guard' do
+    let(:mirror_api_map) do
+      api_map = Solargraph::ApiMap.new
+      api_map.map Solargraph::Source.load_string(%(
+        module M1; end
+        class C; end
+        class B; end
+        class D < C; include M1; end
+      ), 'test.rb')
+      api_map
+    end
+
+    # D subclasses C and mixes in M1, so it is a real inhabitant of
+    # 'M1, B' that an is_a?(C) guard admits.
+    let(:declared) { Solargraph::ComplexType.parse('M1, B').qualify(mirror_api_map, '') }
+    let(:guard) { Solargraph::ComplexType.parse('C').qualify(mirror_api_map, '') }
+    let(:inhabitant) { Solargraph::ComplexType.parse('D').qualify(mirror_api_map, '') }
+
+    it 'still admits a value satisfying both the declared type and the guard' do
+      narrowed = declared.intersect_with(guard, mirror_api_map)
+      expect(inhabitant.conforms_to?(mirror_api_map, narrowed, :assignment)).to be(true)
+    end
+
+    it 'drops the class member that single inheritance proves disjoint' do
+      narrowed = declared.intersect_with(guard, mirror_api_map)
+      expect(narrowed.rooted_tags).to eq('::C')
+    end
+  end
 end
