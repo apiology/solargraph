@@ -765,4 +765,35 @@ describe 'YARD type specifier list parsing' do
       expect(atype.conforms_to?(api_map, ptype, :method_call)).to be(true)
     end
   end
+
+  context 'when narrowing a union down to the members that pass a mixin guard' do
+    let(:mixin_api_map) do
+      api_map = Solargraph::ApiMap.new
+      api_map.map Solargraph::Source.load_string(%(
+        module M; end
+        class A; end
+        class B; end
+        class A_with_M < A; include M; end
+        class B_with_M < B; include M; end
+      ), 'test.rb')
+      api_map
+    end
+
+    # A_with_M satisfies the declared A and mixes in M, so it is a real
+    # inhabitant of 'A, B_with_M' that an is_a?(M) guard admits.
+    let(:declared) { Solargraph::ComplexType.parse('A, B_with_M').qualify(mixin_api_map, '') }
+    let(:guard) { Solargraph::ComplexType.parse('M').qualify(mixin_api_map, '') }
+    let(:inhabitant) { Solargraph::ComplexType.parse('A_with_M').qualify(mixin_api_map, '') }
+
+    it 'still admits a value satisfying both the declared type and the guard' do
+      narrowed = declared.intersect_with(guard, mixin_api_map)
+      expect(inhabitant.conforms_to?(mixin_api_map, narrowed, :assignment)).to be(true)
+    end
+
+    it 'intersects the member the guard neither implies nor is implied by' do
+      pending 'https://github.com/castwide/solargraph/pull/1231'
+      narrowed = declared.intersect_with(guard, mixin_api_map)
+      expect(narrowed.rooted_tags).to eq('::A & ::M, ::B_with_M')
+    end
+  end
 end
