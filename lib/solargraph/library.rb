@@ -515,6 +515,11 @@ module Solargraph
 
     private
 
+    # @return [PinCache]
+    def pin_cache
+      workspace.pin_cache
+    end
+
     # @return [Hash{String => Array<String>}]
     def source_map_external_require_hash
       @source_map_external_require_hash ||= {}
@@ -600,7 +605,7 @@ module Solargraph
 
       pending = api_map.uncached_gemspecs.length - cache_errors.length - 1
 
-      if Yardoc.processing?(PinCache.yardoc_path(spec))
+      if pin_cache.yardoc_processing?(spec)
         logger.info "Enqueuing cache of #{spec.name} #{spec.version} (already being processed)"
         queued_gemspec_cache.push(spec)
         return if pending - queued_gemspec_cache.length < 1
@@ -615,7 +620,13 @@ module Solargraph
         logger.info "Caching #{spec.name} #{spec.version}"
         Thread.new do
           report_cache_progress spec.name, pending
-          _o, e, s = Open3.capture3(workspace.command_path, 'cache', spec.name, spec.version.to_s)
+          # The subprocess derives its cache key from the RBS collection it
+          # finds in its own working directory, so run it in the workspace's
+          # or it writes an entry under a key we will not look up.
+          kwargs = {}
+          kwargs[:chdir] = workspace.directory.to_s if workspace.directory && !workspace.directory.empty?
+          _o, e, s = Open3.capture3(workspace.command_path, 'cache', spec.name, spec.version.to_s,
+                                    **kwargs)
           if s.success?
             logger.info "Cached #{spec.name} #{spec.version}"
           else
@@ -637,8 +648,7 @@ module Solargraph
 
     # @return [Array<Gem::Specification>]
     def cacheable_specs
-      cacheable = api_map.uncached_yard_gemspecs +
-                  api_map.uncached_rbs_collection_gemspecs -
+      cacheable = api_map.uncached_gemspecs -
                   queued_gemspec_cache -
                   cache_errors.to_a
       return cacheable unless cacheable.empty?
@@ -701,8 +711,7 @@ module Solargraph
         source_map_hash.each_value { |map| find_external_requires(map) }
         api_map.catalog bench
         logger.info "Catalog complete (#{api_map.source_maps.length} files, #{api_map.pins.length} pins)"
-        logger.info "#{api_map.uncached_yard_gemspecs.length} uncached YARD gemspecs"
-        logger.info "#{api_map.uncached_rbs_collection_gemspecs.length} uncached RBS collection gemspecs"
+        logger.info "#{api_map.uncached_gemspecs.length} uncached gemspecs"
         cache_next_gemspec
         @sync_count = 0
       end

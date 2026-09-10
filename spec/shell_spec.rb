@@ -132,41 +132,73 @@ describe Solargraph::Shell do
 
     context 'with mocked Workspace' do
       let(:workspace) { instance_double(Solargraph::Workspace) }
-      let(:gemspec) { instance_double(Gem::Specification, name: 'backport', version: '1.2.0') }
+      let(:gemspec) { instance_double(Gem::Specification, name: 'backport') }
 
       before do
         allow(Solargraph::Workspace).to receive(:new).and_return(workspace)
-        allow(workspace).to receive(:gemspecs_to_cache).and_return([gemspec])
-        allow(shell).to receive(:do_cache)
       end
 
-      it 'caches only what the workspace selects' do
-        capture_both { shell.gems }
+      it 'caches all without erroring out' do
+        allow(workspace).to receive(:cache_all_for_workspace!)
 
-        expect(shell).to have_received(:do_cache).with(gemspec, any_args)
+        _output = capture_both { shell.gems }
+
+        expect(workspace).to have_received(:cache_all_for_workspace!)
       end
 
-      it 'reports the number of gems it cached' do
-        output = capture_both { shell.gems }
+      it 'caches single gem without erroring out' do
+        allow(workspace).to receive(:find_gem).with('backport').and_return(gemspec)
+        allow(workspace).to receive(:cache_gem)
 
-        expect(output).to include('Documentation cached for 1 gems.')
-      end
-    end
+        capture_both do
+          shell.options = { rebuild: false }
+          shell.gems('backport')
+        end
 
-    context 'with the core pseudo-gem' do
-      let(:core_map) { instance_double(Solargraph::RbsMap::CoreMap) }
-
-      before do
-        allow(Solargraph::RbsMap::CoreMap).to receive(:new).and_return(core_map)
-        allow(core_map).to receive(:cache_core).and_return([])
+        expect(workspace).to have_received(:cache_gem).with(gemspec, out: an_instance_of(StringIO), rebuild: false)
       end
 
-      it 'caches core pins' do
-        pending 'Shell#gems calls PinCache.cache_core, which is defined nowhere'
+      it 'reports a gem not found when find_gem raises Gem::MissingSpecError' do
+        allow(workspace).to receive(:find_gem)
+          .and_raise(Gem::MissingSpecError.new('backport', Gem::Requirement.new('>= 0')))
 
-        capture_both { shell.gems('core') }
+        output = capture_both { shell.gems('backport') }
 
-        expect(core_map).to have_received(:cache_core)
+        expect(output).to include("Gem 'backport' not found")
+      end
+
+      it 'reports the failure when find_gem raises Gem::Requirement::BadRequirementError' do
+        allow(workspace).to receive(:find_gem)
+          .and_raise(Gem::Requirement::BadRequirementError, 'bad requirement')
+
+        output = capture_both { shell.gems('backport') }
+
+        expect(output).to include("Gem 'backport' failed while loading")
+        expect(output).to include('bad requirement')
+      end
+
+      it "caches core pins when name is 'core'" do
+        allow(Solargraph::PinCache).to receive(:core?).and_return(false)
+        allow(Solargraph::PinCache).to receive(:cache_core)
+
+        capture_both do
+          shell.options = { rebuild: false }
+          shell.gems('core')
+        end
+
+        expect(Solargraph::PinCache).to have_received(:cache_core).with(out: an_instance_of(StringIO))
+      end
+
+      it "rebuilds core pins when name is 'core' and --rebuild is set even if already cached" do
+        allow(Solargraph::PinCache).to receive(:core?).and_return(true)
+        allow(Solargraph::PinCache).to receive(:cache_core)
+
+        capture_both do
+          shell.options = { rebuild: true }
+          shell.gems('core')
+        end
+
+        expect(Solargraph::PinCache).to have_received(:cache_core).with(out: an_instance_of(StringIO))
       end
     end
   end
@@ -323,58 +355,6 @@ describe Solargraph::Shell do
         end
         expect(out).to include("Pin not found for path 'Not#found'")
       end
-    end
-  end
-
-  describe '#do_cache' do
-    let(:pin) { Solargraph::Pin::Namespace.new(name: 'Foo') }
-
-    before do
-      workspace = instance_double(Solargraph::Workspace, rbs_collection_path: nil, rbs_collection_config_path: nil)
-      allow(Solargraph::Workspace).to receive(:new).and_return(workspace)
-      allow(Solargraph::PinCache).to receive_messages(has_yard?: false, has_rbs_collection?: false)
-      allow(Solargraph::PinCache).to receive(:serialize_yard_gem)
-      allow(Solargraph::PinCache).to receive(:serialize_rbs_collection_gem)
-      allow(Solargraph::GemPins).to receive(:build_yard_pins).and_return([pin])
-    end
-
-    # @param name [String]
-    # @param cache_key [String]
-    # @return [Gem::Specification] the gemspec handed to do_cache
-    def cache_gem name, cache_key
-      gemspec = instance_double(Gem::Specification, name: name)
-      rbs_map = instance_double(Solargraph::RbsMap, cache_key: cache_key, pins: [pin])
-      allow(Solargraph::RbsMap).to receive(:from_gemspec).and_return(rbs_map)
-      shell.send(:do_cache, gemspec)
-      gemspec
-    end
-
-    it 'skips the YARD build when the RBS collection resolves types' do
-      cache_gem('parser', 'resolved-key')
-
-      expect(Solargraph::GemPins).not_to have_received(:build_yard_pins)
-    end
-
-    it 'caches RBS collection pins for a gem whose YARD build was skipped' do
-      gemspec = cache_gem('parser', 'resolved-key')
-
-      expect(Solargraph::PinCache).to have_received(:serialize_rbs_collection_gem).with(gemspec, 'resolved-key', [pin])
-    end
-
-    it 'builds YARD pins when the RBS collection cannot resolve types' do
-      gemspec = cache_gem('parser', Solargraph::RbsMap::CACHE_KEY_UNRESOLVED)
-
-      expect(Solargraph::PinCache).to have_received(:serialize_yard_gem).with(gemspec, [pin])
-    end
-
-    it 'builds YARD pins for a gem outside the suppression list' do
-      gemspec = cache_gem('rspec', 'resolved-key')
-
-      expect(Solargraph::PinCache).to have_received(:serialize_yard_gem).with(gemspec, [pin])
-    end
-
-    it 'warns when the gemspec is missing' do
-      expect { shell.send(:do_cache, nil) }.to output(/not found/).to_stderr
     end
   end
 
