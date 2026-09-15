@@ -308,8 +308,10 @@ module Solargraph
 
         type = block_pin.typify_parameters(api_map)[path.first]
         path.drop(1).each do |idx|
+          # @sg-ignore flow sensitive typing unions rather than overrides types across multiple sequential reassignments
           return ComplexType::UNDEFINED if type.nil? || !type.tuple?
 
+          # @sg-ignore flow sensitive typing unions rather than overrides types across multiple sequential reassignments
           type = type.all_params[idx]
         end
         type || ComplexType::UNDEFINED
