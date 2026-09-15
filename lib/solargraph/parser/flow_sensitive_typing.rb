@@ -354,7 +354,7 @@ module Solargraph
           return self_call_pin(node)
         end
 
-        # @sg-ignore chain_words is never empty - callers already checked
+        # @sg-ignore https://github.com/apiology/solargraph/pull/53
         root_pin = find_var(chain_words.first, position)
         return unless root_pin
 
