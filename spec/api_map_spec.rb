@@ -1005,4 +1005,18 @@ describe Solargraph::ApiMap do
     # @todo Undefined because the return tag expands to `type: String`
     expect(pins.map(&:return_type).map(&:tag)).to eq(%w[undefined])
   end
+
+  it 'resolves an ancestor\'s declared type arguments against the type' do
+    api_map = described_class.new
+    hash = Solargraph::ComplexType.parse('Hash{String => Integer}').first
+    # Hash's core signature declares `include Enumerable[[K, V]]`, so K and V
+    # bind to String and Integer.
+    expect(api_map.type_as_ancestor(hash, 'Enumerable').to_s).to eq('Enumerable<Array(String, Integer)>')
+  end
+
+  it 'returns nil for a namespace that is not an ancestor' do
+    api_map = described_class.new
+    hash = Solargraph::ComplexType.parse('Hash{String => Integer}').first
+    expect(api_map.type_as_ancestor(hash, 'Comparable')).to be_nil
+  end
 end

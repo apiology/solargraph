@@ -736,6 +736,29 @@ module Solargraph
       store.get_includes(host_ns).map { |inc_tag| inc_tag.type.name }.include?(module_ns)
     end
 
+    # @return [Hash{String => Boolean}]
+    def cached_yields_type_parameter
+      @cached_yields_type_parameter ||= {}
+    end
+
+    # @param ancestor_name [String]
+    # @return [Boolean]
+    def uncached_yields_type_parameter? ancestor_name
+      namespace_pin = store.get_path_pins(ancestor_name).select { |pin| pin.is_a?(Pin::Namespace) }.first
+      return false unless namespace_pin.is_a?(Pin::Namespace)
+      return false unless namespace_pin.generics.length == 1
+
+      generic_tag = "generic<#{namespace_pin.generics.first}>"
+      store.get_methods(ancestor_name).any? do |method_pin|
+        method_pin.signatures.any? do |signature|
+          block = signature.block
+          next false if block.nil?
+
+          block.parameters.any? { |param| param.return_type.to_s == generic_tag }
+        end
+      end
+    end
+
     # @param pins [Enumerable<Pin::Base>]
     # @param visibility [Enumerable<Symbol>]
     # @return [Array<Pin::Base>]
@@ -791,6 +814,48 @@ module Solargraph
       end
       # logger.debug { "ApiMap#add_methods_from_reference(type=#{type}) - resolved_reference_type: #{resolved_reference_type} for type=#{type}: #{methods.map(&:name)}" }
       methods
+    end
+
+    # Express `type` as the ancestor named `ancestor_name`, resolving that
+    # ancestor's own type arguments from `type`'s parameters - given Hash's
+    # `include Enumerable[[K, V]]`, `Hash{String => Integer}` becomes
+    # `Enumerable<Array(String, Integer)>`.
+    #
+    # A bare `include Enumerable` declares no arguments, so it resolves to a
+    # parameterless `Enumerable`: the ancestry says nothing about how the
+    # includer's params relate to the ancestor's.
+    #
+    # @param type [ComplexType::UniqueType]
+    # @param ancestor_name [String] unrooted name, as ComplexType#name reports
+    # @return [ComplexType::UniqueType, nil] nil unless an ancestor matches
+    def type_as_ancestor type, ancestor_name
+      namespace_pin = store.get_path_pins(type.name).select { |pin| pin.is_a?(Pin::Namespace) }.first
+      return nil if namespace_pin.nil?
+
+      context = ComplexType.new([type])
+      store.get_ancestor_references(type.name).each do |ref|
+        tag = store.constants.dereference(ref)
+        next if tag.nil?
+        resolved = ComplexType.parse(tag).force_rooted.resolve_generics(namespace_pin, context).first
+        return resolved if resolved.name == ancestor_name
+      end
+      nil
+    end
+
+    # Whether `ancestor_name`'s single type parameter is bound to what its
+    # methods yield, as `Enumerable[E]` binds E through `map`'s block. Such a
+    # parameter describes one yielded element, so an includer conforms by the
+    # shape it yields rather than by matching parameters one for one.
+    #
+    # A module yielding nothing - `Taggable[X]` - says nothing about its
+    # includers' parameters, and gets no such treatment.
+    #
+    # @param ancestor_name [String]
+    # @return [Boolean]
+    def yields_type_parameter? ancestor_name
+      cached_yields_type_parameter.fetch(ancestor_name) do
+        cached_yields_type_parameter[ancestor_name] = uncached_yields_type_parameter?(ancestor_name)
+      end
     end
 
     # @param fq_sub_tag [String]
