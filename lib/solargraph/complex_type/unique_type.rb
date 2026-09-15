@@ -421,8 +421,8 @@ module Solargraph
       # @return [Array<ComplexType>]
       def resolve_param_generics_from_context generics_to_resolve, context_type, resolved_generic_values
         types = yield self
-        types.each_with_index.flat_map do |ct, i|
-          ct.items.flat_map do |ut|
+        types.each_with_index.map do |ct, i|
+          resolved = ct.items.flat_map do |ut|
             context_params = yield context_type if context_type
             if context_params && context_params[i]
               type_arg = context_params[i]
@@ -431,10 +431,16 @@ module Solargraph
                                                  resolved_generic_values: resolved_generic_values
               end
             else
-              ut.resolve_generics_from_context generics_to_resolve, nil,
-                                               resolved_generic_values: resolved_generic_values
+              [ut.resolve_generics_from_context(generics_to_resolve, nil,
+                                                resolved_generic_values: resolved_generic_values)]
             end
           end
+          # A single position's resolution may be a union (e.g. a Hash key
+          # type of `String, Symbol` binding one slot of the yielded
+          # [K, V] pair). Keep the union inside one parameter position
+          # instead of splicing its members into extra positions, which
+          # inflates a tuple's arity (Array(K, V) must stay a pair).
+          ComplexType.new(resolved.flat_map { |t| t.is_a?(ComplexType) ? t.items : [t] })
         end
       end
 
@@ -552,8 +558,12 @@ module Solargraph
           new_key_types = @key_types
           new_subtypes = @subtypes
         else
-          new_key_types = @key_types.flat_map { |ct| ct.items.map { |ut| ut.transform(&transform_type) } }
-          new_subtypes = @subtypes.flat_map { |ct| ct.items.map { |ut| ut.transform(&transform_type) } }
+          # Rebuild per parameter position: a position holding (or
+          # transformed into) a union must stay one position, not have
+          # its members spliced in as extra positions (which would
+          # inflate a tuple's arity).
+          new_key_types = @key_types.map { |ct| transform_position(ct, &transform_type) }
+          new_subtypes = @subtypes.map { |ct| transform_position(ct, &transform_type) }
         end
         new_type = recreate(new_name: new_name || name, new_key_types: new_key_types, new_subtypes: new_subtypes,
                             make_rooted: @rooted)
@@ -562,6 +572,18 @@ module Solargraph
 
       def expand named_types
         named_types[name] || self
+      end
+
+      # Transform one parameter position, keeping however many types the
+      # transformation produces inside that single position.
+      #
+      # @param position_type [ComplexType]
+      # @yieldparam t [UniqueType]
+      # @yieldreturn [self]
+      # @return [ComplexType]
+      def transform_position position_type, &transform_type
+        results = position_type.items.map { |ut| ut.transform(&transform_type) }
+        ComplexType.new(results.flat_map { |t| t.is_a?(ComplexType) ? t.items : [t] })
       end
 
       # Generate a ComplexType that fully qualifies this type's namespaces.
