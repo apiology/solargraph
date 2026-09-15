@@ -742,6 +742,24 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message)).to be_empty
     end
 
+    # The shape of URI.encode_www_form's `enum` parameter, declared here so
+    # the example does not depend on a stdlib require resolving. Hash
+    # satisfies it through `include Enumerable[[K, V]]` in its own signature.
+    it 'accepts a Hash where an Enumerable of key/value pairs is expected' do
+      checker = type_checker(%(
+        # @param enum [Enumerable<Array(_ToS, _ToS)>]
+        # @return [void]
+        def takes_pairs(enum); end
+
+        # @param params [Hash{Symbol => String}]
+        # @return [void]
+        def encode(params)
+          takes_pairs(params)
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
     context 'with class name available in more than one gate' do
       let(:checker) do
         type_checker(%(
