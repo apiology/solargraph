@@ -11,10 +11,12 @@ module Solargraph
             s_visi = region.visibility
             s_visi = :public if s_visi == :module_function || region.scope != :class
             loc = get_node_location(node)
+            # @sg-ignore Need to add nil check here
             closure = if node.children[0].is_a?(AST::Node) && node.children[0].type == :self
                         region.closure
                       else
                         Solargraph::Pin::Namespace.new(
+                          # @sg-ignore Need to add nil check here
                           name: unpack_name(node.children[0]),
                           source: :parser
                         )
@@ -22,6 +24,7 @@ module Solargraph
             pins.push Solargraph::Pin::Method.new(
               location: loc,
               closure: closure,
+              compound_statement: region.compound_statement,
               name: node.children[1].to_s,
               comments: comments_for(node),
               scope: :class,
@@ -29,7 +32,7 @@ module Solargraph
               node: node,
               source: :parser
             )
-            process_children region.update(closure: pins.last, scope: :class)
+            process_children region.update(closure: pins.last, scope: :class, compound_statement: pins.last)
           end
         end
       end

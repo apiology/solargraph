@@ -5,6 +5,7 @@ source 'https://rubygems.org'
 gemspec name: 'solargraph'
 
 # Test fixture gems
+# @sg-ignore Wrong argument type for Kernel#gem: arg_1 expected String, received Hash
 gem 'gem-with-yard-macros', path: 'spec/fixtures/gem-with-yard-macros'
 
 # Local gemfile for development tools, etc.

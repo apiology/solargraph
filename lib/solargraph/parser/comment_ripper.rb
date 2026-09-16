@@ -33,6 +33,7 @@ module Solargraph
             chomped = '#'
           end
           @comments[result[2][0]] =
+            # @sg-ignore Need to add nil check here
             Snippet.new(Range.from_to(result[2][0], result[2][1], result[2][0], result[2][1] + chomped.length), chomped)
         end
         result
@@ -49,26 +50,20 @@ module Solargraph
           )
       end
 
-      # @sg-ignore @override is adding, not overriding
       def on_embdoc_beg *args
         result = super
-        # @sg-ignore @override is adding, not overriding
         create_snippet(result)
         result
       end
 
-      # @sg-ignore @override is adding, not overriding
       def on_embdoc *args
         result = super
-        # @sg-ignore @override is adding, not overriding
         create_snippet(result)
         result
       end
 
-      # @sg-ignore @override is adding, not overriding
       def on_embdoc_end *args
         result = super
-        # @sg-ignore @override is adding, not overriding
         create_snippet(result)
         result
       end
