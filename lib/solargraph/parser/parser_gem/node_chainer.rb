@@ -184,8 +184,10 @@ module Solargraph
           return false unless Parser.is_ast_node?(node) && node.type == :hash
           node.children.any? do |child|
             next false unless Parser.is_ast_node?(child) && child.type == :kwsplat
-            # @sg-ignore Translate to something flow sensitive typing understands
-            !(Parser.is_ast_node?(child.children[0]) && child.children[0].type == :hash)
+            splat_arg = child.children[0]
+            next true unless splat_arg.is_a?(::Parser::AST::Node)
+
+            splat_arg.type != :hash
           end
         end
 
