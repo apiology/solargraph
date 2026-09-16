@@ -682,20 +682,18 @@ module Solargraph
       # @return [Solargraph::Pin::LocalVariable, Solargraph::Pin::InstanceVariable, nil]
       def chain_pin chain_words, node, position
         if chain_words.length == 1
-          # A bare word is ambiguous from chain_words alone -- 'steps'
-          # could be a real local variable (node.type == :lvar) or a
-          # 0-arg method call to self (node.type == :send, since the
-          # parser only emits :lvar for a name already assigned as a
-          # local in this scope). Only the former is a tracked variable.
-          # @sg-ignore chain_words is never empty - callers already checked
-          return find_var(chain_words.first, position) unless node.is_a?(::Parser::AST::Node) && node.type == :send
+          word = chain_words.first
+          return unless word
+
+          # A bare word is ambiguous: :lvar is a tracked local, :send a self call (e.g. 'steps').
+          return find_var(word, position) unless node.is_a?(::Parser::AST::Node) && node.type == :send
 
           return unless closure
 
           return self_call_pin(node)
         end
 
-        # @sg-ignore chain_words is never empty - callers already checked
+        # @sg-ignore https://github.com/apiology/solargraph/pull/53
         root_pin = find_var(chain_words.first, position)
         return unless root_pin
 
@@ -708,13 +706,9 @@ module Solargraph
         )
       end
 
-      # Builds the synthesized pin for a bare, implicit-self call to a
-      # 0-arg method, e.g. 'steps'. Rooted at `closure` rather than at a
-      # tracked variable's pin, since there is no variable to inherit a
-      # closure from. Named after the bare method word itself (not
-      # e.g. 'self.steps') so it lines up with how Chain::Call#resolve
-      # looks up a head-position call: by the call's word, via
-      # ApiMap#var_at_location.
+      # Builds a pin for a bare self call (e.g. 'steps'), rooted at
+      # `closure` since there's no variable pin to inherit one from.
+      # Named after the bare word so ApiMap#var_at_location's lookup finds it.
       #
       # @param node [Parser::AST::Node] the call node, e.g. 'steps'
       # @return [Solargraph::Pin::LocalVariable]
