@@ -11,7 +11,7 @@ module Solargraph
     #  include Solargraph::Parser::ParserGem::NodeMethods
     include Parser::NodeMethods
 
-    # @return [String]
+    # @return [String, nil]
     attr_reader :filename
 
     # @return [Rules]

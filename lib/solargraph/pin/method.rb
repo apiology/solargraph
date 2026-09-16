@@ -12,7 +12,7 @@ module Solargraph
 
       attr_writer :signatures
 
-      # @return [Parser::AST::Node]
+      # @return [Parser::AST::Node, nil]
       attr_reader :node
 
       # @param visibility [::Symbol] :public, :protected, or :private

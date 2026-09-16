@@ -5,10 +5,10 @@ module Solargraph
     class Block < Callable
       include Breakable
 
-      # @return [Parser::AST::Node]
+      # @return [Parser::AST::Node, nil]
       attr_reader :receiver
 
-      # @return [Parser::AST::Node]
+      # @return [Parser::AST::Node, nil]
       attr_reader :node
 
       # @param receiver [Parser::AST::Node, nil]
@@ -58,6 +58,8 @@ module Solargraph
       # @param api_map [ApiMap]
       # @return [::Array<ComplexType>]
       def typify_parameters api_map
+        return parameters.map { ComplexType::UNDEFINED } if receiver.nil? || node.nil?
+
         chain = Parser.chain(receiver, filename, node)
         # @sg-ignore Need to add nil check here
         clip = api_map.clip_at(location.filename, location.range.start)
