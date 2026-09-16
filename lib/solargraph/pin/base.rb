@@ -480,6 +480,17 @@ module Solargraph
         location || type_location
       end
 
+      # #closure, for callers who know from the pin provenance (e.g. it
+      # was just built from a parsed AST node, or fetched from an
+      # already-cataloged workspace) that it must be set. Raises instead
+      # of silently propagating nil if that assumption is ever wrong.
+      #
+      # @sg-ignore flow ensitive typing should understand raise
+      # @return [Pin::Closure]
+      def closure!
+        closure || raise("No closure set on #{inner_desc}")
+      end
+
       # True if the specified pin is a near match to this one. A near match
       # indicates that the pins contain mostly the same data. Any differences
       # between them should not have an impact on the API surface.
