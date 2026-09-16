@@ -13,35 +13,32 @@ module Solargraph
         def initialize type, node
           super("<#{type}>")
 
-          # @todo We might be able to do some light inference from literals and
-          #   tuples as long as literal values are intransitive.
-
-          # if node.is_a?(::Parser::AST::Node)
-          #   # @sg-ignore flow sensitive typing needs to narrow down type with an if is_a? check
-          #   if node.type == :true
-          #     @value = true
-          #   # @sg-ignore flow sensitive typing needs to narrow down type with an if is_a? check
-          #   elsif node.type == :false
-          #     @value = false
-          #   # @sg-ignore flow sensitive typing needs to narrow down type with an if is_a? check
-          #   elsif %i[int sym].include?(node.type)
-          #     # @sg-ignore flow sensitive typing needs to narrow down type with an if is_a? check
-          #     @value = node.children.first
-          #   end
-          # end
+          if node.is_a?(::Parser::AST::Node)
+            # rubocop:disable Lint/BooleanSymbol -- :true and :false are
+            # Parser::AST::Node type names, not booleans
+            if node.type == :true
+              @value = true
+            elsif node.type == :false
+              # rubocop:enable Lint/BooleanSymbol
+              @value = false
+            elsif %i[int sym str].include?(node.type)
+              @value = node.children.first
+            end
+          end
           @type = type
-          # @literal_type = ComplexType.try_parse(@value.inspect)
-          @literal_type = ComplexType::UNDEFINED
+          @literal_type = ComplexType.try_parse(@value.inspect)
           @complex_type = ComplexType.try_parse(type)
         end
 
-        # @sg-ignore Fix "Not enough arguments to Module#protected"
         protected def equality_fields
-          # @sg-ignore literal arrays in this module turn into ::Solargraph::Source::Chain::Array
           super + [@value, @type, @literal_type, @complex_type]
         end
 
-        def resolve api_map, name_pin, locals
+        # @param api_map [ApiMap]
+        # @param name_pin [Pin::Base]
+        # @param locals [::Array<Pin::Base>]
+        # @param _receiver_path [::Array<String>, nil]
+        def resolve api_map, name_pin, locals, _receiver_path = nil
           if api_map.super_and_sub?(@complex_type.name, @literal_type.name)
             [Pin::ProxyType.anonymous(@literal_type, source: :chain)]
           else

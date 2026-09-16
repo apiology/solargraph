@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-# @sg-ignore Should better support meaning of '&' in RBS
 $LOAD_PATH.unshift "#{File.dirname(__FILE__)}/lib"
 require 'solargraph/version'
 require 'date'
@@ -13,9 +12,8 @@ Gem::Specification.new do |s|
   s.description = 'IDE tools for code completion, inline documentation, and static analysis'
   s.authors     = ['Fred Snyder']
   s.email       = 'admin@castwide.com'
+  # @sg-ignore Wrong argument type for File.expand_path: file_name expected String, _ToStr, _ToPath, received String, nil
   s.files       = Dir.chdir(File.expand_path(__dir__)) do
-    # @sg-ignore Need backtick support
-    # @type [String]
     all_files = `git ls-files -z`
     all_files.split("\x0").reject { |f| f.match(%r{^(test|spec|features)/}) }
   end
@@ -66,7 +64,7 @@ Gem::Specification.new do |s|
   # even more specific on RuboCop itself, which is written into _todo
   # file.
   s.add_development_dependency 'overcommit', '~> 0.71.0'
-  s.add_development_dependency 'rubocop', '~> 1.80.0.0'
+  s.add_development_dependency 'rubocop', '~> 1.89.0.0'
   s.add_development_dependency 'rubocop-rake', '~> 0.7.1'
   s.add_development_dependency 'rubocop-rspec', '~> 3.6.0'
   s.add_development_dependency 'rubocop-yard', '~> 1.0.0'

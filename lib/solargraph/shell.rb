@@ -109,20 +109,8 @@ module Solargraph
     # @param gem [String]
     # @param version [String, nil]
     def cache gem, version = nil
-      gemspec = Gem::Specification.find_by_name(gem, version)
-
-      if options[:rebuild] || !PinCache.has_yard?(gemspec)
-        pins = GemPins.build_yard_pins(['yard-activesupport-concern'], gemspec)
-        PinCache.serialize_yard_gem(gemspec, pins)
-      end
-
-      workspace = Solargraph::Workspace.new(Dir.pwd) if File.exist?('rbs_collection.yaml')
-      rbs_map = RbsMap.from_gemspec(gemspec, workspace&.rbs_collection_path, workspace&.rbs_collection_config_path)
-      if options[:rebuild] || !PinCache.has_rbs_collection?(gemspec, rbs_map.cache_key)
-        PinCache.serialize_rbs_collection_gem(gemspec, rbs_map.cache_key, rbs_map.pins)
-      end
-    rescue Gem::MissingSpecError
-      warn "Gem '#{gem}' not found"
+      gems(gem + (version ? "=#{version}" : ''))
+      # '
     end
 
     desc 'uncache GEM [...GEM]', 'Delete specific cached gem documentation'
@@ -135,19 +123,23 @@ module Solargraph
     # @return [void]
     def uncache *gems
       raise ArgumentError, 'No gems specified.' if gems.empty?
+      workspace = Solargraph::Workspace.new(Dir.pwd)
+
       gems.each do |gem|
         if gem == 'core'
-          PinCache.uncache_core
+          PinCache.uncache_core(out: $stdout)
           next
         end
 
         if gem == 'stdlib'
-          PinCache.uncache_stdlib
+          PinCache.uncache_stdlib(out: $stdout)
           next
         end
 
-        spec = Gem::Specification.find_by_name(gem)
-        PinCache.uncache_gem(spec, out: $stdout)
+        spec = workspace.find_gem(gem)
+        raise Thor::InvocationError, "Gem '#{gem}' not found" if spec.nil?
+
+        workspace.uncache_gem(spec, out: $stdout)
       end
     end
 
@@ -183,43 +175,30 @@ module Solargraph
       workspace = Solargraph::Workspace.new('.')
 
       if names.empty?
-        Gem::Specification.to_a.each { |spec| do_cache spec, rebuild: options[:rebuild] }
-        $stderr.puts "Documentation cached for all #{Gem::Specification.count} gems."
+        workspace.cache_all_for_workspace!($stdout, rebuild: options[:rebuild])
       else
-        warn("Caching these gems: #{names}")
+        $stderr.puts("Caching these gems: #{names}")
         names.each do |name|
           if name == 'core'
-            # @sg-ignore cache_core and core? are dynamically defined
-            PinCache.cache_core(out: $stdout) # if !PinCache.core? || options[:rebuild]
+            PinCache.cache_core(out: $stdout) if !PinCache.core? || options[:rebuild]
             next
           end
 
           gemspec = workspace.find_gem(*name.split('='))
           if gemspec.nil?
-            warn "Gem '#{name}' not found"
+            $stderr.puts "Gem '#{name}' not found"
           else
-            if options[:rebuild] || !PinCache.has_yard?(gemspec)
-              pins = GemPins.build_yard_pins(['yard-activesupport-concern'], gemspec)
-              PinCache.serialize_yard_gem(gemspec, pins)
-            end
-
-            workspace = Solargraph::Workspace.new(Dir.pwd)
-            rbs_map = RbsMap.from_gemspec(gemspec, workspace.rbs_collection_path, workspace.rbs_collection_config_path)
-            if options[:rebuild] || !PinCache.has_rbs_collection?(gemspec, rbs_map.cache_key)
-              # cache pins even if result is zero, so we don't retry building pins
-              pins = rbs_map.pins || []
-              PinCache.serialize_rbs_collection_gem(gemspec, rbs_map.cache_key, pins)
-            end
+            workspace.cache_gem(gemspec, rebuild: options[:rebuild], out: $stdout)
           end
         rescue Gem::MissingSpecError
-          warn "Gem '#{name}' not found"
+          $stderr.puts "Gem '#{name}' not found"
         rescue Gem::Requirement::BadRequirementError => e
-          warn "Gem '#{name}' failed while loading"
-          warn e.message
+          $stderr.puts "Gem '#{name}' failed while loading"
+          $stderr.puts e.message
           # @sg-ignore Need to add nil check here
-          warn e.backtrace.join("\n")
+          $stderr.puts e.backtrace.join("\n")
         end
-        warn "Documentation cached for #{names.count} gems."
+        $stderr.puts "Documentation cached for #{names.count} gems."
       end
     end
 
@@ -295,7 +274,7 @@ module Solargraph
       api_map = nil
       time = Benchmark.measure do
         api_map = Solargraph::ApiMap.load_with_cache(directory, $stdout)
-        # @sg-ignore flow sensitive typing should be able to handle redefinition
+        # @sg-ignore https://github.com/castwide/solargraph/issues/1250
         api_map.pins.each do |pin|
           puts pin_description(pin) if options[:verbose]
           pin.typify api_map
@@ -303,13 +282,13 @@ module Solargraph
         rescue StandardError => e
           # @todo to add nil check here
           # @todo should warn on nil dereference below
-          warn "Error testing #{pin_description(pin)} #{if pin.location
+          $stderr.puts "Error testing #{pin_description(pin)} #{if pin.location
                                                           "at #{pin.location.filename}:#{pin.location.range.start.line + 1}"
                                                         end}"
-          warn "[#{e.class}]: #{e.message}"
+          $stderr.puts "[#{e.class}]: #{e.message}"
           # @todo Need to add nil check here
           # @todo flow sensitive typing should be able to handle redefinition
-          warn e.backtrace.join("\n")
+          $stderr.puts e.backtrace.join("\n")
           exit 1
         end
       end
@@ -336,35 +315,39 @@ module Solargraph
                    default: false
     option :stack, type: :boolean, desc: 'Show entire stack of a method pin by including definitions in superclasses',
                    default: false
+    option :resolve, type: :boolean, default: true,
+                     desc: 'Follow Ruby method lookup when the path names no pin of its own, describing the ' \
+                           'definition a call would reach; --no-resolve describes only the exact path'
     # @param path [String] The path to the method pin, e.g. 'Class#method' or 'Class.method'
     # @return [void]
     def pin path
       api_map = Solargraph::ApiMap.load_with_cache('.', $stderr)
-      is_method = path.include?('#') || path.include?('.')
-      if is_method && options[:stack]
-        scope, ns, meth = if path.include? '#'
-                            [:instance, *path.split('#', 2)]
-                          else
-                            [:class, *path.split('.', 2)]
-                          end
-
-        # @sg-ignore Wrong argument type for
-        #   Solargraph::ApiMap#get_method_stack: rooted_tag
-        #   expected String, received Array<String>
-        pins = api_map.get_method_stack(ns, meth, scope: scope)
-      else
-        pins = api_map.get_path_pins path
-      end
+      pins = if options[:stack] && path.match?(/[#.]/)
+               method_stack_for_path(api_map, path)
+             else
+               api_map.get_path_pins path
+             end
       # @type [Hash{Symbol => Pin::Base}]
       references = {}
       pin = pins.first
+      if pin.nil?
+        # --stack already walks the ancestry, so resolution applies only to
+        # the single-pin default.
+        resolved = options[:stack] || !options[:resolve] ? nil : method_stack_for_path(api_map, path).first
+        if resolved.nil?
+          # $stderr.puts instead of Kernel#warn: bin/solargraph disables Ruby
+          # warnings ($VERBOSE = nil), which also silences Kernel#warn, so
+          # warn-based CLI messages never reach the user.
+          $stderr.puts "Pin not found for path '#{path}'"
+          exit 1
+        else
+          pins = [resolved]
+          pin = resolved
+        end
+      end
       case pin
-      when nil
-        warn "Pin not found for path '#{path}'"
-        exit 1
       when Pin::Namespace
         if options[:references]
-          # @sg-ignore Need to add nil check here
           superclass_tag = api_map.qualify_superclass(pin.return_type.tag)
           superclass_pin = api_map.get_path_pins(superclass_tag).first if superclass_tag
           references[:superclass] = superclass_pin if superclass_pin
@@ -476,6 +459,7 @@ module Solargraph
           end
         end
 
+        # @sg-ignore Wrong argument type for File.absolute_path: file_name expected String, _ToStr, _ToPath, received String, nil
         file_uri = Solargraph::LanguageServer::UriHelpers.file_to_uri(File.absolute_path(test_file))
 
         puts "Profiling go-to-definition for #{test_file}"
@@ -492,9 +476,9 @@ module Solargraph
             }
           )
           puts 'Processing go-to-definition request...'
-          result = message.process
+          message.process
 
-          puts "Result: #{result.inspect}"
+          puts "Result: #{message.result.inspect}"
         end
         definition_time = Time.now - definition_start
       rescue Interrupt
@@ -525,6 +509,7 @@ module Solargraph
     desc 'rbs', 'Generate RBS definitions'
     option :filename, type: :string, alias: :f, desc: 'Generated file name', default: 'sig.rbs'
     option :inference, type: :boolean, desc: 'Enhance definitions with type inference', default: true
+    # @return [void]
     def rbs
       api_map = Solargraph::ApiMap.load('.')
       pins = api_map.source_maps.flat_map(&:pins)
@@ -534,7 +519,9 @@ module Solargraph
         store.method_pins.each do |pin|
           next unless pin.return_type.undefined?
           type = pin.typify(api_map)
+          # @sg-ignore Need to add nil check here
           type = pin.probe(api_map) if type.undefined?
+          # @sg-ignore Need to add nil check here
           pin.docstring.add_tag YARD::Tags::Tag.new('return', nil, type.items.map(&:to_s))
           pin.instance_variable_set(:@return_type, type)
         end
@@ -564,7 +551,6 @@ module Solargraph
     def pin_description pin
       desc = if pin.path.nil? || pin.path.empty?
                if pin.closure
-                 # @sg-ignore Need to add nil check here
                  "#{pin.closure.path} | #{pin.name}"
                else
                  "#{pin.context.namespace} | #{pin.name}"
@@ -572,7 +558,6 @@ module Solargraph
              else
                pin.path
              end
-      # @sg-ignore Need to add nil check here
       desc += " (#{pin.location.filename} #{pin.location.range.start.line})" if pin.location
       desc
     end
@@ -587,6 +572,19 @@ module Solargraph
       end
     end
 
+    # Resolve a method path through the receiver's ancestry, for suggesting
+    # (e.g.) 'Comparable#between?' when 'Integer#between?' has no pin of its
+    # own.
+    #
+    # @param api_map [Solargraph::ApiMap]
+    # @param path [String]
+    # @return [Array<Solargraph::Pin::Method>]
+    def method_stack_for_path api_map, path
+      ns, meth = path.split(/[#.]/, 2)
+      return [] if meth.nil?
+      api_map.get_method_stack(ns, meth, scope: path.include?('#') ? :instance : :class)
+    end
+
     # @param pin [Solargraph::Pin::Base]
     # @return [void]
     def print_pin pin
@@ -594,28 +592,6 @@ module Solargraph
         puts pin.to_rbs
       else
         puts pin.inspect
-      end
-    end
-
-    # @param gemspec [Gem::Specification, nil]
-    # @param rebuild [Boolean]
-    # @return [void]
-    def do_cache gemspec, rebuild: false
-      if gemspec.nil?
-        warn "Gem '#{gemspec&.name}' not found"
-      else
-        if rebuild || !PinCache.has_yard?(gemspec)
-          pins = GemPins.build_yard_pins(['yard-activesupport-concern'], gemspec)
-          PinCache.serialize_yard_gem(gemspec, pins)
-        end
-
-        workspace = Solargraph::Workspace.new(Dir.pwd)
-        rbs_map = RbsMap.from_gemspec(gemspec, workspace.rbs_collection_path, workspace.rbs_collection_config_path)
-        if rebuild || !PinCache.has_rbs_collection?(gemspec, rbs_map.cache_key)
-          # cache pins even if result is zero, so we don't retry building pins
-          pins = rbs_map.pins || []
-          PinCache.serialize_rbs_collection_gem(gemspec, rbs_map.cache_key, pins)
-        end
       end
     end
   end

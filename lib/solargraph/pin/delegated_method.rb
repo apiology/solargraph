@@ -5,6 +5,11 @@ module Solargraph
     # A DelegatedMethod is a more complicated version of a MethodAlias that
     # allows aliasing a method from a different closure (class/module etc).
     class DelegatedMethod < Pin::Method
+      # @return [Boolean]
+      def body?
+        false
+      end
+
       # A DelegatedMethod can be constructed with either a :resolved_method
       # pin, or a :receiver_chain. When a :receiver_chain is supplied, it
       # will be used to *dynamically* resolve a receiver type within the
@@ -18,7 +23,6 @@ module Solargraph
       # @param [Hash{Symbol => Object}] splat
       def initialize(method: nil, receiver: nil, name: method&.name, receiver_method_name: name, **splat)
         raise ArgumentError, 'either :method or :receiver is required' if (method && receiver) || (!method && !receiver)
-        # @sg-ignore Need to add nil check here
         super(name: name, **splat)
 
         @receiver_chain = receiver

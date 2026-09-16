@@ -5,10 +5,10 @@ module Solargraph
     class Index
       include Logging
 
-      # @return [Array<String>]
+      # @return [Set<String>]
       attr_reader :macro_method_names
 
-      # @return [Hash{String => Array<Pin::Method>}]
+      # @return [Hash{String => Set<Pin::Method>}]
       attr_reader :macro_method_name_pins
 
       # @param pins [Array<Pin::Base>]
@@ -23,22 +23,16 @@ module Solargraph
 
       # @return [Hash{String => Array<Pin::Namespace>}]
       def namespace_hash
-        # @param h [String]
-        # @param k [Array<Pin::Namespace>]
         @namespace_hash ||= Hash.new { |h, k| h[k] = [] }
       end
 
       # @return [Hash{String => Array<Pin::Base>}]
       def pin_class_hash
-        # @param h [String]
-        # @param k [Array<Pin::Base>]
         @pin_class_hash ||= Hash.new { |h, k| h[k] = [] }
       end
 
       # @return [Hash{String => Array<Pin::Base>}]
       def path_pin_hash
-        # @param h [String]
-        # @param k [Array<Pin::Base>]
         @path_pin_hash ||= Hash.new { |h, k| h[k] = [] }
       end
 
@@ -53,42 +47,31 @@ module Solargraph
       def pins_by_class klass
         # @type [Set<generic<T>>]
         s = Set.new
-        # @sg-ignore need to support destructured args in blocks
         @pin_select_cache[klass] ||= pin_class_hash.each_with_object(s) { |(key, o), n| n.merge(o) if key <= klass }
       end
 
       # @return [Hash{String => Array<Pin::Reference::Include>}]
       def include_references
-        # @param h [String]
-        # @param k [Array<String>]
         @include_references ||= Hash.new { |h, k| h[k] = [] }
       end
 
       # @return [Hash{String => Array<Pin::Reference::Include>}]
       def include_reference_pins
-        # @param h [String]
-        # @param k [Array<Pin::Reference::Include>]
         @include_reference_pins ||= Hash.new { |h, k| h[k] = [] }
       end
 
       # @return [Hash{String => Array<Pin::Reference::Extend>}]
       def extend_references
-        # @param h [String]
-        # @param k [Array<String>]
         @extend_references ||= Hash.new { |h, k| h[k] = [] }
       end
 
       # @return [Hash{String => Array<Pin::Reference::Prepend>}]
       def prepend_references
-        # @param h [String]
-        # @param k [Array<String>]
         @prepend_references ||= Hash.new { |h, k| h[k] = [] }
       end
 
       # @return [Hash{String => Array<Pin::Reference::Superclass>}]
       def superclass_references
-        # @param h [String]
-        # @param k [Array<String>]
         @superclass_references ||= Hash.new { |h, k| h[k] = [] }
       end
 
@@ -131,14 +114,17 @@ module Solargraph
         # @param k [String]
         # @param v [Set<Pin::Base>]
         set.classify(&:class)
+           # @sg-ignore Need to add nil check here
            .map { |k, v| pin_class_hash[k].concat v.to_a }
         # @param k [String]
         # @param v [Set<Pin::Namespace>]
         set.classify(&:namespace)
+           # @sg-ignore Need to add nil check here
            .map { |k, v| namespace_hash[k].concat v.to_a }
         # @param k [String]
         # @param v [Set<Pin::Base>]
         set.classify(&:path)
+           # @sg-ignore Need to add nil check here
            .map { |k, v| path_pin_hash[k].concat v.to_a }
         @namespaces = path_pin_hash.keys.compact.to_set
         map_references Pin::Reference::Include, include_references
@@ -173,32 +159,66 @@ module Solargraph
           logger.debug { "ApiMap::Index#map_overrides: Looking at override #{ovr} for #{ovr.name}" }
           pins = path_pin_hash[ovr.name]
           logger.debug { "ApiMap::Index#map_overrides: pins for path=#{ovr.name}: #{pins}" }
+          # @sg-ignore Need to add nil check here
           pins.each do |pin|
             new_pin = (path_pin_hash[pin.path.sub('#initialize', '.new')].first if pin.path.end_with?('#initialize'))
             (ovr.tags.map(&:tag_name) + ovr.delete).uniq.each do |tag|
-              # @sg-ignore Wrong argument type for
-              #   YARD::Docstring#delete_tags: name expected String,
-              #   received String, Symbol - delete_tags is ok with a
-              #   _ToS, but we should fix anyway
               pin.docstring.delete_tags tag
               new_pin&.docstring&.delete_tags tag
             end
+            # Add every tag from this override to the docstring before
+            # invalidating cached signatures below. Pin::Method#signatures
+            # rebuilds all @overload tags on the docstring at once, so
+            # invalidating mid-loop (after only some tags were added) would
+            # freeze the signature set against a partially-applied
+            # docstring and silently drop the remaining @overload tags.
             ovr.tags.each do |tag|
               pin.docstring.add_tag(tag)
+              new_pin&.docstring&.add_tag(tag)
+            end
+            # pin.reset_generated! always runs (matches prior behavior) so
+            # non-overload tags (e.g. @param) still re-typify against the
+            # updated docstring. The @signatures/@overloads ivars are only
+            # cleared in addition when the override carries @overload tags
+            # -- see #reset_overridden_signatures.
+            pin.reset_generated!
+            new_pin&.reset_generated!
+            if ovr.tags.any? { |tag| tag.tag_name == 'overload' }
+              reset_overridden_signatures pin
+              reset_overridden_signatures new_pin
+            end
+            ovr.tags.each do |tag|
               redefine_return_type pin, tag
-              pin.reset_generated!
-
-              next unless new_pin
-
-              new_pin.docstring.add_tag(tag)
               redefine_return_type new_pin, tag
-              new_pin.reset_generated!
             end
           end
         end
       end
 
-      # @param pin [Pin::Method]
+      # Clear any signatures/overloads Pin::Method may already have
+      # memoized for +pin+, so the next read rebuilds them from the
+      # docstring as it now stands (after `map_overrides` finished mutating
+      # it). Clears the ivars directly rather than via
+      # Pin::Method#reset_generated!, which also clobbers signatures
+      # assigned explicitly elsewhere (e.g. #transform_types,
+      # #combine_with) that have nothing to do with override application.
+      #
+      # Only called when the override carries @overload tags: rebuilding
+      # #signatures from scratch also rebuilds it from the pin's bare
+      # #parameters (Pin::Method#signatures_from_yard), which is empty or
+      # stale for many RBS/combined pins and would silently drop argument
+      # checking for overrides that only touch a single return type.
+      #
+      # @param pin [Pin::Method, nil]
+      # @return [void]
+      def reset_overridden_signatures pin
+        return unless pin
+
+        pin.instance_variable_set(:@signatures, nil)
+        pin.instance_variable_set(:@overloads, nil)
+      end
+
+      # @param pin [Pin::Method, nil]
       # @param tag [YARD::Tags::Tag]
       # @return [void]
       def redefine_return_type pin, tag
@@ -206,6 +226,9 @@ module Solargraph
         #   proxy() / proxy_with_signatures() instead?
         return unless pin && tag.tag_name == 'return'
         pin.instance_variable_set(:@return_type, ComplexType.try_parse(tag.type))
+        # Only methods carry signatures; constants and other pins have
+        # just the one return type set above.
+        return unless pin.is_a?(Pin::Method)
         pin.signatures.each do |sig|
           sig.instance_variable_set(:@return_type, ComplexType.try_parse(tag.type))
         end
