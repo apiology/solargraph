@@ -339,8 +339,7 @@ module Solargraph
             end.compact
           rescue Solargraph::BundleNotFoundError => e
             Solargraph.logger.info e.message
-            # @sg-ignore Need to add nil check here
-            Solargraph.logger.debug e.backtrace.join("\n")
+            Solargraph.logger.debug (e.backtrace || []).join("\n")
             []
           end
       end
