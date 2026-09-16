@@ -299,13 +299,10 @@ module Solargraph
         #   s(:lvasgn, :x),
         #   s(:int, 1))
         # [4] pry(main)>
-        lhs = or_asgn_node.children[0]
-        # @sg-ignore Parser::AST::Node#children is declared to return a bare Array, losing its element type here
+        lhs = or_asgn_node.children.fetch(0)
         return unless %i[lvasgn ivasgn].include?(lhs.type)
 
-        # @sg-ignore Parser::AST::Node#children is declared to return a bare Array, losing its element type here
         variable_name = lhs.children[0].to_s
-        # @sg-ignore Parser::AST::Node#children is declared to return a bare Array, losing its element type here
         return if variable_name.empty?
 
         range = Range.from_node(or_asgn_node)
