@@ -5,6 +5,9 @@ module Solargraph
   #
   class ComplexType
     GENERIC_TAG_NAME = 'generic'
+
+    # the quote characters that open and close a string literal type
+    QUOTE_CHARACTERS = ['"', "'"].freeze
     # @!parse
     #   include TypeMethods
     include Equality
@@ -36,7 +39,7 @@ module Solargraph
     def qualify api_map, *gates
       red = reduce_object
       types = red.items.map do |t|
-        next t if %w[nil void undefined].include?(t.name)
+        next t if %w[nil void undefined bot].include?(t.name)
         next t if ['::Boolean'].include?(t.rooted_name)
         api_map.unalias(t.name) || t.qualify(api_map, *gates)
       end
@@ -51,12 +54,13 @@ module Solargraph
       return self unless generic?
 
       ComplexType.new(@items.map do |i|
-        i.resolve_generics_from_context(generics_to_resolve, context_type,
+        i.resolve_generics_from_context(generics_to_resolve, generic_item_context_type(i, context_type),
                                         resolved_generic_values: resolved_generic_values)
       end)
     end
 
     # @return [UniqueType]
+    # @sg-ignore Need to add nil check here
     def first
       @items.first
     end
@@ -133,6 +137,7 @@ module Solargraph
 
     # @param index [Integer]
     # @return [UniqueType]
+    # @sg-ignore Need to add nil check here
     def [] index
       @items[index]
     end
@@ -189,8 +194,19 @@ module Solargraph
 
     # @return [ComplexType]
     def downcast_to_literal_if_possible
-      return self
       ComplexType.new(items.map(&:downcast_to_literal_if_possible))
+    end
+
+    # Drop a literal item (e.g. `0`) when its non-literal base type
+    # (e.g. `Integer`) is also present in the same union - a wider
+    # type already subsumes it, so keeping both is redundant and
+    # reads as if the literal value were still specifically reachable.
+    #
+    # @return [ComplexType]
+    def without_redundant_literals
+      non_literal_names = items.reject(&:literal?).map(&:name)
+      new_items = items.reject { |item| item.literal? && non_literal_names.include?(item.non_literal_name) }
+      ComplexType.new(new_items)
     end
 
     # @return [String]
@@ -265,10 +281,29 @@ module Solargraph
     # @return [Boolean]
     def duck_type_provides? api_map, inf, quack
       return true if inf.duck_type? && inf.to_s[1..] == quack
+      return intersection_conjunct_quacks?(api_map, quack, inf) if inf.is_a?(UniqueType::Intersection)
 
       !api_map.get_method_stack(inf.namespace, quack, scope: inf.scope).empty?
     end
     private :duck_type_provides?
+
+    # Intersection#namespace/#scope only report the first conjunct,
+    # so this checks every conjunct against the duck type directly.
+    #
+    # @param api_map [ApiMap]
+    # @param quack [String]
+    # @param unique_type [ComplexType::UniqueType]
+    # @return [Boolean]
+    def intersection_conjunct_quacks? api_map, quack, unique_type
+      if unique_type.is_a?(UniqueType::Intersection)
+        return unique_type.conjuncts.any? do |conjunct|
+          conjunct.all? { |ut| intersection_conjunct_quacks?(api_map, quack, ut) }
+        end
+      end
+      # A duck-typed conjunct only vouches for its own named method.
+      return unique_type.to_s[1..] == quack if unique_type.duck_type?
+      !api_map.get_method_stack(unique_type.namespace, quack, scope: unique_type.scope).empty?
+    end
 
     # @return [String]
     def rooted_tags
@@ -300,6 +335,11 @@ module Solargraph
       ComplexType.new(map(&:simplify_literals))
     end
 
+    # @return [self]
+    def non_literal_type
+      ComplexType.new(map(&:non_literal_type))
+    end
+
     # @param new_name [String, nil]
     # @yieldparam t [UniqueType]
     # @yieldreturn [UniqueType]
@@ -311,6 +351,8 @@ module Solargraph
       ComplexType.new(map { |ut| ut.transform(new_name, &transform_type) })
     end
 
+    # @param named_types [Hash{String => ComplexType::UniqueType}]
+    # @return [ComplexType]
     def expand named_types
       ComplexType.new(map { |ut| ut.expand(named_types) })
     end
@@ -342,7 +384,9 @@ module Solargraph
     end
 
     # @return [Array<ComplexType>]
+    # @sg-ignore Need to add nil check here
     def all_params
+      # @sg-ignore Need to add nil check here
       @items.first.all_params || []
     end
 
@@ -367,6 +411,7 @@ module Solargraph
     def erased_version_of? other
       return false if items.length != 1 || other.items.length != 1
 
+      # @sg-ignore Need to add nil check here
       @items.first.erased_version_of?(other.items.first)
     end
 
@@ -384,31 +429,67 @@ module Solargraph
     def exclude exclude_types, api_map
       return self if exclude_types.nil?
 
-      types = items - exclude_types.items
-      types = [ComplexType::UniqueType::UNDEFINED] if types.empty?
+      # excludes by conformance, not equality: excluding Array also
+      # removes Array<Symbol, Array> (every Array<Symbol, Array> is an
+      # Array), but excluding Array<Integer> leaves plain Array alone.
+      types = items.reject do |ut|
+        exclude_types.any? { |exclude_type| ut.conforms_to?(api_map, exclude_type, :assignment) }
+      end
+      if types.empty?
+        # An exhausted exclusion (e.g., a `x.nil? || x.is_a?(Foo)`
+        # guard that together covers every member of the declared
+        # type) means the code past this point is unreachable, not a
+        # real type error. Tag it `bot` - a subtype of every type -
+        # instead of `undefined`, so calls made on it downstream are
+        # treated as vacuously valid rather than flagged unresolved.
+        types = [ComplexType::UniqueType::BOT]
+      end
       ComplexType.new(types)
     end
 
-    # @see https://en.wikipedia.org/wiki/Intersection_type
+    # Flow-sensitive type narrowing: given a type learned from a
+    # runtime guard (e.g. `x.is_a?(Foo)`), refines this type down to
+    # the more specific of each compatible pair between the two
+    # sides. When neither side is already known to be a subtype of
+    # the other but one is positively confirmed to be a mix-in (e.g.
+    # a declared class and an unrelated module), both facts are still
+    # true at once, so the pair is combined into a
+    # ComplexType::UniqueType::Intersection rather than discarded.
+    # Everything else - two different concrete classes (impossible;
+    # an object has exactly one class), or either side being a
+    # namespace we can't positively identify - falls back to the
+    # original behavior of dropping the pair; only if every pair is
+    # either dropped or empty does the result fall back to UNDEFINED.
     #
-    # @param intersection_type [ComplexType, ComplexType::UniqueType, nil]
+    # @see https://www.typescriptlang.org/docs/handbook/2/narrowing.html
+    #
+    # @param narrowing_type [ComplexType, ComplexType::UniqueType, nil]
     # @param api_map [ApiMap]
     # @return [self, ComplexType::UniqueType]
-    def intersect_with intersection_type, api_map
-      return self if intersection_type.nil?
-      return intersection_type if undefined?
+    def narrow_with narrowing_type, api_map
+      return self if narrowing_type.nil?
+      return narrowing_type if undefined?
       types = []
       # try to find common types via conformance
       items.each do |ut|
-        intersection_type.each do |int_type|
-          if int_type.conforms_to?(api_map, ut, :assignment)
-            types << int_type
-          elsif ut.conforms_to?(api_map, int_type, :assignment)
+        narrowing_type.each do |candidate|
+          if candidate.duck_type?
+            # A duck-type fact selects arms that already provide the
+            # method; #conforms_to?'s own duck-type check matches unconditionally instead.
+            types << ut if duck_types_match?(api_map, candidate, ComplexType.new([ut]))
+          elsif candidate.conforms_to?(api_map, ut, :assignment)
+            types << candidate
+          elsif ut.conforms_to?(api_map, candidate, :assignment)
             types << ut
+          elsif mixin_pairing?(api_map, ut, candidate)
+            types << UniqueType::Intersection.new([ComplexType.new([ut]), ComplexType.new([candidate])])
           end
         end
       end
-      types = [ComplexType::UniqueType::UNDEFINED] if types.empty?
+      if types.empty?
+        duck_candidates = narrowing_type.select(&:duck_type?)
+        types = duck_candidates.empty? ? [ComplexType::UniqueType::UNDEFINED] : duck_candidates
+      end
       ComplexType.new(types)
     end
 
@@ -429,6 +510,35 @@ module Solargraph
 
     def bottom?
       @items.all?(&:bot?)
+    end
+
+    # Whether combining these two into an intersection is safe. Only
+    # true when at least one side is *positively confirmed* to be a
+    # mix-in: any class can pick up any module, so a class-and-module
+    # pairing is always plausible. Everything else - two different
+    # concrete classes (impossible; an object has exactly one class),
+    # or a namespace we have no pin for (synthetic names like
+    # `Boolean`, generics, literals, duck types, or simply unresolved)
+    # - defaults to false, preserving the original drop-the-pair
+    # behavior. This is deliberately conservative: it only recognizes
+    # the specific case it was added for rather than guessing about
+    # everything narrow_with might be asked to combine.
+    #
+    # @param api_map [ApiMap]
+    # @param declared [ComplexType::UniqueType]
+    # @param candidate [ComplexType::UniqueType]
+    # @return [Boolean]
+    def mixin_pairing? api_map, declared, candidate
+      namespace_kind(api_map, declared) == :module || namespace_kind(api_map, candidate) == :module
+    end
+
+    # @param api_map [ApiMap]
+    # @param unique_type [ComplexType::UniqueType]
+    # @sg-ignore flow sensitive typing needs to infer Enumerable#find's block return type from an is_a? check
+    # @return [:class, :module, nil] nil when the namespace has no pin
+    def namespace_kind api_map, unique_type
+      pin = api_map.get_path_pins(unique_type.namespace).find { |p| p.is_a?(Pin::Namespace) }
+      pin&.type
     end
 
     class << self
@@ -466,11 +576,30 @@ module Solargraph
           point_stack = 0
           curly_stack = 0
           paren_stack = 0
+          bracket_stack = 0
           base = String.new
           subtype_string = String.new
+          # conjuncts of an intersection type (`A & B`) seen so far in
+          # the current `|`-disjunct of the segment being parsed
+          # @type [Array<ComplexType>]
+          conjuncts = []
+          # disjuncts of a union type (`A | B`) seen so far in the
+          # segment currently being parsed
+          # @type [Array<ComplexType, ComplexType::UniqueType>]
+          disjuncts = []
+          # the open quote character of the string literal being read
+          # (e.g. `"Index"`), or nil outside one
+          # @type [String, nil]
+          quote = nil
           # @param char [String]
           type_string&.each_char do |char|
-            if char == '='
+            if quote
+              # inside a string literal every character is content, so
+              # separators and brackets carry no syntactic meaning
+              quote = nil if char == quote
+            elsif QUOTE_CHARACTERS.include?(char)
+              quote = char
+            elsif char == '='
               # raise ComplexTypeError, "Invalid = in type #{type_string}" unless curly_stack > 0
             elsif char == '<'
               point_stack += 1
@@ -479,14 +608,19 @@ module Solargraph
                 subtype_string += char
               elsif base.end_with?('=')
                 raise ComplexTypeError, 'Invalid hash thing' unless key_types.nil?
-                # types.push ComplexType.new([UniqueType.new(base[0..-2].strip)])
                 # @sg-ignore Need to add nil check here
-                types.push UniqueType.parse(base[0..-2].strip, subtype_string)
+                disjuncts.push close_intersection(conjuncts, finish_atom(base[0..-2], subtype_string))
+                types.push close_disjunction(disjuncts)
                 # @todo this should either expand key_type's type
                 #   automatically or complain about not being
                 #   compatible with key_type's type in type checking
                 key_types = types
+                # @type [Array<ComplexType::UniqueType, ComplexType>]
                 types = []
+                # @type [Array<ComplexType>]
+                conjuncts = []
+                # @type [Array<ComplexType, ComplexType::UniqueType>]
+                disjuncts = []
                 base.clear
                 subtype_string.clear
                 next
@@ -510,25 +644,52 @@ module Solargraph
               subtype_string += char
               raise ComplexTypeError, "Invalid close in type #{type_string}" if paren_stack.negative?
               next
-            elsif char == ',' && point_stack.zero? && curly_stack.zero? && paren_stack.zero?
-              # types.push ComplexType.new([UniqueType.new(base.strip, subtype_string.strip)])
-              types.push UniqueType.parse(base.strip, subtype_string.strip)
+            elsif char == '[' &&
+                  (bracket_stack.positive? ||
+                   (base.strip.empty? && point_stack.zero? && curly_stack.zero? && paren_stack.zero?))
+              # Only a fresh atom (blank base, not already nested in
+              # <>/{}/()) can start a `[...]` group - matching
+              # finish_atom's own precondition. Otherwise `[` is just an
+              # ordinary character, e.g. part of a literal type like
+              # `"[]"`, which has no concept of grouping.
+              bracket_stack += 1
+            elsif char == ']' && bracket_stack.positive?
+              bracket_stack -= 1
+              subtype_string += char
+              next
+            elsif char == '&' && top_level?(point_stack, curly_stack, paren_stack, bracket_stack)
+              conjuncts.push ComplexType.new([finish_atom(base, subtype_string)])
+              base.clear
+              subtype_string.clear
+              next
+            elsif char == '|' && top_level?(point_stack, curly_stack, paren_stack, bracket_stack)
+              disjuncts.push close_intersection(conjuncts, finish_atom(base, subtype_string))
+              conjuncts = []
+              base.clear
+              subtype_string.clear
+              next
+            elsif char == ',' && top_level?(point_stack, curly_stack, paren_stack, bracket_stack)
+              disjuncts.push close_intersection(conjuncts, finish_atom(base, subtype_string))
+              types.push close_disjunction(disjuncts)
+              conjuncts = []
+              disjuncts = []
               base.clear
               subtype_string.clear
               next
             end
-            if point_stack.zero? && curly_stack.zero? && paren_stack.zero?
+            if top_level?(point_stack, curly_stack, paren_stack, bracket_stack)
               base.concat char
             else
               subtype_string.concat char
             end
           end
-          if point_stack != 0 || curly_stack != 0 || paren_stack != 0
+          raise ComplexTypeError, "Unclosed string literal in #{type_string}" if quote
+          if point_stack != 0 || curly_stack != 0 || paren_stack != 0 || bracket_stack != 0
             raise ComplexTypeError,
                   "Unclosed subtype in #{type_string}"
           end
-          # types.push ComplexType.new([UniqueType.new(base, subtype_string)])
-          types.push UniqueType.parse(base.strip, subtype_string.strip)
+          disjuncts.push close_intersection(conjuncts, finish_atom(base, subtype_string))
+          types.push close_disjunction(disjuncts)
         end
         unless key_types.nil?
           raise ComplexTypeError, 'Invalid use of key/value parameters' unless partial
@@ -548,6 +709,76 @@ module Solargraph
         Solargraph.logger.info "Error parsing complex type `#{strings.join(', ')}`: #{e.message}"
         ComplexType::UNDEFINED
       end
+
+      private
+
+      # @param point_stack [Integer]
+      # @param curly_stack [Integer]
+      # @param paren_stack [Integer]
+      # @param bracket_stack [Integer]
+      # @return [Boolean]
+      def top_level? point_stack, curly_stack, paren_stack, bracket_stack
+        point_stack.zero? && curly_stack.zero? && paren_stack.zero? && bracket_stack.zero?
+      end
+
+      # Resolves one type atom - either an ordinary named type (`base`
+      # plus its optional `<...>`/`(...)`/`{...}` parameter substring),
+      # or a standalone `[...]` grouping with no leading name, used to
+      # override the default order of operations (e.g. `[Foo | Bar] &
+      # Baz`, where `[...]` is the only way to mark where the union
+      # ends). A bracket group's content is parsed the same way any
+      # other parameter substring is - recursively, via
+      # ComplexType.parse - and its result substituted directly, since
+      # it can itself be a multi-item union (or an intersection).
+      #
+      # @param base [String]
+      # @param subtype_string [String]
+      # @return [ComplexType::UniqueType, ComplexType]
+      def finish_atom base, subtype_string
+        base = base.strip
+        subtype_string = subtype_string.strip
+        if base.empty? && subtype_string.start_with?('[')
+          raise ComplexTypeError, "Unclosed bracket group in #{subtype_string}" unless subtype_string.end_with?(']')
+          # @sg-ignore Wrong argument type for Solargraph::ComplexType.parse: strings expected String, received String, nil
+          return ComplexType.new(ComplexType.parse(subtype_string[1..-2], partial: true))
+        end
+        UniqueType.parse(base, subtype_string)
+      end
+
+      # Wraps a just-parsed atom together with any pending
+      # intersection conjuncts (types seen so far in this disjunct,
+      # separated by `&`) into a single UniqueType. Each conjunct is
+      # a ComplexType (see UniqueType::Intersection), so the final
+      # parsed type is promoted to a single-item ComplexType too.
+      #
+      # @param conjuncts [Array<ComplexType>]
+      # @param final_type [ComplexType::UniqueType, ComplexType]
+      # @return [ComplexType::UniqueType, ComplexType]
+      def close_intersection conjuncts, final_type
+        return final_type if conjuncts.empty?
+        UniqueType::Intersection.new(conjuncts + [ComplexType.new([final_type])])
+      end
+
+      # Collapses the disjuncts of a union type (`A | B`) seen so far
+      # in the segment currently being parsed into a single value to
+      # push into the enclosing types/subtypes list - a bare type when
+      # there was only one (the common case, `|` never used), or a
+      # real multi-item ComplexType union otherwise. This is also
+      # exactly what a top-level `,` in an already-implicit-union
+      # context (Array<...>, Set<...>, hash key/value lists, the
+      # top-level types list itself) reduces to, since each of those
+      # contexts flattens every comma-separated type into one union
+      # regardless of how it's grouped here - so `,` and `|` land on
+      # the same result there, matching RBS's own tag design.
+      #
+      # @param disjuncts [Array<ComplexType, ComplexType::UniqueType>]
+      # @return [ComplexType::UniqueType, ComplexType]
+      # @sg-ignore #first is only nil for an empty array, and this is
+      #   never called with one
+      def close_disjunction disjuncts
+        return disjuncts.first if disjuncts.length == 1
+        ComplexType.new(disjuncts)
+      end
     end
 
     VOID = ComplexType.parse('void')
@@ -560,6 +791,29 @@ module Solargraph
     BOT = ComplexType.parse('bot')
 
     private
+
+    # When this type is itself a union (e.g. `generic<A>, nil`) being
+    # matched against a union context type (e.g. `String, nil`), a
+    # generic member should only be bound against the parts of the
+    # context union not already accounted for by this type's other,
+    # concrete (non-generic) members. Otherwise `generic<A>` in
+    # `generic<A>, nil` would bind to the entire `String, nil` context
+    # instead of just `String`.
+    #
+    # @param item [UniqueType] A member of @items
+    # @param context_type [ComplexType, UniqueType, nil]
+    # @return [ComplexType, UniqueType, nil]
+    def generic_item_context_type item, context_type
+      return context_type unless item.generic? && context_type.is_a?(ComplexType) && @items.length > 1
+
+      concrete_items = @items.reject(&:generic?)
+      return context_type if concrete_items.empty?
+
+      remaining_items = context_type.items.reject { |ct| concrete_items.any? { |ci| ci.name == ct.name } }
+      return context_type if remaining_items.empty?
+
+      ComplexType.new(remaining_items)
+    end
 
     # @todo This is a quick and dirty hack that forces `self` keywords
     #   to reference an instance of their class and never the class itself.

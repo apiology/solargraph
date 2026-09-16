@@ -48,6 +48,7 @@ module Solargraph
             return if corrections&.empty?
 
             Solargraph.logger.info('Formatting result:')
+            # @sg-ignore Need to add nil check here
             corrections.each_line do |line|
               next if line.strip.empty?
               Solargraph.logger.info(line.strip)
@@ -75,6 +76,7 @@ module Solargraph
             ]
 
             %w[except only].each do |arg|
+              # @sg-ignore Need to add nil check here
               cops = cop_list(config[arg])
               args += ["--#{arg}", cops] if cops
             end
@@ -84,7 +86,6 @@ module Solargraph
           end
 
           # @param config [Hash{String => String}]
-          # @sg-ignore
           # @return [Class<RuboCop::Formatter::BaseFormatter>]
           def formatter_class config
             if self.class.const_defined?('BlankRubocopFormatter')
@@ -102,7 +103,6 @@ module Solargraph
           # @return [String, nil]
           def cop_list value
             # @type [String]
-            # @sg-ignore Translate to something flow sensitive typing understands
             value = value.join(',') if value.respond_to?(:join)
             return nil if value == '' || !value.is_a?(String)
             value
@@ -125,6 +125,7 @@ module Solargraph
                      else
                        {
                          line: original.lines.length - 1,
+                         # @sg-ignore Need to add nil check here
                          character: original.lines.last.length
                        }
                      end

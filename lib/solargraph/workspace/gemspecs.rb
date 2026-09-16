@@ -45,7 +45,7 @@ module Solargraph
 
         # Determine gem name based on the require path
         file = "lib/#{require}.rb"
-        spec_with_path = Gem::Specification.find_by_path(file)
+        spec_with_path = Gem::Specification.find_by_path(require)
 
         all_gemspecs = all_gemspecs_from_bundle
 
@@ -56,14 +56,11 @@ module Solargraph
         ].compact.uniq
         # @param gem_name [String]
         gem_names_to_try.each do |gem_name|
-          # @sg-ignore Unresolved call to == on Boolean
           gemspec = all_gemspecs.find { |gemspec| gemspec.name == gem_name }
-          # @sg-ignore flow sensitive typing should be able to handle redefinition
           return [gemspec_or_preference(gemspec)] if gemspec
 
           begin
             gemspec = Gem::Specification.find_by_name(gem_name)
-            # @sg-ignore flow sensitive typing should be able to handle redefinition
             return [gemspec_or_preference(gemspec)] if gemspec
           rescue Gem::MissingSpecError
             logger.debug do
@@ -76,10 +73,8 @@ module Solargraph
           gemspec = all_gemspecs.find do |spec|
             spec = to_gem_specification(spec) unless spec.respond_to?(:files)
 
-            # @sg-ignore Translate to something flow sensitive typing understands
             spec&.files&.any? { |gemspec_file| file == gemspec_file }
           end
-          # @sg-ignore flow sensitive typing should be able to handle redefinition
           return [gemspec_or_preference(gemspec)] if gemspec
         end
 
@@ -100,13 +95,10 @@ module Solargraph
       #
       # @return [Gem::Specification, nil]
       def find_gem name, version = nil, out: $stderr
-        # @sg-ignore flow sensitive typing should be able to handle redefinition
         specish = all_gemspecs_from_bundle.find { |specish| specish.name == name && specish.version == version }
         return to_gem_specification specish if specish
 
-        # @sg-ignore flow sensitive typing should be able to handle redefinition
         specish = all_gemspecs_from_bundle.find { |specish| specish.name == name }
-        # @sg-ignore flow sensitive typing needs to create separate ranges for postfix if
         return to_gem_specification specish if specish
 
         resolve_gem_ignoring_local_bundle name, version, out: out
@@ -136,6 +128,7 @@ module Solargraph
         # RBS tracks implicit dependencies, like how the YAML standard
         # library implies pulling in the psych library.
         stdlib_deps = RbsMap::StdlibMap.stdlib_dependencies(gemspec.name, gemspec.version) || []
+        # @sg-ignore Need to add nil check here
         stdlib_dep_gemspecs = stdlib_deps.map { |dep| find_gem(dep['name'], dep['version']) }.compact
         (gem_dep_gemspecs.values.compact + stdlib_dep_gemspecs).uniq(&:name)
       end
@@ -180,14 +173,18 @@ module Solargraph
                                                           # turns a Bundler::StubSpecification into a
                                                           # Gem::StubSpecification if we can
                                                           if specish.respond_to?(:stub)
-                                                            # @sg-ignore flow sensitive typing ought to be able to handle 'when ClassName'
-                                                            to_gem_specification specish.stub
+                                                            to_gem_specification specish.send(:stub)
                                                           else
                                                             # A Bundler::StubSpecification is a Bundler::
                                                             # RemoteSpecification which ought to proxy a Gem::
                                                             # Specification
                                                             specish
                                                           end
+                                                        # Do not remove on a local "Unneeded @sg-ignore"
+                                                        # verdict. Whether this constant resolves varies by
+                                                        # Ruby patch release, and CI runs a newer one than
+                                                        # most worktrees. It has been removed and restored
+                                                        # three times on local verdicts alone.
                                                         # @sg-ignore Unresolved constant Gem::StubSpecification
                                                         when Gem::StubSpecification
                                                           # @sg-ignore Unresolved call to to_spec on Gem::Specification, Bundler::LazySpecification, Bundler::StubSpecification
@@ -348,13 +345,16 @@ module Solargraph
         @preference_map ||= preferences.to_h { |gemspec| [gemspec.name, gemspec] }
       end
 
-      # @param gemspec [Gem::Specification]
+      # @param gemspec [Gem::Specification, Bundler::LazySpecification, Bundler::StubSpecification]
       #
       # @return [Gem::Specification]
+      # @sg-ignore Declared return type ::Gem::Specification does not match inferred type ::Gem::Specification, nil for Solargraph::Workspace::Gemspecs#gemspec_or_preference
       def gemspec_or_preference gemspec
-        return gemspec unless preference_map.key?(gemspec.name)
-        return gemspec if gemspec.version == preference_map[gemspec.name].version
+        return to_gem_specification(gemspec) unless preference_map.key?(gemspec.name)
+        # @sg-ignore Need to add nil check here
+        return to_gem_specification(gemspec) if gemspec.version == preference_map[gemspec.name].version
 
+        # @sg-ignore Need to add nil check here
         change_gemspec_version gemspec, preference_map[gemspec.name].version
       end
 

@@ -9,7 +9,16 @@ module Solargraph
       include TypeMethods
       include Equality
 
+      autoload :Intersection, 'solargraph/complex_type/unique_type/intersection'
+
       attr_reader :all_params, :subtypes, :key_types
+
+      # @type [Hash{String => String}]
+      ANONYMOUS_NAME_BY_STARTING_TAG = {
+        '{' => 'Hash',
+        '(' => 'Array',
+        '<' => 'Array'
+      }.freeze
 
       # Create a UniqueType with the specified name and an optional substring.
       # The substring is the parameter section of a parametrized type, e.g.,
@@ -22,6 +31,10 @@ module Solargraph
       # @return [UniqueType]
       def self.parse name, substring = '', make_rooted: nil
         raise ComplexTypeError, "Illegal prefix: #{name}" if name.start_with?(':::')
+        # Anonymous shorthand (`<A>`, `(A)`, `{A=>B}`) defaults the
+        # omitted type name to Array or Hash, before the rooted check below.
+        # @sg-ignore Need to add nil check here
+        name = ANONYMOUS_NAME_BY_STARTING_TAG.fetch(substring[0]) if name.empty? && !substring.empty?
         if name.start_with?('::')
           name = name[2..]
           rooted = true
@@ -36,11 +49,15 @@ module Solargraph
         key_types = []
         # @type [Array<ComplexType>]
         subtypes = []
+        # @type [Symbol, nil]
         parameters_type = nil
         unless substring.empty?
+          # @sg-ignore Wrong argument type for Solargraph::ComplexType.parse: strings expected String, received String, nil
           subs = ComplexType.parse(substring[1..-2], partial: true)
           # @sg-ignore Need to add nil check here
-          parameters_type = PARAMETERS_TYPE_BY_STARTING_TAG.fetch(substring[0])
+          parameters_type = PARAMETERS_TYPE_BY_STARTING_TAG.fetch(substring[0]) do
+            raise ComplexTypeError, "Unrecognized parameter delimiter: name=#{name}, substring=#{substring}"
+          end
           if parameters_type == :hash
             unless !subs.is_a?(ComplexType) && (subs.length == 2) && !subs[0].is_a?(UniqueType) && !subs[1].is_a?(UniqueType)
               raise ComplexTypeError,
@@ -57,10 +74,10 @@ module Solargraph
             key_types.concat(subs[0].map { |u| ComplexType.new([u]) })
             subtypes.concat(subs[1].map { |u| ComplexType.new([u]) })
           else
+            # @sg-ignore Wrong argument type for Array#concat: other_arrays expected Array<generic<T>>, _ToAry<generic<T>>, received Solargraph::ComplexType
             subtypes.concat subs
           end
         end
-        # @sg-ignore Need to add nil check here
         new(name, key_types, subtypes, rooted: rooted, parameters_type: parameters_type)
       end
 
@@ -103,7 +120,7 @@ module Solargraph
       # @return [self]
       def simplify_literals
         transform do |t|
-          next t unless t.literal?
+          next t unless t.simplifyable_literal?
           t.recreate(new_name: t.non_literal_name)
         end
       end
@@ -114,27 +131,36 @@ module Solargraph
       def exclude exclude_types, api_map
         return self if exclude_types.nil?
 
-        types = items - exclude_types.items
+        # see ComplexType#exclude: matches by conformance, not equality
+        types = items.reject do |ut|
+          exclude_types.any? { |exclude_type| ut.conforms_to?(api_map, exclude_type, :assignment) }
+        end
         types = [ComplexType::UniqueType::UNDEFINED] if types.empty?
         ComplexType.new(types)
       end
 
-      # @see https://en.wikipedia.org/wiki/Intersection_type
+      # Flow-sensitive narrowing (e.g. via `is_a?`): keeps the more
+      # specific of each compatible pair, or an Intersection when
+      # only a confirmed mix-in relationship holds.
       #
-      # @param intersection_type [ComplexType, ComplexType::UniqueType, nil]
+      # @see https://www.typescriptlang.org/docs/handbook/2/narrowing.html
+      #
+      # @param narrowing_type [ComplexType, ComplexType::UniqueType, nil]
       # @param api_map [ApiMap]
       # @return [self, ComplexType]
-      def intersect_with intersection_type, api_map
-        return self if intersection_type.nil?
-        return intersection_type if undefined?
+      def narrow_with narrowing_type, api_map
+        return self if narrowing_type.nil?
+        return narrowing_type if undefined?
         types = []
         # try to find common types via conformance
         items.each do |ut|
-          intersection_type.each do |int_type|
-            if ut.conforms_to?(api_map, int_type, :assignment)
+          narrowing_type.each do |candidate|
+            if candidate.conforms_to?(api_map, ut, :assignment)
+              types << candidate
+            elsif ut.conforms_to?(api_map, candidate, :assignment)
               types << ut
-            elsif int_type.conforms_to?(api_map, ut, :assignment)
-              types << int_type
+            elsif mixin_pairing?(api_map, ut, candidate)
+              types << Intersection.new([ComplexType.new([ut]), ComplexType.new([candidate])])
             end
           end
         end
@@ -142,18 +168,71 @@ module Solargraph
         ComplexType.new(types)
       end
 
+      # Safe to combine into an intersection only when one side is a
+      # confirmed mix-in (any class can pick up any module); two
+      # classes, or an unpinned namespace, stay false.
+      #
+      # @param api_map [ApiMap]
+      # @param declared [ComplexType::UniqueType]
+      # @param candidate [ComplexType::UniqueType]
+      # @return [Boolean]
+      def mixin_pairing? api_map, declared, candidate
+        namespace_kind(api_map, declared) == :module || namespace_kind(api_map, candidate) == :module
+      end
+
+      # @param api_map [ApiMap]
+      # @param unique_type [ComplexType::UniqueType]
+      # @return [Symbol, nil] :class, :module, or nil if unknown
+      def namespace_kind api_map, unique_type
+        # @type [Pin::Namespace, nil]
+        pin = api_map.get_path_pins(unique_type.namespace).find { |p| p.is_a?(Pin::Namespace) }
+        pin&.type
+      end
+      private :mixin_pairing?, :namespace_kind
+
       def simplifyable_literal?
         literal? && name != 'nil'
       end
 
       def literal?
-        return false
+        non_literal_name != name
+      end
+
+      # Whether this type's tag is a literal value (`:a`, `"Index"`, `1`,
+      # `true`) rather than a class name. Unlike #literal?, this does not
+      # take part in type inference; it only reports what the tag says, so
+      # a literal written in an annotation survives qualification.
+      #
+      # @return [Boolean]
+      def literal_tag?
         non_literal_name != name
       end
 
       # @return [String]
       def non_literal_name
         @non_literal_name ||= determine_non_literal_name
+      end
+
+      # Whether every key_type is a literal, e.g. `Hash{"Index" =>
+      # Float}`'s key is the literal `"Index"`, not a general class.
+      #
+      # @return [Boolean]
+      def literal_keyed?
+        key_types.any? && key_types.all? { |kt| kt.items.all?(&:literal?) }
+      end
+
+      # Whether any key_type has the given literal tag (e.g.
+      # `'"Index"'`) - checks every item, since a key_type may be a union.
+      #
+      # @param tag [String]
+      # @return [Boolean]
+      def key_type_tag? tag
+        key_types.any? { |kt| kt.items.any? { |item| item.tag == tag } }
+      end
+
+      # @return [self]
+      def non_literal_type
+        recreate(new_name: non_literal_name)
       end
 
       # @return [self]
@@ -229,11 +308,11 @@ module Solargraph
         #   covariant
         # contravariant?: Proc - can be changed, so we can pass
         #   in less specific super types
-        # if %w[Hash Tuple Array Set Enumerable].include?(name) && fixed_parameters?
-        #   :covariant
-        # else
-        default
-        # end
+        if %w[Hash Tuple Array Set Enumerable].include?(name) && fixed_parameters?
+          :covariant
+        else
+          default
+        end
       end
 
       # Whether this is an RBS interface like _ToAry or Hash::_Key.
@@ -253,6 +332,11 @@ module Solargraph
       # @param variance [:invariant, :covariant, :contravariant]
       def conforms_to? api_map, expected, situation, rules = [],
                        variance: erased_variance(situation)
+        # bot is a subtype of every type - not a leniency knob like
+        # :allow_undefined, but a type-theoretic fact (e.g., the return
+        # type of `raise` or `abort`)
+        return true if bot?
+
         return true if undefined? && rules.include?(:allow_undefined)
 
         # @todo teach this to validate duck types as inferred type
@@ -262,7 +346,7 @@ module Solargraph
         # match one of their unique types
         expected.any? do |expected_unique_type|
           # :nocov:
-          unless expected_unique_type.instance_of?(UniqueType)
+          unless expected_unique_type.is_a?(UniqueType)
             raise "Expected type must be a UniqueType, got #{expected_unique_type.class} in #{expected.inspect}"
           end
           # :nocov:
@@ -302,7 +386,6 @@ module Solargraph
         rooted_tags
       end
 
-      # @sg-ignore Need better if/elseanalysis
       # @return [String]
       def to_rbs
         if duck_type?
@@ -312,7 +395,10 @@ module Solargraph
         elsif name.downcase == 'nil'
           'nil'
         elsif name == GENERIC_TAG_NAME
-          all_params.first&.name
+          # A generic with no parameter would otherwise render nil, which
+          # callers interpolate into signatures as an empty string
+          # ("def foo: () -> ")
+          all_params.first&.name || 'untyped'
         elsif %w[Class Module].include?(name)
           rbs_name
         elsif %w[Tuple Array].include?(name) && fixed_parameters?
@@ -342,6 +428,7 @@ module Solargraph
       # @return [String]
       def rbs_union types
         if types.length == 1
+          # @sg-ignore Need to add nil check here
           types.first.to_rbs
         else
           "(#{types.map(&:to_rbs).join(' | ')})"
@@ -375,7 +462,6 @@ module Solargraph
 
       # @return [UniqueType]
       def downcast_to_literal_if_possible
-        return self
         SINGLE_SUBTYPE.fetch(rooted_tag, self)
       end
 
@@ -387,7 +473,6 @@ module Solargraph
         if name == ComplexType::GENERIC_TAG_NAME
           type_param = subtypes.first&.name
           return self unless generics_to_resolve.include? type_param
-          # @sg-ignore flow sensitive typing needs to eliminate literal from union with [:bar].include?(foo)
           unless context_type.nil? || !resolved_generic_values[type_param].nil?
             new_binding = true
             # @sg-ignore flow sensitive typing needs to eliminate literal from union with [:bar].include?(foo)
@@ -399,7 +484,6 @@ module Solargraph
                                                          resolved_generic_values: resolved_generic_values)
             end
           end
-          # @sg-ignore flow sensitive typing needs to eliminate literal from union with [:bar].include?(foo)
           return resolved_generic_values[type_param] || self
         end
 
@@ -418,20 +502,29 @@ module Solargraph
       # @return [Array<ComplexType>]
       def resolve_param_generics_from_context generics_to_resolve, context_type, resolved_generic_values
         types = yield self
-        types.each_with_index.flat_map do |ct, i|
-          ct.items.flat_map do |ut|
+        types.each_with_index.map do |ct, i|
+          resolved = ct.items.flat_map do |ut|
             context_params = yield context_type if context_type
             if context_params && context_params[i]
               type_arg = context_params[i]
+              # @sg-ignore Unresolved call to map
               type_arg.map do |new_unique_context_type|
                 ut.resolve_generics_from_context generics_to_resolve, new_unique_context_type,
                                                  resolved_generic_values: resolved_generic_values
               end
             else
-              ut.resolve_generics_from_context generics_to_resolve, nil,
-                                               resolved_generic_values: resolved_generic_values
+              [ut.resolve_generics_from_context(generics_to_resolve, nil,
+                                                resolved_generic_values: resolved_generic_values)]
             end
           end
+          # A single position's resolution may be a union (e.g. a Hash key
+          # type of `String, Symbol` binding one slot of the yielded
+          # [K, V] pair). Keep the union inside one parameter position
+          # instead of splicing its members into extra positions, which
+          # inflates a tuple's arity (Array(K, V) must stay a pair).
+          # @sg-ignore Unresolved call to is_a? - resolved's element type is
+          #   undefined under post-merge inference; runtime members are ComplexType/UniqueType
+          ComplexType.new(resolved.flat_map { |t| t.is_a?(ComplexType) ? t.items : [t] })
         end
       end
 
@@ -443,6 +536,13 @@ module Solargraph
       # @param context_type [ComplexType] The receiver type
       # @return [UniqueType, ComplexType]
       def resolve_generics definitions, context_type
+        # Method/signature-scoped generics (e.g. a `@generic T` on the
+        # method itself) aren't resolved against a receiver's type
+        # params -- they're bound per call site via
+        # resolve_generics_from_context. Leave them unresolved here
+        # rather than mistaking the method's own generics for the
+        # namespace's and erasing them to undefined.
+        return self if definitions.is_a?(Pin::Callable)
         return self if definitions.nil? || definitions.generics.empty?
 
         transform(name) do |t|
@@ -458,12 +558,31 @@ module Solargraph
               else
                 next ComplexType::UNDEFINED
               end
-            # @todo Treating parameterized classes and tuples the same for now
-            # elsif context_type.all?(&:implicit_union?) || true
-            elsif idx.zero? && !context_type.all_params.empty?
-              ComplexType.new(context_type.all_params)
+            elsif context_type.all?(&:implicit_union?)
+              if idx.zero? && !context_type.all_params.empty?
+                ComplexType.new(context_type.all_params)
+              else
+                ComplexType::UNDEFINED
+              end
+            elsif context_type.all_params[idx]
+              context_type.all_params[idx]
+            elsif definitions.generic_defaults[generic_name]
+              # Tuples declare later positional generics (e.g. C, D, ...)
+              # as defaults in terms of earlier ones (e.g. C = A | B).
+              # Resolve those defaults against the same context instead of
+              # returning them as unresolved generic placeholders.
+              # @sg-ignore Unresolved call to resolve_generics on Solargraph::ComplexType, nil
+              definitions.generic_defaults[generic_name].resolve_generics(definitions, context_type)
             else
-              ComplexType::UNDEFINED
+              # No concrete value was supplied for this type param (e.g.
+              # a bare reference to a generic class/superclass with no
+              # type arguments) and it has no default. Leave it as an
+              # unbound generic placeholder rather than erasing it to
+              # untyped -- the same type param queried directly on its
+              # declaring class (with no reference/superclass involved)
+              # is never substituted at all and stays unbound the same
+              # way.
+              t
             end
           else
             t
@@ -490,6 +609,13 @@ module Solargraph
         [self]
       end
 
+      # @yieldparam t [self]
+      # @yieldreturn [Boolean]
+      # @return [Array<UniqueType>]
+      def select(&)
+        [self].select(&)
+      end
+
       # @param new_name [String, nil]
       # @param make_rooted [Boolean, nil]
       # @param new_key_types [Array<ComplexType>, nil]
@@ -503,7 +629,6 @@ module Solargraph
         new_key_types ||= @key_types
         new_subtypes ||= @subtypes
         make_rooted = @rooted if make_rooted.nil?
-        # @sg-ignore flow sensitive typing needs better handling of ||= on lvars
         UniqueType.new(new_name, new_key_types, new_subtypes, rooted: make_rooted, parameters_type: parameters_type)
       end
 
@@ -539,16 +664,34 @@ module Solargraph
           new_key_types = @key_types
           new_subtypes = @subtypes
         else
-          new_key_types = @key_types.flat_map { |ct| ct.items.map { |ut| ut.transform(&transform_type) } }
-          new_subtypes = @subtypes.flat_map { |ct| ct.items.map { |ut| ut.transform(&transform_type) } }
+          # Rebuild per parameter position: a position holding (or
+          # transformed into) a union must stay one position, not have
+          # its members spliced in as extra positions (which would
+          # inflate a tuple's arity).
+          new_key_types = @key_types.map { |ct| transform_position(ct, &transform_type) }
+          new_subtypes = @subtypes.map { |ct| transform_position(ct, &transform_type) }
         end
         new_type = recreate(new_name: new_name || name, new_key_types: new_key_types, new_subtypes: new_subtypes,
                             make_rooted: @rooted)
         yield new_type
       end
 
+      # @param named_types [Hash{String => UniqueType}]
+      # @return [UniqueType]
       def expand named_types
         named_types[name] || self
+      end
+
+      # Transform one parameter position, keeping however many types the
+      # transformation produces inside that single position.
+      #
+      # @param position_type [ComplexType]
+      # @yieldparam t [UniqueType]
+      # @yieldreturn [self]
+      # @return [ComplexType]
+      def transform_position position_type, &transform_type
+        results = position_type.items.map { |ut| ut.transform(&transform_type) }
+        ComplexType.new(results.flat_map { |t| t.is_a?(ComplexType) ? t.items : [t] })
       end
 
       # Generate a ComplexType that fully qualifies this type's namespaces.
@@ -557,17 +700,35 @@ module Solargraph
       # @param gates [Array<String>] The namespaces from which to resolve names
       # @return [self, ComplexType, UniqueType] The generated ComplexType
       def qualify api_map, *gates
-        transform do |t|
-          next t if t.name == GENERIC_TAG_NAME
-          next t if t.duck_type? || t.void? || t.undefined? || t.literal?
-          open = t.rooted? ? [''] : gates
-          fqns = api_map.qualify(t.non_literal_name, *open)
-          if fqns.nil?
-            next UniqueType::BOOLEAN if t.tag == 'Boolean'
-            next UniqueType::UNDEFINED
+        if name == GENERIC_TAG_NAME
+          new_key_types = @key_types
+          new_subtypes = @subtypes
+        else
+          # A literal key tag is the one place a literal has to survive
+          # qualification: widening `:a` to Symbol in `Hash{:a => String}`
+          # would erase which key the type is talking about. Literals
+          # elsewhere still widen to their class.
+          #
+          # map (not flat_map) over @key_types/@subtypes: each entry is one
+          # parameter position, and must stay one position - flat_map would
+          # splice a union position's qualified members in as extra
+          # positions instead of keeping them together in one ComplexType.
+          new_key_types = @key_types.map do |ct|
+            ComplexType.new(ct.items.map { |ut| ut.literal_tag? ? ut : ut.qualify(api_map, *gates) })
           end
-          t.recreate(new_name: fqns, make_rooted: true)
+          new_subtypes = @subtypes.map do |ct|
+            ComplexType.new(ct.items.map { |ut| ut.qualify(api_map, *gates) })
+          end
         end
+        qualified = recreate(new_key_types: new_key_types, new_subtypes: new_subtypes)
+        return qualified if name == GENERIC_TAG_NAME || duck_type? || void? || undefined? || literal? || bot?
+        open = rooted? ? [''] : gates
+        fqns = api_map.qualify(non_literal_name, *open)
+        if fqns.nil?
+          return UniqueType::BOOLEAN if tag == 'Boolean'
+          return UniqueType::UNDEFINED
+        end
+        qualified.recreate(new_name: fqns, make_rooted: true)
       end
 
       def selfy?
@@ -621,6 +782,13 @@ module Solargraph
       end
 
       UNDEFINED = UniqueType.new('undefined', rooted: false)
+      # #eql?/#==/#hash compare the raw @rooted ivar; #rooted? reports
+      # true for any lowercase name regardless of it, so a wrong
+      # @rooted here would not break #bot?/#tag/#to_s - only equality
+      # (Array#uniq, Array#-, Set membership, pin dedup). rooted: true
+      # is required to match how ComplexType.parse('bot') constructs
+      # ComplexType::BOT.first.
+      BOT = UniqueType.new('bot', rooted: true)
       BOOLEAN = UniqueType.new('Boolean', rooted: true)
       TRUE = UniqueType.new('true', rooted: true)
       FALSE = UniqueType.new('false', rooted: true)
