@@ -45,12 +45,8 @@ module Solargraph
       def process_and and_node, true_ranges = [], false_ranges = []
         return unless and_node.type == :and
 
-        # @type [Parser::AST::Node]
-        # @sg-ignore Need to add nil check here
-        lhs = and_node.children[0]
-        # @type [Parser::AST::Node]
-        # @sg-ignore Need to add nil check here
-        rhs = and_node.children[1]
+        lhs = and_node.children.fetch(0)
+        rhs = and_node.children.fetch(1)
 
         before_rhs_loc = rhs.location.expression.adjust(begin_pos: -1)
         before_rhs_pos = Position.new(before_rhs_loc.line, before_rhs_loc.column)
@@ -73,12 +69,8 @@ module Solargraph
       def process_or or_node, true_ranges = [], false_ranges = []
         return unless or_node.type == :or
 
-        # @type [Parser::AST::Node]
-        # @sg-ignore Need to add nil check here
-        lhs = or_node.children[0]
-        # @type [Parser::AST::Node]
-        # @sg-ignore Need to add nil check here
-        rhs = or_node.children[1]
+        lhs = or_node.children.fetch(0)
+        rhs = or_node.children.fetch(1)
 
         before_rhs_loc = rhs.location.expression.adjust(begin_pos: -1)
         before_rhs_pos = Position.new(before_rhs_loc.line, before_rhs_loc.column)
@@ -259,9 +251,7 @@ module Solargraph
         pin = find_var(variable_name, subject_position)
         return unless pin
 
-        # @sg-ignore Need to add nil check here
-        when_nodes = case_node.children[1..].compact.select { |child| child.type == :when }
-        # @sg-ignore flow sensitive typing needs to narrow down type with an if is_a? check
+        when_nodes = case_node.children.drop(1).compact.select { |child| child.type == :when }
         when_nodes.each do |when_node|
           *value_nodes, body_node = when_node.children
           next if body_node.nil?
