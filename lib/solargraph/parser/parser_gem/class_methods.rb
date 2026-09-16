@@ -67,8 +67,7 @@ module Solargraph
             extract_offset = ->(code, offset) { [soff = code.index(name, offset), soff + name.length] }
           end
           inner_node_references(name, source.node).map do |n|
-            rng = Range.from_node(n)
-            # @sg-ignore Need to add nil check here
+            rng = Range.from_node!(n)
             offset = Position.to_offset(source.code, rng.start)
             soff, eoff = extract_offset[source.code, offset]
             Location.new(
@@ -151,8 +150,7 @@ module Solargraph
             last = node.children[-2]
             # @sg-ignore Need to add nil check here
             unless last.nil?
-              rng = Range.from_node(last)
-              # @sg-ignore Need to add nil check here
+              rng = Range.from_node!(last)
               pos = Position.new(rng.ending.line, rng.ending.column - 1)
               result.push Range.new(pos, pos)
             end
