@@ -302,12 +302,9 @@ module Solargraph
         end
       end
 
-      # @sg-ignore Need to validate config
       # @return [String]
-      # @sg-ignore Need to validate config
       def command_path
-        # @type [String]
-        options['commandPath'] || 'solargraph'
+        String(options['commandPath'] || 'solargraph')
       end
 
       # Prepare multiple folders.

@@ -274,11 +274,9 @@ module Solargraph
       source_hash[updater.filename] = source_hash[updater.filename].synchronize(updater)
     end
 
-    # @sg-ignore return type could not be inferred
     # @return [String]
-    # @sg-ignore Need to validate config
     def command_path
-      server['commandPath'] || 'solargraph'
+      String(server['commandPath'] || 'solargraph')
     end
 
     # @return [String, nil]
