@@ -416,7 +416,7 @@ module Solargraph
           return if method_pin.nil? || !forwards_own_block?(link, method_pin)
 
           return_type = method_pin.signatures.filter_map(&:block).first&.return_type
-          return if return_type.nil? || return_type.undefined?
+          return if return_type.nil?
 
           return_type.qualify(api_map, *name_pin.gates)
         end
