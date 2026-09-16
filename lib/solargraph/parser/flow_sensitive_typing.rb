@@ -251,11 +251,15 @@ module Solargraph
         process_or(expression_node, true_ranges, false_ranges)
         process_variable(expression_node, true_ranges, false_ranges)
         process_call_chain(expression_node, true_ranges, false_ranges)
+        process_csend(expression_node, true_ranges, false_ranges)
       end
 
       # Recognizes receivers shaped like 'foo', '@foo', 'foo.bar', or
       # '@foo.bar.baz' -- a chain of simple, argument-less, blockless
       # calls/variables rooted in a local, ivar, or unresolved name.
+      # A safe-navigation link (`&.`) counts the same as a plain one:
+      # both share the identical [receiver, method, *args] node shape,
+      # and #process_csend separately narrows a `&.` receiver itself.
       #
       # @param node [Parser::AST::Node, nil]
       # @return [::Array<String>, nil] Dotted-word chain, e.g. ['pin',
@@ -263,7 +267,7 @@ module Solargraph
       def parse_receiver_chain node
         return unless node.is_a?(::Parser::AST::Node)
         return [node.children[0].to_s] if %i[lvar ivar].include?(node.type)
-        return unless node.type == :send
+        return unless %i[send csend].include?(node.type)
         # no arguments -- children[2..] is only nil (rather than [])
         # if the start index is out of bounds, which can't happen here
         return unless (node.children[2..] || []).empty?
@@ -492,7 +496,7 @@ module Solargraph
       #
       # @return [void]
       def process_call_chain node, true_presences, false_presences
-        return unless node.type == :send
+        return unless %i[send csend].include?(node.type)
         # already handled (with inverted true/false semantics) by
         # process_nilp/process_bang
         return if %i[nil? !].include?(node.children[1])
@@ -500,8 +504,9 @@ module Solargraph
         chain_words = parse_receiver_chain(node)
         return if chain_words.nil? || chain_words.length < 2
 
-        # @sg-ignore Need to add nil check here
-        position = Range.from_node(node).start
+        range = Range.from_node(node)
+        return unless range
+        position = range.start
 
         pin = chain_pin(chain_words, node, position)
         return unless pin
@@ -517,6 +522,44 @@ module Solargraph
         if_false[pin] ||= []
         if_false[pin] << { type: ComplexType.parse('nil, false') }
         process_facts(if_false, false_presences)
+      end
+
+      # Narrows a safe-navigation call's receiver to non-nil wherever the
+      # call's own result is inspected: &. only produces nil by
+      # short-circuiting on a nil receiver. Only true-presence facts are
+      # sound -- a falsy result could be the method's own return value.
+      # Recurses through nested safe-navigation calls to reach the root.
+      #
+      # @param node [Parser::AST::Node]
+      # @param true_presences [Array<Range>]
+      # @param _false_presences [Array<Range>]
+      #
+      # @return [void]
+      def process_csend node, true_presences, _false_presences
+        return unless node.type == :csend
+
+        receiver = node.children[0]
+        return if receiver.nil?
+
+        if %i[lvar ivar].include?(receiver.type)
+          variable_name = parse_variable(receiver)
+          return if variable_name.nil?
+
+          range = Range.from_node(node)
+          return unless range
+          position = range.start
+
+          pin = find_var(variable_name, position)
+          return unless pin
+
+          # @type Hash{Pin::BaseVariable => Array<Hash{Symbol => ComplexType}>}
+          if_true = {}
+          if_true[pin] ||= []
+          if_true[pin] << { not_type: ComplexType::NIL }
+          process_facts(if_true, true_presences)
+        elsif receiver.type == :csend
+          process_csend(receiver, true_presences, [])
+        end
       end
 
       # @param node [Parser::AST::Node]

@@ -1122,4 +1122,97 @@ describe Solargraph::Parser::FlowSensitiveTyping do
     clip = api_map.clip_at('test.rb', [6, 10])
     expect(clip.infer.rooted_tags).to eq('::Object')
   end
+
+  it 'uses a safe-navigation call in a truthy guard to narrow its receiver' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @return [String, nil]
+        def bar; end
+      end
+      # @param baz [Foo, nil]
+      # @return [void]
+      def demo(baz)
+        return unless baz&.bar
+        baz
+      end
+    ), 'test.rb')
+
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [9, 8])
+    expect(clip.infer.rooted_tags).to eq('::Foo')
+  end
+
+  it 'uses a chained safe-navigation call to narrow every receiver in the chain' do
+    source = Solargraph::Source.load_string(%(
+      class Baz
+        # @return [Integer, nil]
+        def qux; end
+      end
+      class Foo
+        # @return [Baz, nil]
+        def bar; end
+      end
+      # @param baz [Foo, nil]
+      # @return [void]
+      def demo(baz)
+        return unless baz&.bar&.qux
+        baz
+      end
+    ), 'test.rb')
+
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [13, 8])
+    expect(clip.infer.rooted_tags).to eq('::Foo')
+  end
+
+  it 'does not narrow the receiver of a safe-navigation call from its falsy branch' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @return [String, nil]
+        def bar; end
+      end
+      # @param baz [Foo, nil]
+      # @return [void]
+      def demo(baz)
+        if baz&.bar
+          baz
+        else
+          baz
+        end
+      end
+    ), 'test.rb')
+
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [9, 10])
+    expect(clip.infer.rooted_tags).to eq('::Foo')
+
+    clip = api_map.clip_at('test.rb', [11, 10])
+    expect(clip.infer.rooted_tags).to eq('::Foo, nil')
+  end
+
+  it 'narrows a repeated call to the same accessor reached via safe navigation' do
+    source = Solargraph::Source.load_string(%(
+      class Location
+        # @return [String]
+        def filename; end
+      end
+
+      class Pin
+        # @return [Location, nil]
+        attr_reader :location
+      end
+
+      # @param pin [Pin, nil]
+      def bundled_filename(pin)
+        return nil unless pin&.location
+        pin&.location.filename
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [13, 33])
+    expect(clip.infer.rooted_tags).to eq('::Location, nil')
+
+    clip = api_map.clip_at('test.rb', [14, 24])
+    expect(clip.infer.rooted_tags).to eq('::String')
+  end
 end
