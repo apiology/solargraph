@@ -80,6 +80,101 @@ describe Solargraph::Source::Chain::Call do
     expect(type.tag).to eq('Integer')
   end
 
+  it 'infers a forwarded block return type from @yieldreturn' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @return [Array<String>]
+        def items
+          ['a']
+        end
+
+        # @yieldreturn [Integer]
+        def forwards(&block)
+          items.map(&block)
+        end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [9, 19])
+    expect(clip.infer.rooted_tags).to eq('::Array<::Integer>')
+  end
+
+  it 'infers an anonymous forwarded block return type from @yieldreturn' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @return [Array<String>]
+        def items
+          ['a']
+        end
+
+        # @yieldreturn [Integer]
+        def forwards(&)
+          items.map(&)
+        end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [9, 19])
+    expect(clip.infer.rooted_tags).to eq('::Array<::Integer>')
+  end
+
+  it 'does not claim an element type for a forwarded block with no @yieldreturn' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @return [Array<String>]
+        def items
+          ['a']
+        end
+
+        def forwards(&block)
+          items.map(&block)
+        end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [8, 19])
+    expect(clip.infer.rooted_tags).to eq('::Array')
+  end
+
+  it 'does not borrow @yieldreturn for a proc variable that is not the block parameter' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @return [Array<String>]
+        def items
+          ['a']
+        end
+
+        # @yieldreturn [Integer]
+        def forwards(&block)
+          blk = proc { |s| s.length }
+          items.map(&blk)
+        end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [10, 19])
+    expect(clip.infer.rooted_tags).to eq('::Array<::Proc>')
+  end
+
+  it 'does not borrow @yieldreturn for a block built from method(:name)' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @return [Array<String>]
+        def items
+          ['a']
+        end
+
+        # @yieldreturn [Integer]
+        def forwards(&block)
+          items.map(&method(:puts))
+        end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [9, 19])
+    expect(clip.infer.rooted_tags).to eq('::Array<::Proc>')
+  end
+
   it 'adds virtual constructors for <Class>.new calls with conflicting return types' do
     api_map = Solargraph::ApiMap.new
     source = Solargraph::Source.load_string(%(
