@@ -131,15 +131,15 @@ module Solargraph
         # @param k [String]
         # @param v [Set<Pin::Base>]
         set.classify(&:class)
-           .map { |k, v| pin_class_hash[k].concat v.to_a }
+           .map { |k, v| pin_class_hash.fetch(k) { pin_class_hash[k] = [] }.concat v.to_a }
         # @param k [String]
         # @param v [Set<Pin::Namespace>]
         set.classify(&:namespace)
-           .map { |k, v| namespace_hash[k].concat v.to_a }
+           .map { |k, v| namespace_hash.fetch(k) { namespace_hash[k] = [] }.concat v.to_a }
         # @param k [String]
         # @param v [Set<Pin::Base>]
         set.classify(&:path)
-           .map { |k, v| path_pin_hash[k].concat v.to_a }
+           .map { |k, v| path_pin_hash.fetch(k) { path_pin_hash[k] = [] }.concat v.to_a }
         @namespaces = path_pin_hash.keys.compact.to_set
         map_references Pin::Reference::Include, include_references
         map_references Pin::Reference::Prepend, prepend_references

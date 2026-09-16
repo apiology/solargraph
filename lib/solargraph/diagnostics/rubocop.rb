@@ -58,8 +58,8 @@ module Solargraph
       # @return [Array<Hash>]
       def make_array resp
         diagnostics = []
-        resp['files'].each do |file|
-          file['offenses'].each do |off|
+        resp.fetch('files').each do |file|
+          (file['offenses'] || []).each do |off|
             diagnostics.push offense_to_diagnostic(off)
           end
         end
@@ -90,16 +90,15 @@ module Solargraph
       # @param off [Hash{String => Hash{String => Integer}}]
       # @return [Position]
       def offense_start_position off
-        Position.new(off['location']['start_line'] - 1, off['location']['start_column'] - 1)
+        Position.new(off.fetch('location').fetch('start_line') - 1,
+                     off.fetch('location').fetch('start_column') - 1)
       end
 
       # @param off [Hash{String => Hash{String => Integer}}]
       # @return [Position]
       def offense_ending_position off
-        if off['location']['start_line'] == off['location']['last_line']
-          start_line = off['location']['start_line'] - 1
-          # @type [Integer]
-          last_column = off['location']['last_column']
+        if off.fetch('location').fetch('start_line') == off.fetch('location').fetch('last_line')
+          start_line = off.fetch('location').fetch('start_line') - 1
           line = @source.code.lines[start_line]
           col_off = if line.nil? || line.empty?
                       1
@@ -108,10 +107,10 @@ module Solargraph
                     end
 
           Position.new(
-            start_line, last_column - col_off
+            start_line, off.fetch('location').fetch('last_column') - col_off
           )
         else
-          Position.new(off['location']['start_line'], 0)
+          Position.new(off.fetch('location').fetch('start_line'), 0)
         end
       end
     end

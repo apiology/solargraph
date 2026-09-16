@@ -44,6 +44,14 @@ describe Solargraph::Parser::NodeProcessor do
     expect(reassignment.assignment).not_to be_nil
   end
 
+  it 'does not raise when deregistering a node type that was never registered' do
+    dummy_processor = Class.new(Solargraph::Parser::NodeProcessor::Base)
+
+    expect do
+      described_class.deregister(:never_registered_type, dummy_processor)
+    end.not_to raise_error
+  end
+
   it 'allows multiple processors for the same node type' do
     dummy_processor1 = Class.new(Solargraph::Parser::NodeProcessor::Base) do
       def process

@@ -111,7 +111,7 @@ module Solargraph
     # Get a source by its filename.
     #
     # @param filename [String]
-    # @return [Solargraph::Source]
+    # @return [Solargraph::Source, nil]
     def source filename
       source_hash[filename]
     end
