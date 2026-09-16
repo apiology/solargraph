@@ -7,6 +7,7 @@ module Solargraph
     module ParserGem
       module NodeProcessors
         autoload :BeginNode,     'solargraph/parser/parser_gem/node_processors/begin_node'
+        autoload :CaseNode,      'solargraph/parser/parser_gem/node_processors/case_node'
         autoload :DefNode,       'solargraph/parser/parser_gem/node_processors/def_node'
         autoload :DefsNode,      'solargraph/parser/parser_gem/node_processors/defs_node'
         autoload :SendNode,      'solargraph/parser/parser_gem/node_processors/send_node'
@@ -40,6 +41,7 @@ module Solargraph
       register :kwbegin,      ParserGem::NodeProcessors::BeginNode
       register :rescue,       ParserGem::NodeProcessors::BeginNode
       register :resbody,      ParserGem::NodeProcessors::ResbodyNode
+      register :case,         ParserGem::NodeProcessors::CaseNode
       register :def,          ParserGem::NodeProcessors::DefNode
       register :defs,         ParserGem::NodeProcessors::DefsNode
       register :if,           ParserGem::NodeProcessors::IfNode
@@ -55,12 +57,14 @@ module Solargraph
       register :gvasgn,       ParserGem::NodeProcessors::GvasgnNode
       register :casgn,        Convention::StructDefinition::NodeProcessors::StructNode
       register :casgn,        Convention::DataDefinition::NodeProcessors::DataNode
+      register :casgn,        Convention::ClassDefinition::NodeProcessors::ClassNode
       register :casgn,        ParserGem::NodeProcessors::CasgnNode
       register :masgn,        ParserGem::NodeProcessors::MasgnNode
       register :alias,        ParserGem::NodeProcessors::AliasNode
       register :args,         ParserGem::NodeProcessors::ArgsNode
       register :forward_args, ParserGem::NodeProcessors::ArgsNode
       register :block,        ParserGem::NodeProcessors::BlockNode
+      register :numblock,     ParserGem::NodeProcessors::BlockNode
       register :or_asgn,      ParserGem::NodeProcessors::OrasgnNode
       register :op_asgn,      ParserGem::NodeProcessors::OpasgnNode
       register :sym,          ParserGem::NodeProcessors::SymNode

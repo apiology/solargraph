@@ -13,6 +13,7 @@ module Solargraph
       attr_writer :signatures
 
       # @return [Parser::AST::Node]
+      # @sg-ignore Need to add nil check here
       attr_reader :node
 
       # @param visibility [::Symbol] :public, :protected, or :private
@@ -75,7 +76,7 @@ module Solargraph
 
       # @param other [Pin::Method]
       def == other
-        super && other.node == node
+        super && other.node == node && other.signatures == signatures
       end
 
       def transform_types &transform
@@ -212,10 +213,10 @@ module Solargraph
         detail += if signatures.length > 1
                     '(*) '
                   else
+                    # @sg-ignore Need to add nil check here
                     "(#{signatures.first.parameters.map(&:full).join(', ')}) " unless signatures.first.parameters.empty?
                   end.to_s
-        # @sg-ignore Need to add nil check here
-        unless return_type.undefined?
+        unless return_type!.undefined?
           detail += "=#{if probed?
                           '~'
                         else
@@ -249,6 +250,7 @@ module Solargraph
       def to_rbs
         return nil if signatures.empty?
 
+        # @sg-ignore Need to add nil check here
         rbs = "def #{name}: #{signatures.first.to_rbs}"
         # @sg-ignore Need to add nil check here
         signatures[1..].each do |sig|
@@ -277,6 +279,7 @@ module Solargraph
           types = macro_names.flat_map do |mac|
             directive = api_map.named_macro(mac)
             next unless directive
+            # @sg-ignore Need a downcast here
             macro = Solargraph::YardMap::Macro.from_directive(directive, self)
             expanded = macro.macro_object.expand([name, *parameter_names])
             docstring = Solargraph::Source.parse_docstring(expanded).to_docstring
@@ -295,8 +298,7 @@ module Solargraph
         type = see_reference(api_map) || typify_from_super(api_map)
         logger.debug { "Method#typify(self=#{self}) - type=#{type&.rooted_tags.inspect}" }
         unless type.nil?
-          # @sg-ignore Need to add nil check here
-          qualified = type.qualify(api_map, *closure.gates)
+          qualified = type.qualify(api_map, *gates)
           logger.debug { "Method#typify(self=#{self}) => #{qualified.rooted_tags.inspect}" }
           return qualified
         end
@@ -370,6 +372,13 @@ module Solargraph
         @explicit
       end
 
+      # False for method pins synthesized from a class-body statement rather than parsed from a def.
+      #
+      # @return [Boolean]
+      def body?
+        !attribute?
+      end
+
       def attribute?
         @attribute
       end
@@ -400,6 +409,7 @@ module Solargraph
             generics: generics,
             # @param src [Array(String, String)]
             parameters: tag.parameters.map do |src|
+              # @sg-ignore Need to add nil check here
               name, decl = parse_overload_param(src.first)
               Pin::Parameter.new(
                 location: location,
@@ -408,6 +418,7 @@ module Solargraph
                 name: name,
                 decl: decl,
                 presence: location&.range,
+                # @sg-ignore Need to add nil check here
                 return_type: param_type_from_name(tag, src.first),
                 source: :overloads
               )
@@ -455,14 +466,16 @@ module Solargraph
 
       protected
 
-      attr_writer :block, :signature_help, :documentation, :return_type
+      attr_writer :block, :signature_help, :documentation
+      # @sg-ignore flow sensitive typing needs better handling of ||= on lvars
+      attr_writer :return_type
 
+      # @return [Boolean]
       def dodgy_visibility_source?
         # as of 2025-03-12, the RBS generator used for
         # e.g. activesupport did not understand 'private' markings
         # inside 'class << self' blocks, but YARD did OK at it
-        # @sg-ignore Need to add nil check here
-        (source == :rbs && scope == :class && type_location&.filename&.include?('generated') && return_type.undefined?) ||
+        (source == :rbs && scope == :class && type_location&.filename&.include?('generated') && return_type!.undefined?) ||
           # YARD's RBS generator seems to miss a lot of should-be protected instance methods
           (source == :rbs && scope == :instance && namespace.start_with?('YARD::')) ||
           # private on attr_readers seems to be broken in Prism's auto-generator script
@@ -497,6 +510,7 @@ module Solargraph
         by_type_arity = {}
         signature_pins.each do |signature_pin|
           by_type_arity[signature_pin.type_arity] ||= []
+          # @sg-ignore flow sensitive typing needs better handling of ||= on lvars
           by_type_arity[signature_pin.type_arity] << signature_pin
         end
 
@@ -612,13 +626,13 @@ module Solargraph
       end
 
       # @param api_map [ApiMap]
-      # @return [ComplexType, nil]
+      # @return [ComplexType, ComplexType::UniqueType, nil]
       def typify_from_super api_map
         stack = rest_of_stack api_map
         return nil if stack.empty?
         stack.each do |pin|
-          # @sg-ignore Need to add nil check here
-          return pin.return_type unless pin.return_type.undefined?
+          next if pin.return_type!.undefined?
+          return pin.typify(api_map)
         end
         nil
       end
@@ -628,6 +642,7 @@ module Solargraph
       # @return [ComplexType, ComplexType::UniqueType, nil]
       def resolve_reference ref, api_map
         parts = ref.split(/[.#]/)
+        # @sg-ignore Need to add nil check here
         if parts.first.empty? || parts.one?
           path = "#{namespace}#{ref}"
         else
@@ -647,7 +662,9 @@ module Solargraph
       # @return [Parser::AST::Node, nil]
       def method_body_node
         return nil if node.nil?
+        # @sg-ignore Need to add nil check here
         return node.children[1].children.last if node.type == :DEFN
+        # @sg-ignore Need to add nil check here
         return node.children[2].children.last if node.type == :DEFS
         return node.children[2] if %i[def DEFS].include?(node.type)
         return node.children[3] if node.type == :defs
@@ -668,14 +685,12 @@ module Solargraph
           end
           rng = Range.from_node(n)
           next unless rng
-          clip = api_map.clip_at(
-            # @sg-ignore Need to add nil check here
-            location.filename,
-            rng.ending
-          )
+          # Pass the full local set: chain resolution re-checks each
+          # presence per sub-node, and a downcast can end early.
           # @sg-ignore Need to add nil check here
-          chain = Solargraph::Parser.chain(n, location.filename)
-          type = chain.infer(api_map, self, clip.locals)
+          all_locals = api_map.source_map(filename).locals
+          chain = Solargraph::Parser.chain(n, filename)
+          type = chain.infer(api_map, self, all_locals)
           result.push type unless type.undefined?
         end
         result.push ComplexType::NIL if has_nil
@@ -730,6 +745,8 @@ module Solargraph
       def return_type_from_inline_rbs
         return nil if inline_rbs.empty?
         method_type = RBS::Parser.parse_method_type(inline_rbs)
+        return nil if method_type.nil?
+
         RbsTranslator.to_complex_type(method_type.type.return_type)
       rescue RBS::ParsingError
         nil
@@ -738,6 +755,8 @@ module Solargraph
       # @return [Array<Pin::Signature>]
       def signatures_from_inline_rbs
         method_type = RBS::Parser.parse_method_type(inline_rbs)
+        return signatures_from_yard if method_type.nil?
+
         [RbsTranslator.to_signature(method_type, self, parameter_names)]
       rescue RBS::ParsingError
         signatures_from_yard
@@ -759,6 +778,7 @@ module Solargraph
       def inline_rbs
         comments.lines
                 .select { |line| line.start_with?(': ') }
+                # @sg-ignore Need to add nil check here
                 .map { |line| line[2..].strip }
                 .join("\n")
       end

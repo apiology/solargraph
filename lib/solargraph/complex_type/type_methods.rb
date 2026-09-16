@@ -58,8 +58,16 @@ module Solargraph
         @nil_type ||= name.casecmp('nil').zero?
       end
 
+      # Whether this type is one of Ruby's singleton values (nil,
+      # true, false) rather than a general class or a multi-valued
+      # literal (e.g. `0`, `:foo`).
+      #
+      # @return [Boolean]
+      def singleton?
+        nil_type? || %w[true false].include?(name)
+      end
+
       def tuple?
-        return false
         @tuple ||= (name == 'Tuple') || (name == 'Array' && subtypes.length >= 1 && fixed_parameters?)
       end
 
@@ -73,6 +81,14 @@ module Solargraph
 
       def undefined?
         name == 'undefined'
+      end
+
+      # @return [Boolean] True if this type is RBS's bottom type - an
+      #   expression that never produces a value (e.g., the return type
+      #   of `raise` or `abort`). A bottom type is a subtype of every
+      #   other type.
+      def bot?
+        name == 'bot'
       end
 
       # Variance of the type ignoring any type parameters
@@ -144,6 +160,7 @@ module Solargraph
         @namespace ||= lambda do
           return 'Object' if duck_type?
           return 'NilClass' if nil_type?
+          # @sg-ignore Need to add nil check here
           %w[Class Module].include?(name) && !subtypes.empty? ? subtypes.first.name : name
         end.call
       end
@@ -190,7 +207,20 @@ module Solargraph
         elsif fixed_parameters?
           "(#{subtypes_str})"
         elsif name == 'Hash'
-          "<#{key_types_str}, #{subtypes_str}>"
+          # The <K, V> notation only has room for exactly one key type and
+          # one value type -- a single top-level comma splits it into K
+          # and V, so a second comma on either side (whether from more
+          # than one entry in key_types/subtypes, or from a single entry
+          # that is itself a multi-item union) produces a string with too
+          # many top-level parameters to reparse. Fall back to the
+          # {K => V} notation, which can represent a comma-separated list
+          # on either side and still reparses correctly, whenever either
+          # side isn't exactly one single type.
+          if key_types.sum { |t| t.items.length } == 1 && subtypes.sum { |t| t.items.length } == 1
+            "<#{key_types_str}, #{subtypes_str}>"
+          else
+            "{#{key_types_str} => #{subtypes_str}}"
+          end
         else
           "<#{key_types_str}#{subtypes_str}>"
         end
@@ -207,25 +237,6 @@ module Solargraph
         return false unless self.class == other.class
         # @sg-ignore flow sensitive typing should support .class == .class
         tag == other.tag
-      end
-
-      # Generate a ComplexType that fully qualifies this type's namespaces.
-      #
-      # @param api_map [ApiMap] The ApiMap that performs qualification
-      # @param context [String] The namespace from which to resolve names
-      # @return [self, ComplexType, UniqueType] The generated ComplexType
-      def qualify api_map, context = ''
-        transform do |t|
-          next t if t.name == GENERIC_TAG_NAME
-          next t if t.duck_type? || t.void? || t.undefined?
-          recon = (t.rooted? ? '' : context)
-          fqns = api_map.qualify(t.name, recon)
-          if fqns.nil?
-            next UniqueType::BOOLEAN if t.tag == 'Boolean'
-            next UniqueType::UNDEFINED
-          end
-          t.recreate(new_name: fqns, make_rooted: true)
-        end
       end
 
       # @yieldparam [UniqueType]

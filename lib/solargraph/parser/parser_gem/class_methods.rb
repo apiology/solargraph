@@ -34,7 +34,9 @@ module Solargraph
         # @return [::Parser::Base]
         def parser
           @parser ||= Prism::Translation::Parser.new(FlawedBuilder.new).tap do |parser|
+            # @sg-ignore Unresolved call to diagnostics on Prism::Translation::Parser
             parser.diagnostics.all_errors_are_fatal = true
+            # @sg-ignore Unresolved call to diagnostics on Prism::Translation::Parser
             parser.diagnostics.ignore_warnings      = true
           end
         end
@@ -53,6 +55,7 @@ module Solargraph
         # @return [Array<Location>]
         def references source, name
           if name.end_with?('=')
+            # @sg-ignore Need to add nil check here
             reg = /#{Regexp.escape name[0..-2]}\s*=/
             # @param code [String]
             # @param offset [Integer]
@@ -137,19 +140,14 @@ module Solargraph
         # @param node [Parser::AST::Node, nil]
         # @return [Array<Range>]
         def string_ranges node
-          return [] unless is_ast_node?(node)
+          return [] unless node.is_a?(::Parser::AST::Node)
           result = []
-          # @sg-ignore Translate to something flow sensitive typing understands
           result.push Range.from_node(node) if node.type == :str
-          # @sg-ignore Translate to something flow sensitive typing understands
           node.children.each do |child|
             result.concat string_ranges(child)
           end
-          # @sg-ignore Translate to something flow sensitive typing understands
           if node.type == :dstr && node.children.last.nil?
-            # @sg-ignore Translate to something flow sensitive typing understands
             last = node.children[-2]
-            # @sg-ignore Need to add nil check here
             unless last.nil?
               rng = Range.from_node(last)
               # @sg-ignore Need to add nil check here

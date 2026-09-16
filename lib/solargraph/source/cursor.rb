@@ -54,7 +54,6 @@ module Solargraph
       # `foo.bar`, the end_of_word at position (0,6) is `r`.
       #
       # @return [String]
-      # @sg-ignore Need to add nil check here
       def end_of_word
         @end_of_word ||= begin
           match = source.code[offset..].to_s.match(end_word_pattern)
@@ -122,6 +121,7 @@ module Solargraph
             if rng
               Cursor.new(source, rng.ending)
             else
+              # @sg-ignore Wrong argument type for Solargraph::Position.new: character expected Integer, received Integer, nil
               pos = Position.new(position.line, [position.column - 1, 0].max)
               Cursor.new(source, pos)
             end
