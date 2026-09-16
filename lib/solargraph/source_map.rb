@@ -192,7 +192,7 @@ module Solargraph
 
     private
 
-    # @return [Array<Pin::Base>]
+    # @return [Array<Pin::Base>, nil]
     attr_writer :convention_pins
 
     # @return [Hash{Class<Pin::Base> => Array<Pin::Base>}]

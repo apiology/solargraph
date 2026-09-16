@@ -259,7 +259,9 @@ module Solargraph
         files.each do |file|
           checker = TypeChecker.new(file, api_map: api_map, rules: rules, level: options[:level].to_sym,
                                           workspace: workspace)
-          problems = checker.problems
+          # Problems on synthetic pins (no source location) can't be
+          # reported as file:line, so they're dropped from this output.
+          problems = checker.problems.select(&:location)
           next if problems.empty?
           problems.sort! { |a, b| a.location.range.start.line <=> b.location.range.start.line }
           puts problems.map { |prob|
@@ -492,9 +494,9 @@ module Solargraph
             }
           )
           puts 'Processing go-to-definition request...'
-          result = message.process
+          message.process
 
-          puts "Result: #{result.inspect}"
+          puts "Result: #{message.result.inspect}"
         end
         definition_time = Time.now - definition_start
       rescue Interrupt

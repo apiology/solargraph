@@ -13,10 +13,10 @@ module Solargraph
       # @return [String]
       attr_reader :original
 
+      # @param original [String] The name of the original method
       # @param scope [::Symbol]
-      # @param original [String, nil] The name of the original method
       # @param splat [Hash] Additional options supported by superclasses
-      def initialize scope: :instance, original: nil, **splat
+      def initialize original:, scope: :instance, **splat
         super(**splat)
         @scope = scope
         @original = original

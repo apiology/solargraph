@@ -3,7 +3,7 @@
 module Solargraph
   module Pin
     class Callable < Closure
-      # @return [Signature]
+      # @return [Signature, nil]
       attr_reader :block
 
       attr_accessor :parameters
