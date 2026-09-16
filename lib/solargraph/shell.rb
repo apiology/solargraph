@@ -216,8 +216,7 @@ module Solargraph
         rescue Gem::Requirement::BadRequirementError => e
           warn "Gem '#{name}' failed while loading"
           warn e.message
-          # @sg-ignore Need to add nil check here
-          warn e.backtrace.join("\n")
+          warn (e.backtrace || []).join("\n")
         end
         warn "Documentation cached for #{names.count} gems."
       end
@@ -307,9 +306,7 @@ module Solargraph
                                                           "at #{pin.location.filename}:#{pin.location.range.start.line + 1}"
                                                         end}"
           warn "[#{e.class}]: #{e.message}"
-          # @todo Need to add nil check here
-          # @todo flow sensitive typing should be able to handle redefinition
-          warn e.backtrace.join("\n")
+          warn (e.backtrace || []).join("\n")
           exit 1
         end
       end
@@ -492,9 +489,9 @@ module Solargraph
             }
           )
           puts 'Processing go-to-definition request...'
-          result = message.process
+          message.process
 
-          puts "Result: #{result.inspect}"
+          puts "Result: #{message.result.inspect}"
         end
         definition_time = Time.now - definition_start
       rescue Interrupt
