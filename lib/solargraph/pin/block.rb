@@ -6,9 +6,11 @@ module Solargraph
       include Breakable
 
       # @return [Parser::AST::Node]
+      # @sg-ignore Need to add nil check here
       attr_reader :receiver
 
       # @return [Parser::AST::Node]
+      # @sg-ignore Need to add nil check here
       attr_reader :node
 
       # @param receiver [Parser::AST::Node, nil]
@@ -28,12 +30,19 @@ module Solargraph
       # @param api_map [ApiMap]
       # @return [void]
       def rebind api_map
-        @rebind ||= maybe_rebind(api_map)
+        @rebind ||= begin
+          maybe_rebind_closure(api_map)
+          maybe_rebind(api_map)
+        end
       end
 
       def binder
-        out = @rebind if @rebind&.defined?
-        out ||= super
+        return @rebind if @rebind&.defined?
+
+        enclosing = closure
+        return enclosing.binder if enclosing.is_a?(Block)
+
+        super
       end
 
       def context
@@ -43,19 +52,67 @@ module Solargraph
 
       # @param yield_types [::Array<ComplexType>]
       # @param parameters [::Array<Parameter>]
+      # @param yield_params [::Array<Parameter>, nil] the yielding method's
+      #   own block signature parameters that produced yield_types - used to
+      #   tell a genuine single yielded value apart from a splat
+      #   ("*arg") standing in for an unknown number of values (e.g. a
+      #   dynamically-dispatched `.send(...) { ... }` block, whose RBS
+      #   signature is `(*arg ::Array) -> untyped`)
       #
       # @return [::Array<ComplexType>]
-      def destructure_yield_types yield_types, parameters
+      def destructure_yield_types yield_types, parameters, yield_params = nil
         # yielding a tuple into a block will destructure the tuple
         if yield_types.length == 1
           yield_type = yield_types.first
+          # @sg-ignore Need to add nil check here
           return yield_type.all_params if yield_type.tuple? && yield_type.all_params.length == parameters.length
+        end
+        # A lone splat block parameter on the yielding method means "an
+        # unknown number of values will be yielded," not "one value,
+        # typed as an Array, was yielded." Binding that whole Array type
+        # to the block's own first parameter is wrong whenever that
+        # parameter isn't itself a splat - Ruby truncates to the first
+        # yielded value there, it doesn't collect them into an Array.
+        if single_unknown_arity_splat?(yield_params) && !(parameters.length == 1 && parameters.first&.restarg?)
+          return parameters.map { ComplexType::UNDEFINED }
         end
         parameters.map.with_index { |_, idx| yield_types[idx] || ComplexType::UNDEFINED }
       end
 
+      # Whether the yielded types line up with the block's parameters one
+      # for one - either a tuple destructured across them, or one yielded
+      # type per parameter. When they do not (Ruby auto-splats a single
+      # yielded value whose arity we cannot match), the fallback in
+      # destructure_yield_types hands position 0 the whole value, which is
+      # worse than leaving the parameters undefined.
+      #
+      # @param yield_types [::Array<ComplexType>]
+      # @param parameters [::Array<Parameter>]
+      # @return [Boolean]
+      def per_position_yield_types? yield_types, parameters
+        return true if yield_types.length == parameters.length
+        return false unless yield_types.length == 1
+
+        only_type = yield_types.first
+        return false if only_type.nil?
+
+        only_type.tuple? && only_type.all_params.length == parameters.length
+      end
+
+      # @param yield_params [::Array<Parameter>, nil]
+      # @return [Boolean]
+      def single_unknown_arity_splat? yield_params
+        return false if yield_params.nil? || yield_params.length != 1
+
+        yield_params.first&.restarg? == true
+      end
+
       # @param api_map [ApiMap]
       # @return [::Array<ComplexType>]
+      # @sg-ignore Declared return type does not match inferred - three-way
+      #   merge interaction: the `partial&.map || parameters.map` tail's
+      #   or-expression now routes through Chain::Or (castwide/solargraph#1309)
+      #   and widens with the partial-result union from apiology/solargraph#60
       def typify_parameters api_map
         chain = Parser.chain(receiver, filename, node)
         # @sg-ignore Need to add nil check here
@@ -63,23 +120,27 @@ module Solargraph
         locals = clip.locals - [self]
         # @sg-ignore Need to add nil check here
         meths = chain.define(api_map, closure, locals)
+        # @type [::Array<ComplexType>, nil]
+        partial = nil
         # @todo Convert logic to use signatures
         # @param meth [Pin::Method]
         meths.each do |meth|
           next if meth.block.nil?
 
-          # @sg-ignore flow sensitive typing needs to handle attrs
-          yield_types = meth.block.parameters.map(&:return_type)
+          yield_params = meth.block.parameters
+          yield_types = yield_params.map(&:return_type)
           # 'arguments' is what the method says it will yield to the
           # block; 'parameters' is what the block accepts
-          argument_types = destructure_yield_types(yield_types, parameters)
+          argument_types = destructure_yield_types(yield_types, parameters, yield_params)
           param_types = argument_types.each_with_index.map do |arg_type, idx|
             param = parameters[idx]
+            # @sg-ignore Need to add nil check here
             param_type = chain.base.infer(api_map, param, locals)
             unless arg_type.nil?
               if arg_type.generic? && param_type.defined?
                 # @sg-ignore Need to add nil check here
                 namespace_pin = api_map.get_namespace_pins(meth.namespace, closure.namespace).first
+                # @sg-ignore Need to add nil check here
                 arg_type.resolve_generics(namespace_pin, param_type)
               else
                 arg_type.self_to_type(chain.base.infer(api_map, self, locals)).qualify(api_map, *meth.gates)
@@ -87,11 +148,29 @@ module Solargraph
             end
           end
           return param_types if param_types.all?(&:defined?)
+
+          # remember the best partial result so a single unresolvable
+          # yield type (e.g. an unbound generic) doesn't discard the
+          # positions that did resolve - but only when the positions
+          # actually correspond, never for the auto-splat fallback
+          if per_position_yield_types?(yield_types, parameters) && param_types.any? { |t| t&.defined? }
+            partial ||= param_types
+          end
         end
-        parameters.map { ComplexType::UNDEFINED }
+        partial&.map { |t| t || ComplexType::UNDEFINED } || parameters.map { ComplexType::UNDEFINED }
       end
 
       private
+
+      # This block's own binder/context fall through to the closure's
+      # rebind when unset, so it must be computed first.
+      #
+      # @param api_map [ApiMap]
+      # @return [void]
+      def maybe_rebind_closure api_map
+        enclosing = closure
+        enclosing.rebind(api_map) if enclosing.is_a?(Block)
+      end
 
       # @param api_map [ApiMap]
       # @return [ComplexType]
