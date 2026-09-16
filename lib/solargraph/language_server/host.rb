@@ -111,8 +111,9 @@ module Solargraph
           end
           message
         elsif request['id']
-          if requests[request['id']]
-            requests[request['id']].process(request['result'])
+          req = requests[request['id']]
+          if req
+            req.process(request['result'])
             requests.delete request['id']
           else
             logger.warn "Discarding client response to unrecognized message #{request['id']}"
@@ -702,8 +703,10 @@ module Solargraph
         @client_capabilities ||= {}
       end
 
+      # @sg-ignore need boolish support for ? methods
       def client_supports_progress?
-        client_capabilities['window'] && client_capabilities['window']['workDoneProgress']
+        window = client_capabilities['window']
+        window && window['workDoneProgress']
       end
 
       private
@@ -853,8 +856,10 @@ module Solargraph
         }
       end
 
+      # @sg-ignore need boolish support for ? methods
       def prepare_rename?
-        client_capabilities['rename'] && client_capabilities['rename']['prepareSupport']
+        rename = client_capabilities['rename']
+        rename && rename['prepareSupport']
       end
 
       # @param library [Library]

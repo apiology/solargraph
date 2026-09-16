@@ -353,9 +353,9 @@ module Solargraph
       # @return [Gem::Specification]
       def gemspec_or_preference gemspec
         return gemspec unless preference_map.key?(gemspec.name)
-        return gemspec if gemspec.version == preference_map[gemspec.name].version
+        return gemspec if gemspec.version == preference_map.fetch(gemspec.name).version
 
-        change_gemspec_version gemspec, preference_map[gemspec.name].version
+        change_gemspec_version gemspec, preference_map.fetch(gemspec.name).version
       end
 
       # @param gemspec [Gem::Specification]

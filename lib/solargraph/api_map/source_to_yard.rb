@@ -50,7 +50,7 @@ module Solargraph
               obj.add_file(pin.location.filename, pin.location.range.start.line, !pin.comments.empty?)
             end
           end
-          code_object_map[pin.path].docstring = pin.docstring
+          code_object_map.fetch(pin.path).docstring = pin.docstring
           store.get_includes(pin.path).each do |ref|
             include_object = code_object_at(pin.path, YARD::CodeObjects::ClassObject)
             unless include_object.nil? || include_object.nil?

@@ -208,7 +208,7 @@ module Solargraph
     def cursor_at filename, position
       position = Position.normalize(position)
       raise FileNotFoundError, "File not found: #{filename}" unless source_map_hash.key?(filename)
-      source_map_hash[filename].cursor_at(position)
+      source_map_hash.fetch(filename).cursor_at(position)
     end
 
     # Get a clip by filename and position.
@@ -670,7 +670,7 @@ module Solargraph
     # @return [Array<Pin::Symbol>]
     def document_symbols filename
       return [] unless source_map_hash.key?(filename) # @todo Raise error?
-      resolve_method_aliases source_map_hash[filename].document_symbols
+      resolve_method_aliases source_map_hash.fetch(filename).document_symbols
     end
 
     # @return [Array<SourceMap>]
