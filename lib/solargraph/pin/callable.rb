@@ -33,6 +33,16 @@ module Solargraph
         super
       end
 
+      # #return_type, for callers who know a real return type has
+      # already been established (inferred from signatures, or set
+      # explicitly) by the time they run. Raises instead of silently
+      # propagating nil if that assumption is ever wrong.
+      #
+      # @return [ComplexType]
+      def return_type!
+        return_type || raise("No return type set on #{inner_desc}")
+      end
+
       # @sg-ignore Need to add nil check here
       # @return [String]
       def method_namespace
@@ -171,8 +181,7 @@ module Solargraph
       end
 
       def typify api_map
-        type = return_type
-        # @sg-ignore Need to add nil check here
+        type = return_type!
         return type.qualify(api_map, *gates) if type.defined?
         if method_name.end_with?('?')
           logger.debug { "Callable#typify(self=#{self}) => Boolean (? suffix)" }

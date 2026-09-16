@@ -69,9 +69,9 @@ module Solargraph
       #
       # @todo 3: Missed nil violation
       #
-      # pending code fixes (605):
+      # pending code fixes (592):
       #
-      # @todo 433: Need to add nil check here
+      # @todo 420: Need to add nil check here
       # @todo 79: https://github.com/castwide/solargraph/pull/1223
       # @todo 50: https://github.com/castwide/solargraph/pull/1245
       # @todo 26: Translate to something flow sensitive typing understands

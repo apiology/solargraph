@@ -375,9 +375,8 @@ module Solargraph
           new_signature_pin = overload.resolve_generics_from_context_until_complete(overload.generics, atypes, nil, nil,
                                                                                     blocktype)
           # @todo It shouldn't be necessary to choose either generics or macros
-          # @sg-ignore Need to add nil check here
-          new_return_type = if new_signature_pin.return_type.defined?
-                              new_signature_pin.return_type
+          new_return_type = if new_signature_pin.return_type!.defined?
+                              new_signature_pin.return_type!
                             else
                               # @sg-ignore Need to add nil check here
                               named_types = pin.parameter_names.zip(arguments.map { |arg| ComplexType.try_parse(simple_convert(arg.node).to_s) }).to_h
@@ -403,8 +402,6 @@ module Solargraph
           #
           # qualify(), however, happens in the namespace where
           # the docs were written - from the method pin.
-          # @todo Need to add nil check here
-          # @sg-ignore Need to add nil check here
           if new_return_type.defined?
             # @sg-ignore Need to add nil check here
             type = with_params(new_return_type.self_to_type(self_type), self_type).qualify(api_map, *pin.gates)
@@ -615,8 +612,7 @@ module Solargraph
 
           # @param signature_pin [Pin::Signature]
           method_pin.signatures.map(&:block).compact.map do |signature_pin|
-            # @sg-ignore Need to add nil check here
-            return_type = signature_pin.return_type.qualify(api_map, *name_pin.gates)
+            return_type = signature_pin.return_type!.qualify(api_map, *name_pin.gates)
             signature_pin.proxy(return_type)
           end
         end
