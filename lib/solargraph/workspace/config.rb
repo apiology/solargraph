@@ -65,58 +65,50 @@ module Solargraph
       # namespace. It's typically used to identify available DSLs.
       #
       # @return [Array<String>]
-      # @sg-ignore Need to validate config
       def domains
-        raw_data['domains']
+        Array(raw_data['domains'])
       end
 
       # An array of required paths to add to the workspace.
       #
       # @return [Array<String>]
-      # @sg-ignore Need to validate config
       def required
-        raw_data['require']
+        Array(raw_data['require'])
       end
 
       # An array of load paths for required paths.
       #
-      # @sg-ignore Need to validate config
       # @return [Array<String>]
-      # @sg-ignore Need to validate config
       def require_paths
-        raw_data['require_paths'] || []
+        Array(raw_data['require_paths'])
       end
 
       # An array of reporters to use for diagnostics.
       #
-      # @sg-ignore Need to validate config
       # @return [Array<String>]
       def reporters
-        raw_data['reporters']
+        Array(raw_data['reporters'])
       end
 
       # A hash of options supported by the formatter
       #
-      # @sg-ignore Need to validate config
       # @return [Hash]
       def formatter
-        raw_data['formatter']
+        Hash(raw_data['formatter'])
       end
 
       # An array of plugins to require.
       #
-      # @sg-ignore Need to validate config
       # @return [Array<String>]
       def plugins
-        raw_data['plugins']
+        Array(raw_data['plugins'])
       end
 
       # The maximum number of files to parse from the workspace.
       #
-      # @sg-ignore Need to validate config
       # @return [Integer]
       def max_files
-        raw_data['max_files']
+        Integer(raw_data['max_files'])
       end
 
       # @return [Hash{Symbol => Symbol}]
