@@ -14,6 +14,13 @@ describe Solargraph::RbsMap do
     expect(rbs_map).not_to be_resolved
   end
 
+  it 'offers no fallback pins for a gem outside the RBS stdlib' do
+    spec = Gem::Specification.find_by_name('rbs')
+    rbs_map = described_class.from_gemspec(spec, nil, nil)
+    expect(rbs_map).to be_resolved
+    expect(rbs_map.fallback_pins).to be_nil
+  end
+
   it 'fails if it does not find data from name' do
     rbs_map = described_class.new('lskdflaksdfjl')
     expect(rbs_map.pins).to be_empty

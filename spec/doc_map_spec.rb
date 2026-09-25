@@ -121,6 +121,33 @@ describe Solargraph::DocMap do
     end
   end
 
+  context 'without a combined pin cache entry for a gem' do
+    let(:pre_cache) { false }
+
+    # A version nothing will ever have cached on disk, so the read path
+    # takes the uncached branch however much of the suite ran first.
+    def uncached_gemspec name
+      Gem::Specification.new(name, '999.0.0')
+    end
+
+    it 'serves RBS stdlib pins as a fallback' do
+      pins = doc_map.send(:deserialize_combined_pin_cache, uncached_gemspec('logger'))
+      expect(pins.map(&:path)).to include('Logger#info')
+    end
+
+    it 'does not record the fallback as if it were a real build' do
+      gemspec = uncached_gemspec('logger')
+      doc_map.send(:deserialize_combined_pin_cache, gemspec)
+      expect(doc_map.combined_pins_in_memory).not_to have_key([gemspec.name, gemspec.version])
+      expect(doc_map.uncached_gemspecs).to include(gemspec)
+    end
+
+    it 'has no fallback for a gem outside the RBS stdlib' do
+      pins = doc_map.send(:deserialize_combined_pin_cache, uncached_gemspec('backport'))
+      expect(pins).to be_nil
+    end
+  end
+
   context 'with convention' do
     let(:pre_cache) { false }
 
