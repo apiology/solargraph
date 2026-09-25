@@ -525,6 +525,14 @@ describe 'YARD type specifier list parsing' do
         expect(type.tag).to eq('Array<String, Integer>')
       end
 
+      it 'treats extra parameters of a non-union receiver as one generic value' do
+        return_type = Solargraph::ComplexType.parse('Array<generic<A>>')
+        generic_class = Solargraph::Pin::Namespace.new(name: 'Pair', generics: %w[A])
+        context_type = Solargraph::ComplexType.parse('Pair<String, Integer>')
+        type = return_type.resolve_generics(generic_class, context_type)
+        expect(type.tag).to eq('Array<String, Integer>')
+      end
+
       it 'falls back to the declared default for a generic the receiver leaves out' do
         return_type = Solargraph::ComplexType.parse('Array<generic<C>>')
         generic_class = Solargraph::Pin::Namespace.new(
