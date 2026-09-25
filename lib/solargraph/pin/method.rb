@@ -75,7 +75,7 @@ module Solargraph
 
       # @param other [Pin::Method]
       def == other
-        super && other.node == node
+        super && other.node == node && other.signatures == signatures
       end
 
       def transform_types &transform
@@ -457,6 +457,7 @@ module Solargraph
 
       attr_writer :block, :signature_help, :documentation, :return_type
 
+      # @sg-ignore Need to add nil check here
       def dodgy_visibility_source?
         # as of 2025-03-12, the RBS generator used for
         # e.g. activesupport did not understand 'private' markings
