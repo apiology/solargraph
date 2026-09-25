@@ -459,7 +459,7 @@ module Solargraph
               else
                 next ComplexType::UNDEFINED
               end
-            elsif context_type.all?(&:implicit_union?)
+            elsif context_type.all?(&:implicit_union?) || definitions.generics.length < context_type.all_params.length
               if idx.zero? && !context_type.all_params.empty?
                 ComplexType.new(context_type.all_params)
               else
