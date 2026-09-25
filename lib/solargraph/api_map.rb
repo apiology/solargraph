@@ -170,6 +170,11 @@ module Solargraph
       doc_map.uncached_gemspecs || []
     end
 
+    # @return [::Array<String>]
+    def yard_plugins
+      doc_map.yard_plugins
+    end
+
     # @return [::Array<Gem::Specification>]
     def uncached_rbs_collection_gemspecs
       @doc_map.uncached_rbs_collection_gemspecs

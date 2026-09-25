@@ -13,6 +13,10 @@ module Solargraph
     include Solargraph::ServerMethods
     include ApiMap::SourceToYard
 
+    # The plugins the command line declares. One name, in one place, so a
+    # cache it writes is one an editor can read back.
+    YARD_PLUGINS = ['yard-activesupport-concern'].freeze
+
     # Tell Thor to ensure the process exits with status 1 if any error happens.
     def self.exit_on_failure?
       true
@@ -111,9 +115,9 @@ module Solargraph
     def cache gem, version = nil
       gemspec = Gem::Specification.find_by_name(gem, version)
 
-      if options[:rebuild] || !PinCache.has_yard?(gemspec)
-        pins = GemPins.build_yard_pins(['yard-activesupport-concern'], gemspec)
-        PinCache.serialize_yard_gem(gemspec, pins)
+      if options[:rebuild] || !PinCache.has_yard?(gemspec, YARD_PLUGINS)
+        pins = GemPins.build_yard_pins(YARD_PLUGINS, gemspec)
+        PinCache.serialize_yard_gem(gemspec, YARD_PLUGINS, pins)
       end
 
       workspace = Solargraph::Workspace.new(Dir.pwd) if File.exist?('rbs_collection.yaml')
@@ -198,9 +202,9 @@ module Solargraph
           if gemspec.nil?
             warn "Gem '#{name}' not found"
           else
-            if options[:rebuild] || !PinCache.has_yard?(gemspec)
-              pins = GemPins.build_yard_pins(['yard-activesupport-concern'], gemspec)
-              PinCache.serialize_yard_gem(gemspec, pins)
+            if options[:rebuild] || !PinCache.has_yard?(gemspec, YARD_PLUGINS)
+              pins = GemPins.build_yard_pins(YARD_PLUGINS, gemspec)
+              PinCache.serialize_yard_gem(gemspec, YARD_PLUGINS, pins)
             end
 
             workspace = Solargraph::Workspace.new(Dir.pwd)
@@ -604,9 +608,9 @@ module Solargraph
       if gemspec.nil?
         warn "Gem '#{gemspec&.name}' not found"
       else
-        if rebuild || !PinCache.has_yard?(gemspec)
-          pins = GemPins.build_yard_pins(['yard-activesupport-concern'], gemspec)
-          PinCache.serialize_yard_gem(gemspec, pins)
+        if rebuild || !PinCache.has_yard?(gemspec, YARD_PLUGINS)
+          pins = GemPins.build_yard_pins(YARD_PLUGINS, gemspec)
+          PinCache.serialize_yard_gem(gemspec, YARD_PLUGINS, pins)
         end
 
         workspace = Solargraph::Workspace.new(Dir.pwd)

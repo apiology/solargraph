@@ -85,7 +85,7 @@ module Solargraph
     # @return [void]
     def cache_yard_pins gemspec, out
       pins = GemPins.build_yard_pins(yard_plugins, gemspec)
-      PinCache.serialize_yard_gem(gemspec, pins)
+      PinCache.serialize_yard_gem(gemspec, yard_plugins, pins)
       logger.info { "Cached #{pins.length} YARD pins for gem #{gemspec.name}:#{gemspec.version}" } unless pins.empty?
     end
 
@@ -218,7 +218,7 @@ module Solargraph
         return yard_pins_in_memory[[gemspec.name, gemspec.version]]
       end
 
-      cached = PinCache.deserialize_yard_gem(gemspec)
+      cached = PinCache.deserialize_yard_gem(gemspec, yard_plugins)
       if cached
         logger.info { "Loaded #{cached.length} cached YARD pins from #{gemspec.name}:#{gemspec.version}" }
         yard_pins_in_memory[[gemspec.name, gemspec.version]] = cached
@@ -240,7 +240,7 @@ module Solargraph
       rbs_map = RbsMap.from_gemspec(gemspec, rbs_collection_path, rbs_collection_config_path)
       rbs_version_cache_key = rbs_map.cache_key
 
-      cached = PinCache.deserialize_combined_gem(gemspec, rbs_version_cache_key)
+      cached = PinCache.deserialize_combined_gem(gemspec, rbs_version_cache_key, yard_plugins)
       if cached
         logger.info { "Loaded #{cached.length} cached YARD pins from #{gemspec.name}:#{gemspec.version}" }
         combined_pins_in_memory[[gemspec.name, gemspec.version]] = cached
@@ -254,7 +254,7 @@ module Solargraph
       if !rbs_collection_pins.nil? && !yard_pins.nil?
         logger.debug { "Combining pins for #{gemspec.name}:#{gemspec.version}" }
         combined_pins = GemPins.combine(yard_pins, rbs_collection_pins)
-        PinCache.serialize_combined_gem(gemspec, rbs_version_cache_key, combined_pins)
+        PinCache.serialize_combined_gem(gemspec, rbs_version_cache_key, yard_plugins, combined_pins)
         combined_pins_in_memory[[gemspec.name, gemspec.version]] = combined_pins
         logger.info { "Generated #{combined_pins_in_memory[[gemspec.name, gemspec.version]].length} combined pins for #{gemspec.name} #{gemspec.version}" }
         return combined_pins
