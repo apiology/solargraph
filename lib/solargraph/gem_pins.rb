@@ -36,7 +36,7 @@ module Solargraph
     # @param gemspec [Gem::Specification]
     # @return [Array<Pin::Base>]
     def self.build_yard_pins yard_plugins, gemspec
-      gem_yardoc_path = PinCache.yardoc_path(gemspec)
+      gem_yardoc_path = PinCache.yardoc_path(gemspec, yard_plugins)
       Yardoc.build_docs(gem_yardoc_path, yard_plugins, gemspec)
       return [] unless Yardoc.docs_built?(gem_yardoc_path)
       Yardoc.build_pins(gem_yardoc_path, gemspec)

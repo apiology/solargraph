@@ -28,13 +28,30 @@ module Solargraph
         File.join(base_dir, "ruby-#{RUBY_VERSION}", "rbs-#{RBS::VERSION}", "solargraph-#{Solargraph::VERSION}")
       end
 
+      # A plugin decides what YARD extracts, so pins built under one set of
+      # them must not be served to a workspace declaring another. Callers
+      # reach this with either spelling of a plugin name, `activesupport-
+      # concern` or the `yard-activesupport-concern` its gem carries.
+      #
+      # @param yard_plugins [Array<String>]
+      # @return [String]
+      def yard_plugins_key yard_plugins
+        return 'no-plugins' if yard_plugins.empty?
+
+        yard_plugins.map { |plugin| yard_plugin_segment(plugin) }.sort.uniq.join('-')
+      end
+
+      # @param gemspec [Gem::Specification]
+      # @param yard_plugins [Array<String>]
+      # @return [String]
+      def yardoc_path gemspec, yard_plugins
+        yardoc_path_prefix(gemspec) + "#{yard_plugins_key(yard_plugins)}.yardoc"
+      end
+
       # @param gemspec [Gem::Specification]
       # @return [String]
-      def yardoc_path gemspec
-        File.join(base_dir,
-                  "yard-#{YARD::VERSION}",
-                  "yard-activesupport-concern-#{YARD::ActiveSupport::Concern::VERSION}",
-                  "#{gemspec.name}-#{gemspec.version}.yardoc")
+      def yardoc_path_prefix gemspec
+        File.join(base_dir, "yard-#{YARD::VERSION}", "#{gemspec.name}-#{gemspec.version}-")
       end
 
       # @return [String]
@@ -78,28 +95,38 @@ module Solargraph
       end
 
       # @param gemspec [Gem::Specification]
+      # @param yard_plugins [Array<String>]
       # @return [String]
-      def yard_gem_path gemspec
-        File.join(work_dir, 'yard', "#{gemspec.name}-#{gemspec.version}.ser")
+      def yard_gem_path gemspec, yard_plugins
+        yard_gem_path_prefix(gemspec) + "#{yard_plugins_key(yard_plugins)}.ser"
       end
 
       # @param gemspec [Gem::Specification]
+      # @return [String]
+      def yard_gem_path_prefix gemspec
+        File.join(work_dir, 'yard', "#{gemspec.name}-#{gemspec.version}-")
+      end
+
+      # @param gemspec [Gem::Specification]
+      # @param yard_plugins [Array<String>]
       # @return [Array<Pin::Base>, nil]
-      def deserialize_yard_gem gemspec
-        load(yard_gem_path(gemspec))
+      def deserialize_yard_gem gemspec, yard_plugins
+        load(yard_gem_path(gemspec, yard_plugins))
       end
 
       # @param gemspec [Gem::Specification]
+      # @param yard_plugins [Array<String>]
       # @param pins [Array<Pin::Base>]
       # @return [void]
-      def serialize_yard_gem gemspec, pins
-        save(yard_gem_path(gemspec), pins)
+      def serialize_yard_gem gemspec, yard_plugins, pins
+        save(yard_gem_path(gemspec, yard_plugins), pins)
       end
 
       # @param gemspec [Gem::Specification]
+      # @param yard_plugins [Array<String>]
       # @return [Boolean]
-      def has_yard? gemspec
-        exist?(yard_gem_path(gemspec))
+      def has_yard? gemspec, yard_plugins
+        exist?(yard_gem_path(gemspec, yard_plugins))
       end
 
       # @param gemspec [Gem::Specification]
@@ -132,9 +159,10 @@ module Solargraph
 
       # @param gemspec [Gem::Specification]
       # @param hash [String, nil]
+      # @param yard_plugins [Array<String>]
       # @return [String]
-      def combined_path gemspec, hash
-        File.join(work_dir, 'combined', "#{gemspec.name}-#{gemspec.version}-#{hash || 0}.ser")
+      def combined_path gemspec, hash, yard_plugins
+        combined_path_prefix(gemspec) + "#{yard_plugins_key(yard_plugins)}-#{hash || 0}.ser"
       end
 
       # @param gemspec [Gem::Specification]
@@ -145,17 +173,19 @@ module Solargraph
 
       # @param gemspec [Gem::Specification]
       # @param hash [String, nil]
+      # @param yard_plugins [Array<String>]
       # @param pins [Array<Pin::Base>]
       # @return [void]
-      def serialize_combined_gem gemspec, hash, pins
-        save(combined_path(gemspec, hash), pins)
+      def serialize_combined_gem gemspec, hash, yard_plugins, pins
+        save(combined_path(gemspec, hash, yard_plugins), pins)
       end
 
       # @param gemspec [Gem::Specification]
       # @param hash [String, nil]
+      # @param yard_plugins [Array<String>]
       # @return [Array<Pin::Base>, nil]
-      def deserialize_combined_gem gemspec, hash
-        load(combined_path(gemspec, hash))
+      def deserialize_combined_gem gemspec, hash, yard_plugins
+        load(combined_path(gemspec, hash, yard_plugins))
       end
 
       # @param gemspec [Gem::Specification]
@@ -179,9 +209,10 @@ module Solargraph
       # @param out [IO, StringIO, nil]
       # @return [void]
       def uncache_gem gemspec, out: nil
-        uncache(yardoc_path(gemspec), out: out)
+        # A yardoc is a directory, and there is one per declared plugin set.
+        Dir.glob("#{yardoc_path_prefix(gemspec)}*").each { |path| uncache(path, out: out) }
         uncache_by_prefix(rbs_collection_path_prefix(gemspec), out: out)
-        uncache(yard_gem_path(gemspec), out: out)
+        uncache_by_prefix(yard_gem_path_prefix(gemspec), out: out)
         uncache_by_prefix(combined_path_prefix(gemspec), out: out)
       end
 
@@ -191,6 +222,19 @@ module Solargraph
       end
 
       private
+
+      # An upgraded plugin extracts different documentation from the same
+      # source, so its version belongs in the key alongside its name.
+      #
+      # @param plugin [String]
+      # @return [String]
+      def yard_plugin_segment plugin
+        name = plugin.delete_prefix('yard-')
+        spec = Gem.loaded_specs["yard-#{name}"] || Gem::Specification.find_by_name("yard-#{name}")
+        "#{name}-#{spec.version}"
+      rescue Gem::MissingSpecError
+        name
+      end
 
       # @param file [String]
       # @sg-ignore Marshal.load returns Object; we know it's Array<Pin::Base>
