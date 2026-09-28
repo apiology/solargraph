@@ -51,14 +51,12 @@ describe Solargraph::Shell do
   before { capture_both { shell.uncache('backport') } }
 
   it 'finishes the job when told to cache one gem' do
-    pending 'https://github.com/apiology/solargraph/pull/103'
     Dir.chdir(directory) { capture_both { shell.cache('backport') } }
 
     expect(written_by_editor).to be_empty
   end
 
   it 'finishes the job when told to cache the workspace' do
-    pending 'https://github.com/apiology/solargraph/pull/103'
     Dir.chdir(directory) { capture_both { shell.gems } }
 
     expect(written_by_editor).to be_empty

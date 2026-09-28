@@ -55,7 +55,6 @@ describe Solargraph::ApiMap do
   before { capture_both { Solargraph::Shell.new.uncache('rbs') } }
 
   it 'gives a gem the same types whichever half of its cache it finds' do
-    pending 'https://github.com/apiology/solargraph/pull/103'
     Dir.mktmpdir do |directory|
       File.write(File.join(directory, 'app.rb'), "require 'rbs'\n")
 
