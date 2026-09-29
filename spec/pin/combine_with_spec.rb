@@ -64,4 +64,49 @@ describe Solargraph::Pin::Base, '#combine_with' do
       expect(combined.return_type.to_s).to eq('self')
     end
   end
+
+  context 'with an alias and a plain method as closures' do
+    # Basenames differ so that the arbitrary chooser in #choose_pin_attr ranks
+    # node.rb above ast.rbs and drops the alias.
+    def location_in filename
+      Solargraph::Location.new(filename, Solargraph::Range.from_to(0, 0, 0, 0))
+    end
+
+    let(:namespace) do
+      Solargraph::Pin::Namespace.new(name: 'Node', closure: Solargraph::Pin::ROOT_PIN, type: :class,
+                                     location: location_in('rbs/shims/ast/2.4/ast.rbs'), source: :rbs)
+    end
+
+    let(:alias_closure) do
+      Solargraph::Pin::MethodAlias.new(name: 'original_dup', original: 'dup', closure: namespace,
+                                       location: location_in('rbs/shims/ast/2.4/ast.rbs'), source: :rbs)
+    end
+
+    let(:method_closure) do
+      Solargraph::Pin::Method.new(name: 'original_dup', closure: namespace, parameters: [], scope: :instance,
+                                  location: location_in('ast-2.4.3/lib/ast/node.rb'), source: :yardoc)
+    end
+
+    let(:alias_signature) do
+      Solargraph::Pin::Signature.new(closure: alias_closure, parameters: [], source: :rbs,
+                                     return_type: Solargraph::ComplexType.parse('self'))
+    end
+
+    let(:method_signature) do
+      Solargraph::Pin::Signature.new(closure: method_closure, parameters: [], source: :yardoc,
+                                     return_type: Solargraph::ComplexType::UNDEFINED)
+    end
+
+    it 'keeps the alias closure when combining an alias over a plain method' do
+      with_env_var('SOLARGRAPH_ASSERTS', 'on') do
+        expect(alias_signature.combine_with(method_signature).closure).to be(alias_closure)
+      end
+    end
+
+    it 'keeps the alias closure when combining a plain method over an alias' do
+      with_env_var('SOLARGRAPH_ASSERTS', 'on') do
+        expect(method_signature.combine_with(alias_signature).closure).to be(alias_closure)
+      end
+    end
+  end
 end

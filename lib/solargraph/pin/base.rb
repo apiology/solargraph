@@ -379,6 +379,11 @@ module Solargraph
         # @type [Pin::Base, nil]
         val2 = other.send(attr)
         if val1.class != val2.class
+          # A subclass pin (e.g. MethodAlias over Method) carries strictly more
+          # state, so prefer it over the arbitrary tiebreak below.
+          return val2 if val2.is_a?(val1.class)
+          return val1 if val1.is_a?(val2.class)
+
           # :nocov:
           Solargraph.assert_or_log(:"combine_with_#{attr}_class",
                                    "Inconsistent #{attr.inspect} class values between \nself =#{inspect} and \nother=#{other.inspect}:\n\n self.#{attr} = #{val1.inspect}\nother.#{attr} = #{val2.inspect}")
