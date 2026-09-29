@@ -67,4 +67,30 @@ describe Solargraph::ApiMap::Store do
       expect(ref.name).to eq('Boolean')
     end
   end
+
+  context 'with ancestors that carry type arguments' do
+    let(:mixin) { Solargraph::Pin::Namespace.new(name: 'Mixin', type: :module) }
+    let(:middle) { Solargraph::Pin::Namespace.new(name: 'Middle') }
+    let(:leaf) { Solargraph::Pin::Namespace.new(name: 'Leaf') }
+
+    let(:middle_includes_mixin) do
+      Solargraph::Pin::Reference::Include.new(closure: middle, name: 'Mixin<String>')
+    end
+
+    let(:leaf_extends_middle) do
+      Solargraph::Pin::Reference::Superclass.new(closure: leaf, name: 'Middle<String>')
+    end
+
+    let(:store) do
+      described_class.new([mixin, middle, leaf, middle_includes_mixin, leaf_extends_middle])
+    end
+
+    # Namespaces are keyed by bare name, so a superclass recorded as
+    # Middle<String> matches nothing and the walk never reaches what Middle
+    # itself includes.
+    it 'reaches a mixin held by a generic superclass' do
+      names = store.get_ancestors('Leaf').map { |tag| Solargraph::ComplexType.parse(tag).name }
+      expect(names).to include('Mixin')
+    end
+  end
 end

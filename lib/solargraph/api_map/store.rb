@@ -233,7 +233,10 @@ module Solargraph
           next if current.nil? || current.empty? || visited.include?(current)
           visited.add(current)
 
-          current = current.gsub(/^::/, '')
+          # Ancestors keep their type arguments, but includes and superclasses
+          # are keyed by bare namespace, so a parameterized tag finds nothing
+          # and the walk stops short of that ancestor own mixins.
+          current = ComplexType.parse(current).name
 
           # Add superclass
           ref = get_superclass(current)

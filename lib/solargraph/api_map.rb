@@ -903,6 +903,9 @@ module Solargraph
       # Search each ancestor for the original method
       ancestors.each do |ancestor_fqns|
         next if ancestor_fqns.nil?
+
+        # Ancestors carry their type arguments; pin paths do not.
+        ancestor_fqns = ComplexType.parse(ancestor_fqns).name
         ancestor_method_path = if alias_pin.original == 'new' && alias_pin.scope == :class
                                  "#{ancestor_fqns}#initialize"
                                else
