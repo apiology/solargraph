@@ -87,18 +87,30 @@ describe Solargraph::External do
     expect(external.unresolved_requires).to eq(['not_a_valid_path'])
   end
 
-  it 'imports all gems when bundler/require is required' do
-    external = described_class.new(directory, ['bundler/require'])
-    gem_names = external.loaded_gems.map(&:name)
-    expect(gem_names).to include('backport')
-    expect(gem_names).to include('gem-with-yard-macros')
-    expect(gem_names).to include('reverse_markdown')
-  end
+  context 'with gems already cached under no plugins' do
+    # These read the cache key for an empty plugin set, which only a caller
+    # that declares none writes. Seeding it here keeps them from depending on
+    # whichever earlier example happened to leave an entry behind.
+    before(:all) do # rubocop:disable RSpec/BeforeAfterAll
+      %w[backport reverse_markdown].each do |name|
+        metagem = Solargraph::Metagem.from_specification(Gem::Specification.find_by_name(name))
+        Solargraph::Collection::Gem.load(metagem) unless Solargraph::Collection::Gem.cached?(metagem)
+      end
+    end
 
-  it 'ignores duplicate gems' do
-    external = described_class.new(directory, ['backport', 'backport/version'])
-    backport_pins = external.pins.select { |pin| pin.path == 'Backport' }
-    expect(backport_pins).to be_one
+    it 'imports all gems when bundler/require is required' do
+      external = described_class.new(directory, ['bundler/require'])
+      gem_names = external.loaded_gems.map(&:name)
+      expect(gem_names).to include('backport')
+      expect(gem_names).to include('gem-with-yard-macros')
+      expect(gem_names).to include('reverse_markdown')
+    end
+
+    it 'ignores duplicate gems' do
+      external = described_class.new(directory, ['backport', 'backport/version'])
+      backport_pins = external.pins.select { |pin| pin.path == 'Backport' }
+      expect(backport_pins).to be_one
+    end
   end
 
   it 'loads stdlib paths' do
