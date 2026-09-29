@@ -1,11 +1,25 @@
 # frozen_string_literal: true
 
+require 'fileutils'
 require 'open3'
 
 # `solargraph gems` offers its cache directory as something to keep between CI
 # runs, so what it leaves there has to be everything a later editor session
 # needs.
 describe Solargraph::Shell do
+  # Without a lockfile that resolves here, the command documents every
+  # installed gem instead of this fixture's one.
+  before(:all) do # rubocop:disable RSpec/BeforeAfterAll
+    FileUtils.rm_f File.join('spec', 'fixtures', 'bundle-scoped-gems', 'Gemfile.lock')
+    Solargraph.with_clean_env do
+      `cd #{File.join('spec', 'fixtures', 'bundle-scoped-gems')} && bundle install`
+    end
+  end
+
+  after(:all) do # rubocop:disable RSpec/BeforeAfterAll
+    FileUtils.rm_f File.join('spec', 'fixtures', 'bundle-scoped-gems', 'Gemfile.lock')
+  end
+
   let(:shell) do
     described_class.new.tap do |cli|
       cli.options = Thor::CoreExt::HashWithIndifferentAccess.new({})
