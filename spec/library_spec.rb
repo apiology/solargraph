@@ -36,7 +36,8 @@ describe Solargraph::Library, order: :defined do
 
   context 'with a require from a not-yet-cached external gem' do
     before do
-      Solargraph::Shell.new.uncache('backport')
+      metagem = Solargraph::Metagem.from_specification(Gem::Specification.find_by_name('backport'))
+      Solargraph::Collection::Gem.uncache(metagem)
     end
 
     it 'returns a Completion', time_limit_seconds: 50 do
@@ -59,7 +60,12 @@ describe Solargraph::Library, order: :defined do
     end
   end
 
-  context 'with a require from an already-cached external gem', order: :defined do
+  context 'with a require from an already-cached external gem' do
+    before do
+      metagem = Solargraph::Metagem.from_specification(Gem::Specification.find_by_name('backport'))
+      Solargraph::Collection::Gem.load(metagem) unless Solargraph::Collection::Gem.cached?(metagem)
+    end
+
     it 'returns a Completion' do
       library = described_class.new(Solargraph::Workspace.new(PROJECT_DIRECTORY,
                                                               Solargraph::Workspace::Config.new))
@@ -719,17 +725,17 @@ describe Solargraph::Library, order: :defined do
   describe '#sync_catalog' do
     # Regression test for https://github.com/castwide/solargraph/issues/1111
     #
-    # When the first cacheable gemspec is already being cached by another
-    # process, cache_next_gemspec enqueues it and, if other gemspecs are
+    # When the first uncached gem is already being cached by another
+    # process, cache_next_gemspec enqueues it and, if other gems are
     # still pending, recurses to try the next one. That recursion must not
     # go back through sync_catalog's own mutex, or it deadlocks with a
     # ThreadError on the thread that is already inside the mutex.
-    it 'does not deadlock when the next cacheable gemspec is already being processed elsewhere' do
+    it 'does not deadlock when the next cacheable gem is already being processed elsewhere' do
       library = described_class.new
       api_map = library.send(:api_map)
-      gemspecs = (1..3).map { |i| instance_double(Gem::Specification, name: "gem_#{i}", version: Gem::Version.new('1.0.0')) }
+      metagems = (1..3).map { |i| instance_double(Solargraph::Metagem, name: "gem_#{i}", version: '1.0.0') }
       allow(api_map).to receive(:catalog)
-      allow(api_map).to receive_messages(uncached_yard_gemspecs: gemspecs, uncached_rbs_collection_gemspecs: [], uncached_gemspecs: gemspecs, source_maps: [], pins: [])
+      allow(api_map).to receive_messages(unloaded_gems: metagems, source_maps: [], pins: [])
       allow(Solargraph::Yardoc).to receive(:processing?).and_return(true)
 
       library.catalog

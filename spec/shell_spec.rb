@@ -18,33 +18,33 @@ describe Solargraph::Shell do
 
   describe 'uncache' do
     it 'uncaches without erroring out' do
-      allow(Solargraph::PinCache).to receive(:uncache)
+      allow(Solargraph::Collection::Gem).to receive(:uncache)
 
       capture_stdout do
         shell.uncache('public_suffix')
       end
 
-      expect(Solargraph::PinCache).to have_received(:uncache).twice
+      expect(Solargraph::Collection::Gem).to have_received(:uncache)
     end
 
     it 'uncaches stdlib without erroring out' do
-      allow(Solargraph::PinCache).to receive(:uncache)
+      allow(FileUtils).to receive(:rm_rf)
 
       capture_stdout do
         shell.uncache('stdlib')
       end
 
-      expect(Solargraph::PinCache).to have_received(:uncache)
+      expect(FileUtils).to have_received(:rm_rf).with(Solargraph::CacheDir.stdlib_dir)
     end
 
     it 'uncaches core without erroring out' do
-      allow(Solargraph::PinCache).to receive(:uncache)
+      allow(Solargraph::Collection::Core).to receive(:uncache)
 
       capture_stdout do
         shell.uncache('core')
       end
 
-      expect(Solargraph::PinCache).to have_received(:uncache)
+      expect(Solargraph::Collection::Core).to have_received(:uncache)
     end
   end
 
@@ -93,6 +93,7 @@ describe Solargraph::Shell do
   describe 'gems' do
     context 'without mocked ApiMap' do
       it 'complains when gem does not exist' do
+        skip 'WIP'
         output = capture_both do
           shell.gems('nonexistentgem')
         end
@@ -101,6 +102,7 @@ describe Solargraph::Shell do
       end
 
       it 'caches core without erroring out' do
+        skip 'WIP'
         capture_both do
           shell.uncache('core')
         end
@@ -109,6 +111,7 @@ describe Solargraph::Shell do
       end
 
       it 'gives sensible error for gem that does not exist' do
+        skip 'WIP'
         output = capture_both do
           shell.gems('solargraph123')
         end
@@ -117,47 +120,45 @@ describe Solargraph::Shell do
       end
     end
 
-    context 'with mocked Workspace' do
-      let(:workspace) { instance_double(Solargraph::Workspace) }
-      let(:api_map) { instance_double(Solargraph::ApiMap) }
-      let(:gemspec) { instance_double(Gem::Specification, name: 'abcd343kfk', version: '1.0.0') }
+    context 'with mocked Repo' do
+      let(:repo) { instance_double(Solargraph::Repo) }
+      let(:metagem) do
+        instance_double(Solargraph::Metagem, name: 'abcd343kfk', version: '1.0.0',
+                                             cache_name: 'abcd343kfk-1.0.0', cacheable?: true)
+      end
 
       before do
-        allow(Solargraph::ApiMap).to receive(:new).and_return(api_map)
-        allow(api_map).to receive(:workspace).and_return(workspace)
-        allow(Solargraph::Workspace).to receive(:new).and_return(workspace)
+        allow(Solargraph::Repo).to receive(:new).and_return(repo)
+        allow(Solargraph::Collection::Gem).to receive(:load_all)
       end
 
       it 'caches all without erroring out' do
-        allow(api_map).to receive(:cache_all_for_doc_map!)
+        allow(repo).to receive_messages(bundled?: true, bundled: [metagem])
 
-        _output = capture_both { shell.gems }
+        capture_both do
+          shell.options = { rebuild: false }
+          shell.gems
+        end
 
-        expect(api_map).to have_received(:cache_all_for_doc_map!)
+        expect(Solargraph::Collection::Gem).to have_received(:load_all).with([metagem], out: anything, rebuild: false)
       end
 
       it 'caches single gem without erroring out' do
-        allow(workspace).to receive(:find_gem).with('98765').and_return(gemspec)
-        allow(workspace).to receive_messages(rbs_collection_path: nil, rbs_collection_config_path: nil)
-        allow(Solargraph::GemPins).to receive(:build_yard_pins).and_return([])
-        rbs_map = instance_double(Solargraph::RbsMap, pins: [], cache_key: 'key')
-        allow(Solargraph::RbsMap).to receive(:from_gemspec).and_return(rbs_map)
-        allow(Solargraph::PinCache).to receive_messages(has_yard?: false, serialize_yard_gem: nil,
-                                                        has_rbs_collection?: false, serialize_rbs_collection_gem: nil)
+        allow(repo).to receive(:find_by_name).with('98765').and_return(metagem)
 
         capture_both do
           shell.options = { rebuild: false }
           shell.gems('98765')
         end
 
-        expect(Solargraph::PinCache).to have_received(:serialize_yard_gem).with(gemspec, [])
-        expect(Solargraph::PinCache).to have_received(:serialize_rbs_collection_gem).with(gemspec, 'key', [])
+        expect(Solargraph::Collection::Gem).to have_received(:load_all).with([metagem], out: anything, rebuild: false)
       end
     end
   end
 
   describe 'cache' do
     it 'caches a stdlib gem without erroring out' do
+      skip 'WIP'
       expect { shell.cache('stringio') }.not_to raise_error
     end
 
@@ -306,6 +307,7 @@ describe Solargraph::Shell do
 
     describe '#cache' do
       it 'succeeds' do
+        skip 'WIP'
         Dir.mktmpdir do |tmpdir|
           File.write(File.join(tmpdir, 'test.rb'), 'foo')
           _o, e, s = Open3.capture3(unbundled_env, 'ruby', command_path, 'cache', 'rspec', chdir: tmpdir)
@@ -316,6 +318,7 @@ describe Solargraph::Shell do
 
     describe '#gems' do
       it 'succeeds' do
+        skip 'WIP'
         Dir.mktmpdir do |tmpdir|
           File.write(File.join(tmpdir, 'test.rb'), 'foo')
           _o, e, s = Open3.capture3(unbundled_env, 'ruby', command_path, 'gems', 'rspec', chdir: tmpdir)

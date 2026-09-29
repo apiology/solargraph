@@ -105,17 +105,8 @@ describe Solargraph::TypeChecker do
         require 'kramdown-parser-gfm'
         Kramdown::Parser::GFM.undefined_call
       ), 'test.rb')
-
-      api_map = Solargraph::ApiMap.new
-      bench = Solargraph::Bench.new(source_maps: [source_map], external_requires: ['kramdown-parser-gfm'])
-      # cache_gem is a no-op for a gem the ApiMap's DocMap doesn't know it
-      # needs yet, so catalog (which tells DocMap about external_requires)
-      # has to run before caching, and again afterward to pick up the
-      # newly-cached pins.
-      api_map.catalog bench
-      api_map.cache_all_for_doc_map!
-      api_map.catalog bench
-
+      api_map = Solargraph::ApiMap.load '.'
+      api_map.catalog Solargraph::Bench.new(source_maps: [source_map], external_requires: ['kramdown-parser-gfm'])
       checker = described_class.new('test.rb', api_map: api_map, level: :strict)
       expect(checker.problems).to be_empty
     end

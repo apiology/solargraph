@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'benchmark'
-require 'concurrent-ruby'
 require 'thor'
 require 'yard'
 require 'yaml'
@@ -99,31 +98,23 @@ module Solargraph
     # @return [void]
     def clear
       puts 'Deleting all cached documentation (gems, core and stdlib)'
-      Solargraph::PinCache.clear
+      Solargraph::CacheDir.clear
     end
     map 'clear-cache' => :clear
     map 'clear-cores' => :clear
 
-    desc 'cache', 'Cache a gem', hide: true
+    desc 'cache GEM', 'Cache a gem', hide: true
+    option :directory, type: :string, desc: 'Workspace directory', default: Dir.pwd
     option :rebuild, type: :boolean, desc: 'Rebuild existing documentation', default: false
-    # @return [void]
-    # @param gem [String]
-    # @param version [String, nil]
-    def cache gem, version = nil
-      gemspec = Gem::Specification.find_by_name(gem, version)
-
-      if options[:rebuild] || !PinCache.has_yard?(gemspec)
-        pins = GemPins.build_yard_pins(['yard-activesupport-concern'], gemspec)
-        PinCache.serialize_yard_gem(gemspec, pins)
+    def cache gem_name
+      repo = Solargraph::Repo.new(options[:directory])
+      metagem = repo.find_by_name(gem_name)
+      if metagem
+        Solargraph::Collection::Gem.uncache(metagem) if options[:rebuild]
+        Solargraph::Collection::Gem.load(metagem)
+      else
+        warn "Gem `#{gem_name}` not found (directory: #{options[:directory].inspect})" unless metagem
       end
-
-      workspace = Solargraph::Workspace.new(Dir.pwd) if File.exist?('rbs_collection.yaml')
-      rbs_map = RbsMap.from_gemspec(gemspec, workspace&.rbs_collection_path, workspace&.rbs_collection_config_path)
-      if options[:rebuild] || !PinCache.has_rbs_collection?(gemspec, rbs_map.cache_key)
-        PinCache.serialize_rbs_collection_gem(gemspec, rbs_map.cache_key, rbs_map.pins)
-      end
-    rescue Gem::MissingSpecError
-      warn "Gem '#{gem}' not found"
     end
 
     desc 'uncache GEM [...GEM]', 'Delete specific cached gem documentation'
@@ -136,19 +127,17 @@ module Solargraph
     # @return [void]
     def uncache *gems
       raise ArgumentError, 'No gems specified.' if gems.empty?
+      repo = Solargraph::Repo.new(options[:directory])
+
       gems.each do |gem|
         if gem == 'core'
-          PinCache.uncache_core
-          next
+          Solargraph::Collection::Core.uncache
+        elsif gem == 'stdlib'
+          FileUtils.rm_rf CacheDir.stdlib_dir
+        else
+          metagem = repo.find_by_name(gem)
+          Solargraph::Collection::Gem.uncache(metagem) if metagem
         end
-
-        if gem == 'stdlib'
-          PinCache.uncache_stdlib
-          next
-        end
-
-        spec = Gem::Specification.find_by_name(gem)
-        PinCache.uncache_gem(spec, out: $stdout)
       end
     end
 
@@ -173,64 +162,43 @@ module Solargraph
         If the library is already cached, it will be rebuilt if the
         --rebuild option is set.
 
-        Cached documentation is stored in #{PinCache.base_dir}, which
+        Cached documentation is stored in #{CacheDir.base_dir}, which
         can be stored between CI runs.
     )
     option :rebuild, type: :boolean, desc: 'Rebuild existing documentation', default: false
     # @param names [Array<String>]
     # @return [void]
     def gems *names
-      api_map = Solargraph::ApiMap.new
-      workspace = Solargraph::Workspace.new('.')
-
+      repo = Solargraph::Repo.new('.')
       if names.empty?
-        api_map.cache_all_for_doc_map!(out: $stdout, rebuild: options[:rebuild])
+        gems = if repo.bundled?
+                 repo.bundled.select(&:cacheable?)
+               else
+                 Gem::Specification.all_names
+                                   .map { |name| Gem::Specification.find_by_full_name(name) }
+                                   .map { |gemspec| Metagem.from_specification(gemspec) }
+               end
+        gems.each { |gem| puts "Caching #{gem.name} #{gem.version} (#{gem.cache_name})" }
+        Collection::Gem.load_all gems, out: $stdout, rebuild: options[:rebuild]
+        puts "Documentation cached for #{gems.count} gems."
       else
-        # run in parallel with a thread pool
-        pool_size = Concurrent.processor_count # roughly your CPU count
-        pool = Concurrent::FixedThreadPool.new(pool_size)
-        warn("Caching these gems with #{pool_size} workers: #{names}")
-
-        # Using 'names' as queue, run!
-        futures = names.map do |name|
-          Concurrent::Promises.future_on(pool, name) do |_x|
-            if name == 'core'
-              PinCache.uncache_core if options[:rebuild]
-              Solargraph::RbsMap::CoreMap.new.pins(out: $stdout)
-              next
-            end
-
-            gemspec = workspace.find_gem(*name.split('='))
-            if gemspec.nil?
-              warn "Gem '#{name}' not found"
-            else
-              if options[:rebuild] || !PinCache.has_yard?(gemspec)
-                pins = GemPins.build_yard_pins(['yard-activesupport-concern'], gemspec)
-                PinCache.serialize_yard_gem(gemspec, pins)
-              end
-
-              rbs_map = RbsMap.from_gemspec(gemspec, workspace.rbs_collection_path, workspace.rbs_collection_config_path)
-              if options[:rebuild] || !PinCache.has_rbs_collection?(gemspec, rbs_map.cache_key)
-                # cache pins even if result is zero, so we don't retry building pins
-                pins = rbs_map.pins || []
-                PinCache.serialize_rbs_collection_gem(gemspec, rbs_map.cache_key, pins)
-              end
-            end
-          rescue Gem::MissingSpecError
-            warn "Gem '#{name}' not found"
-          rescue Gem::Requirement::BadRequirementError => e
-            warn "Gem '#{name}' failed while loading"
-            warn e.message
-            # @sg-ignore Need to add nil check here
-            warn e.backtrace.join("\n")
-          end
+        core, gem_names = names.partition { |name| name == 'core' }
+        unless core.empty?
+          puts 'Caching core'
+          Collection::Core.uncache if options[:rebuild]
+          Collection::Core.load
         end
+        metagems = gem_names.filter_map do |name|
+          # @todo Quick and dirty hack for solargraph-rspec require bug
+          #   (see https://github.com/lekemula/solargraph-rspec/pull/38)
+          metagem = repo.find_by_name(name) || repo.find_by_path(name)
+          next warn("Gem '#{name}' not found") unless metagem
 
-        Concurrent::Promises.zip(*futures).value! # raises if any failed
-        pool.shutdown
-        pool.wait_for_termination
-
-        warn "Documentation cached for #{names.count} gems."
+          puts "Caching #{metagem.name} #{metagem.version} (#{metagem.cache_name})"
+          metagem
+        end
+        Collection::Gem.load_all metagems, out: $stdout, rebuild: options[:rebuild]
+        puts "Documentation cached for #{names.count} gems."
       end
     end
 

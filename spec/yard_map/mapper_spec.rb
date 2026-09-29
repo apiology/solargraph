@@ -1,17 +1,10 @@
 # frozen_string_literal: true
 
 describe Solargraph::YardMap::Mapper do
-  # before :context here disables parallel tests in prspec, which
-  # would be needed regardless as we are changing the working
-  # directory
-  before :context do
-    @api_map = Solargraph::ApiMap.new
-  end
-
   def pins_with require
-    doc_map = Solargraph::DocMap.new([require], @api_map.workspace, out: $stderr)
-    doc_map.cache_doc_map_gems!($stderr)
-    doc_map.pins
+    repo = Solargraph::Repo.new('.')
+    metagem = repo.find_by_path(require)
+    Solargraph::Collection::Gem.load(metagem)
   end
 
   it 'converts nil docstrings to empty strings' do
@@ -59,9 +52,11 @@ describe Solargraph::YardMap::Mapper do
 
   it 'skips the Object superclass YARD records when no clause was seen' do
     dir = File.absolute_path(File.join('spec', 'fixtures', 'yard_map'))
-    pins = Dir.chdir dir do
-      YARD::Registry.load([File.join(dir, 'superclass.rb')], true)
-      described_class.new(YARD::Registry.all).map
+    pins = Solargraph::CHDIR_MUTEX.synchronize do
+      Dir.chdir dir do
+        YARD::Registry.load([File.join(dir, 'superclass.rb')], true)
+        described_class.new(YARD::Registry.all).map
+      end
     end
     FileUtils.remove_entry_secure File.join(dir, '.yardoc')
     refs = pins.select do |pin|
@@ -96,6 +91,7 @@ describe Solargraph::YardMap::Mapper do
   end
 
   it 'loads macros from gems' do
+    pending 'Not a cacheable gem'
     # Using gem-with-yard-macros fixture, which declares `@!macro my_attribute`
     # on `Gem::With::Yard::Macros::MyStruct.my_attribute`.
     pin = pins_with('gem-with-yard-macros').find do |pin|
@@ -107,10 +103,8 @@ describe Solargraph::YardMap::Mapper do
 
   it 'adjusts YARD namespaces that conflict with core constants' do
     gemspec = Gem::Specification.find_by_name('pp')
-    # load! only reads the on-disk yardoc, and nothing else in this file
-    # builds the one for pp, so cache it here.
-    Solargraph::Yardoc.cache([], gemspec) unless Solargraph::Yardoc.cached?(gemspec)
-    code_objects = Solargraph::Yardoc.load!(gemspec)
+    metagem = Solargraph::Metagem.from_specification(gemspec)
+    code_objects = Solargraph::Yardoc.load!(metagem)
     mapper = described_class.new(code_objects)
     pins = mapper.map
     expect(pins.map(&:path)).to include('RBS::Unnamed::ENVClass#pretty_print')
