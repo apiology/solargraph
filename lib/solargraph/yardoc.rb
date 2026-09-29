@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'open3'
+require 'fileutils'
 
 module Solargraph
   # Methods for caching and loading YARD documentation for gems.
@@ -8,63 +9,98 @@ module Solargraph
   module Yardoc
     module_function
 
-    # Build and save a gem's yardoc into a given path.
+    # A gem gets one yardoc per set of plugins it was built under, so a
+    # workspace declaring a different set builds its own rather than reading
+    # one whose contents it never asked for.
+    #
+    # @param metagem [Metagem]
+    # @param yard_plugins [Array<String>]
+    # @return [String]
+    def path_for metagem, yard_plugins
+      File.join(CacheDir.yard_dir, "#{metagem.cache_name}-#{CacheDir.yard_plugins_key(yard_plugins)}.yardoc")
+    end
+
+    # Every yardoc built for a gem, whichever plugins built it.
+    #
+    # @param metagem [Metagem]
+    # @return [Array<String>]
+    def paths_for metagem
+      Dir.glob(File.join(CacheDir.yard_dir, "#{metagem.cache_name}-*.yardoc"))
+    end
+
+    # Build a gem's yardoc into a given path.
     #
     # @param gem_yardoc_path [String] the path to the yardoc cache of a particular gem
     # @param yard_plugins [Array<String>] The names of YARD plugins to use.
-    # @param gemspec [Gem::Specification]
-    #
+    # @param metagem [Metagem]
     # @return [void]
-    def build_docs gem_yardoc_path, yard_plugins, gemspec
+    def build_docs gem_yardoc_path, yard_plugins, metagem
       return if docs_built?(gem_yardoc_path)
 
-      unless Dir.exist? gemspec.gem_dir
+      unless Dir.exist? metagem.full_path
         # Can happen in at least some (old?) RubyGems versions when we
         # have a gemspec describing a standard library like bundler.
         #
         # https://github.com/apiology/solargraph/actions/runs/17650140201/job/50158676842?pr=10
-        Solargraph.logger.info { "Bad info from gemspec - #{gemspec.gem_dir} does not exist" }
+        Solargraph.logger.info { "Bad info from gemspec - #{metagem.full_path} does not exist" }
         return
       end
 
-      Solargraph.logger.info "Caching yardoc for #{gemspec.name} #{gemspec.version}"
-      cmd = "yardoc --db #{gem_yardoc_path} --no-output --plugin solargraph"
-      yard_plugins.each { |plugin| cmd << " --plugin #{plugin}" }
-      Solargraph.logger.debug { "Running: #{cmd}" }
-      # @todo set these up to run in parallel
-      # @todo Is the chdir argument being used here?
-      # @sg-ignore Unrecognized keyword argument chdir to Open3.capture2e
-      stdout_and_stderr_str, status = Open3.capture2e(current_bundle_env_tweaks, cmd, chdir: gemspec.gem_dir)
+      Solargraph.logger.info "Caching yardoc for #{metagem.cache_name}"
+      FileUtils.mkdir_p File.dirname(gem_yardoc_path)
+      cmd = ['yardoc', '--db', gem_yardoc_path, '--no-output', '--plugin', 'solargraph']
+      yard_plugins.each { |plugin| cmd.push('--plugin', plugin) }
+      Solargraph.logger.debug "Running: #{cmd.inspect}"
+      output, status = Open3.capture2e(*cmd, chdir: metagem.full_path)
       return if status.success?
-      Solargraph.logger.warn { "YARD failed running #{cmd.inspect} in #{gemspec.gem_dir}" }
-      Solargraph.logger.info stdout_and_stderr_str
+
+      Solargraph.logger.warn { "YARD failed running #{cmd.inspect} in #{metagem.full_path}" }
+      Solargraph.logger.info output
+    # @todo Ignore missing metagems for now. We need to figure out why this
+    #   happens in GitHub actions.
+    rescue Errno::ENOENT => _e
+      Solargraph.logger.warn "Gem #{metagem.name} #{metagem.version} not found at #{metagem.full_path}"
+    end
+
+    # @param metagem [Metagem]
+    # @param yard_plugins [Array<String>]
+    # @param force [Boolean]
+    # @return [void]
+    def cache metagem, yard_plugins, force: false
+      path = path_for(metagem, yard_plugins)
+      FileUtils.rm_rf path if force
+      build_docs path, yard_plugins, metagem
+    end
+
+    # Delete every yardoc built for the gem, so a rebuild is not served a
+    # yardoc some other plugin set left behind.
+    #
+    # @param metagem [Metagem]
+    # @return [void]
+    def uncache metagem
+      paths_for(metagem).each { |path| FileUtils.rm_rf path }
     end
 
     # @param gem_yardoc_path [String] the path to the yardoc cache of a particular gem
-    # @param gemspec [Gem::Specification]
-    # @return [Array<Pin::Base>]
-    def build_pins gem_yardoc_path, gemspec
-      yardoc = load!(gem_yardoc_path)
-      YardMap::Mapper.new(yardoc, gemspec).map
+    def docs_built? gem_yardoc_path
+      File.exist?(File.join(gem_yardoc_path, 'complete'))
     end
 
-    # True if the gem yardoc is cached.
-    #
-    # @param gem_yardoc_path [String]
-    def docs_built? gem_yardoc_path
-      yardoc = File.join(gem_yardoc_path, 'complete')
-      File.exist?(yardoc)
+    # @param metagem [Metagem]
+    # @param yard_plugins [Array<String>]
+    def cached? metagem, yard_plugins
+      docs_built? path_for(metagem, yard_plugins)
     end
+    alias exist? cached?
 
     # True if another process is currently building the yardoc cache.
     #
     # @param gem_yardoc_path [String] the path to the yardoc cache of a particular gem
     def processing? gem_yardoc_path
-      yardoc = File.join(gem_yardoc_path, 'processing')
-      File.exist?(yardoc)
+      File.exist?(File.join(gem_yardoc_path, 'processing'))
     end
 
-    # Load a gem's yardoc and return its code objects.
+    # Load a gem's yardoc cache and return its code objects.
     #
     # @note This method modifies the global YARD registry.
     #
@@ -75,22 +111,11 @@ module Solargraph
       YARD::Registry.all
     end
 
-    # If the BUNDLE_GEMFILE environment variable is set, we need to
-    # make sure it's an absolute path, as we'll be changing
-    # directories.
-    #
-    # 'bundle exec' sets an absolute path here, but at least the
-    # overcommit gem does not, breaking on-the-fly documention with a
-    # spawned yardoc command from our current bundle
-    #
-    # @return [Hash{String => String}] a hash of environment variables to override
-    def current_bundle_env_tweaks
-      tweaks = {}
-      # @sg-ignore Unresolved call to empty? on String, nil
-      if ENV['BUNDLE_GEMFILE'] && !ENV['BUNDLE_GEMFILE'].empty?
-        tweaks['BUNDLE_GEMFILE'] = File.expand_path(ENV['BUNDLE_GEMFILE'])
-      end
-      tweaks
+    # @param gem_yardoc_path [String] the path to the yardoc cache of a particular gem
+    # @param metagem [Metagem]
+    # @return [Array<Pin::Base>]
+    def build_pins gem_yardoc_path, metagem
+      YardMap::Mapper.new(load!(gem_yardoc_path), metagem).map
     end
   end
 end

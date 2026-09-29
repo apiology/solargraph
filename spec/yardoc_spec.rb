@@ -16,11 +16,42 @@ describe Solargraph::Yardoc do
     File.join(@tmpdir, 'solargraph', 'yardoc', 'test_gem')
   end
 
+  let(:gemspec) { Gem::Specification.find_by_name('backport') }
+  let(:metagem) { Solargraph::Metagem.from_specification(gemspec) }
+
   before do
     FileUtils.mkdir_p(gem_yardoc_path)
   end
 
-  describe '#processing?' do
+  describe '.path_for' do
+    it 'gives a declared plugin set a path of its own' do
+      expect(described_class.path_for(metagem, ['activesupport-concern']))
+        .not_to eq(described_class.path_for(metagem, []))
+    end
+
+    it 'gives the same plugin set the same path whichever spelling names it' do
+      expect(described_class.path_for(metagem, ['yard-activesupport-concern']))
+        .to eq(described_class.path_for(metagem, ['activesupport-concern']))
+    end
+  end
+
+  describe '.cache' do
+    it 'saves yardoc caches from metagems' do
+      described_class.cache(metagem, [])
+      expect(File.exist?(described_class.path_for(metagem, []))).to be(true)
+      expect(described_class.cached?(metagem, [])).to be(true)
+    end
+  end
+
+  describe '.uncache' do
+    it 'deletes yardoc caches' do
+      described_class.uncache(metagem)
+      expect(File.exist?(described_class.path_for(metagem, []))).to be(false)
+      expect(described_class.cached?(metagem, [])).to be(false)
+    end
+  end
+
+  describe '.processing?' do
     it 'returns true if the yardoc is being processed' do
       FileUtils.touch(File.join(gem_yardoc_path, 'processing'))
       expect(described_class.processing?(gem_yardoc_path)).to be(true)
@@ -31,14 +62,19 @@ describe Solargraph::Yardoc do
     end
   end
 
-  describe '#load!' do
+  describe '.load!' do
     it 'does not blow up when called on empty directory' do
       expect { described_class.load!(gem_yardoc_path) }.not_to raise_error
     end
+
+    it 'loads metagem code objects from metagems' do
+      described_class.cache(metagem, [])
+      objects = described_class.load!(described_class.path_for(metagem, []))
+      expect(objects.map(&:name)).to include(:Backport)
+    end
   end
 
-  describe '#build_docs' do
-    let(:gemspec) { Gem::Specification.find_by_path('rubocop') }
+  describe '.build_docs' do
     let(:output) { '' }
 
     before do
@@ -48,7 +84,7 @@ describe Solargraph::Yardoc do
     end
 
     it 'builds docs for a gem' do
-      described_class.build_docs(gem_yardoc_path, [], gemspec)
+      described_class.build_docs(gem_yardoc_path, [], metagem)
       expect(File.exist?(File.join(gem_yardoc_path, 'complete'))).to be true
     end
 
@@ -57,15 +93,25 @@ describe Solargraph::Yardoc do
       allow(Open3).to receive(:capture2e)
 
       expect do
-        described_class.build_docs(gem_yardoc_path, [], gemspec)
+        described_class.build_docs(gem_yardoc_path, [], metagem)
       end.not_to raise_error
       expect(Open3).not_to have_received(:capture2e)
     end
 
     it 'is idempotent' do
-      described_class.build_docs(gem_yardoc_path, [], gemspec)
-      described_class.build_docs(gem_yardoc_path, [], gemspec) # second time
+      described_class.build_docs(gem_yardoc_path, [], metagem)
+      described_class.build_docs(gem_yardoc_path, [], metagem) # second time
       expect(File.exist?(File.join(gem_yardoc_path, 'complete'))).to be true
+    end
+
+    it 'passes each declared plugin to yard' do
+      allow(Open3).to receive(:capture2e).and_return([output, instance_double(Process::Status, success?: true)])
+
+      described_class.build_docs(gem_yardoc_path, ['activesupport-concern'], metagem)
+
+      expect(Open3).to have_received(:capture2e)
+        .with('yardoc', '--db', gem_yardoc_path, '--no-output',
+              '--plugin', 'solargraph', '--plugin', 'activesupport-concern', chdir: metagem.full_path)
     end
 
     context 'with an error from yard' do
@@ -79,33 +125,8 @@ describe Solargraph::Yardoc do
         allow(result).to receive(:success?).and_return(false)
 
         expect do
-          described_class.build_docs(gem_yardoc_path, [], gemspec)
+          described_class.build_docs(gem_yardoc_path, [], metagem)
         end.not_to raise_error
-      end
-    end
-
-    context 'when given a relative BUNDLE_GEMFILE path' do
-      around do |example|
-        # turn absolute BUNDLE_GEMFILE path into relative
-        existing_gemfile = ENV.fetch('BUNDLE_GEMFILE', nil)
-        current_dir = Dir.pwd
-        # remove prefix current_dir from path
-        ENV['BUNDLE_GEMFILE'] = existing_gemfile.sub("#{current_dir}/", '')
-        raise 'could not figure out relative path' if Pathname.new(ENV.fetch('BUNDLE_GEMFILE', nil)).absolute?
-        example.run
-        ENV['BUNDLE_GEMFILE'] = existing_gemfile
-      end
-
-      it 'sends Open3 an absolute path' do
-        called_with = nil
-        allow(Open3).to receive(:capture2e) do |*args|
-          called_with = args
-          ['output', instance_double(Process::Status, success?: true)]
-        end
-
-        described_class.build_docs(gem_yardoc_path, [], gemspec)
-
-        expect(called_with[0]['BUNDLE_GEMFILE']).to eq(File.absolute_path('Gemfile'))
       end
     end
   end

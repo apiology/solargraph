@@ -6,7 +6,6 @@ gemspec name: 'solargraph'
 
 # Test fixture gems
 gem 'gem-with-concern', path: 'spec/fixtures/gem-with-concern'
-gem 'gem-with-yard-macros', path: 'spec/fixtures/gem-with-yard-macros'
 
 # Local gemfile for development tools, etc.
 local_gemfile = File.expand_path('.Gemfile', __dir__)
