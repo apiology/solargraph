@@ -1207,7 +1207,7 @@ describe 'YARD type specifier list parsing' do
     it 'keeps the literal keys of each conjunct of a record intersection when qualifying' do
       original = Solargraph::ComplexType.parse('Hash{:a => Bar} & Hash{:b => String}').first
       qualified = original.qualify(foo_bar_api_map, 'Foo')
-      expect(qualified.rooted_tag).to eq('::Hash{:a => ::Foo::Bar} & ::Hash{:b => ::String}')
+      expect(qualified.rooted_tags).to eq('::Hash{:a => ::Foo::Bar} & ::Hash{:b => ::String}')
     end
 
     it 'qualifies a record intersection nested in a value position' do
