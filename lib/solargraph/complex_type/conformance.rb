@@ -22,30 +22,22 @@ module Solargraph
         @rules = rules
         @variance = variance
         # :nocov:
-        unless expected.is_a?(UniqueType)
-          # @sg-ignore This should never happen and the typechecker is angry about it
+        unless expected.instance_of?(UniqueType)
           raise "Expected type must be a UniqueType, got #{expected.class} in #{expected.inspect}"
         end
         # :nocov:
-        return if inferred.is_a?(UniqueType)
+        return if inferred.instance_of?(UniqueType)
         # :nocov:
-        # @sg-ignore This should never happen and the typechecker is angry about it
         raise "Inferred type must be a UniqueType, got #{inferred.class} in #{inferred.inspect}"
         # :nocov:
       end
 
       def conforms_to_unique_type?
-        unless expected.is_a?(UniqueType)
+        unless expected.instance_of?(UniqueType)
           # :nocov:
           raise "Expected type must be a UniqueType, got #{expected.class} in #{expected.inspect}"
           # :nocov:
         end
-
-        # An expectation of `A & B` can only be satisfied by
-        # something that conforms to every conjunct (A & B <: A and
-        # A & B <: B, so satisfying the intersection requires
-        # satisfying both).
-        return conforms_to_intersection_expectation? if expected.is_a?(UniqueType::Intersection)
 
         return true if ignore_interface?
         return true if inferred == expected
@@ -83,21 +75,6 @@ module Solargraph
 
       private
 
-      # @return [Boolean]
-      def conforms_to_intersection_expectation?
-        # only called when expected.is_a?(UniqueType::Intersection)
-        # @type [UniqueType::Intersection]
-        intersection = expected
-        # Wrap inferred in a ComplexType (rather than calling
-        # UniqueType#conforms_to? directly) so each conjunct check
-        # gets ComplexType#conforms_to?'s special-case handling (e.g.
-        # duck_type? conjuncts), not just UniqueType's.
-        wrapped_inferred = ComplexType.new([inferred])
-        intersection.conjuncts.all? do |conjunct|
-          wrapped_inferred.conforms_to?(api_map, conjunct, situation, rules, variance: variance)
-        end
-      end
-
       def only_inferred_parameters?
         !expected.parameters? && inferred.parameters?
       end
@@ -107,7 +84,7 @@ module Solargraph
       end
 
       def ignore_interface?
-        (expected.any?(&:interface?) && rules.include?(:allow_unmatched_interface)) ||
+        (expected.interface? && rules.include?(:allow_unmatched_interface)) ||
           (inferred.interface? && rules.include?(:allow_unmatched_interface))
       end
 
@@ -170,17 +147,42 @@ module Solargraph
 
         return true if inferred.subtypes.any?(&:undefined?) && rules.include?(:allow_undefined)
 
-        return true if inferred.subtypes.all?(&:generic?) && rules.include?(:allow_unresolved_generic)
-
-        return true if expected.subtypes.all?(&:generic?) && rules.include?(:allow_unresolved_generic)
-
         return false if inferred.subtypes.empty?
+
+        return union_subtypes_conform? if inferred.implicit_union? || expected.implicit_union?
+
+        positional_subtypes_conform?
+      end
+
+      # Element types gathered as a union are unordered and need not match in
+      # count, so the two lists are compared as whole unions.
+      def union_subtypes_conform?
+        if rules.include?(:allow_unresolved_generic) &&
+           (inferred.subtypes.any?(&:any_generic?) || expected.subtypes.any?(&:any_generic?))
+          return true
+        end
 
         ComplexType.new(inferred.subtypes).conforms_to?(api_map,
                                                         ComplexType.new(expected.subtypes),
                                                         situation,
                                                         rules,
                                                         variance: inferred.parameter_variance(situation))
+      end
+
+      # Fixed parameters line up by position, so each slot is compared against
+      # its counterpart and a differing count cannot conform.
+      def positional_subtypes_conform?
+        return false unless inferred.subtypes.length == expected.subtypes.length
+
+        variance = inferred.parameter_variance(situation)
+        inferred.subtypes.zip(expected.subtypes).all? do |inferred_subtype, expected_subtype|
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1223
+          unresolved = inferred_subtype.any_generic? || expected_subtype.any_generic?
+          next true if rules.include?(:allow_unresolved_generic) && unresolved
+
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1223
+          inferred_subtype.conforms_to?(api_map, expected_subtype, situation, rules, variance: variance)
+        end
       end
 
       # @return [self]

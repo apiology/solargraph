@@ -15,13 +15,9 @@ module Solargraph
     autoload :Index,          'solargraph/api_map/index'
     autoload :Constants,      'solargraph/api_map/constants'
 
-    # @return [Array<String>]
-    attr_reader :unresolved_requires
+    include Equality
 
-    @@core_map = RbsMap::CoreMap.new
-
-    # @return [Array<String>]
-    attr_reader :missing_docs
+    @@core_pins = Collection::Core.load
 
     # @param pins [Array<Solargraph::Pin::Base>]
     # @param loose_unions [Boolean] if true, a potential type can be
@@ -36,12 +32,6 @@ module Solargraph
       @cache = Cache.new
       @loose_unions = loose_unions
       index pins
-    end
-
-    # @param out [StringIO, IO, nil] output stream for logging
-    # @return [void]
-    def self.reset_core out: nil
-      @@core_map = RbsMap::CoreMap.new
     end
 
     #
@@ -86,7 +76,7 @@ module Solargraph
       @source_map_hash = {}
       conventions_environ.clear
       cache.clear
-      store.update @@core_map.pins, pins
+      store.update @@core_pins, pins
       self
     end
 
@@ -106,6 +96,8 @@ module Solargraph
     # @param bench [Bench]
     # @return [self]
     def catalog bench
+      start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      @workspace = bench.workspace
       @source_map_hash = bench.source_map_hash
       # @type [Array<Pin::Base>]
       iced_pins = bench.icebox.flat_map(&:pins)
@@ -114,22 +106,25 @@ module Solargraph
       source_map_hash.each_value do |map|
         conventions_environ.merge map.conventions_environ
       end
-      unresolved_requires = (bench.external_requires + conventions_environ.requires + bench.workspace.config.required).to_a.compact.uniq
-      recreate_docmap = @unresolved_requires != unresolved_requires ||
-                        # @sg-ignore Unresolved call to rbs_collection_path on Solargraph::Workspace, nil
-                        workspace.rbs_collection_path != bench.workspace.rbs_collection_path ||
-                        @doc_map.uncached_gemspecs.any?
-
-      if recreate_docmap
-        @doc_map = DocMap.new(unresolved_requires, bench.workspace, out: nil) # @todo Implement gem preferences
-        @unresolved_requires = @doc_map.unresolved_requires
-      end
-      start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      Solargraph.logger.info 'Cataloging ApiMap started'
-      @cache.clear if store.update(@@core_map.pins, @doc_map.pins, conventions_environ.pins, iced_pins, live_pins) { process_macros }
-      @missing_docs = [] # @todo Implement missing docs
+      # @todo Determine what needs to be sent to global conventions
+      conventions_environ.merge Convention.for_global(nil)
+      external_changed = external.update(bench.external_requires.to_a + conventions_environ.requires)
+      store_changed = store.update(@@core_pins, external.pins.clone, conventions_environ.pins, iced_pins, live_pins) { process_macros }
+      @cache.clear if external_changed || store_changed
       Solargraph.logger.info "Cataloging ApiMap finished in #{Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time} seconds"
       self
+    end
+
+    def external
+      @external ||= External.new(workspace&.directory, [])
+    end
+
+    def unresolved_requires
+      external.unresolved_requires
+    end
+
+    def unloaded_gems
+      external.unloaded_gems
     end
 
     # @return [Array<Pin::Base>]
@@ -146,7 +141,7 @@ module Solargraph
           chain = Solargraph::Parser::ParserGem::NodeChainer.chain(node)
           if node.children[0].nil? && store.macro_method_name_pins.key?(node.children[1].to_s)
             match = store.macro_method_name_pins[node.children[1].to_s].find do |pin|
-              get_complex_type_methods(closure.return_type).include?(pin)
+              closure.return_type.candidate_methods_from(self, '', false).include?(pin)
             end
             if match
               match.macros.each do |macro|
@@ -160,29 +155,9 @@ module Solargraph
       macro_pins
     end
 
-    # @return [DocMap]
-    def doc_map
-      @doc_map ||= DocMap.new([], Workspace.new('.'))
-    end
-
-    # @return [::Array<Gem::Specification>]
-    def uncached_gemspecs
-      doc_map.uncached_gemspecs || []
-    end
-
-    # @return [::Array<Gem::Specification>]
-    def uncached_rbs_collection_gemspecs
-      @doc_map.uncached_rbs_collection_gemspecs
-    end
-
-    # @return [::Array<Gem::Specification>]
-    def uncached_yard_gemspecs
-      @doc_map.uncached_yard_gemspecs
-    end
-
     # @return [Enumerable<Pin::Base>]
     def core_pins
-      @@core_map.pins
+      @@core_pins
     end
 
     # @param name [String, nil]
@@ -237,21 +212,6 @@ module Solargraph
       api_map
     end
 
-    # @param out [StringIO, IO, nil]
-    # @param rebuild [Boolean] whether to rebuild the pins even if they are cached
-    # @return [void]
-    def cache_all_for_doc_map! out: $stderr, rebuild: false
-      doc_map.cache_all!(out, rebuild: rebuild)
-    end
-
-    # @param gemspec [Gem::Specification]
-    # @param rebuild [Boolean]
-    # @param out [StringIO, IO, nil]
-    # @return [void]
-    def cache_gem gemspec, rebuild: false, out: nil
-      doc_map.cache(gemspec, rebuild: rebuild, out: out)
-    end
-
     class << self
       include Logging
     end
@@ -267,12 +227,12 @@ module Solargraph
     # @return [ApiMap]
     def self.load_with_cache directory, out = $stderr, loose_unions: true
       api_map = load(directory, loose_unions: loose_unions)
-      if api_map.uncached_gemspecs.empty?
-        logger.info { "All gems cached for #{directory}" }
-        return api_map
-      end
+      return api_map if api_map.external.unloaded_gems.empty?
 
-      api_map.cache_all_for_doc_map!(out: out)
+      api_map.external.unloaded_gems.each do |metagem|
+        out&.puts "Caching gem #{metagem.name} (#{metagem.cache_name})"
+        Collection::Gem.load metagem
+      end
       load(directory, loose_unions: loose_unions)
     end
 
@@ -519,45 +479,18 @@ module Solargraph
       result
     end
 
-    # Get an array of method pins for a complex type.
+    # Which visibilities a type's methods may have to be reachable from
+    # +context+.  Needs the ancestry, so it belongs here rather than on the
+    # type.
     #
-    # The type's namespace and the context should be fully qualified. If the
-    # context matches the namespace type or is a subclass of the type,
-    # protected methods are included in the results. If protected methods are
-    # included and internal is true, private methods are also included.
-    #
-    # @example
-    #   api_map = Solargraph::ApiMap.new
-    #   type = Solargraph::ComplexType.parse('String')
-    #   api_map.get_complex_type_methods(type)
-    #
-    # @param complex_type [Solargraph::ComplexType] The complex type of the namespace
-    # @param context [String] The context from which the type is referenced
+    # @param type [ComplexType::UniqueType]
+    # @param context [String] Fully qualified namespace the type is referenced from
     # @param internal [Boolean] True to include private methods
-    # @return [Array<Solargraph::Pin::Base>]
-    def get_complex_type_methods complex_type, context = '', internal = false
-      # This method does not qualify the complex type's namespace because
-      # it can cause conflicts between similar names, e.g., `Foo` vs.
-      # `Other::Foo`. It still takes a context argument to determine whether
-      # protected and private methods are visible.
-      return [] if complex_type.undefined? || complex_type.void?
-      result = Set.new
-      complex_type.each do |type|
-        if type.duck_type?
-          result.add Pin::DuckMethod.new(name: type.to_s[1..], source: :api_map)
-          result.merge get_methods('Object')
-        else
-          unless type.nil? || type.name == 'void'
-            visibility = [:public]
-            if type.namespace == context || super_and_sub?(type.namespace, context)
-              visibility.push :protected
-              visibility.push :private if internal
-            end
-            result.merge get_methods(type.tag, scope: type.scope, visibility: visibility)
-          end
-        end
-      end
-      result.to_a
+    # @return [Array<Symbol>]
+    def visibility_for type, context, internal
+      return [:public] unless type.namespace == context || super_and_sub?(type.namespace, context)
+
+      internal ? %i[public protected private] : %i[public protected]
     end
 
     # Get a stack of method pins for a method name in a potentially
@@ -755,7 +688,7 @@ module Solargraph
 
     # @return [Workspace, nil]
     def workspace
-      doc_map.workspace
+      @workspace
     end
 
     # @param fq_reference_tag [String] A fully qualified whose method should be pulled in
@@ -1051,8 +984,11 @@ module Solargraph
     #   that this overload of 'protected' will typecheck @sg-ignore
     # @sg-ignore
     def equality_fields
-      [self.class, @source_map_hash, conventions_environ, @doc_map, @unresolved_requires, @missing_docs,
-       @loose_unions]
+      # External is compared by identity and generation instead of by its pins:
+      # Chain#infer hashes the ApiMap on every inference, and Array#hash would
+      # walk every gem pin on each of those calls.
+      [@source_map_hash, conventions_environ, @external, @external&.generation,
+       @unresolved_requires, @loose_unions]
     end
   end
 end

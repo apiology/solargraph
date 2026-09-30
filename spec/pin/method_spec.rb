@@ -698,7 +698,7 @@ describe Solargraph::Pin::Method do
       api_map.map source
       pin = api_map.get_path_pins('#foo').first
       expect(pin.return_type.to_s).to eq('String & Comparable')
-      expect(pin.return_type.first).to be_a(Solargraph::ComplexType::UniqueType::Intersection)
+      expect(pin.return_type.items.first).to be_a(Solargraph::ComplexType::UniqueType::Intersection)
     end
 
     # RBS nests `&`/`|` freely, unlike the YARD/tag-string grammar, so
@@ -712,10 +712,10 @@ describe Solargraph::Pin::Method do
         api_map = Solargraph::ApiMap.new
         api_map.map source
         pin = api_map.get_path_pins('#foo').first
-        intersection = pin.return_type.first
+        intersection = pin.return_type.items.first
         expect(intersection).to be_a(Solargraph::ComplexType::UniqueType::Intersection)
         expect(intersection.conjuncts.length).to eq(2)
-        expect(intersection.conjuncts.first.length).to eq(2)
+        expect(intersection.conjuncts.first.items.length).to eq(2)
         expect(intersection.conjuncts.first.tags).to eq('String, Integer')
         expect(intersection.to_rbs).to eq('(::String | ::Integer) & ::Comparable')
       end
@@ -728,8 +728,8 @@ describe Solargraph::Pin::Method do
         api_map = Solargraph::ApiMap.new
         api_map.map source
         pin = api_map.get_path_pins('#foo').first
-        intersection = pin.return_type.first
-        expect(intersection.conjuncts.last.length).to eq(2)
+        intersection = pin.return_type.items.first
+        expect(intersection.conjuncts.last.items.length).to eq(2)
         expect(intersection.to_rbs).to eq('::Comparable & (::String | ::Integer)')
       end
 
@@ -741,7 +741,7 @@ describe Solargraph::Pin::Method do
         api_map = Solargraph::ApiMap.new
         api_map.map source
         pin = api_map.get_path_pins('#foo').first
-        intersection = pin.return_type.first
+        intersection = pin.return_type.items.first
         expect(intersection.to_rbs).to eq('::String & ::Comparable & ::Enumerable')
       end
 
@@ -757,21 +757,21 @@ describe Solargraph::Pin::Method do
 
         # `&` binds tighter than a union's `,`, so the grouped conjunct
         # keeps its brackets and re-parses to the same structure.
-        expect(original.tag).to eq('[String, Integer] & Comparable')
-        reparsed = Solargraph::ComplexType.parse(original.tag)
-        expect(reparsed.length).to eq(1)
-        expect(reparsed.first.conjuncts.map(&:tags)).to eq(['String, Integer', 'Comparable'])
+        expect(original.tags).to eq('[String, Integer] & Comparable')
+        reparsed = Solargraph::ComplexType.parse(original.tags)
+        expect(reparsed.items.length).to eq(1)
+        expect(reparsed.items.first.conjuncts.map(&:tags)).to eq(['String, Integer', 'Comparable'])
 
-        # rooted_tag keeps the `::` prefixes that tag drops, so it is
+        # rooted_tags keeps the `::` prefixes that tags drops, so it is
         # the form that round-trips to an identical RBS rendering.
-        expect(Solargraph::ComplexType.parse(original.rooted_tag).to_rbs).to eq(original.to_rbs)
+        expect(Solargraph::ComplexType.parse(original.rooted_tags).to_rbs).to eq(original.to_rbs)
 
         # to_rbs uses RBS's own grouping syntax and round-trips through
         # RBS's parser rather than Solargraph's tag parser.
         rbs_type = RBS::Parser.parse_type(original.to_rbs)
         reparsed_via_rbs = Solargraph::RbsTranslator.to_complex_type(rbs_type)
-        expect(reparsed_via_rbs.length).to eq(1)
-        expect(reparsed_via_rbs.first.conjuncts.map(&:tags)).to eq(['String, Integer', 'Comparable'])
+        expect(reparsed_via_rbs.items.length).to eq(1)
+        expect(reparsed_via_rbs.items.first.conjuncts.map(&:tags)).to eq(['String, Integer', 'Comparable'])
       end
     end
 

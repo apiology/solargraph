@@ -80,25 +80,34 @@ module Solargraph
       # @return [ComplexType, nil] A new rooted ComplexType
       def qualify_type type, *gates
         return nil if type.nil?
-        return type if type.selfy? || type.literal? || type.tag == 'nil' || type.interface? ||
-                       type.tag == 'Boolean'
 
         gates.push '' unless gates.include?('')
-        unique_type = type.first
-        if unique_type.is_a?(ComplexType::UniqueType::Intersection)
-          return qualify_conjuncts(unique_type, gates)
-        end
+        type.qualify_parts do |named_type|
+          next named_type unless resolvable_name?(named_type)
 
-        fqns = resolve(type.rooted_namespace, *gates)
-        return unless fqns
-        pin = store.get_path_pins(fqns).first
-        if pin.is_a?(Pin::Constant)
-          # @sg-ignore Need to add nil check here
-          const = Solargraph::Parser::NodeMethods.unpack_name(pin.assignment)
-          return unless const
-          fqns = resolve(const, *pin.gates)
+          fqns = resolve(named_type.rooted_namespace, *gates)
+          next nil unless fqns
+
+          pin = store.get_path_pins(fqns).first
+          if pin.is_a?(Pin::Constant)
+            # @sg-ignore Need to add nil check here
+            const = Solargraph::Parser::NodeMethods.unpack_name(pin.assignment)
+            next nil unless const
+
+            fqns = resolve(const, *pin.gates)
+          end
+          named_type.recreate(new_name: fqns, make_rooted: true)
         end
-        type.recreate(new_name: fqns, make_rooted: true)
+      end
+
+      # Whether this type's name is a constant to look up, rather than self, a
+      # literal, nil, an RBS interface, or Boolean.
+      #
+      # @param named_type [ComplexType::UniqueType]
+      # @return [Boolean]
+      def resolvable_name? named_type
+        !named_type.selfy? && !named_type.literal? && !named_type.nil_type? &&
+          !named_type.interface? && named_type.name != 'Boolean'
       end
 
       # @return [void]
@@ -110,23 +119,6 @@ module Solargraph
 
       # @return [Store]
       attr_reader :store
-
-      # An intersection has no single namespace, so each conjunct is
-      # qualified on its own; a conjunct that cannot be resolved
-      # leaves the whole type unresolvable.
-      #
-      # @param intersection [ComplexType::UniqueType::Intersection]
-      # @param gates [Array<String>]
-      # @return [ComplexType, nil]
-      def qualify_conjuncts intersection, gates
-        qualified = intersection.conjuncts.map do |conjunct|
-          qualified_conjunct = qualify_type(conjunct, *gates)
-          return nil if qualified_conjunct.nil?
-
-          qualified_conjunct
-        end
-        ComplexType.new([ComplexType::UniqueType::Intersection.new(qualified)])
-      end
 
       # @param name [String]
       # @param gates [Array<String>]

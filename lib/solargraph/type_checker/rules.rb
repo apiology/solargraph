@@ -78,9 +78,9 @@ module Solargraph
       # @todo 2: multiple assignment from a tuple gives every variable the first element type
       # @todo 1: defined? is unresolved and the nil case above is not narrowed
       #
-      # flow sensitive typing could handle (104):
+      # flow sensitive typing could handle (98):
       #
-      # @todo 36: flow sensitive typing needs to handle attrs
+      # @todo 30: flow sensitive typing needs to handle attrs
       # @todo 29: flow sensitive typing should be able to handle redefinition
       # @todo 19: flow sensitive typing needs to narrow down type with an if is_a? check
       # @todo 13: Need to validate config
