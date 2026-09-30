@@ -218,6 +218,17 @@ module Solargraph
         fqns_pins_map[[base, name]]
       end
 
+      # A superclass or include is recorded as the type it was written as, so
+      # it can arrive carrying type arguments that no namespace is keyed by.
+      #
+      # @param tag [String, nil]
+      # @return [String, nil]
+      def fqns_for tag
+        return tag if tag.nil? || tag.empty?
+
+        ComplexType.parse(tag).namespace
+      end
+
       # Get all ancestors (superclasses, includes, prepends, extends) for a namespace
       # @param fqns [String] The fully qualified namespace
       # @return [Array<String>] Array of ancestor namespaces including the original
@@ -233,14 +244,9 @@ module Solargraph
           next if current.nil? || current.empty? || visited.include?(current)
           visited.add(current)
 
-          # Ancestors keep their type arguments, but includes and superclasses
-          # are keyed by bare namespace, so a parameterized tag finds nothing
-          # and the walk stops short of that ancestor own mixins.
-          current = ComplexType.parse(current).name
-
           # Add superclass
           ref = get_superclass(current)
-          superclass = ref && constants.dereference(ref)
+          superclass = ref && fqns_for(constants.dereference(ref))
           if superclass && !superclass.empty? && !visited.include?(superclass)
             ancestors << superclass
             queue << superclass
@@ -250,7 +256,7 @@ module Solargraph
           [get_includes(current), get_prepends(current), get_extends(current)].each do |refs|
             next if refs.nil?
             # @param ref [String]
-            refs.map(&:type).map(&:to_s).each do |ref|
+            refs.map { |r| fqns_for(r.type.to_s) }.each do |ref|
               # @sg-ignore flow sensitive typing should be able to handle redefinition
               next if ref.nil? || ref.empty? || visited.include?(ref)
               # @sg-ignore flow sensitive typing should be able to handle redefinition
