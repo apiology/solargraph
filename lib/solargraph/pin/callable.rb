@@ -35,7 +35,7 @@ module Solargraph
       # @sg-ignore https://github.com/castwide/solargraph/pull/1277
       # @return [ComplexType]
       def return_type!
-        return_type || raise("No return type set on #{inner_desc}")
+        return_type || raise("No return type set on #{self.class} #{path || closure&.path}")
       end
 
       # @sg-ignore Need to add nil check here
