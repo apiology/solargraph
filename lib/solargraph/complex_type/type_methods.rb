@@ -182,8 +182,9 @@ module Solargraph
       def generate_substring_from &to_str
         key_types_str = key_types.map(&to_str).join(', ')
         subtypes_str = subtypes.map(&to_str).join(', ')
-        if (key_types.none?(&:defined?) && subtypes.none?(&:defined?)) ||
-           (key_types.empty? && subtypes.empty?)
+        # undefined parameters are dropped, except from a fixed-parameter type, whose arity is part of the type
+        if (key_types.empty? && subtypes.empty?) ||
+           (!fixed_parameters? && key_types.none?(&:defined?) && subtypes.none?(&:defined?))
           ''
         elsif hash_parameters?
           "{#{key_types_str} => #{subtypes_str}}"
