@@ -12,7 +12,13 @@ unless ENV['SIMPLECOV_DISABLED']
 
   SimpleCov.start do
     cname = ENV.fetch('TEST_COVERAGE_COMMAND_NAME', 'ad-hoc')
-    command_name cname
+    # Every parallel_tests worker writes the one resultset file under
+    # cname, and SimpleCov keys that file by command name - so a name
+    # shared across workers makes each overwrite the last, leaving only
+    # the final worker's lines for collate and undercover to see. The
+    # worker number keeps each one its own entry.
+    worker = ENV['TEST_ENV_NUMBER'].to_s
+    command_name worker.empty? ? cname : "#{cname}-#{worker}"
     new_dir = File.join('coverage', cname)
     coverage_dir new_dir
 
