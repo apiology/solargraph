@@ -1007,4 +1007,37 @@ describe Solargraph::ApiMap do
     # @todo Undefined because the return tag expands to `type: String`
     expect(pins.map(&:return_type).map(&:tag)).to eq(%w[undefined])
   end
+
+  describe '.load_with_cache' do
+    let(:metagem) { instance_double(Solargraph::Metagem, name: 'example', cache_name: 'example-1.0.0') }
+
+    def api_map_awaiting metagems
+      external = instance_double(Solargraph::External, unloaded_gems: metagems)
+      instance_double(described_class, external: external)
+    end
+
+    it 'caches the gems a workspace is missing and reloads with them' do
+      incomplete = api_map_awaiting([metagem])
+      complete = api_map_awaiting([])
+      allow(described_class).to receive(:load).and_return(incomplete, complete)
+      allow(Solargraph::Collection::Gem).to receive(:load_all)
+      out = StringIO.new
+
+      # The reload is the point: the first map was built before the gems
+      # it needed existed, so it is not the one the caller should get.
+      expect(described_class.load_with_cache('.', out)).to be(complete)
+      expect(out.string).to eq("Caching gem example (example-1.0.0)\n")
+      expect(Solargraph::Collection::Gem).to have_received(:load_all).with([metagem], out: out)
+    end
+
+    it 'skips the second load when every gem is already cached' do
+      api_map = api_map_awaiting([])
+      allow(described_class).to receive(:load).and_return(api_map)
+      allow(Solargraph::Collection::Gem).to receive(:load_all)
+
+      expect(described_class.load_with_cache('.', nil)).to be(api_map)
+      expect(described_class).to have_received(:load).once
+      expect(Solargraph::Collection::Gem).not_to have_received(:load_all)
+    end
+  end
 end

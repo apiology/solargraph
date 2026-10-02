@@ -16,6 +16,24 @@ describe Solargraph::Workspace do
     expect(workspace.has_file?(file_path)).to be(true)
   end
 
+  describe '#rbs_collection_config_path' do
+    it 'finds the config in the workspace directory' do
+      yaml = File.join(dir_path, 'rbs_collection.yaml')
+      File.write yaml, "sources: []\n"
+
+      expect(workspace.rbs_collection_config_path).to eq(yaml)
+    end
+
+    it 'is nil when the workspace has no config' do
+      expect(workspace.rbs_collection_config_path).to be_nil
+    end
+
+    it 'is nil for a workspace with no directory to look in' do
+      expect(described_class.new('*').rbs_collection_config_path).to be_nil
+      expect(described_class.new.rbs_collection_config_path).to be_nil
+    end
+  end
+
   it 'ignores non-Ruby files by default' do
     not_ruby = File.join(dir_path, 'not_ruby.txt')
     File.write not_ruby, 'text'

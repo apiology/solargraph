@@ -143,6 +143,49 @@ describe Solargraph::Shell do
         expect(Solargraph::Collection::Gem).to have_received(:load_all).with([metagem], out: anything, rebuild: false)
       end
 
+      it 'falls back to every installed gem outside a bundle' do
+        allow(repo).to receive(:bundled?).and_return(false)
+        gemspec = Gem::Specification.find_by_name('backport')
+        allow(Gem::Specification).to receive_messages(all_names: ['backport-1.2.0'],
+                                                      find_by_full_name: gemspec)
+        allow(Solargraph::Metagem).to receive(:from_specification).with(gemspec).and_return(metagem)
+
+        output = capture_both do
+          shell.options = { rebuild: false }
+          shell.gems
+        end
+
+        expect(output).to include('Caching abcd343kfk 1.0.0 (abcd343kfk-1.0.0)')
+        expect(Solargraph::Collection::Gem).to have_received(:load_all).with([metagem], out: anything, rebuild: false)
+      end
+
+      it 'rebuilds core when named alongside a rebuild' do
+        allow(Solargraph::Collection::Core).to receive(:uncache)
+        allow(Solargraph::Collection::Core).to receive(:load)
+
+        output = capture_both do
+          shell.options = { rebuild: true }
+          shell.gems('core')
+        end
+
+        expect(output).to include('Caching core')
+        expect(Solargraph::Collection::Core).to have_received(:uncache)
+        expect(Solargraph::Collection::Core).to have_received(:load)
+      end
+
+      it 'loads core without discarding it when not rebuilding' do
+        allow(Solargraph::Collection::Core).to receive(:uncache)
+        allow(Solargraph::Collection::Core).to receive(:load)
+
+        capture_both do
+          shell.options = { rebuild: false }
+          shell.gems('core')
+        end
+
+        expect(Solargraph::Collection::Core).not_to have_received(:uncache)
+        expect(Solargraph::Collection::Core).to have_received(:load)
+      end
+
       it 'caches single gem without erroring out' do
         allow(repo).to receive(:find_by_name).with('98765').and_return(metagem)
 
