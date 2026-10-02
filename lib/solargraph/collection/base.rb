@@ -46,7 +46,14 @@ module Solargraph
         Collection.mem_cache[cache_file] = pins
         serial = Marshal.dump(pins)
         FileUtils.mkdir_p File.dirname(cache_file)
-        File.write cache_file, serial, mode: 'wb'
+        # Write to a temp file in the same directory and rename into place
+        # (rename is atomic on the same filesystem) so that concurrent
+        # readers/writers - e.g. multiple parallel_tests worker processes,
+        # or the threads in Collection::Gem.load_all, caching the same gem
+        # for the first time - never observe a partially-written file.
+        tmp = "#{cache_file}.#{Process.pid}.#{Thread.current.object_id}.tmp"
+        File.write tmp, serial, mode: 'wb'
+        File.rename tmp, cache_file
         pins
       end
     end

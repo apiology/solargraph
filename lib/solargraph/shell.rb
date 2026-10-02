@@ -178,24 +178,26 @@ module Solargraph
                                    .map { |name| Gem::Specification.find_by_full_name(name) }
                                    .map { |gemspec| Metagem.from_specification(gemspec) }
                end
-        gems.each do |gem|
-          puts "Caching #{gem.name} #{gem.version} (#{gem.cache_name})"
-          Collection::Gem.load(gem)
-        end
+        gems.each { |gem| puts "Caching #{gem.name} #{gem.version} (#{gem.cache_name})" }
+        Collection::Gem.load_all gems, out: $stdout, rebuild: options[:rebuild]
         puts "Documentation cached for #{gems.count} gems."
       else
-        names.each do |name|
-          if name == 'core'
-            puts 'Caching core'
-            Collection::Core.load
-          else
-            # @todo Quick and dirty hack for solargraph-rspec require bug
-            #   (see https://github.com/lekemula/solargraph-rspec/pull/38)
-            metagem = repo.find_by_name(name) || repo.find_by_path(name)
-            puts "Caching #{metagem.name} #{metagem.version} (#{metagem.cache_name})"
-            Collection::Gem.load metagem
-          end
+        core, gem_names = names.partition { |name| name == 'core' }
+        unless core.empty?
+          puts 'Caching core'
+          Collection::Core.uncache if options[:rebuild]
+          Collection::Core.load
         end
+        metagems = gem_names.filter_map do |name|
+          # @todo Quick and dirty hack for solargraph-rspec require bug
+          #   (see https://github.com/lekemula/solargraph-rspec/pull/38)
+          metagem = repo.find_by_name(name) || repo.find_by_path(name)
+          next warn("Gem '#{name}' not found") unless metagem
+
+          puts "Caching #{metagem.name} #{metagem.version} (#{metagem.cache_name})"
+          metagem
+        end
+        Collection::Gem.load_all metagems, out: $stdout, rebuild: options[:rebuild]
         puts "Documentation cached for #{names.count} gems."
       end
     end

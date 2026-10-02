@@ -1,11 +1,17 @@
 # frozen_string_literal: true
 
+require 'benchmark'
+require 'concurrent-ruby'
+
 module Solargraph
   module Collection
     # Cacheable gem pins.
     #
     class Gem < Base
       include Logging
+
+      # Only report timing for batches slow enough to be worth noticing.
+      SLOW_BATCH_MS = 500
 
       attr_reader :metagem
 
@@ -34,6 +40,43 @@ module Solargraph
 
       def self.cached? metagem
         metagem.cacheable? && File.exist?(new(metagem).cache_file)
+      end
+
+      # Build the pin caches for several gems at once, one gem per thread.
+      #
+      # Each gem is independent - it parses its own yardoc and RBS and
+      # writes its own cache file - so the batch scales with the machine
+      # rather than running end to end. Building a cold bundle serially is
+      # the dominant cost of a first run.
+      #
+      # @param gems [Enumerable<Metagem>]
+      # @param out [IO, StringIO, nil] stream for the timing summary
+      # @param rebuild [Boolean] discard existing caches and generate them again
+      # @return [void]
+      def self.load_all gems, out: nil, rebuild: false
+        metagems = gems.to_a
+        return if metagems.empty?
+
+        pool_size = Concurrent.processor_count
+        pool = Concurrent::FixedThreadPool.new(pool_size)
+        time = Benchmark.measure do
+          futures = metagems.map do |metagem|
+            Concurrent::Promises.future_on(pool, metagem) do |mg|
+              uncache mg if rebuild
+              load mg
+            end
+          end
+          # #value! re-raises in this thread if any gem failed, matching
+          # the serial loop this replaces.
+          Concurrent::Promises.zip(*futures).value!
+          pool.shutdown
+          pool.wait_for_termination
+        end
+
+        milliseconds = (time.real * 1000).round
+        return unless out && milliseconds > SLOW_BATCH_MS
+
+        out.puts "Built #{metagems.length} gems in #{milliseconds} ms in #{pool_size} threads"
       end
 
       private

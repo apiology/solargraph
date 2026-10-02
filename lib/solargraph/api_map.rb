@@ -225,14 +225,17 @@ module Solargraph
     # @param loose_unions [Boolean] See #initialize
     #
     # @return [ApiMap]
+    # @api Used by solargraph-rails at least
     def self.load_with_cache directory, out = $stderr, loose_unions: true
       api_map = load(directory, loose_unions: loose_unions)
-      return api_map if api_map.external.unloaded_gems.empty?
-
-      api_map.external.unloaded_gems.each do |metagem|
-        out&.puts "Caching gem #{metagem.name} (#{metagem.cache_name})"
-        Collection::Gem.load metagem
+      metagems = api_map.external.unloaded_gems
+      if metagems.empty?
+        logger.info { "All gems cached for #{directory}" }
+        return api_map
       end
+
+      metagems.each { |metagem| out&.puts "Caching gem #{metagem.name} (#{metagem.cache_name})" }
+      Collection::Gem.load_all metagems, out: out
       load(directory, loose_unions: loose_unions)
     end
 
