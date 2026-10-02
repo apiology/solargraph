@@ -10,16 +10,14 @@ module Solargraph
           def process
             pins = host.query_symbols(params['query'])
             info = pins.map do |pin|
-              # @sg-ignore Need to add nil check here
-              uri = file_to_uri(pin.best_location.filename)
+              uri = file_to_uri(pin.best_location!.filename)
               {
                 name: pin.path,
                 containerName: pin.namespace,
                 kind: pin.symbol_kind,
                 location: {
                   uri: uri,
-                  # @sg-ignore Need to add nil check here
-                  range: pin.best_location.range.to_hash
+                  range: pin.best_location!.range.to_hash
                 },
                 deprecated: pin.deprecated?
               }
