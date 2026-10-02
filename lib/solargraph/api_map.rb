@@ -896,7 +896,7 @@ module Solargraph
     # @param alias_pin [Pin::MethodAlias]
     # @return [Pin::Method, nil]
     def resolve_method_alias alias_pin
-      ancestors = store.get_ancestors(alias_pin.full_context.reduce_class_type.tag)
+      ancestors = store.get_ancestors(alias_pin.full_context.reduce_class_type.namespace)
       # @type [Pin::Method, nil]
       original = nil
 
