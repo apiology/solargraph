@@ -249,9 +249,7 @@ module Solargraph
 
       # @return [YARD::Tags::Tag, nil]
       def param_tag
-        # @sg-ignore Need to add nil check here
-        params = closure.docstring.tags(:param)
-        # @sg-ignore Need to add nil check here
+        params = closure!.docstring.tags(:param)
         params.each do |p|
           return p if p.name == name
         end
@@ -270,8 +268,7 @@ module Solargraph
       # @param api_map [ApiMap]
       # @return [ComplexType]
       def typify_method_param api_map
-        # @sg-ignore Need to add nil check here
-        meths = api_map.get_method_stack(closure.full_context.tag, closure.name, scope: closure.scope)
+        meths = api_map.get_method_stack(closure!.full_context.tag, closure!.name, scope: closure!.scope)
         # meths.shift # Ignore the first one
         meths.each do |meth|
           found = nil
@@ -286,8 +283,7 @@ module Solargraph
           end
           unless found.nil? || found.types.nil?
             return ComplexType.try_parse(*found.types).qualify(api_map,
-                                                               # @sg-ignore Need to add nil check here
-                                                               *meth.closure.gates)
+                                                               *meth.closure!.gates)
           end
         end
         ComplexType::UNDEFINED
