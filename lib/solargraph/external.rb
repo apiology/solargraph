@@ -13,12 +13,20 @@ module Solargraph
     # @return [Array<String>]
     attr_reader :requires
 
+    # The YARD plugins the workspace declares. Gem pins are cached per set,
+    # so a workspace is never served pins built under plugins it dropped.
+    #
+    # @return [Array<String>]
+    attr_reader :yard_plugins
+
     # @param directory [String]
     # @param requires [Array<String>]
-    def initialize directory, requires
+    # @param yard_plugins [Array<String>]
+    def initialize directory, requires, yard_plugins = []
       @repo = Repo.new(directory)
       @directory = directory
       @requires = requires
+      @yard_plugins = yard_plugins
       update!
     end
 
@@ -48,11 +56,13 @@ module Solargraph
     end
 
     # @param new_requires [Array<String>]
+    # @param new_yard_plugins [Array<String>]
     # @return [Boolean]
-    def update new_requires
-      return false if requires == new_requires && !cache_changed?
+    def update new_requires, new_yard_plugins = []
+      return false if requires == new_requires && yard_plugins == new_yard_plugins && !cache_changed?
 
       requires.replace new_requires
+      yard_plugins.replace new_yard_plugins
       update!
       true
     end
@@ -81,7 +91,7 @@ module Solargraph
     end
 
     def cache_changed?
-      unloaded_gems.any? { |gem| Collection::Gem.cached?(gem) }
+      unloaded_gems.any? { |gem| Collection::Gem.cached?(gem, yard_plugins) }
     end
 
     def load_requires
@@ -122,15 +132,15 @@ module Solargraph
       return if loaded_gems.include?(metagem) || unloaded_gems.include?(metagem)
 
       if metagem.cacheable?
-        if Collection::Gem.cached?(metagem)
+        if Collection::Gem.cached?(metagem, yard_plugins)
           loaded_gems.add metagem
-          pins.concat Collection::Gem.load(metagem)
+          pins.concat Collection::Gem.load(metagem, yard_plugins)
         else
           unloaded_gems.add metagem
         end
       else
         loaded_gems.add metagem
-        pins.concat Collection::Gem.load(metagem)
+        pins.concat Collection::Gem.load(metagem, yard_plugins)
       end
       load_dependencies metagem
     end
