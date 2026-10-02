@@ -371,8 +371,73 @@ module Solargraph
         end
         # @sg-ignore Need to add nil check here
         result.concat argument_problems_for(chain, api_map, closure_pin, locals, location)
+        # @sg-ignore Need to add nil check here
+        result.concat block_symbol_problems_for(chain, api_map, closure_pin, locals)
       end
       result
+    end
+
+    # Check the +bar+ in +foo.each(&:bar)+ against the type the block
+    # would have been given. A literal block body is an ordinary call
+    # node and gets checked as one; +&:bar+ produces no call node.
+    #
+    # @param chain [Solargraph::Source::Chain]
+    # @param api_map [Solargraph::ApiMap]
+    # @param closure_pin [Solargraph::Pin::Closure]
+    # @param locals [::Array<Solargraph::Pin::LocalVariable>]
+    # @return [::Array<Problem>]
+    def block_symbol_problems_for chain, api_map, closure_pin, locals
+      return [] unless rules.report_undefined?
+      link = chain.links.last
+      return [] unless link.is_a?(Source::Chain::Call)
+      # ZSuper stores a Boolean in the block slot, so a Chain is not all
+      # that can turn up here.
+      block = link.block
+      return [] unless block.is_a?(Source::Chain)
+      symbol = block.links.first
+      return [] unless symbol.is_a?(Source::Chain::BlockSymbol) && block.links.one?
+
+      node = block.node
+      return [] if node.nil?
+      range = Range.from_node(node)
+      return [] if range.nil?
+
+      receiver = block_parameter_type(chain.define(api_map, closure_pin, locals))
+      return [] if receiver.nil? || !checkable_receiver?(api_map, receiver)
+
+      binder = Pin::ProxyType.anonymous(receiver, closure: closure_pin, gates: closure_pin.gates, source: :chain)
+      probe = Source::Chain.new([Source::Chain::Call.new(symbol.word)])
+      return [] unless probe.define(api_map, binder, []).empty?
+
+      [Problem.new(Location.new(filename, range), "Unresolved call to #{symbol.word} on #{receiver}")]
+    end
+
+    # The type the block's first parameter is given, with the receiver's
+    # generics resolved -- +String+ for +all?+ on an +Array<String>+.
+    #
+    # @param pins [::Array<Solargraph::Pin::Base>]
+    # @return [ComplexType, nil]
+    def block_parameter_type pins
+      pin = pins.first
+      return nil unless pin.is_a?(Pin::Method)
+      block = pin.signatures.find(&:block?)&.block
+      return nil if block.nil?
+      block.parameters.first&.return_type
+    end
+
+    # Whether every member of +type+ names a namespace the method stack
+    # can answer for. Generics, duck types and intersections -- parsed as
+    # one unique type named "A & B" -- name no such namespace.
+    #
+    # @param api_map [Solargraph::ApiMap]
+    # @param type [ComplexType]
+    # @return [Boolean]
+    def checkable_receiver? api_map, type
+      return false if type.undefined? || type.generic?
+      type.each_unique_type.all? do |unique|
+        next false if unique.duck_type? || unique.generic? || unique.undefined?
+        api_map.namespace_exists?(unique.namespace)
+      end
     end
 
     # @param chain [Solargraph::Source::Chain]
