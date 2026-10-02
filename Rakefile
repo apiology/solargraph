@@ -44,15 +44,29 @@ task :full_spec do
   # Build the pins the suite leans on hardest before forking. Four
   # workers racing to generate the same ones is what takes
   # rbs_map/conversions_spec from 17s to over four minutes.
-  sh 'bundle exec solargraph gems core stdlib ast parser'
-  # Four files that cannot be split the way the balancer wants. library,
-  # external and yardoc each uncache the backport gem from the one pin
-  # cache every worker shares, so apart they delete what the others read.
-  # rubocop_helpers needs rubocop unloaded, and RSpec requires a group's
-  # files before running any, so protocol_spec's top-level `require
-  # 'rubocop'` has to land in a different worker.
+  #
+  # The trailing four are needed rather than merely slow. Run serially
+  # the suite caches them in passing before anything asserts on them,
+  # but a worker only runs its own share, so on a cold cache external,
+  # pin/base and strict all read pins nothing has built yet. Shell#gems
+  # only warns on a name it cannot find, so check for a Caching line per
+  # gem when editing this list.
+  sh 'bundle exec solargraph gems core stdlib ast parser ' \
+     'backport reverse_markdown yard kramdown-parser-gfm'
+  # Five files the balancer must not split, each over state that is one
+  # copy for the whole run. library, external and yardoc uncache the
+  # backport gem from the pin cache every worker shares; external and
+  # repo delete and reinstall the same fixture Gemfile.lock under
+  # spec/fixtures/external_bundled_gem, which is where the path gem
+  # gem-with-yard-macros comes from. Apart, one worker destroys what
+  # another is mid-way through reading.
+  #
+  # rubocop_helpers is here for an unrelated reason: it needs rubocop
+  # unloaded, and RSpec requires every file in a group before running
+  # any example, so protocol_spec's top-level `require 'rubocop'` has to
+  # land in a different worker. --isolate is what keeps it out.
   sh 'TEST_COVERAGE_COMMAND_NAME=full-new bundle exec parallel_rspec --runtime-log spec/parallel_runtime_rspec.log ' \
-     '--single "spec/(library|external|yardoc)_spec\.rb|spec/diagnostics/rubocop_helpers_spec\.rb" --isolate ' \
+     '--single "spec/(library|external|yardoc|repo)_spec\.rb|spec/diagnostics/rubocop_helpers_spec\.rb" --isolate ' \
      '--verbose-command spec/' #  --profile'
   # clear now-outdated coverage
   FileUtils.rm_rf('coverage/full')
