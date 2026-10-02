@@ -86,6 +86,18 @@ module Solargraph
       from_expr(node.loc.expression)
     end
 
+    # Get a range from a node known to carry real source location
+    # info (i.e. parsed from actual source, not synthesized).
+    #
+    # @param node [::Parser::AST::Node]
+    # @return [Range]
+    # @sg-ignore flow sensitive typing needs to handle 'raise if'
+    def self.from_node! node
+      rng = from_node(node)
+      raise ArgumentError, "Node #{node.inspect} has no location" if rng.nil?
+      rng
+    end
+
     # Get a range from a Parser range, usually found in
     # Parser::AST::Node#location#expression.
     #
