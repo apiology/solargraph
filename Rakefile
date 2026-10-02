@@ -45,7 +45,15 @@ task :full_spec do
   # workers racing to generate the same ones is what takes
   # rbs_map/conversions_spec from 17s to over four minutes.
   sh 'bundle exec solargraph gems core stdlib ast parser'
-  sh 'TEST_COVERAGE_COMMAND_NAME=full-new bundle exec parallel_rspec --runtime-log spec/parallel_runtime_rspec.log --verbose-command spec/' #  --profile'
+  # Four files that cannot be split the way the balancer wants. library,
+  # external and yardoc each uncache the backport gem from the one pin
+  # cache every worker shares, so apart they delete what the others read.
+  # rubocop_helpers needs rubocop unloaded, and RSpec requires a group's
+  # files before running any, so protocol_spec's top-level `require
+  # 'rubocop'` has to land in a different worker.
+  sh 'TEST_COVERAGE_COMMAND_NAME=full-new bundle exec parallel_rspec --runtime-log spec/parallel_runtime_rspec.log ' \
+     '--single "spec/(library|external|yardoc)_spec\.rb|spec/diagnostics/rubocop_helpers_spec\.rb" --isolate ' \
+     '--verbose-command spec/' #  --profile'
   # clear now-outdated coverage
   FileUtils.rm_rf('coverage/full')
   # move coverage/full-new to coverage/full on success so that we
