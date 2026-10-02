@@ -386,12 +386,53 @@ module Solargraph
         def block_call_type api_map, name_pin, locals
           return nil unless with_block?
 
+          forwarded = forwarded_block_return_type(api_map, name_pin)
+          return forwarded unless forwarded.nil?
+
           block_pin = find_block_pin(api_map)
           # We use the block pin as the closure, as the parameters
           # here will only be defined inside the block itself and we
           # need to be able to see them
           # @sg-ignore Need to add nil check here
           block.infer(api_map, block_pin, locals)
+        end
+
+        # A block forwarded as 'foo(&block)' has only the type of the
+        # variable - a Proc, which says nothing about what the block
+        # returns. The enclosing method's @yieldreturn declares that,
+        # and is the same source #yield resolves against.
+        #
+        # @param api_map [ApiMap]
+        # @param name_pin [Pin::Base]
+        # @return [ComplexType, nil]
+        def forwarded_block_return_type api_map, name_pin
+          blk = block
+          return if blk.nil? || !blk.links.one?
+
+          link = blk.links.first
+          return unless link.is_a?(BlockVariable)
+
+          method_pin = find_method_pin(name_pin)
+          return if method_pin.nil? || !forwards_own_block?(link, method_pin)
+
+          return_type = method_pin.signatures.filter_map(&:block).first&.return_type
+          return if return_type.nil?
+
+          return_type.qualify(api_map, *name_pin.gates)
+        end
+
+        # Distinguishes '&block' naming this method's own block
+        # parameter - and Ruby 3.1's anonymous '&' - from a '&blk'
+        # holding some other Proc, or a '&method(:foo)', neither of
+        # which the method's @yieldreturn describes.
+        #
+        # @param link [BlockVariable]
+        # @param method_pin [Pin::Method]
+        # @return [Boolean]
+        def forwards_own_block? link, method_pin
+          return true if link.word.nil?
+
+          method_pin.parameters.any? { |param| param.block? && "&#{param.name}" == link.word }
         end
 
         protected
