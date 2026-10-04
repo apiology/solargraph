@@ -997,5 +997,39 @@ describe Solargraph::TypeChecker do
       # an error when trying to declare sub as Subclass
       expect(checker.problems.map(&:message)).not_to include('Unresolved call to bar on Base')
     end
+
+    it 'infers a return through .new on an unparameterized Class' do
+      checker = type_checker(%(
+        # @return [Object]
+        def plain_class_new
+          Class.new.new
+        end
+
+        # @return [Object]
+        def local_class_new
+          k = Class.new
+          k.new
+        end
+      ))
+      expect(checker.problems).to be_empty
+    end
+
+    it 'infers a return through .new on an anonymous Class.new block' do
+      checker = type_checker(%(
+        # @param interface_methods [Array<Symbol>]
+        # @return [Object]
+        def typed_let_mock_duck_responder(interface_methods)
+          Class.new do
+            interface_methods.each { |m| define_method(m) { nil } }
+          end.new
+        end
+      ))
+
+      # define_method inside the block is unresolved, unrelated to this fix:
+      # https://github.com/castwide/solargraph/pull/1310
+      expect(checker.problems.map(&:message)).not_to include(
+        '#typed_let_mock_duck_responder return type could not be inferred'
+      )
+    end
   end
 end
