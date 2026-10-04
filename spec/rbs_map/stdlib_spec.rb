@@ -68,6 +68,18 @@ describe Solargraph::RbsMap::Stdlib do
     end
   end
 
+  it 'offers its pins as a fallback when resolved' do
+    map = described_class.load('yaml')
+    expect(map.fallback_pins).not_to be_empty
+    expect(map.fallback_pins).to eq(map.pins)
+  end
+
+  it 'offers no fallback pins when unresolved' do
+    map = described_class.new('not_a_stdlib_library')
+    expect(map).not_to be_resolved
+    expect(map.fallback_pins).to be_nil
+  end
+
   it 'pins are marked as coming from RBS parsing' do
     map = described_class.new('yaml')
     store = Solargraph::ApiMap::Store.new(map.pins)
