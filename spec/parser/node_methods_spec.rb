@@ -346,6 +346,24 @@ describe Solargraph::Parser::NodeMethods do
       hash = described_class.convert_hash(node)
       expect(hash).to eq({})
     end
+
+    it 'keeps literal keys alongside an opaque ** splat' do
+      node = parse('some_call(foo: :bar, **args)').children[2]
+      hash = described_class.convert_hash(node)
+      expect(hash.keys).to eq([:foo])
+    end
+
+    it 'keeps literal keys given after an opaque ** splat' do
+      node = parse('some_call(**args, foo: :bar)').children[2]
+      hash = described_class.convert_hash(node)
+      expect(hash.keys).to eq([:foo])
+    end
+
+    it 'collects the keys of a splatted literal hash' do
+      node = parse('some_call(**{foo: :bar})').children[2]
+      hash = described_class.convert_hash(node)
+      expect(hash.keys).to eq([:foo])
+    end
   end
 
   describe 'call_nodes_from' do

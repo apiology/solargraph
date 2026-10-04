@@ -144,6 +144,12 @@ module Solargraph
           result
         end
 
+        # The keyword arguments a hash node passes by name. A `**` splat
+        # of a literal hash contributes that hash's own keys; a `**` splat
+        # of anything else contributes none, because the keys are not in
+        # the node - see NodeChainer.hash_is_splatted? for the predicate
+        # that tells the two apart.
+        #
         # @param node [Parser::AST::Node, nil]
         # @return [Hash{Symbol => Chain}]
         def convert_hash node
@@ -151,15 +157,16 @@ module Solargraph
           # @sg-ignore Translate to something flow sensitive typing understands
           return convert_hash(node.children[0]) if node.type == :kwsplat
           # @sg-ignore Translate to something flow sensitive typing understands
-          if Parser.is_ast_node?(node.children[0]) && node.children[0].type == :kwsplat
-            # @sg-ignore Translate to something flow sensitive typing understands
-            return convert_hash(node.children[0])
-          end
-          # @sg-ignore Translate to something flow sensitive typing understands
           return {} unless node.type == :hash
           result = {}
           # @sg-ignore Translate to something flow sensitive typing understands
           node.children.each do |pair|
+            next unless Parser.is_ast_node?(pair)
+            if pair.type == :kwsplat
+              result.merge!(convert_hash(pair))
+              next
+            end
+            next unless Parser.is_ast_node?(pair.children[0])
             result[pair.children[0].children[0]] = Solargraph::Parser.chain(pair.children[1])
           end
           result
