@@ -184,7 +184,7 @@ describe Solargraph::ApiMap do
         class Example
           # @macro klassify
           def foo(klass)
-          end  
+          end
         end
       ))
       api_map = Solargraph::ApiMap.new.map(source)
@@ -201,7 +201,7 @@ describe Solargraph::ApiMap do
           #   @!method $1
           #   @return [$2]
           def make_method(name, klass)
-          end  
+          end
         end
 
         class Example
