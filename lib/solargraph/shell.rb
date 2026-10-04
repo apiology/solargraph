@@ -156,40 +156,49 @@ module Solargraph
     option :rebuild, type: :boolean, desc: 'Rebuild existing documentation', default: false
     # @param names [Array<String>]
     # @return [void]
-    # @param [Array<Object>] gem_names
-    def cache *gem_names
-      repo = Solargraph::Repo.new(options[:directory])
-      metagems = if gem_names.empty?
-                   if repo.bundled?
-                     repo.bundled.select(&:cacheable?)
-                   else
-                     Gem::Specification.all_names
-                                       .map { |name| Gem::Specification.find_by_full_name(name) }
-                                       .map { |gemspec| Metagem.from_specification(gemspec) }
-                   end
-                 else
-                   gem_names.each_with_object([]) do |name, result|
-                     if name == 'core'
-                       Collection::Core.uncache if options[:rebuild]
-                       puts 'Caching core'
-                       Collection::Core.load
-                     else
-                       # @todo Quick and dirty hack for solargraph-rspec require bug
-                       #   (see https://github.com/lekemula/solargraph-rspec/pull/38)
-                       #   TL;DR: `repo.find_by_path` should not be necessary
-                       found = repo.find_by_name(name) || repo.find_by_path(name)
-                       if found
-                         result.push found
-                       else
-                         warn "Gem #{name} not found"
-                       end
-                     end
-                   end
-                 end
-      metagems.each do |metagem|
-        Collection::Gem.uncache(metagem) if options[:rebuild]
-        puts "Caching #{metagem.name} #{metagem.version} (#{metagem.cache_name})"
-        Collection::Gem.load(metagem)
+    def gems *names
+      # print time with ms
+      workspace = Solargraph::Workspace.new('.')
+
+      if names.empty?
+        gemspecs = workspace.gemspecs_to_cache
+        gemspecs.each { |gemspec| do_cache gemspec, rebuild: options[:rebuild] }
+        $stderr.puts "Documentation cached for #{gemspecs.length} gems."
+      else
+        warn("Caching these gems: #{names}")
+        names.each do |name|
+          if name == 'core'
+            # @sg-ignore cache_core and core? are dynamically defined
+            PinCache.cache_core(out: $stdout) # if !PinCache.core? || options[:rebuild]
+            next
+          end
+
+          gemspec = workspace.find_gem(*name.split('='))
+          if gemspec.nil?
+            warn "Gem '#{name}' not found"
+          else
+            if options[:rebuild] || !PinCache.has_yard?(gemspec)
+              pins = GemPins.build_yard_pins(['yard-activesupport-concern'], gemspec)
+              PinCache.serialize_yard_gem(gemspec, pins)
+            end
+
+            workspace = Solargraph::Workspace.new(Dir.pwd)
+            rbs_map = RbsMap.from_gemspec(gemspec, workspace.rbs_collection_path, workspace.rbs_collection_config_path)
+            if options[:rebuild] || !PinCache.has_rbs_collection?(gemspec, rbs_map.cache_key)
+              # cache pins even if result is zero, so we don't retry building pins
+              pins = rbs_map.pins || []
+              PinCache.serialize_rbs_collection_gem(gemspec, rbs_map.cache_key, pins)
+            end
+          end
+        rescue Gem::MissingSpecError
+          warn "Gem '#{name}' not found"
+        rescue Gem::Requirement::BadRequirementError => e
+          warn "Gem '#{name}' failed while loading"
+          warn e.message
+          # @sg-ignore Need to add nil check here
+          warn e.backtrace.join("\n")
+        end
+        warn "Documentation cached for #{names.count} gems."
       end
       puts "Documentation cached for #{metagems.count} gems."
     end
