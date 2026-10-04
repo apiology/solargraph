@@ -105,8 +105,7 @@ module Solargraph
             message.process unless cancel?(request['id'])
           rescue StandardError => e
             logger.warn "Error processing request: [#{e.class}] #{e.message}"
-            # @sg-ignore Need to add nil check here
-            logger.warn e.backtrace.join("\n")
+            logger.warn (e.backtrace || []).join("\n")
             message.set_error Solargraph::LanguageServer::ErrorCodes::INTERNAL_ERROR, "[#{e.class}] #{e.message}"
           end
           message
@@ -702,7 +701,9 @@ module Solargraph
         @client_capabilities ||= {}
       end
 
+      # @sg-ignore need boolish support for ? methods
       def client_supports_progress?
+        # @sg-ignore missing flow-sensitive typing on hash keys
         client_capabilities['window'] && client_capabilities['window']['workDoneProgress']
       end
 
@@ -853,7 +854,9 @@ module Solargraph
         }
       end
 
+      # @sg-ignore need boolish support for ? methods
       def prepare_rename?
+        # @sg-ignore missing flow-sensitive typing on hash keys
         client_capabilities['rename'] && client_capabilities['rename']['prepareSupport']
       end
 

@@ -34,10 +34,7 @@ module Solargraph
         new_pins.concat RbsMap::CoreFills::ALL
 
         # process overrides, then remove any which couldn't be resolved
-        processed = ApiMap::Store.new(new_pins).pins.reject { |p| p.is_a?(Solargraph::Pin::Reference::Override) }
-        # serial = Marshal.dump(processed)
-        # File.write cache_file, serial, mode: 'wb'
-        processed
+        ApiMap::Store.new(new_pins).pins.reject { |p| p.is_a?(Solargraph::Pin::Reference::Override) }
       end
     end
   end

@@ -6,6 +6,7 @@ describe Solargraph::RbsMap::Gem do
     metagem = Solargraph::Metagem.from_specification(spec)
     @gem = described_class.new(metagem)
   end
+
   let(:gem) { @gem }
 
   it 'loads from a gemspec' do
