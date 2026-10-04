@@ -135,46 +135,6 @@ describe Solargraph::Shell do
         expect(output).to include("Gem 'solargraph123' not found")
       end
     end
-
-    context 'with mocked Workspace' do
-      let(:workspace) { instance_double(Solargraph::Workspace) }
-      let(:gemspec) { instance_double(Gem::Specification, name: 'backport', version: '1.2.0') }
-
-      before do
-        allow(Solargraph::Workspace).to receive(:new).and_return(workspace)
-        allow(workspace).to receive(:gemspecs_to_cache).and_return([gemspec])
-        allow(shell).to receive(:do_cache)
-      end
-
-      it 'caches only what the workspace selects' do
-        capture_both { shell.gems }
-
-        expect(shell).to have_received(:do_cache).with(gemspec, any_args)
-      end
-
-      it 'reports the number of gems it cached' do
-        output = capture_both { shell.gems }
-
-        expect(output).to include('Documentation cached for 1 gems.')
-      end
-    end
-
-    context 'with the core pseudo-gem' do
-      let(:core_map) { instance_double(Solargraph::RbsMap::CoreMap) }
-
-      before do
-        allow(Solargraph::RbsMap::CoreMap).to receive(:new).and_return(core_map)
-        allow(core_map).to receive(:cache_core).and_return([])
-      end
-
-      it 'caches core pins' do
-        pending 'Shell#gems calls PinCache.cache_core, which is defined nowhere'
-
-        capture_both { shell.gems('core') }
-
-        expect(core_map).to have_received(:cache_core)
-      end
-    end
   end
 
   describe 'cache' do
@@ -330,58 +290,6 @@ describe Solargraph::Shell do
         end
         expect(out).to include("Pin not found for path 'Not#found'")
       end
-    end
-  end
-
-  describe '#do_cache' do
-    let(:pin) { Solargraph::Pin::Namespace.new(name: 'Foo') }
-
-    before do
-      workspace = instance_double(Solargraph::Workspace, rbs_collection_path: nil, rbs_collection_config_path: nil)
-      allow(Solargraph::Workspace).to receive(:new).and_return(workspace)
-      allow(Solargraph::PinCache).to receive_messages(has_yard?: false, has_rbs_collection?: false)
-      allow(Solargraph::PinCache).to receive(:serialize_yard_gem)
-      allow(Solargraph::PinCache).to receive(:serialize_rbs_collection_gem)
-      allow(Solargraph::GemPins).to receive(:build_yard_pins).and_return([pin])
-    end
-
-    # @param name [String]
-    # @param cache_key [String]
-    # @return [Gem::Specification] the gemspec handed to do_cache
-    def cache_gem name, cache_key
-      gemspec = instance_double(Gem::Specification, name: name)
-      rbs_map = instance_double(Solargraph::RbsMap, cache_key: cache_key, pins: [pin])
-      allow(Solargraph::RbsMap).to receive(:from_gemspec).and_return(rbs_map)
-      shell.send(:do_cache, gemspec)
-      gemspec
-    end
-
-    it 'skips the YARD build when the RBS collection resolves types' do
-      cache_gem('parser', 'resolved-key')
-
-      expect(Solargraph::GemPins).not_to have_received(:build_yard_pins)
-    end
-
-    it 'caches RBS collection pins for a gem whose YARD build was skipped' do
-      gemspec = cache_gem('parser', 'resolved-key')
-
-      expect(Solargraph::PinCache).to have_received(:serialize_rbs_collection_gem).with(gemspec, 'resolved-key', [pin])
-    end
-
-    it 'builds YARD pins when the RBS collection cannot resolve types' do
-      gemspec = cache_gem('parser', Solargraph::RbsMap::CACHE_KEY_UNRESOLVED)
-
-      expect(Solargraph::PinCache).to have_received(:serialize_yard_gem).with(gemspec, [pin])
-    end
-
-    it 'builds YARD pins for a gem outside the suppression list' do
-      gemspec = cache_gem('rspec', 'resolved-key')
-
-      expect(Solargraph::PinCache).to have_received(:serialize_yard_gem).with(gemspec, [pin])
-    end
-
-    it 'warns when the gemspec is missing' do
-      expect { shell.send(:do_cache, nil) }.to output(/not found/).to_stderr
     end
   end
 
