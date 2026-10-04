@@ -5,15 +5,13 @@ module Solargraph
     # A problem reported by TypeChecker.
     #
     class Problem
-      # @todo Missed nil violation
-      # @return [Solargraph::Location]
+      # @return [Solargraph::Location, nil]
       attr_reader :location
 
       # @return [String]
       attr_reader :message
 
-      # @todo Missed nil violation
-      # @return [Pin::Base]
+      # @return [Pin::Base, nil]
       attr_reader :pin
 
       # @return [String, nil]

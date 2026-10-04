@@ -290,7 +290,7 @@ module Solargraph
 
       attr_accessor :exclude_return_type, :intersection_return_type
 
-      # @return [Range]
+      # @return [Range, nil]
       attr_writer :presence
 
       private

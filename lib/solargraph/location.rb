@@ -8,7 +8,7 @@ module Solargraph
     include Equality
     include Comparable
 
-    # @return [String]
+    # @return [String, nil]
     attr_reader :filename
 
     # @return [Solargraph::Range]
@@ -33,8 +33,9 @@ module Solargraph
       end
     end
 
+    # @return [Boolean]
     def rbs?
-      filename.end_with?('.rbs')
+      filename&.end_with?('.rbs') || false
     end
 
     # @param location [self]

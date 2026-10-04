@@ -22,7 +22,7 @@ module Solargraph
       # @return [String]
       attr_reader :name
 
-      # @return [String]
+      # @return [String, nil]
       attr_reader :path
 
       # @return [::Symbol]

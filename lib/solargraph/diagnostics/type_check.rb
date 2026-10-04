@@ -13,7 +13,10 @@ module Solargraph
         level = args.reverse.find { |a| %w[normal typed strict strong].include?(a) } || :normal
         # @sg-ignore sensitive typing needs to handle || on nil types
         checker = Solargraph::TypeChecker.new(source.filename, api_map: api_map, level: level.to_sym)
+        # Problems on synthetic pins (no source location) can't be
+        # reported as an LSP diagnostic range, so they're dropped here.
         checker.problems
+               .select(&:location)
                .sort { |a, b| a.location.range.start.line <=> b.location.range.start.line }
                .map do |problem|
           {

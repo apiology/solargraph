@@ -5,10 +5,10 @@ module Solargraph
     class Block < Callable
       include Breakable
 
-      # @return [Parser::AST::Node]
+      # @return [Parser::AST::Node, nil]
       attr_reader :receiver
 
-      # @return [Parser::AST::Node]
+      # @return [Parser::AST::Node, nil]
       attr_reader :node
 
       # @param receiver [Parser::AST::Node, nil]
@@ -45,6 +45,7 @@ module Solargraph
       # @param parameters [::Array<Parameter>]
       #
       # @return [::Array<ComplexType>]
+      # @sg-ignore Need better handling of Enumerator#with_index
       def destructure_yield_types yield_types, parameters
         # yielding a tuple into a block will destructure the tuple
         if yield_types.length == 1
@@ -57,6 +58,8 @@ module Solargraph
       # @param api_map [ApiMap]
       # @return [::Array<ComplexType>]
       def typify_parameters api_map
+        return parameters.map { ComplexType::UNDEFINED } if receiver.nil? || node.nil?
+
         chain = Parser.chain(receiver, filename, node)
         # @sg-ignore Need to add nil check here
         clip = api_map.clip_at(location.filename, location.range.start)

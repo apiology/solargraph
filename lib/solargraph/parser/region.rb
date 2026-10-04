@@ -9,7 +9,7 @@ module Solargraph
       # @return [Pin::Closure]
       attr_reader :closure
 
-      # @return [Symbol]
+      # @return [Symbol, nil]
       attr_reader :scope
 
       # @return [Symbol]
