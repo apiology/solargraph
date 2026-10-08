@@ -38,7 +38,13 @@ module Solargraph
                               source: :core_fill),
         # RBS does not define Class with a generic, so all calls to
         # generic() return an 'untyped'.  We can do better:
-        Override.method_return('Class#allocate', 'self', source: :core_fill)
+        Override.method_return('Class#allocate', 'self', source: :core_fill),
+        # RBS types this 0?, Object's own result, which every undeclared
+        # <=> override then inherits: https://github.com/ruby/rbs/pull/3210
+        Override.from_comment('Kernel#<=>', <<~COMMENT, source: :core_fill)
+          @overload <=>(other)
+            @return [::Integer, nil]
+        COMMENT
       ].freeze
 
       # @todo I don't see any direct link in RBS to build this from -
