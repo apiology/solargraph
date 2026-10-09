@@ -120,4 +120,28 @@ describe Solargraph::RbsMap::Core do
     clip = api_map.clip_at('test.rb', [2, 6])
     expect(clip.infer.to_s).to eq('String')
   end
+
+  it 'infers MatchData#[](0) as String' do
+    source = Solargraph::Source.load_string(%(
+      m = 'abc'.match(/b/)
+      a = m[0]
+      a
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [3, 6])
+    expect(clip.infer.to_s).to eq('String')
+  end
+
+  it 'infers MatchData#[](1) as nilable' do
+    pending 'https://github.com/castwide/solargraph/pull/1385'
+
+    source = Solargraph::Source.load_string(%(
+      m = 'abc'.match(/(b)/)
+      b = m[1]
+      b
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [3, 6])
+    expect(clip.infer.to_s).to eq('String, nil')
+  end
 end

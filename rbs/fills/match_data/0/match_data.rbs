@@ -1,0 +1,9 @@
+class MatchData
+  # A MatchData exists only for a successful match, so index 0 ($&) is never
+  # nil. Nil is spelled out below because %a{implicitly-returns-nil} is read
+  # from the first overload only.
+  def []: (0 index) -> String
+        | (MatchData::capture backref, ?nil) -> String?
+        | (int start, int length) -> Array[String?]?
+        | (range[int?] range) -> Array[String?]?
+end
