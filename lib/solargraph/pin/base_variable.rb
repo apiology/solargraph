@@ -151,6 +151,9 @@ module Solargraph
       # @return [::Array<ComplexType>]
       def return_types_from_node parent_node, api_map
         types = []
+        # Gem pins mapped from source keep their nodes, but their files are not cataloged
+        # @sg-ignore Need to add nil check here
+        return types unless api_map.bundled?(location.filename)
         value_position_nodes_only(parent_node).each do |node|
           # Nil nodes may not have a location
           if node.nil? || node.type == :NIL || node.type == :nil
