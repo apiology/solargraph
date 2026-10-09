@@ -111,19 +111,16 @@ module Solargraph
         # @return [void]
         def process node, region, pins
           string = node.children[2]
-          return unless string.is_a?(::Parser::AST::Node)
-          # @sg-ignore flow sensitive typing needs to narrow down type with an if is_a? check
+          return unless string.is_a?(AST::Node)
           parts = string_parts(string)
           return if parts.nil?
           receiver = node.children[0]
-          return unless receiver.nil? || (receiver.is_a?(::Parser::AST::Node) && %i[self const].include?(receiver.type))
-          # @sg-ignore flow sensitive typing needs to narrow down type with an if is_a? check
-          target = receiver.is_a?(::Parser::AST::Node) && receiver.type == :const ? NodeMethods.unpack_name(receiver) : nil
+          return unless receiver.nil? || (receiver.is_a?(AST::Node) && %i[self const].include?(receiver.type))
+          target = receiver.is_a?(AST::Node) && receiver.type == :const ? NodeMethods.unpack_name(receiver) : nil
           scope = node.children[1] == :instance_eval ? :class : :instance
           template = build_template(parts, region, target, scope)
           return if template.nil?
           if template.params.empty?
-            # @sg-ignore flow sensitive typing needs to narrow down type with an if is_a? check
             expand_now template, string, region, pins
           else
             method_pin = enclosing_method(region)
@@ -142,9 +139,8 @@ module Solargraph
         def map code, filename, line, closure, scope
           source = Source.load_string(("\n" * line) + code, filename)
           root = source.node
-          return [] unless source.parsed? && root.is_a?(::Parser::AST::Node)
+          return [] unless source.parsed? && root.is_a?(AST::Node)
           region = Region.new(source: source, closure: closure, scope: scope)
-          # @sg-ignore flow sensitive typing needs to narrow down type with an if is_a? check
           pins, _locals, ivars = NodeProcessor.process(root, region, [closure])
           pins.drop(1) + ivars
         end
@@ -199,7 +195,7 @@ module Solargraph
           # @type [Array<String, Symbol>]
           parts = []
           node.children.each do |child|
-            return nil unless child.is_a?(::Parser::AST::Node)
+            return nil unless child.is_a?(AST::Node)
             part = child.type == :dstr ? string_parts(child) : string_part(child)
             return nil if part.nil?
             parts.concat part
@@ -213,11 +209,8 @@ module Solargraph
           return [node.children[0].to_s] if node.type == :str
           return unless node.type == :begin && node.children.length == 1
           lvar = node.children[0]
-          # @sg-ignore flow sensitive typing needs to narrow down type with an if is_a? check
-          return unless lvar.is_a?(::Parser::AST::Node) && lvar.type == :lvar
-          # @sg-ignore flow sensitive typing needs to narrow down type with an if is_a? check
+          return unless lvar.is_a?(AST::Node) && lvar.type == :lvar
           name = lvar.children[0]
-          # @sg-ignore flow sensitive typing needs to narrow down type with an if is_a? check
           return unless name.is_a?(Symbol)
           [name]
         end
@@ -282,16 +275,13 @@ module Solargraph
           closure = region.closure
           while closure.is_a?(Pin::Block)
             node = closure.node
-            return unless node.is_a?(::Parser::AST::Node) && node.type == :block
+            return unless node.is_a?(AST::Node) && node.type == :block
             call, args = node.children
-            return unless each_call?(call) && args.is_a?(::Parser::AST::Node) && args.children.length == 1
+            return unless each_call?(call) && args.is_a?(AST::Node) && args.children.length == 1
             arg = args.children[0]
             receiver = call.children[0]
-            # @sg-ignore flow sensitive typing needs to narrow down type with an if is_a? check
-            return unless arg.is_a?(::Parser::AST::Node) && arg.type == :arg && receiver.is_a?(::Parser::AST::Node)
-            # @sg-ignore flow sensitive typing needs to narrow down type with an if is_a? check
+            return unless arg.is_a?(AST::Node) && arg.type == :arg && receiver.is_a?(AST::Node)
             var = arg.children[0]
-            # @sg-ignore flow sensitive typing needs to narrow down type with an if is_a? check
             loops[var] ||= receiver if var.is_a?(Symbol)
             closure = closure.closure
           end
@@ -317,7 +307,7 @@ module Solargraph
         # @return [Array<String>, nil] nil unless every element is a literal
         def literal_values array
           array.children.map do |child|
-            return nil unless child.is_a?(::Parser::AST::Node) && %i[str sym].include?(child.type)
+            return nil unless child.is_a?(AST::Node) && %i[str sym].include?(child.type)
             child.children[0].to_s
           end
         end
@@ -355,7 +345,7 @@ module Solargraph
         # @return [Integer]
         def body_line node
           loc = node.location
-          # @sg-ignore flow sensitive typing needs to narrow down type with an if is_a? check
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1259
           return loc.heredoc_body.line if loc.is_a?(::Parser::Source::Map::Heredoc)
           loc.expression.line
         end

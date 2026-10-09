@@ -92,10 +92,8 @@ module Solargraph
       # @param node [Object]
       # @return [Array<String>]
       def literal_values node
-        return [] unless node.is_a?(::Parser::AST::Node)
-        # @sg-ignore flow sensitive typing needs to narrow down type with an if is_a? check
+        return [] unless node.is_a?(AST::Node)
         return [node.children[0].to_s] if %i[str sym].include?(node.type)
-        # @sg-ignore flow sensitive typing needs to narrow down type with an if is_a? check
         return node.children.flat_map { |child| literal_values(child) } if node.type == :array
         []
       end
@@ -106,9 +104,9 @@ module Solargraph
       def keyword_value hash, name
         return if hash.nil?
         hash.children.each do |pair|
-          next unless pair.is_a?(::Parser::AST::Node) && pair.type == :pair
+          next unless pair.is_a?(AST::Node) && pair.type == :pair
           key, value = pair.children
-          return value if key.is_a?(::Parser::AST::Node) && key.type == :sym && key.children[0].to_s == name
+          return value if key.is_a?(AST::Node) && key.type == :sym && key.children[0].to_s == name
         end
         nil
       end
