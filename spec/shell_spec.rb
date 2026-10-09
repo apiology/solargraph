@@ -360,7 +360,8 @@ describe Solargraph::Shell do
       it 'infers unknown types on pins' do
         allow(source_map).to receive(:pins).and_return([pin])
         allow(pin).to receive_messages(typify: Solargraph::ComplexType.parse('String'),
-                                       docstring: YARD::Docstring.new(''), macros: [])
+                                       docstring: YARD::Docstring.new(''), macros: [],
+                                       define_method_macros: [])
         allow(pin).to receive(:code_object).and_return(nil)
         capture_both do
           shell.options = { filename: 'foo.rbs', inference: true }

@@ -23,9 +23,10 @@ module Solargraph
       # @param signatures [::Array<Signature>, nil]
       # @param anon_splat [Boolean]
       # @param context [ComplexType, ComplexType::UniqueType, nil]
+      # @param define_method_macros [::Array<DefineMethodMacro>, nil]
       # @param [Hash{Symbol => Object}] splat
       def initialize visibility: :public, explicit: true, block: :undefined, node: nil, attribute: false, signatures: nil, anon_splat: false,
-                     context: nil, **splat
+                     context: nil, define_method_macros: nil, **splat
         super(**splat)
         @visibility = visibility
         @explicit = explicit
@@ -35,6 +36,15 @@ module Solargraph
         @signatures = signatures
         @anon_splat = anon_splat
         @context = context if context
+        @define_method_macros = define_method_macros
+      end
+
+      # The define_method calls in the method's body that take their names
+      # from its parameters.
+      #
+      # @return [::Array<DefineMethodMacro>]
+      def define_method_macros
+        @define_method_macros ||= DefineMethodMacro.from_def_node(node)
       end
 
       # @param other [Pin::Method]
@@ -68,6 +78,8 @@ module Solargraph
           parameters: parameters,
           signatures: sigs,
           anon_splat: assert_same(other, :anon_splat?),
+          # The node may come from either pin, so keep whichever has macros
+          define_method_macros: define_method_macros.empty? ? other.define_method_macros : define_method_macros,
           return_type: nil # pulled from signatures on first call
         }.merge(attrs)
         super(other, new_attrs)
