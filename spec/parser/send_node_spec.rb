@@ -139,4 +139,122 @@ describe Solargraph::Parser::ParserGem::NodeProcessors::SendNode do
     methods = api_map.get_methods('String', scope: :instance)
     expect(methods.map(&:name)).to include('helper')
   end
+
+  context 'with ActiveSupport.on_load' do
+    # @param code [String]
+    # @return [Array<Array(String, String, String)>]
+    def mixins_for code
+      Solargraph::SourceMap.load_string(code).pins.select { |pin| pin.is_a?(Solargraph::Pin::Reference) }
+                           .reject { |pin| pin.is_a?(Solargraph::Pin::Reference::Require) }
+                           .map { |pin| [pin.class.name.split('::').last, pin.namespace, pin.name] }
+    end
+
+    it 'maps include onto the class the hook loads' do
+      refs = mixins_for %(
+        ActiveSupport.on_load(:active_record) do
+          include Mixin
+        end
+      )
+      expect(refs).to eq([%w[Include ActiveRecord::Base Mixin]])
+    end
+
+    it 'maps extend and prepend onto the class the hook loads' do
+      refs = mixins_for %(
+        ::ActiveSupport.on_load(:action_view) do
+          extend Mixin
+          prepend Other
+        end
+      )
+      expect(refs).to eq([%w[Extend ActionView::Base Mixin], %w[Prepend ActionView::Base Other]])
+    end
+
+    it 'maps every module in one include' do
+      refs = mixins_for %(
+        ActiveSupport.on_load(:action_controller_base) do
+          include First, Second
+        end
+      )
+      expect(refs).to eq([%w[Include ActionController::Base First], %w[Include ActionController::Base Second]])
+    end
+
+    it 'maps a hook that runs on several classes onto each of them' do
+      refs = mixins_for %(
+        ActiveSupport.on_load(:action_controller) do
+          include Mixin
+        end
+      )
+      expect(refs).to contain_exactly(%w[Include ActionController::Base Mixin], %w[Include ActionController::API Mixin])
+    end
+
+    it 'maps send(:include) and self.include' do
+      refs = mixins_for %(
+        ActiveSupport.on_load(:active_record) do
+          send :include, First
+          self.extend Second
+        end
+      )
+      expect(refs).to eq([%w[Include ActiveRecord::Base First], %w[Extend ActiveRecord::Base Second]])
+    end
+
+    it 'maps hooks registered inside a class body and method' do
+      refs = mixins_for %(
+        module Engine
+          class Railtie
+            initializer 'x' do
+              ActiveSupport.on_load(:active_record) { include Engine::Mixin }
+            end
+
+            def self.include_helpers
+              ActiveSupport.on_load(:action_view) do
+                include Engine::Helpers if defined?(Engine::Helpers)
+              end
+            end
+          end
+        end
+      )
+      expect(refs).to eq([%w[Include ActiveRecord::Base Engine::Mixin], %w[Include ActionView::Base Engine::Helpers]])
+    end
+
+    it 'ignores hooks it cannot map to a class' do
+      refs = mixins_for %(
+        ActiveSupport.on_load(:after_initialize) do
+          include Mixin
+        end
+        Other.on_load(:active_record) do
+          include Mixin
+        end
+      )
+      expect(refs).to eq([['Include', '', 'Mixin'], ['Include', '', 'Mixin']])
+    end
+
+    it 'leaves mixins in nested namespaces alone' do
+      refs = mixins_for %(
+        ActiveSupport.on_load(:active_record) do
+          class Nested
+            include Mixin
+          end
+        end
+      )
+      expect(refs).to eq([%w[Include Nested Mixin]])
+    end
+
+    it 'exposes methods from a module included by a load hook' do
+      api_map = Solargraph::ApiMap.new
+      source = Solargraph::Source.load_string(%(
+        module ActionController
+          class Base; end
+        end
+
+        module Mixin
+          def helper; end
+        end
+
+        ActiveSupport.on_load(:action_controller) do
+          include Mixin
+        end
+      ), 'test.rb')
+      api_map.map source
+      expect(api_map.get_method_stack('ActionController::Base', 'helper').map(&:path)).to eq(['Mixin#helper'])
+    end
+  end
 end

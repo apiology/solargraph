@@ -7,6 +7,68 @@ module Solargraph
         class SendNode < Parser::NodeProcessor::Base
           include ParserGem::NodeMethods
 
+          # @type [Hash{Symbol => Class<Pin::Reference>}]
+          MIXIN_REFERENCES = {
+            include: Pin::Reference::Include,
+            extend: Pin::Reference::Extend,
+            prepend: Pin::Reference::Prepend
+          }.freeze
+
+          # The classes each ActiveSupport lazy load hook runs on, from the
+          # +run_load_hooks+ call sites in Rails 7.0 through 8.1.
+          #
+          # @type [Hash{Symbol => Array<String>}]
+          LOAD_HOOK_CLASSES = {
+            action_cable_channel: ['ActionCable::Channel::Base'],
+            action_cable_channel_test_case: ['ActionCable::Channel::TestCase'],
+            action_cable_connection: ['ActionCable::Connection::Base'],
+            action_cable_connection_test_case: ['ActionCable::Connection::TestCase'],
+            action_cable_test_case: ['ActionCable::TestCase'],
+            action_controller: ['ActionController::Base', 'ActionController::API'],
+            action_controller_api: ['ActionController::API'],
+            action_controller_base: ['ActionController::Base'],
+            action_controller_test_case: ['ActionController::TestCase'],
+            action_dispatch_integration_test: ['ActionDispatch::IntegrationTest'],
+            action_dispatch_request: ['ActionDispatch::Request'],
+            action_dispatch_response: ['ActionDispatch::Response'],
+            action_dispatch_system_test_case: ['ActionDispatch::SystemTestCase'],
+            action_mailbox: ['ActionMailbox::Base'],
+            action_mailbox_inbound_email: ['ActionMailbox::InboundEmail'],
+            action_mailbox_record: ['ActionMailbox::Record'],
+            action_mailbox_test_case: ['ActionMailbox::TestCase'],
+            action_mailer: ['ActionMailer::Base'],
+            action_mailer_test_case: ['ActionMailer::TestCase'],
+            action_text_content: ['ActionText::Content'],
+            action_text_encrypted_rich_text: ['ActionText::EncryptedRichText'],
+            action_text_record: ['ActionText::Record'],
+            action_text_rich_text: ['ActionText::RichText'],
+            action_view: ['ActionView::Base'],
+            action_view_test_case: ['ActionView::TestCase'],
+            active_job: ['ActiveJob::Base'],
+            active_job_test_case: ['ActiveJob::TestCase'],
+            active_model: ['ActiveModel::Model'],
+            active_model_error: ['ActiveModel::Error'],
+            active_model_secure_password: ['ActiveModel::SecurePassword'],
+            active_model_translation: ['ActiveModel::Translation'],
+            active_record: ['ActiveRecord::Base'],
+            active_record_database_configurations: ['ActiveRecord::DatabaseConfigurations'],
+            active_record_encryption: ['ActiveRecord::Encryption'],
+            active_record_fixture_set: ['ActiveRecord::FixtureSet'],
+            active_record_mysql2adapter: ['ActiveRecord::ConnectionAdapters::Mysql2Adapter'],
+            active_record_postgresqladapter: ['ActiveRecord::ConnectionAdapters::PostgreSQLAdapter'],
+            active_record_sqlite3adapter: ['ActiveRecord::ConnectionAdapters::SQLite3Adapter'],
+            active_record_trilogyadapter: ['ActiveRecord::ConnectionAdapters::TrilogyAdapter'],
+            active_storage_attachment: ['ActiveStorage::Attachment'],
+            active_storage_blob: ['ActiveStorage::Blob'],
+            active_storage_record: ['ActiveStorage::Record'],
+            active_storage_variant_record: ['ActiveStorage::VariantRecord'],
+            active_support_test_case: ['ActiveSupport::TestCase'],
+            message_pack: ['ActiveSupport::MessagePack']
+          }.freeze
+
+          # @type [Array<String>]
+          NO_LOAD_HOOK_TARGETS = [].freeze
+
           # @sg-ignore @override is adding, not overriding
           def process
             # @sg-ignore Variable type could not be inferred for method_name
@@ -19,6 +81,7 @@ module Solargraph
               return process_children
             end
             # :nocov:
+            return process_children if process_load_hook_mixin(method_name)
             if node.children[0].nil?
               if %i[private public protected].include?(method_name)
                 process_visibility
@@ -249,11 +312,7 @@ module Solargraph
           # @param keyword [::Symbol] one of :include, :extend, :prepend
           # @return [void]
           def process_qualified_mixin keyword
-            reference_class = {
-              include: Pin::Reference::Include,
-              extend: Pin::Reference::Extend,
-              prepend: Pin::Reference::Prepend
-            }[keyword]
+            reference_class = MIXIN_REFERENCES[keyword]
             return if reference_class.nil?
             receiver = node.children[0]
             target = unpack_name(receiver)
@@ -274,6 +333,55 @@ module Solargraph
                 source: :parser
               )
             end
+          end
+
+          # Map a mixin inside +ActiveSupport.on_load(:hook) { ... }+ onto the
+          # classes that run the hook, e.g. responders' +include
+          # ActionController::RespondWith+ onto ActionController::Base.
+          #
+          # @param method_name [::Symbol]
+          # @return [Boolean] whether the call was a mapped mixin
+          def process_load_hook_mixin method_name
+            targets = load_hook_targets
+            return false if targets.empty?
+            receiver = node.children[0]
+            args = node.children.drop(2)
+            if method_name == :send && receiver.nil?
+              keyword = args.shift
+              return false unless keyword.is_a?(AST::Node) && keyword.type == :sym
+              method_name = keyword.children[0]
+            elsif !receiver.nil? && !(receiver.is_a?(AST::Node) && receiver.type == :self)
+              return false
+            end
+            reference_class = MIXIN_REFERENCES[method_name]
+            return false if reference_class.nil?
+            args.each do |arg|
+              next unless arg.is_a?(AST::Node) && arg.type == :const
+              location = get_node_location(arg)
+              targets.each do |target|
+                closure = Pin::Namespace.new(location: location, name: target, source: :parser)
+                pins.push reference_class.new(location: location, closure: closure, name: unpack_name(arg),
+                                              source: :parser)
+              end
+            end
+            true
+          end
+
+          # The classes the enclosing +ActiveSupport.on_load+ block runs on.
+          #
+          # @sg-ignore Hash#fetch(key, default) leaves generic<X> unresolved
+          # @return [Array<String>]
+          def load_hook_targets
+            block = region.closure
+            return NO_LOAD_HOOK_TARGETS unless block.is_a?(Pin::Block)
+            call = block.receiver
+            return NO_LOAD_HOOK_TARGETS unless call.is_a?(AST::Node) && call.type == :send && call.children[1] == :on_load
+            owner = call.children[0]
+            return NO_LOAD_HOOK_TARGETS unless owner.is_a?(AST::Node) && owner.type == :const
+            return NO_LOAD_HOOK_TARGETS unless %w[ActiveSupport ::ActiveSupport].include?(unpack_name(owner))
+            hook = call.children[2]
+            return NO_LOAD_HOOK_TARGETS unless hook.is_a?(AST::Node) && hook.type == :sym
+            LOAD_HOOK_CLASSES.fetch(hook.children[0], NO_LOAD_HOOK_TARGETS)
           end
 
           # @return [void]
