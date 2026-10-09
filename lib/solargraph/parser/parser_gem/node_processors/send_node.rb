@@ -369,7 +369,7 @@ module Solargraph
 
           # The classes the enclosing +ActiveSupport.on_load+ block runs on.
           #
-          # @sg-ignore Hash#fetch(key, default) leaves generic<X> unresolved
+          # @sg-ignore https://github.com/castwide/solargraph/issues/1227
           # @return [Array<String>]
           def load_hook_targets
             block = region.closure
