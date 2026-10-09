@@ -237,6 +237,38 @@ describe Solargraph::Pin::Method do
     expect(type.simple_tags).to eq('Integer')
   end
 
+  it 'probes methods from files the api map did not catalog' do
+    source_map = Solargraph::SourceMap.load_string(%(
+      class Foo
+        def bar
+          baz
+        end
+
+        def baz
+          1
+        end
+      end
+    ), 'gem_file.rb')
+    api_map = Solargraph::ApiMap.new(pins: source_map.pins)
+    pin = api_map.get_path_pins('Foo#bar').first
+    expect { pin.probe(api_map) }.not_to raise_error
+  end
+
+  it 'probes attributes from files the api map did not catalog' do
+    source_map = Solargraph::SourceMap.load_string(%(
+      class Foo
+        attr_reader :bar
+
+        def initialize baz
+          @bar = baz
+        end
+      end
+    ), 'gem_file.rb')
+    api_map = Solargraph::ApiMap.new(pins: source_map.pins)
+    pin = api_map.get_path_pins('Foo#bar').first
+    expect { pin.probe(api_map) }.not_to raise_error
+  end
+
   it 'infers return types from other parameters' do
     source = Solargraph::Source.load_string(%(
       class Foo

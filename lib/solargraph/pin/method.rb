@@ -658,6 +658,9 @@ module Solargraph
       # @return [ComplexType]
       def infer_from_return_nodes api_map
         return ComplexType::UNDEFINED if node.nil?
+        # Gem pins mapped from source keep their nodes, but their files are not cataloged
+        # @sg-ignore Need to add nil check here
+        return ComplexType::UNDEFINED unless api_map.bundled?(location.filename)
         result = []
         has_nil = false
         return ComplexType::NIL if method_body_node.nil?
