@@ -58,8 +58,7 @@ module Solargraph
           # @return [void]
           def process_visibility
             if node.children.length > 2
-              # @sg-ignore Need to add nil check here
-              node.children[2..].each do |child|
+              node.children.drop(2).each do |child|
                 # @sg-ignore Variable type could not be inferred for method_name
                 # @type [Symbol]
                 visibility = node.children[1]
@@ -89,8 +88,7 @@ module Solargraph
 
           # @return [void]
           def process_attribute
-            # @sg-ignore Need to add nil check here
-            node.children[2..].each do |a|
+            node.children.drop(2).each do |a|
               loc = get_node_location(node)
               clos = region.closure
               cmnt = comments_for(node)
@@ -118,11 +116,11 @@ module Solargraph
                 source: :parser
               )
               pins.push method_pin
-              method_pin.parameters.push Pin::Parameter.new(name: 'value', decl: :arg, closure: pins.last,
+              method_pin.parameters.push Pin::Parameter.new(name: 'value', decl: :arg, closure: method_pin,
                                                             source: :parser)
               if method_pin.return_type.defined?
-                pins.last.docstring.add_tag YARD::Tags::Tag.new(:param, '',
-                                                                pins.last.return_type.items.map(&:rooted_tags), 'value')
+                method_pin.docstring.add_tag YARD::Tags::Tag.new(:param, '',
+                                                                 method_pin.return_type.items.map(&:rooted_tags), 'value')
               end
             end
           end
@@ -131,8 +129,7 @@ module Solargraph
           def process_include
             return unless node.children[2].is_a?(AST::Node) && node.children[2].type == :const
             cp = region.closure
-            # @sg-ignore Need to add nil check here
-            node.children[2..].each do |i|
+            node.children.drop(2).each do |i|
               type = region.scope == :class ? Pin::Reference::Extend : Pin::Reference::Include
               pins.push type.new(
                 location: get_node_location(i),
@@ -147,8 +144,7 @@ module Solargraph
           def process_prepend
             return unless node.children[2].is_a?(AST::Node) && node.children[2].type == :const
             cp = region.closure
-            # @sg-ignore Need to add nil check here
-            node.children[2..].each do |i|
+            node.children.drop(2).each do |i|
               pins.push Pin::Reference::Prepend.new(
                 location: get_node_location(i),
                 closure: cp,
@@ -160,8 +156,7 @@ module Solargraph
 
           # @return [void]
           def process_extend
-            # @sg-ignore Need to add nil check here
-            node.children[2..].each do |i|
+            node.children.drop(2).each do |i|
               loc = get_node_location(node)
               if i.type == :self
                 pins.push Pin::Reference::Extend.new(
@@ -201,8 +196,7 @@ module Solargraph
               # @todo Smelly instance variable access
               region.instance_variable_set(:@visibility, :module_function)
             elsif %i[sym str].include?(node.children[2].type)
-              # @sg-ignore Need to add nil check here
-              node.children[2..].each do |x|
+              node.children.drop(2).each do |x|
                 cn = x.children[0].to_s
                 # @type [Pin::Method, nil]
                 ref = pins.find { |p| p.is_a?(Pin::Method) && p.namespace == region.closure.full_context.namespace && p.name == cn }
