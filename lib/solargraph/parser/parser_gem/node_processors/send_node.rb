@@ -19,6 +19,7 @@ module Solargraph
               return process_children
             end
             # :nocov:
+            StringEval.process node, region, pins if StringEval::METHODS.include?(method_name)
             if node.children[0].nil?
               if %i[private public protected].include?(method_name)
                 process_visibility
