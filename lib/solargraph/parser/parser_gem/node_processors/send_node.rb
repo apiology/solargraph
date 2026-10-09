@@ -28,6 +28,8 @@ module Solargraph
                 process_attribute
               elsif method_name == :class_attribute
                 process_class_attribute
+              elsif method_name == :delegate
+                process_delegate
               elsif method_name == :include
                 process_include
               elsif method_name == :extend
@@ -159,6 +161,119 @@ module Solargraph
               end
               pins.push build_class_attribute_pin "#{name}=", scope: :instance, writer: true if instance_writer
             end
+          end
+
+          # Process an ActiveSupport +delegate+ declaration, e.g.,
+          # +delegate :name, :name=, to: :owner, prefix: true+.
+          #
+          # @return [void]
+          def process_delegate
+            options = class_attribute_options
+            to = symbol_word(options['to'])
+            return if to.nil?
+
+            prefix = delegate_prefix(options['prefix'], to)
+            return if prefix.nil?
+
+            receiver = delegation_receiver_chain(to)
+            return if receiver.nil?
+
+            visibility = boolean_option(options, 'private', false) ? :private : region.visibility
+            delegated_method_names.each do |word|
+              pins.push Solargraph::Pin::DelegatedMethod.new(
+                location: get_node_location(node),
+                closure: region.closure,
+                name: "#{prefix}#{word}",
+                receiver: receiver,
+                receiver_method_name: word,
+                scope: region.scope || :instance,
+                visibility: visibility,
+                comments: comments_for(node),
+                source: :parser
+              )
+            end
+          end
+
+          # Names passed to +delegate+, expanding a splatted constant whose
+          # value is a literal array in this file, e.g. +delegate(*METHODS, to: :all)+.
+          #
+          # @return [Array<String>]
+          def delegated_method_names
+            node.children.drop(2).flat_map do |arg|
+              next [symbol_word(arg)].compact unless arg.type == :splat
+
+              literal_array_words(arg.children[0])
+            end
+          end
+
+          # @param const_node [::Parser::AST::Node, nil]
+          # @return [Array<String>]
+          def literal_array_words const_node
+            return [] if const_node.nil?
+            return [] unless const_node.type == :const
+
+            name = unpack_name(const_node)
+            constant = pins.find do |pin|
+              pin.is_a?(Pin::Constant) && pin.name == name && pin.namespace == region.closure.full_context.namespace
+            end
+            return [] unless constant.is_a?(Pin::Constant)
+
+            value = constant.assignments.first
+            return [] if value.nil?
+
+            # METHODS = [...].freeze
+            array = value.type == :send && value.children[1] == :freeze ? value.children[0] : value
+            return [] if array.nil?
+            return [] unless array.type == :array
+
+            array.children.filter_map { |item| symbol_word(item) }
+          end
+
+          # The prefix ActiveSupport puts on delegated method names, or nil
+          # when a prefix: true delegation has no method-name target to derive it from.
+          #
+          # @param option [::Parser::AST::Node, nil] the prefix: value node
+          # @param to [String]
+          # @return [String, nil]
+          def delegate_prefix option, to
+            return '' if option.nil?
+            # rubocop:disable Lint/BooleanSymbol -- these are AST node types
+            return '' if %i[false nil].include?(option.type)
+            return "#{to}_" if option.type == :true && to.match?(/\A[a-z_]/)
+            return nil if option.type == :true
+            # rubocop:enable Lint/BooleanSymbol
+
+            word = symbol_word(option)
+            word.nil? ? '' : "#{word}_"
+          end
+
+          # The word behind a symbol or string node, e.g. :@records or "size".
+          #
+          # @param subject [::Parser::AST::Node, nil]
+          # @return [String, nil]
+          def symbol_word subject
+            return nil if subject.nil?
+            return nil unless %i[sym str].include?(subject.type)
+
+            subject.children.first.to_s
+          end
+
+          # @param word [String] the delegation target, e.g. "@records", "records" or "Foo.bar"
+          # @return [Source::Chain, nil]
+          def delegation_receiver_chain word
+            link = if word.start_with?('@@')
+                     Source::Chain::ClassVariable.new(word)
+                   elsif word.start_with?('@')
+                     Source::Chain::InstanceVariable.new(word, node, get_node_location(node))
+                   elsif word.match?(/\A[a-z_]\w*[?!]?\z/)
+                     # Includes keywords: ActiveSupport sends to: :class to self
+                     Source::Chain::Call.new(word, get_node_location(node))
+                   end
+            return Source::Chain.new([link]) if link
+
+            NodeChainer.chain(Parser.parse(word, region.filename), region.filename)
+          rescue Parser::SyntaxError
+            nil
           end
 
           # The literal keyword arguments passed to a +class_attribute+ call.

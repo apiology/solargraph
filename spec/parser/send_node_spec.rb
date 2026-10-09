@@ -103,6 +103,95 @@ describe Solargraph::Parser::ParserGem::NodeProcessors::SendNode do
     expect(writers.all? { |pin| pin.parameters.map(&:name) == ['value'] }).to be(true)
   end
 
+  it 'maps delegate to delegated instance methods' do
+    pins = method_pins_for 'Foo', %(
+      class Foo
+        delegate :bar, 'baz', to: :thing
+      end
+    )
+    expect(pins.map(&:class).uniq).to eq([Solargraph::Pin::DelegatedMethod])
+    expect(accessors(pins)).to eq([['bar', :instance], ['baz', :instance]])
+  end
+
+  it 'maps delegate inside class << self to class methods' do
+    pins = method_pins_for 'Foo', %(
+      class Foo
+        class << self
+          delegate :bar, to: :instance
+        end
+      end
+    )
+    expect(accessors(pins)).to eq([['bar', :class]])
+  end
+
+  it 'applies the delegate prefix option' do
+    pins = method_pins_for 'Foo', %(
+      class Foo
+        delegate :bar, to: :thing, prefix: true
+        delegate :baz, to: :thing, prefix: :other
+      end
+    )
+    expect(pins.map(&:name).sort).to eq(%w[other_baz thing_bar])
+  end
+
+  it 'makes delegated methods private with private: true' do
+    pins = method_pins_for 'Foo', %(
+      class Foo
+        delegate :bar, to: :thing, private: true
+      end
+    )
+    expect(pins.map(&:visibility)).to eq([:private])
+  end
+
+  it 'ignores delegate without a to: option' do
+    pins = method_pins_for 'Foo', %(
+      class Foo
+        delegate :bar
+      end
+    )
+    expect(pins).to be_empty
+  end
+
+  it 'maps delegate of a splatted constant array' do
+    pins = method_pins_for 'Foo', %(
+      module Foo
+        METHODS = [:bar, :baz].freeze
+        delegate(*METHODS, to: :all)
+      end
+    )
+    expect(pins.map(&:name).sort).to eq(%w[bar baz])
+  end
+
+  it 'infers the return type of a delegated method' do
+    api_map = Solargraph::ApiMap.new
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @return [Array<String>]
+        def items; end
+
+        delegate :join, to: :items
+      end
+    ), 'test.rb')
+    api_map.map source
+    pin = api_map.get_method_stack('Foo', 'join').first
+    expect(pin.typify(api_map).to_s).to eq('String')
+  end
+
+  it 'infers the return type of a method delegated to the class' do
+    api_map = Solargraph::ApiMap.new
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @return [Integer]
+        def self.count; end
+
+        delegate :count, to: :class
+      end
+    ), 'test.rb')
+    api_map.map source
+    pin = api_map.get_method_stack('Foo', 'count').first
+    expect(pin.typify(api_map).to_s).to eq('Integer')
+  end
+
   it 'maps a prepend with an explicit receiver' do
     map = Solargraph::SourceMap.load_string %(
       module Mixin

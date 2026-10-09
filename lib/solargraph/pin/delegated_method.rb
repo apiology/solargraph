@@ -92,8 +92,9 @@ module Solargraph
         return if receiver_type.undefined?
 
         receiver_path, method_scope =
+          # A `to: :class` receiver is also a Class<Whatever>
           # @sg-ignore Need to add nil check here
-          if @receiver_chain.constant?
+          if @receiver_chain.constant? || receiver_type.to_s.start_with?('Class<')
             # HACK: the `return_type` of a constant is Class<Whatever>, but looking up a method expects
             # the arguments `"Whatever"` and `scope: :class`.
             # @sg-ignore Need to add nil check here
