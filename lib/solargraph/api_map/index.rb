@@ -11,6 +11,10 @@ module Solargraph
       # @return [Hash{String => Array<Pin::Method>}]
       attr_reader :macro_method_name_pins
 
+      # Names of methods that evaluate strings built from their parameters
+      # @return [Set<String>]
+      attr_reader :string_eval_method_names
+
       # @param pins [Array<Pin::Base>]
       def initialize pins = []
         catalog pins
@@ -153,6 +157,8 @@ module Solargraph
         macro_pins = pins_by_class(Pin::Method).select { |pin| pin.macros.any? }
         @macro_method_names = macro_pins.to_set(&:name)
         @macro_method_name_pins = macro_pins.to_set.classify(&:name)
+        eval_pins = pins_by_class(Pin::Method).select { |pin| pin.string_eval_templates.any? }
+        @string_eval_method_names = eval_pins.to_set(&:name)
         map_factory_parameters
         map_overrides
         pins_by_class(Pin::Reference::TypeAlias).each { |pin| alias_hash[pin.name] = pin.return_type }

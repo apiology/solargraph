@@ -23,9 +23,10 @@ module Solargraph
       # @param signatures [::Array<Signature>, nil]
       # @param anon_splat [Boolean]
       # @param context [ComplexType, ComplexType::UniqueType, nil]
+      # @param string_eval_templates [::Array<Parser::StringEval::Template>]
       # @param [Hash{Symbol => Object}] splat
       def initialize visibility: :public, explicit: true, block: :undefined, node: nil, attribute: false, signatures: nil, anon_splat: false,
-                     context: nil, **splat
+                     context: nil, string_eval_templates: [], **splat
         super(**splat)
         @visibility = visibility
         @explicit = explicit
@@ -35,6 +36,15 @@ module Solargraph
         @signatures = signatures
         @anon_splat = anon_splat
         @context = context if context
+        @string_eval_templates = string_eval_templates
+      end
+
+      # Strings this method evaluates with interpolated parameters, mapped
+      # where it is called with literal arguments.
+      #
+      # @return [::Array<Parser::StringEval::Template>]
+      def string_eval_templates
+        @string_eval_templates ||= []
       end
 
       # @param other [Pin::Method]
@@ -68,6 +78,7 @@ module Solargraph
           parameters: parameters,
           signatures: sigs,
           anon_splat: assert_same(other, :anon_splat?),
+          string_eval_templates: (string_eval_templates + other.string_eval_templates).uniq,
           return_type: nil # pulled from signatures on first call
         }.merge(attrs)
         super(other, new_attrs)

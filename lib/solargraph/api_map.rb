@@ -14,6 +14,7 @@ module Solargraph
     autoload :Store,          'solargraph/api_map/store'
     autoload :Index,          'solargraph/api_map/index'
     autoload :Constants,      'solargraph/api_map/constants'
+    autoload :StringEvalCallSites, 'solargraph/api_map/string_eval_call_sites'
 
     include Equality
 
@@ -109,7 +110,9 @@ module Solargraph
       # @todo Determine what needs to be sent to global conventions
       conventions_environ.merge Convention.for_global(nil)
       external_changed = external.update(bench.external_requires.to_a + conventions_environ.requires)
-      store_changed = store.update(@@core_pins, external.pins.clone, conventions_environ.pins, iced_pins, live_pins) { process_macros }
+      store_changed = store.update(@@core_pins, external.pins.clone, conventions_environ.pins, iced_pins, live_pins) do
+        process_macros + StringEvalCallSites.new(self).pins
+      end
       @cache.clear if external_changed || store_changed
       Solargraph.logger.info "Cataloging ApiMap finished in #{Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time} seconds"
       self
@@ -151,6 +154,13 @@ module Solargraph
         end
       end
       macro_pins
+    end
+
+    # Names of methods that evaluate strings built from their parameters.
+    #
+    # @return [Set<String>]
+    def string_eval_method_names
+      store.string_eval_method_names
     end
 
     # @return [Enumerable<Pin::Base>]

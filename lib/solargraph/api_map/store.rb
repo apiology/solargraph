@@ -297,6 +297,11 @@ module Solargraph
         index.macro_method_name_pins
       end
 
+      # @return [Set<String>]
+      def string_eval_method_names
+        index.string_eval_method_names
+      end
+
       private
 
       # @return [Index]
