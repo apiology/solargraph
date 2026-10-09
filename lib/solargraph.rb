@@ -36,6 +36,7 @@ module Solargraph
   autoload :Repo,             'solargraph/repo'
   autoload :External,         'solargraph/external'
   autoload :Collection,       'solargraph/collection'
+  autoload :DefineMethodMacro, 'solargraph/define_method_macro'
   autoload :ServerMethods,    'solargraph/server_methods'
   autoload :LanguageServer,   'solargraph/language_server'
   autoload :Workspace,        'solargraph/workspace'

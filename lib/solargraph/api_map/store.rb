@@ -297,6 +297,11 @@ module Solargraph
         index.macro_method_name_pins
       end
 
+      # @return [Hash{String => Array<Pin::Method>}]
+      def define_method_macro_pins
+        index.define_method_macro_pins
+      end
+
       private
 
       # @return [Index]
