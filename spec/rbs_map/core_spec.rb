@@ -144,4 +144,9 @@ describe Solargraph::RbsMap::Core do
     clip = api_map.clip_at('test.rb', [3, 6])
     expect(clip.infer.to_s).to eq('String, nil')
   end
+
+  it 'replaces a core method that an RBS fill redeclares' do
+    pins = core.pins.select { |pin| pin.path == 'MatchData#[]' }
+    expect(pins.map { |pin| pin.signatures.length }).to eq([4])
+  end
 end

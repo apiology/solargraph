@@ -27,8 +27,11 @@ module Solargraph
         # Avoid RBS::DuplicatedDeclarationError by loading in a different EnvironmentLoader
         fill_loader = RBS::EnvironmentLoader.new(core_root: nil, repository: RBS::Repository.new(no_stdlib: false))
         fill_loader.add(path: Pathname(FILLS_DIRECTORY))
-        fill_conversions = Conversions.new(loader: fill_loader)
-        new_pins.concat fill_conversions.pins
+        fill_pins = Conversions.new(loader: fill_loader).pins
+        # A method a fill redeclares replaces the core one; callers only use the first pin
+        filled = fill_pins.filter_map { |pin| [pin.path, pin.scope] if pin.is_a?(Pin::Method) }.to_set
+        new_pins.reject! { |pin| pin.is_a?(Pin::Method) && filled.include?([pin.path, pin.scope]) }
+        new_pins.concat fill_pins
 
         # add some overrides
         new_pins.concat RbsMap::CoreFills::ALL
