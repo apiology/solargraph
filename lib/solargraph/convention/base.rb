@@ -45,6 +45,11 @@ module Solargraph
                  deep, skip, no_core
         EMPTY_ENVIRON
       end
+
+      # @return [Hash{Symbol => Array<String>}] ActiveSupport.on_load hook name => fully qualified names of the classes the hook runs on
+      def load_hook_targets
+        {}
+      end
     end
   end
 end

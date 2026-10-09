@@ -140,13 +140,51 @@ describe Solargraph::Parser::ParserGem::NodeProcessors::SendNode do
     expect(methods.map(&:name)).to include('helper')
   end
 
+  # @param code [String]
+  # @return [Array<Array(String, String, String)>]
+  def mixins_for code
+    Solargraph::SourceMap.load_string(code).pins.select { |pin| pin.is_a?(Solargraph::Pin::Reference) }
+                         .reject { |pin| pin.is_a?(Solargraph::Pin::Reference::Require) }
+                         .map { |pin| [pin.class.name.split('::').last, pin.namespace, pin.name] }
+  end
+
+  context 'with ActiveSupport.on_load and no convention supplying hook targets' do
+    it 'maps nothing' do
+      refs = mixins_for %(
+        ActiveSupport.on_load(:active_record) do
+          include Mixin
+        end
+      )
+      expect(refs).to eq([['Include', '', 'Mixin']])
+    end
+  end
+
   context 'with ActiveSupport.on_load' do
-    # @param code [String]
-    # @return [Array<Array(String, String, String)>]
-    def mixins_for code
-      Solargraph::SourceMap.load_string(code).pins.select { |pin| pin.is_a?(Solargraph::Pin::Reference) }
-                           .reject { |pin| pin.is_a?(Solargraph::Pin::Reference::Require) }
-                           .map { |pin| [pin.class.name.split('::').last, pin.namespace, pin.name] }
+    let(:hook_convention) do
+      Class.new(Solargraph::Convention::Base) do
+        def load_hook_targets
+          {
+            active_record: ['ActiveRecord::Base'],
+            action_view: ['ActionView::Base'],
+            action_controller: ['ActionController::Base', 'ActionController::API'],
+            action_controller_base: ['ActionController::Base'],
+            my_hook: ['My::Klass']
+          }
+        end
+      end
+    end
+
+    before { Solargraph::Convention.register hook_convention }
+
+    after { Solargraph::Convention.unregister hook_convention }
+
+    it 'maps a hook a convention supplies' do
+      refs = mixins_for %(
+        ActiveSupport.on_load(:my_hook) do
+          include Mixin
+        end
+      )
+      expect(refs).to eq([%w[Include My::Klass Mixin]])
     end
 
     it 'maps include onto the class the hook loads' do

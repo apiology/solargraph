@@ -14,58 +14,6 @@ module Solargraph
             prepend: Pin::Reference::Prepend
           }.freeze
 
-          # The classes each ActiveSupport lazy load hook runs on, from the
-          # +run_load_hooks+ call sites in Rails 7.0 through 8.1.
-          #
-          # @type [Hash{Symbol => Array<String>}]
-          LOAD_HOOK_CLASSES = {
-            action_cable_channel: ['ActionCable::Channel::Base'],
-            action_cable_channel_test_case: ['ActionCable::Channel::TestCase'],
-            action_cable_connection: ['ActionCable::Connection::Base'],
-            action_cable_connection_test_case: ['ActionCable::Connection::TestCase'],
-            action_cable_test_case: ['ActionCable::TestCase'],
-            action_controller: ['ActionController::Base', 'ActionController::API'],
-            action_controller_api: ['ActionController::API'],
-            action_controller_base: ['ActionController::Base'],
-            action_controller_test_case: ['ActionController::TestCase'],
-            action_dispatch_integration_test: ['ActionDispatch::IntegrationTest'],
-            action_dispatch_request: ['ActionDispatch::Request'],
-            action_dispatch_response: ['ActionDispatch::Response'],
-            action_dispatch_system_test_case: ['ActionDispatch::SystemTestCase'],
-            action_mailbox: ['ActionMailbox::Base'],
-            action_mailbox_inbound_email: ['ActionMailbox::InboundEmail'],
-            action_mailbox_record: ['ActionMailbox::Record'],
-            action_mailbox_test_case: ['ActionMailbox::TestCase'],
-            action_mailer: ['ActionMailer::Base'],
-            action_mailer_test_case: ['ActionMailer::TestCase'],
-            action_text_content: ['ActionText::Content'],
-            action_text_encrypted_rich_text: ['ActionText::EncryptedRichText'],
-            action_text_record: ['ActionText::Record'],
-            action_text_rich_text: ['ActionText::RichText'],
-            action_view: ['ActionView::Base'],
-            action_view_test_case: ['ActionView::TestCase'],
-            active_job: ['ActiveJob::Base'],
-            active_job_test_case: ['ActiveJob::TestCase'],
-            active_model: ['ActiveModel::Model'],
-            active_model_error: ['ActiveModel::Error'],
-            active_model_secure_password: ['ActiveModel::SecurePassword'],
-            active_model_translation: ['ActiveModel::Translation'],
-            active_record: ['ActiveRecord::Base'],
-            active_record_database_configurations: ['ActiveRecord::DatabaseConfigurations'],
-            active_record_encryption: ['ActiveRecord::Encryption'],
-            active_record_fixture_set: ['ActiveRecord::FixtureSet'],
-            active_record_mysql2adapter: ['ActiveRecord::ConnectionAdapters::Mysql2Adapter'],
-            active_record_postgresqladapter: ['ActiveRecord::ConnectionAdapters::PostgreSQLAdapter'],
-            active_record_sqlite3adapter: ['ActiveRecord::ConnectionAdapters::SQLite3Adapter'],
-            active_record_trilogyadapter: ['ActiveRecord::ConnectionAdapters::TrilogyAdapter'],
-            active_storage_attachment: ['ActiveStorage::Attachment'],
-            active_storage_blob: ['ActiveStorage::Blob'],
-            active_storage_record: ['ActiveStorage::Record'],
-            active_storage_variant_record: ['ActiveStorage::VariantRecord'],
-            active_support_test_case: ['ActiveSupport::TestCase'],
-            message_pack: ['ActiveSupport::MessagePack']
-          }.freeze
-
           # @type [Array<String>]
           NO_LOAD_HOOK_TARGETS = [].freeze
 
@@ -367,7 +315,8 @@ module Solargraph
             true
           end
 
-          # The classes the enclosing +ActiveSupport.on_load+ block runs on.
+          # The classes the enclosing +ActiveSupport.on_load+ block runs on,
+          # as supplied by the registered conventions.
           #
           # @sg-ignore https://github.com/castwide/solargraph/issues/1227
           # @return [Array<String>]
@@ -381,7 +330,7 @@ module Solargraph
             return NO_LOAD_HOOK_TARGETS unless %w[ActiveSupport ::ActiveSupport].include?(unpack_name(owner))
             hook = call.children[2]
             return NO_LOAD_HOOK_TARGETS unless hook.is_a?(AST::Node) && hook.type == :sym
-            LOAD_HOOK_CLASSES.fetch(hook.children[0], NO_LOAD_HOOK_TARGETS)
+            Convention.load_hook_targets.fetch(hook.children[0], NO_LOAD_HOOK_TARGETS)
           end
 
           # @return [void]

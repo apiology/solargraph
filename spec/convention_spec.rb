@@ -1,6 +1,42 @@
 # frozen_string_literal: true
 
 describe Solargraph::Convention do
+  describe '.load_hook_targets' do
+    let(:first) do
+      Class.new(Solargraph::Convention::Base) do
+        def load_hook_targets
+          { active_record: ['ActiveRecord::Base'], action_controller: ['ActionController::Base'] }
+        end
+      end
+    end
+
+    let(:second) do
+      Class.new(Solargraph::Convention::Base) do
+        def load_hook_targets
+          { action_controller: ['ActionController::Base', 'ActionController::API'] }
+        end
+      end
+    end
+
+    after do
+      described_class.unregister first
+      described_class.unregister second
+    end
+
+    it 'is empty when no convention supplies targets' do
+      expect(described_class.load_hook_targets).to eq({})
+    end
+
+    it 'unions the targets every convention supplies' do
+      described_class.register first
+      described_class.register second
+      expect(described_class.load_hook_targets).to eq(
+        active_record: ['ActiveRecord::Base'],
+        action_controller: ['ActionController::Base', 'ActionController::API']
+      )
+    end
+  end
+
   it 'newly defined pins are resolved by ApiMap after file changes' do
     filename = 'test.rb'
 

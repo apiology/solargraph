@@ -72,6 +72,21 @@ module Solargraph
       result
     end
 
+    # The classes each ActiveSupport.on_load hook runs on, from every
+    # registered convention.
+    #
+    # @return [Hash{Symbol => Array<String>}]
+    def self.load_hook_targets
+      # @type [Hash{Symbol => Array<String>}]
+      result = {}
+      @@conventions.each do |conv|
+        conv.load_hook_targets.each do |hook, classes|
+          result[hook] = (result[hook] || []) | classes
+        end
+      end
+      result
+    end
+
     register Gemfile
     register Gemspec
     register Rakefile
