@@ -214,8 +214,7 @@ module Solargraph
                   else
                     "(#{signatures.first.parameters.map(&:full).join(', ')}) " unless signatures.first.parameters.empty?
                   end.to_s
-        # @sg-ignore Need to add nil check here
-        unless return_type.undefined?
+        unless return_type!.undefined?
           detail += "=#{if probed?
                           '~'
                         else
@@ -461,8 +460,7 @@ module Solargraph
         # as of 2025-03-12, the RBS generator used for
         # e.g. activesupport did not understand 'private' markings
         # inside 'class << self' blocks, but YARD did OK at it
-        # @sg-ignore Need to add nil check here
-        (source == :rbs && scope == :class && type_location&.filename&.include?('generated') && return_type.undefined?) ||
+        (source == :rbs && scope == :class && type_location&.filename&.include?('generated') && return_type!.undefined?) ||
           # YARD's RBS generator seems to miss a lot of should-be protected instance methods
           (source == :rbs && scope == :instance && namespace.start_with?('YARD::')) ||
           # private on attr_readers seems to be broken in Prism's auto-generator script
@@ -617,8 +615,7 @@ module Solargraph
         stack = rest_of_stack api_map
         return nil if stack.empty?
         stack.each do |pin|
-          # @sg-ignore Need to add nil check here
-          return pin.return_type unless pin.return_type.undefined?
+          return pin.return_type! unless pin.return_type!.undefined?
         end
         nil
       end
