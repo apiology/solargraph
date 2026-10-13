@@ -126,6 +126,70 @@ describe Solargraph::Convention::StringEvalDefinitions do
     expect(map.get_path_pins('Foo#bar')).to be_empty
   end
 
+  # @param block [Proc]
+  # @return [Float] seconds the block took
+  def elapsed &block
+    start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    block.call
+    Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
+  end
+
+  it 'skips loops with too many combinations to expand' do
+    words = (0...20).map { |i| "w#{i}" }.join(' ')
+    map = nil
+    seconds = elapsed do
+      map = map_code(%(
+        class Foo
+          %w(#{words}).each do |x|
+            %w(#{words}).each do |y|
+              %w(#{words}).each do |z|
+                class_eval "def \#{x}_\#{y}_\#{z}; end"
+              end
+            end
+          end
+        end
+      ))
+    end
+    expect(map.get_path_pins('Foo#w0_w0_w0')).to be_empty
+    expect(seconds).to be < 5
+  end
+
+  it 'skips templates that would generate too much source' do
+    body = "  x = 1\n" * 300
+    words = (0...200).map { |i| "w#{i}" }.join(' ')
+    map = map_code(%(
+      class Foo
+        %w(#{words}).each do |x|
+          class_eval "def \#{x}\n#{body}end"
+        end
+      end
+    ))
+    expect(map.get_path_pins('Foo#w0')).to be_empty
+  end
+
+  it 'skips call sites with too many combinations to expand' do
+    args = (0...20).map { |i| ":s#{i}" }.join(', ')
+    map = nil
+    seconds = elapsed do
+      map = map_code(%(
+        class Base
+          def self.flags(*names)
+            names.each do |a|
+              names.each do |b|
+                names.each do |c|
+                  class_eval "def \#{a}_\#{b}_\#{c}; end"
+                end
+              end
+            end
+          end
+          flags #{args}
+        end
+      ))
+    end
+    expect(map.get_path_pins('Base#s0_s0_s0')).to be_empty
+    expect(seconds).to be < 5
+  end
+
   it 'ignores strings that do not parse' do
     expect do
       map_code(%(

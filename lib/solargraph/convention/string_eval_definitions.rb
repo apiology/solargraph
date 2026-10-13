@@ -24,6 +24,16 @@ module Solargraph
       # @return [Array<Symbol>]
       METHODS = %i[class_eval module_eval instance_eval].freeze
 
+      # The most sources one template may generate. Rails and the gems of
+      # a Rails 8 bundle need at most 30.
+      # @return [Integer]
+      MAX_EXPANSIONS = 256
+
+      # The most template text, times the number of sources, one template
+      # may generate. Rails needs at most about 6 KB.
+      # @return [Integer]
+      MAX_EXPANSION_BYTES = 262_144 # 256 KiB
+
       module NodeProcessors
         # Maps a string evaluation, or records it on the enclosing method.
         class EvalNode < Parser::NodeProcessor::Base
