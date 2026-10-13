@@ -39,6 +39,21 @@ describe Solargraph::TypeChecker do
       expect(checker.problems).to be_empty
     end
 
+    it 'removes nil from a nilable hash value after a nil guard' do
+      checker = type_checker(%(
+        class Foo
+          # @param map [Hash{String => String, nil}]
+          # @return [String]
+          def bar map
+            v = map['a']
+            return '' unless v
+            v
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq([])
+    end
+
     it 'requires strict return tags when nil is involved and used second in a ternary' do
       checker = type_checker(%(
         class Foo

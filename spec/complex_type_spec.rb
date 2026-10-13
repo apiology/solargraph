@@ -673,6 +673,13 @@ describe 'YARD type specifier list parsing' do
       expect(qual.to_rbs).to eq('nil')
     end
 
+    it 'qualifies nil in hash value types as nil' do
+      api_map = Solargraph::ApiMap.new
+      type = Solargraph::ComplexType.parse('Hash{String => String, nil}')
+      qual = type.qualify(api_map)
+      expect(qual.rooted_tags).to eq('::Hash{::String => ::String, nil}')
+    end
+
     it 'resolves self keywords in parameter types' do
       selfy = Solargraph::ComplexType.parse('Array<self>')
       type = selfy.self_to_type(Solargraph::ComplexType.parse('Foo'))

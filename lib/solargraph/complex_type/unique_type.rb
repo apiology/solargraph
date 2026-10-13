@@ -559,7 +559,7 @@ module Solargraph
       def qualify api_map, *gates
         transform do |t|
           next t if t.name == GENERIC_TAG_NAME
-          next t if t.duck_type? || t.void? || t.undefined? || t.literal?
+          next t if t.duck_type? || t.void? || t.undefined? || t.literal? || t.nil_type?
           open = t.rooted? ? [''] : gates
           fqns = api_map.qualify(t.non_literal_name, *open)
           if fqns.nil?
