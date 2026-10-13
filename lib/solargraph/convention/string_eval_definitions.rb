@@ -54,7 +54,7 @@ module Solargraph
           parts = string_parts(string)
           return if parts.nil?
           receiver = node.children[0]
-          return unless receiver.nil? || (receiver.is_a?(AST::Node) && %i[self const].include?(receiver.type))
+          return unless receiver.nil? || (receiver.is_a?(AST::Node) && (receiver.type == :self || constant_path?(receiver)))
           target = receiver.is_a?(AST::Node) && receiver.type == :const ? Parser::NodeMethods.unpack_name(receiver) : nil
           scope = node.children[1] == :instance_eval ? :class : :instance
           template = build_template(parts, region, target, scope)
@@ -232,6 +232,19 @@ module Solargraph
         def each_call? call
           return false if call.nil?
           call.type == :send && call.children[1] == :each && call.children.length == 2
+        end
+
+        # True for `Foo::Bar` and `::Foo`, false for `obj.klass::Foo`, whose
+        # namespace is not known from the source.
+        #
+        # @param node [::Parser::AST::Node]
+        # @return [Boolean]
+        def constant_path? node
+          return false unless node.type == :const
+          base = node.children[0]
+          return true if base.nil?
+          return false unless base.is_a?(AST::Node)
+          base.type == :cbase || constant_path?(base)
         end
 
         # @param region [Parser::Region]

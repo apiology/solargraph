@@ -88,6 +88,18 @@ describe Solargraph::Convention::StringEvalDefinitions do
     expect(map.get_path_pins('Outer::Target#helped')).to be_empty
   end
 
+  it 'ignores constants scoped under a non-constant expression' do
+    map = map_code(%(
+      class Baz; end
+      class Foo
+        obj.klass::Baz.class_eval "def scoped; end"
+        ::Baz.class_eval "def rooted; end"
+      end
+    ))
+    expect(map.get_path_pins('Baz#scoped')).to be_empty
+    expect(map.get_path_pins('Baz#rooted')).not_to be_empty
+  end
+
   it 'ignores interpolations that are not loop variables or parameters' do
     map = map_code(%(
       class Foo
