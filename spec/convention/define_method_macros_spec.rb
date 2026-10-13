@@ -290,4 +290,77 @@ describe Solargraph::Convention::DefineMethodMacros do
     expect(copy.call_site_templates).to eq(pin.call_site_templates)
     expect(copy.call_site_templates).not_to be_empty
   end
+
+  it 'keeps one summary per scope, position and mode' do
+    map = map_code(%(
+      class Base
+        def self.flags(*types)
+          types.each { |t| define_method(t) { nil } }
+          types.each { |t| define_method(t) { |x| nil } }
+          types.each { |t| define_method(t) { |y| nil } }
+        end
+        flags :a, :b
+      end
+    ))
+    expect(map.get_path_pins('Base.flags').first.call_site_templates.length).to eq(1)
+    expect(map.get_path_pins('Base#a').length).to eq(1)
+    expect(map.get_path_pins('Base#b').length).to eq(1)
+  end
+
+  it 'generates one method per name in a call' do
+    map = map_code(%(
+      class Base
+        def self.flags(*types)
+          types.each { |t| define_method(t) { nil } }
+        end
+        flags :a, :a, 'a'
+      end
+    ))
+    expect(map.get_path_pins('Base#a').length).to eq(1)
+  end
+
+  it 'ignores parameters past the positional limit' do
+    params = (0..Solargraph::Convention::DefineMethodMacros::Macro::MAX_POSITIONS).map { |i| "p#{i}" }
+    map = map_code(%(
+      class Base
+        def self.flag(#{params.join(', ')})
+          define_method(p0) { nil }
+          define_method(#{params.last}) { nil }
+        end
+        flag #{params.map { |name| ":#{name}" }.join(', ')}
+      end
+    ))
+    expect(map.get_path_pins('Base#p0')).not_to be_empty
+    expect(map.get_path_pins("Base##{params.last}")).to be_empty
+  end
+
+  it 'ignores define_method calls past the block depth limit' do
+    depth = Solargraph::Convention::DefineMethodMacros::Macro::MAX_BLOCK_DEPTH
+    map = map_code(%(
+      class Base
+        def self.shallow(name)
+          #{'tap { ' * (depth - 1)}define_method(name) { nil }#{' }' * (depth - 1)}
+        end
+        def self.deep(name)
+          #{'tap { ' * depth}define_method(name) { nil }#{' }' * depth}
+        end
+        shallow :near
+        deep :far
+      end
+    ))
+    expect(map.get_path_pins('Base#near')).not_to be_empty
+    expect(map.get_path_pins('Base#far')).to be_empty
+  end
+
+  it 'examines each define_method call in a method once' do
+    macro = Solargraph::Convention::DefineMethodMacros::Macro.singleton_class
+    macro_calls = lambda do |count|
+      code = "class Base\n  def self.setup(unused)\n#{"    define_method(:m) { nil }\n" * count}  end\nend\n"
+      calls = 0
+      trace = TracePoint.new(:call) { |tp| calls += 1 if tp.defined_class == macro }
+      trace.enable { Solargraph::SourceMap.load_string(code, 'test.rb').pins }
+      calls
+    end
+    expect(macro_calls.call(200)).to be <= 2 * macro_calls.call(100)
+  end
 end

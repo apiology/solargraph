@@ -31,6 +31,15 @@ module Solargraph
         # block, e.g., +define_method(name, &block)+
         UNKNOWN_PARAMETERS = [[:restarg, 'args'], [:kwrestarg, 'kwargs'], [:blockarg, 'block']].freeze
 
+        # The number of leading parameters a macro's names can come from,
+        # which bounds the work per define_method call and the summaries per
+        # method
+        MAX_POSITIONS = 16
+
+        # The number of blocks around a define_method call that are searched
+        # for the method's body, which bounds the work per call
+        MAX_BLOCK_DEPTH = 16
+
         # @return [Integer] the position of the argument that supplies names
         attr_reader :position
 
@@ -74,6 +83,13 @@ module Solargraph
           [position, mode, scope, parameters]
         end
 
+        # Macros with the same key generate methods with the same names.
+        #
+        # @return [::Array(Integer, ::Symbol, ::Symbol)]
+        def key
+          [position, mode, scope]
+        end
+
         # The methods a call to the macro generates.
         #
         # @param call [::Parser::AST::Node] the send node that calls the macro
@@ -92,18 +108,29 @@ module Solargraph
         end
 
         class << self
-          # @param node [::Parser::AST::Node, nil] a def or defs node
-          # @return [::Array<Macro>]
-          def from_def_node node
-            return [] if node.nil?
-            return [] unless %i[def defs].include?(node.type)
-            args, body = node.type == :def ? node.children.drop(1) : node.children.drop(2)
+          # The macro that a define_method call makes of the method whose
+          # body contains it, if any.
+          #
+          # @param send [::Parser::AST::Node] a send node
+          # @param def_node [::Parser::AST::Node, nil] the def or defs node
+          #   whose body contains the call
+          # @param blocks [::Array<::Parser::AST::Node>] the block nodes in the
+          #   method that contain the call, outermost first
+          # @return [Macro, nil]
+          def from_send send, def_node, blocks
+            return nil unless definer?(send)
+            return nil if def_node.nil?
+            return nil unless %i[def defs].include?(def_node.type)
+            args = def_node.type == :def ? def_node.children[1] : def_node.children[2]
+            return nil if args.nil?
             positions = positional_parameters(args)
-            return [] if positions.empty?
-            # @type [::Array<Macro>]
-            result = []
-            collect body, positions, {}, result
-            result
+            return nil if positions.empty?
+            # @type [Hash{::Symbol => ::Symbol}]
+            each_vars = {}
+            blocks.each { |block| each_vars.update(each_variable(block, positions)) }
+            own = blocks.last
+            block_args = own.children[1] if own && own.children[0].equal?(send)
+            build send, positions, each_vars, block_args
           end
 
           private
@@ -117,35 +144,12 @@ module Solargraph
             # @type [Hash{::Symbol => ::Array(Integer, ::Symbol)}]
             result = {}
             return result unless Parser.is_ast_node?(args)
-            args.children.each_with_index do |arg, index|
+            args.children.take(MAX_POSITIONS).each_with_index do |arg, index|
               break unless %i[arg optarg restarg].include?(arg.type)
               result[arg.children.first.to_s.to_sym] = [index, arg.type]
               break if arg.type == :restarg
             end
             result
-          end
-
-          # Children of AST nodes are typed as nodes, but leaves can be other
-          # values, so each node parameter below is checked with is_ast_node?.
-          #
-          # @param node [::Parser::AST::Node]
-          # @param positions [Hash{::Symbol => ::Array(Integer, ::Symbol)}]
-          # @param each_vars [Hash{::Symbol => ::Symbol}] block variable => the
-          #   parameter whose elements it iterates
-          # @param result [::Array<Macro>]
-          # @return [void]
-          def collect node, positions, each_vars, result
-            return unless Parser.is_ast_node?(node)
-            return if %i[def defs class module sclass].include?(node.type)
-            call, block_args, block_body = node.children
-            if node.type == :block && definer?(call)
-              add_macro call, positions, each_vars, result, block_args: block_args
-              collect block_body, positions, each_vars, result
-              return
-            end
-            add_macro node, positions, each_vars, result if definer?(node)
-            each_vars = each_vars.merge(each_variable(node, positions)) if node.type == :block
-            node.children.each { |child| collect child, positions, each_vars, result }
           end
 
           # @param node [::Parser::AST::Node]
@@ -187,26 +191,25 @@ module Solargraph
           # @param send [::Parser::AST::Node] the define_method call
           # @param positions [Hash{::Symbol => ::Array(Integer, ::Symbol)}]
           # @param each_vars [Hash{::Symbol => ::Symbol}]
-          # @param result [::Array<Macro>]
           # @param block_args [::Parser::AST::Node, nil] the defined method's
           #   parameters, if its body is a literal block
-          # @return [void]
-          def add_macro send, positions, each_vars, result, block_args: nil
+          # @return [Macro, nil]
+          def build send, positions, each_vars, block_args
             _receiver, method_name, name = send.children
-            return unless Parser.is_ast_node?(name) && name.type == :lvar
+            return nil unless Parser.is_ast_node?(name) && name.type == :lvar
             var = name.children.first.to_s.to_sym
             iterated = each_vars[var]
             param = positions[iterated || var]
-            return if param.nil?
+            return nil if param.nil?
             position, type = param
             if iterated
               mode = type == :restarg ? :splat : :array
             else
-              return if type == :restarg
+              return nil if type == :restarg
               mode = :name
             end
-            result.push new(position: position, mode: mode, scope: DEFINERS.fetch(method_name.to_s.to_sym),
-                            parameters: block_parameters(block_args))
+            new(position: position, mode: mode, scope: DEFINERS.fetch(method_name.to_s.to_sym),
+                parameters: block_parameters(block_args))
           end
 
           # @param args [::Parser::AST::Node, nil]

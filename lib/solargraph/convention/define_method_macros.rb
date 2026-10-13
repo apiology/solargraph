@@ -10,24 +10,34 @@ module Solargraph
 
       module NodeProcessors
         # Records a method's macros on its pin when its body calls
-        # define_method or define_singleton_method.
+        # define_method or define_singleton_method. Each call is examined
+        # once, with only its enclosing blocks, so mapping stays linear.
         class DefinerNode < Parser::NodeProcessor::Base
           # @return [Boolean] continue processing the next processor of the same node.
           def process
             return true unless Macro::DEFINERS.key?(node.children[1])
-            method_pin = enclosing_method
-            return true if method_pin.nil? || method_pin.call_site_templates.any? { |t| t.is_a?(Macro) }
-            method_pin.call_site_templates.concat Macro.from_def_node(method_pin.node)
+            # @type [::Array<::Parser::AST::Node>]
+            blocks = []
+            closure = region.closure
+            while closure.is_a?(Pin::Block)
+              return true if blocks.length == Macro::MAX_BLOCK_DEPTH
+              blocks.unshift closure.node
+              closure = closure.closure
+            end
+            return true unless closure.is_a?(Pin::Method)
+            record closure.call_site_templates, Macro.from_send(node, closure.node, blocks)
             true
           end
 
           private
 
-          # @return [Pin::Method, nil]
-          def enclosing_method
-            closure = region.closure
-            closure = closure.closure while closure.is_a?(Pin::Block)
-            closure if closure.is_a?(Pin::Method)
+          # @param templates [::Array<Object>]
+          # @param macro [Macro, nil]
+          # @return [void]
+          def record templates, macro
+            return if macro.nil?
+            return if templates.any? { |t| t.is_a?(Macro) && t.key == macro.key }
+            templates.push macro
           end
         end
       end
@@ -66,9 +76,11 @@ module Solargraph
           range = Range.from_node(node)
           next [] unless range
           location = Location.new(source_map.filename, range)
-          match.call_site_templates.flat_map do |macro|
-            macro.is_a?(Macro) ? macro.generate_pins(node, namespace, location) : []
-          end
+          # @type [Array<Macro>]
+          macros = match.call_site_templates.grep(Macro).uniq(&:key)
+          # @type [Array<Pin::Method>]
+          pins = macros.flat_map { |macro| macro.generate_pins(node, namespace, location) }
+          pins.uniq { |pin| [pin.scope, pin.name] }
         end
       end
 
