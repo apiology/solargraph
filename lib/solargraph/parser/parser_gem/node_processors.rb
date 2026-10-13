@@ -40,6 +40,7 @@ module Solargraph
       register :kwbegin,      ParserGem::NodeProcessors::BeginNode
       register :rescue,       ParserGem::NodeProcessors::BeginNode
       register :resbody,      ParserGem::NodeProcessors::ResbodyNode
+      register :send,         Convention::StringEvalDefinitions::NodeProcessors::EvalNode
       register :def,          ParserGem::NodeProcessors::DefNode
       register :defs,         ParserGem::NodeProcessors::DefsNode
       register :if,           ParserGem::NodeProcessors::IfNode
