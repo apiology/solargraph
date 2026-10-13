@@ -109,7 +109,9 @@ module Solargraph
       # @todo Determine what needs to be sent to global conventions
       conventions_environ.merge Convention.for_global(nil)
       external_changed = external.update(bench.external_requires.to_a + conventions_environ.requires)
-      store_changed = store.update(@@core_pins, external.pins.clone, conventions_environ.pins, iced_pins, live_pins) { process_macros }
+      store_changed = store.update(@@core_pins, external.pins.clone, conventions_environ.pins, iced_pins, live_pins) do
+        process_macros + Convention.for_catalog(self).pins
+      end
       @cache.clear if external_changed || store_changed
       Solargraph.logger.info "Cataloging ApiMap finished in #{Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time} seconds"
       self
@@ -151,6 +153,13 @@ module Solargraph
         end
       end
       macro_pins
+    end
+
+    # Methods that carry call site templates, by name.
+    #
+    # @return [Hash{String => Array<Pin::Method>}]
+    def call_site_template_pins
+      store.call_site_template_pins
     end
 
     # @return [Enumerable<Pin::Base>]
