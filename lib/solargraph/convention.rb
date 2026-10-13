@@ -72,6 +72,19 @@ module Solargraph
       result
     end
 
+    # Pins derived from a cataloged ApiMap as a whole, e.g., methods that
+    # calls to macros define.
+    #
+    # @param api_map [ApiMap]
+    # @return [Environ]
+    def self.for_catalog api_map
+      result = Environ.new
+      @@conventions.each do |conv|
+        result.merge conv.catalog(api_map)
+      end
+      result
+    end
+
     register Gemfile
     register Gemspec
     register Rakefile
