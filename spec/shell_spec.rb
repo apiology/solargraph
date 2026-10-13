@@ -126,6 +126,14 @@ describe Solargraph::Shell do
         expect { shell.cache('core') }.not_to raise_error
       end
 
+      it 'caches core pins' do
+        allow(Solargraph::Collection::Core).to receive(:load).and_return([])
+
+        capture_both { shell.cache('core') }
+
+        expect(Solargraph::Collection::Core).to have_received(:load)
+      end
+
       it 'gives sensible error for gem that does not exist' do
         skip 'WIP'
         output = capture_both do
