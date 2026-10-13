@@ -11,6 +11,7 @@ module Solargraph
     autoload :Rakefile, 'solargraph/convention/rakefile'
     autoload :StructDefinition, 'solargraph/convention/struct_definition'
     autoload :DataDefinition,   'solargraph/convention/data_definition'
+    autoload :StringEvalDefinitions, 'solargraph/convention/string_eval_definitions'
     autoload :ActiveSupportConcern, 'solargraph/convention/active_support_concern'
 
     # @type [Set<Convention::Base>]
@@ -72,9 +73,23 @@ module Solargraph
       result
     end
 
+    # Pins derived from a cataloged ApiMap as a whole, e.g., methods that
+    # calls to macros define.
+    #
+    # @param api_map [ApiMap]
+    # @return [Environ]
+    def self.for_catalog api_map
+      result = Environ.new
+      @@conventions.each do |conv|
+        result.merge conv.catalog(api_map)
+      end
+      result
+    end
+
     register Gemfile
     register Gemspec
     register Rakefile
+    register StringEvalDefinitions
     register ActiveSupportConcern
   end
 end
