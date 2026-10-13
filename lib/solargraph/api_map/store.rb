@@ -90,7 +90,15 @@ module Solargraph
         return nil if fqns.nil? || fqns.empty?
         return BOOLEAN_SUPERCLASS_PIN if %w[TrueClass FalseClass].include?(fqns)
 
-        superclass_references[fqns].first || try_special_superclasses(fqns)
+        refs = superclass_references[fqns] || []
+        # A class documented in both YARD (plain Ruby, generic args
+        # unparseable) and RBS (e.g. `class Sub[T] < Base[T]`) gets two
+        # separate Reference::Superclass pins for the same fqns, since
+        # GemPins.combine only merges Pin::Method/Pin::Namespace pins,
+        # not references (which have path == nil). Prefer whichever one
+        # actually carries generic_values over one that's just first by
+        # insertion order.
+        (refs.find { |ref| !ref.generic_values.empty? } || refs.first) || try_special_superclasses(fqns)
       end
 
       # @param fq_sub_tag [String]
