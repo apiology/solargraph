@@ -102,6 +102,7 @@ module Solargraph
           # @return [void]
           def process_attribute kind, args, closure: region.closure, scope: region.scope || :instance, visibility: region.visibility
             args.each do |a|
+              next unless Parser.is_ast_node?(a) && %i[sym str].include?(a.type)
               loc = get_node_location(node)
               clos = closure
               cmnt = comments_for(node)

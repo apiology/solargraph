@@ -212,4 +212,18 @@ describe Solargraph::Parser::ParserGem::NodeProcessors::SendNode do
     )
     expect(pins.map(&:name)).not_to include('bar', 'baz', 'qux', 'qux=')
   end
+
+  it 'skips attribute names that are not symbol or string literals' do
+    pins = method_pins_for 'Foo', %(
+      class Foo
+        NAMES = %i[a b].freeze
+        attr_reader *NAMES, name, :bar
+        send(:attr_writer, *NAMES, name, 'baz')
+      end
+    )
+    expect(accessors(pins)).to eq([
+                                    ['bar', :instance],
+                                    ['baz=', :instance]
+                                  ])
+  end
 end
