@@ -12,6 +12,7 @@ module Solargraph
     autoload :StructDefinition, 'solargraph/convention/struct_definition'
     autoload :DataDefinition,   'solargraph/convention/data_definition'
     autoload :ActiveSupportConcern, 'solargraph/convention/active_support_concern'
+    autoload :DefineMethodMacros, 'solargraph/convention/define_method_macros'
 
     # @type [Set<Convention::Base>]
     @@conventions = Set.new
@@ -89,5 +90,6 @@ module Solargraph
     register Gemspec
     register Rakefile
     register ActiveSupportConcern
+    register DefineMethodMacros
   end
 end
