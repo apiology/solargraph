@@ -108,7 +108,8 @@ module Solargraph
       end
       # @todo Determine what needs to be sent to global conventions
       conventions_environ.merge Convention.for_global(nil)
-      external_changed = external.update(bench.external_requires.to_a + conventions_environ.requires)
+      external_changed = external.update(bench.external_requires.to_a + conventions_environ.requires,
+                                         conventions_environ.yard_plugins)
       store_changed = store.update(@@core_pins, external.pins.clone, conventions_environ.pins, iced_pins, live_pins) { process_macros }
       @cache.clear if external_changed || store_changed
       Solargraph.logger.info "Cataloging ApiMap finished in #{Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time} seconds"
@@ -125,6 +126,13 @@ module Solargraph
 
     def unloaded_gems
       external.unloaded_gems
+    end
+
+    # The YARD plugins the workspace declares, as used to cache its gem pins.
+    #
+    # @return [Array<String>]
+    def yard_plugins
+      external.yard_plugins
     end
 
     # @return [Array<Pin::Base>]
@@ -229,7 +237,7 @@ module Solargraph
 
       api_map.external.unloaded_gems.each do |metagem|
         out&.puts "Caching gem #{metagem.name} (#{metagem.cache_name})"
-        Collection::Gem.load metagem
+        Collection::Gem.load metagem, api_map.yard_plugins
       end
       load(directory, loose_unions: loose_unions)
     end

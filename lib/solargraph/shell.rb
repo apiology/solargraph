@@ -13,6 +13,10 @@ module Solargraph
     include Solargraph::ServerMethods
     include ApiMap::SourceToYard
 
+    # The plugins the command line declares. One name, in one place, so a
+    # cache it writes is one an editor can read back.
+    YARD_PLUGINS = ['activesupport-concern'].freeze
+
     # Tell Thor to ensure the process exits with status 1 if any error happens.
     def self.exit_on_failure?
       true
@@ -154,9 +158,8 @@ module Solargraph
     )
     option :directory, type: :string, desc: 'Workspace directory', default: Dir.pwd
     option :rebuild, type: :boolean, desc: 'Rebuild existing documentation', default: false
-    # @param names [Array<String>]
+    # @param gem_names [Array<String>]
     # @return [void]
-    # @param [Array<Object>] gem_names
     def cache *gem_names
       repo = Solargraph::Repo.new(options[:directory])
       metagems = if gem_names.empty?
@@ -189,7 +192,7 @@ module Solargraph
       metagems.each do |metagem|
         Collection::Gem.uncache(metagem) if options[:rebuild]
         puts "Caching #{metagem.name} #{metagem.version} (#{metagem.cache_name})"
-        Collection::Gem.load(metagem)
+        Collection::Gem.load(metagem, YARD_PLUGINS)
       end
       puts "Documentation cached for #{metagems.count} gems."
     end

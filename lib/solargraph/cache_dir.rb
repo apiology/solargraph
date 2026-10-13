@@ -48,8 +48,35 @@ module Solargraph
     #
     # @return [String]
     def yard_dir
-      File.join(base_dir, "yard-#{YARD::VERSION}", "yard-activesupport-concern-#{YARD::ActiveSupport::Concern::VERSION}")
+      File.join(base_dir, "yard-#{YARD::VERSION}")
     end
+
+    # A plugin decides what YARD extracts, so pins built under one set of
+    # them must not be served to a workspace declaring another. Callers
+    # reach this with either spelling of a plugin name, `activesupport-
+    # concern` or the `yard-activesupport-concern` its gem carries.
+    #
+    # @param yard_plugins [Array<String>]
+    # @return [String]
+    def yard_plugins_key yard_plugins
+      return 'no-plugins' if yard_plugins.empty?
+
+      yard_plugins.map { |plugin| yard_plugin_segment(plugin) }.sort.uniq.join('-')
+    end
+
+    # An upgraded plugin extracts different documentation from the same
+    # source, so its version belongs in the key alongside its name.
+    #
+    # @param plugin [String]
+    # @return [String]
+    def yard_plugin_segment plugin
+      name = plugin.delete_prefix('yard-')
+      spec = Gem.loaded_specs["yard-#{name}"] || Gem::Specification.find_by_name("yard-#{name}")
+      "#{name}-#{spec.version}"
+    rescue Gem::MissingSpecError
+      name
+    end
+    private_class_method :yard_plugin_segment
 
     def clear
       FileUtils.rm_rf base_dir
