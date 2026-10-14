@@ -304,14 +304,13 @@ module Solargraph
       def typify_mlhs_element api_map
         block_pin = closure
         path = mlhs_path
-        return ComplexType::UNDEFINED unless path && block_pin.is_a?(Pin::Block) && block_pin.receiver
+        group_index = path&.first
+        return ComplexType::UNDEFINED unless path && group_index && block_pin.is_a?(Pin::Block) && block_pin.receiver
 
-        type = block_pin.typify_parameters(api_map)[path.first]
+        type = block_pin.typify_parameters(api_map)[group_index]
         path.drop(1).each do |idx|
-          # @sg-ignore flow sensitive typing unions rather than overrides types across multiple sequential reassignments
           return ComplexType::UNDEFINED if type.nil? || !type.tuple?
 
-          # @sg-ignore flow sensitive typing unions rather than overrides types across multiple sequential reassignments
           type = type.all_params[idx]
         end
         type || ComplexType::UNDEFINED

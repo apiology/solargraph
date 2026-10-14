@@ -75,8 +75,7 @@ module Solargraph
               closure: callable,
               comments: comments_for(node),
               name: region.code_for(mlhs_node) || '()',
-              # @sg-ignore Need to add nil check here
-              presence: callable.location.range,
+              presence: callable.location&.range,
               decl: :mlhs,
               source: :parser
             )
@@ -100,8 +99,7 @@ module Solargraph
                   closure: callable,
                   comments: comments_for(node),
                   name: child.children[0].to_s,
-                  # @sg-ignore Need to add nil check here
-                  presence: callable.location.range,
+                  presence: callable.location&.range,
                   decl: :arg,
                   mlhs_path: path + [i],
                   source: :parser
