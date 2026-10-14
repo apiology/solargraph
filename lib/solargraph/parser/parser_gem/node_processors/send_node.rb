@@ -335,6 +335,7 @@ module Solargraph
                   scope: :class,
                   visibility: :public,
                   node: ref.node,
+                  call_site_templates: ref.call_site_templates,
                   source: :parser
                 )
                 cm = Solargraph::Pin::Method.new(
@@ -346,6 +347,7 @@ module Solargraph
                   scope: :instance,
                   visibility: :private,
                   node: ref.node,
+                  call_site_templates: ref.call_site_templates,
                   source: :parser
                 )
                 pins.push mm, cm
