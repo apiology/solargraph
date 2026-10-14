@@ -109,7 +109,9 @@ module Solargraph
       # @todo Determine what needs to be sent to global conventions
       conventions_environ.merge Convention.for_global(nil)
       external_changed = external.update(bench.external_requires.to_a + conventions_environ.requires)
-      store_changed = store.update(@@core_pins, external.pins.clone, conventions_environ.pins, iced_pins, live_pins) { process_macros }
+      store_changed = store.update(@@core_pins, external.pins.clone, conventions_environ.pins, iced_pins, live_pins) do
+        process_macros + resolve_dynamic_mixins
+      end
       @cache.clear if external_changed || store_changed
       Solargraph.logger.info "Cataloging ApiMap finished in #{Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time} seconds"
       self
@@ -776,6 +778,28 @@ module Solargraph
     end
 
     private
+
+    # Map each mixin whose argument is an expression, e.g.
+    # `include registry.helpers`, onto the module the expression returns.
+    # Mixins resolved here are not visible while inferring one another.
+    #
+    # @return [Array<Pin::Reference>]
+    def resolve_dynamic_mixins
+      # Method stacks cached by the previous catalog predate this store
+      cache.clear
+      store.pins_by_class(Pin::Reference::DynamicMixin).flat_map do |pin|
+        closure = pin.closure
+        next [] if closure.nil?
+
+        type = Parser.chain(pin.node, pin.filename).infer(self, closure, pin.locals)
+        # Module<Foo> is the type of the constant Foo; a bare Module names nothing
+        modules = type.items.select { |item| item.name == 'Module' && item.subtypes.length == 1 }
+        modules.map do |item|
+          pin.mixin.new(location: pin.location, closure: pin.target || closure,
+                        name: "::#{item.namespace}", source: :inference)
+        end
+      end
+    end
 
     # A hash of source maps with filename keys.
     #
