@@ -34,12 +34,25 @@ module Solargraph
       # @return [Integer]
       MAX_EXPANSION_BYTES = 262_144 # 256 KiB
 
+      # Methods whose block is evaluated on their receiver.
+      # @return [Array<Symbol>]
+      BLOCK_METHODS = %i[class_eval module_eval class_exec module_exec].freeze
+
       module NodeProcessors
         # Maps a string evaluation, or records it on the enclosing method.
         class EvalNode < Parser::NodeProcessor::Base
           # @return [Boolean] continue processing the next processor of the same node.
           def process
             StringEvalDefinitions.process node, region, pins if METHODS.include?(node.children[1])
+            true
+          end
+        end
+
+        # Records define_method in a block evaluated on a constant.
+        class DefineMethodNode < Parser::NodeProcessor::Base
+          # @return [Boolean] continue processing the next processor of the same node.
+          def process
+            StringEvalDefinitions.process_define_method node, region
             true
           end
         end
@@ -75,6 +88,36 @@ module Solargraph
             method_pin = enclosing_method(region)
             method_pin&.call_site_templates&.push template
           end
+        end
+
+        # Record `define_method` in a block evaluated on a constant as the
+        # equivalent def, e.g. in RouteSet#define_mounted_helper(name):
+        #
+        #   MountedHelpers.class_eval do
+        #     define_method("_#{name}") { RoutesProxy.new(...) }
+        #   end
+        #
+        # becomes a Template for `def _#{name}; RoutesProxy.new(...); end`
+        # on MountedHelpers, expanded at each call with a literal name.
+        #
+        # @param node [::Parser::AST::Node] the block node
+        # @param region [Parser::Region]
+        # @return [void]
+        def process_define_method node, region
+          call, args, body = node.children
+          return unless call.is_a?(AST::Node) && call.type == :send && call.children[0].nil? && call.children[1] == :define_method
+          eval_block = region.closure
+          return unless eval_block.is_a?(Pin::Block)
+          target = block_target(eval_block.receiver)
+          name = name_parts(call.children[2])
+          return if target.nil? || name.nil? || !args.is_a?(AST::Node)
+          params = args.children.map { |arg| region.code_for(arg) }.join(', ')
+          code = body.is_a?(AST::Node) ? region.code_for(body) : ''
+          parts = ['def '] + name + ["(#{params})\n#{code}\nend\n"]
+          outer = region.update(closure: eval_block.closure)
+          template = build_template(parts, outer, target, :instance)
+          return if template.nil? || template.params.empty?
+          enclosing_method(outer)&.call_site_templates&.push template
         end
 
         # Map the methods and instance variables a string defines.
@@ -130,6 +173,29 @@ module Solargraph
           template.expand({}).each do |code|
             pins.concat map(code, region.filename, line, closure, template.scope)
           end
+        end
+
+        # The constant a `Const.class_eval do ... end` call evaluates its
+        # block on.
+        #
+        # @param call [::Parser::AST::Node, nil]
+        # @return [String, nil]
+        def block_target call
+          return unless call.is_a?(AST::Node) && call.type == :send && BLOCK_METHODS.include?(call.children[1])
+          receiver = call.children[0]
+          return unless receiver.is_a?(AST::Node) && constant_path?(receiver)
+          Parser::NodeMethods.unpack_name(receiver)
+        end
+
+        # A define_method name as literal text and parameter names.
+        #
+        # @param node [::Parser::AST::Node, nil]
+        # @return [Array<String, Symbol>, nil]
+        def name_parts node
+          return unless node.is_a?(AST::Node)
+          return [node.children[0].to_s] if node.type == :sym
+          return [node.children[0]] if node.type == :lvar && node.children[0].is_a?(Symbol)
+          string_parts(node)
         end
 
         # The text of a string literal, with interpolations reduced to the

@@ -61,6 +61,7 @@ module Solargraph
       register :alias,        ParserGem::NodeProcessors::AliasNode
       register :args,         ParserGem::NodeProcessors::ArgsNode
       register :forward_args, ParserGem::NodeProcessors::ArgsNode
+      register :block,        Convention::StringEvalDefinitions::NodeProcessors::DefineMethodNode
       register :block,        ParserGem::NodeProcessors::BlockNode
       register :or_asgn,      ParserGem::NodeProcessors::OrasgnNode
       register :op_asgn,      ParserGem::NodeProcessors::OpasgnNode

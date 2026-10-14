@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'tmpdir'
+
 describe Solargraph::Convention::StringEvalDefinitions do
   # @param code [String]
   # @return [Solargraph::ApiMap]
@@ -274,6 +276,77 @@ describe Solargraph::Convention::StringEvalDefinitions do
     expect(map.get_path_pins('Routing::RouteSet::MountedHelpers#main_app')).not_to be_empty
     expect(map.get_path_pins('Routing::RouteSet#main_app')).to be_empty
     expect(map.get_path_pins('App#main_app')).to be_empty
+  end
+
+  context 'with define_method in a block evaluated on a constant' do
+    let(:route_set) do
+      %(
+        module Routing
+          class RoutesProxy; end
+
+          class RouteSet
+            module MountedHelpers; end
+
+            def define_mounted_helper(name, script_namer = nil)
+              routes = self
+              MountedHelpers.class_eval do
+                define_method "_\#{name}" do
+                  RoutesProxy.new(routes, script_namer)
+                end
+              end
+
+              MountedHelpers.class_eval(<<-RUBY, __FILE__, __LINE__ + 1)
+                def \#{name}
+                  @_\#{name} ||= _\#{name}
+                end
+              RUBY
+            end
+          end
+        end
+      )
+    end
+
+    let(:app) do
+      %(
+        class App
+          # @return [Routing::RouteSet]
+          def routes; end
+
+          def setup
+            routes.define_mounted_helper(:main_app)
+          end
+        end
+      )
+    end
+
+    it 'maps the method at each call with literal arguments' do
+      map = map_code(route_set + app)
+      pin = map.get_path_pins('Routing::RouteSet::MountedHelpers#_main_app').first
+      expect(pin).to be_a(Solargraph::Pin::Method)
+      expect(pin.probe(map).to_s).to eq('Routing::RoutesProxy')
+    end
+
+    it 'infers methods that call it' do
+      map = map_code(route_set + app)
+      pin = map.get_path_pins('Routing::RouteSet::MountedHelpers#main_app').first
+      expect(pin.probe(map).to_s).to eq('Routing::RoutesProxy')
+    end
+
+    it 'maps call sites in files the map has no source map for' do
+      Dir.mktmpdir do |dir|
+        gem_maps = { 'route_set.rb' => route_set, 'app.rb' => app }.map do |name, code|
+          path = File.join(dir, name)
+          File.write(path, code)
+          Solargraph::SourceMap.load(path)
+        end
+        map = Solargraph::ApiMap.new
+        allow(map.external).to receive_messages(pins: gem_maps.flat_map(&:pins) + gem_maps.flat_map(&:locals), update: true)
+        map.catalog Solargraph::Bench.new(source_maps: [])
+        paths = %w[_main_app main_app].map { |name| "Routing::RouteSet::MountedHelpers##{name}" }
+        files = paths.map { |path| map.get_path_pins(path).map { |pin| File.basename(pin.location.filename) } }
+        expect(files).to eq([['app.rb'], ['app.rb']])
+      end
+    end
   end
 
   it 'ignores calls whose receiver type is unknown' do
