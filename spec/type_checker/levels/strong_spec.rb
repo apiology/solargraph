@@ -1426,5 +1426,34 @@ describe Solargraph::TypeChecker do
         expect(checker_for("Kernel.eval('1')").problems.map(&:message)).to be_empty
       end
     end
+
+    it 'knows a rescued exception has a backtrace' do
+      checker = type_checker(%(
+        begin
+          raise 'x'
+        rescue StandardError => e
+          e.backtrace.join
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
+    it 'knows each class of a multi-class rescue has a backtrace' do
+      checker = type_checker(%(
+        begin
+          raise 'x'
+        rescue ArgumentError, TypeError => e
+          e.backtrace_locations.first
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
+    it 'reports a nil backtrace on an exception that was never raised' do
+      checker = type_checker(%(
+        StandardError.new.backtrace.join
+      ))
+      expect(checker.problems.map(&:message)).to eq(['Unresolved call to join on Array<String>, nil'])
+    end
   end
 end

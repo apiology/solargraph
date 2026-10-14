@@ -1143,7 +1143,7 @@ describe Solargraph::SourceMap::Mapper do
       end
     ), 'test.rb')
     pin = smap.locals.first
-    expect(pin.return_type.tag).to eq('ArgumentError')
+    expect(pin.return_type.to_s).to eq('ArgumentError & _Raised')
   end
 
   it 'handles rescue nodes without exception variables' do
