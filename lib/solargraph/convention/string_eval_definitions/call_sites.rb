@@ -27,7 +27,7 @@ module Solargraph
           template_pins = api_map.call_site_template_pins.select { |_name, pins| pins.any? { |pin| templates?(pin) } }
           names = template_pins.keys.to_set
           return [] if names.empty?
-          (api_map.source_maps + gem_source_maps(names)).flat_map do |source_map|
+          api_map.source_maps.flat_map do |source_map|
             source_map.method_call_nodes.flat_map do |node|
               next [] unless node.type == :send && names.include?(node.children[1].to_s)
               pins_for_call(source_map, node)
@@ -37,35 +37,8 @@ module Solargraph
 
         private
 
-        # Source maps of gem files, by filename, parsed once per process.
-        # @type [Hash{String => SourceMap}]
-        @gem_source_maps = {}
-
-        class << self
-          # @return [Hash{String => SourceMap}]
-          attr_reader :gem_source_maps
-        end
-
         # @return [ApiMap]
         attr_reader :api_map
-
-        # Gem pins are indexed without their source maps, so calls in gems,
-        # e.g. railties' `app.routes.define_mounted_helper(:main_app)`, are
-        # read from the files that mention a template method's name.
-        #
-        # @param names [Set<String>]
-        # @return [Array<SourceMap>]
-        def gem_source_maps names
-          files = Set.new
-          api_map.pins.each do |pin|
-            file = pin.filename
-            files.add file unless file.nil? || api_map.bundled?(file)
-          end
-          files.filter_map do |file|
-            next unless File.file?(file) && names.any? { |name| File.read(file).include?(name) }
-            CallSites.gem_source_maps[file] ||= SourceMap.load(file)
-          end
-        end
 
         # @param pin [Pin::Method]
         def templates? pin
