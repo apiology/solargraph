@@ -91,6 +91,8 @@ module Solargraph
           def process_attribute
             # @sg-ignore Need to add nil check here
             node.children[2..].each do |a|
+              next unless Parser.is_ast_node?(a) && %i[sym str].include?(a.type)
+              next if a.children[0].to_s.empty?
               loc = get_node_location(node)
               clos = region.closure
               cmnt = comments_for(node)

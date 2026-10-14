@@ -1290,6 +1290,21 @@ describe Solargraph::SourceMap::Mapper do
     expect(locals).to be_empty
   end
 
+  it 'skips attribute arguments that are not literal names' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        NAMES = %i[a b].freeze
+        attr_accessor *NAMES
+        attr_reader foo
+        attr_writer foo: 1
+        attr_accessor :bar, 'baz'
+      end
+    ))
+    pins, = described_class.map(source)
+    names = pins.select { |pin| pin.is_a?(Solargraph::Pin::Method) }.map(&:name)
+    expect(names).to eq(%w[bar bar= baz baz=])
+  end
+
   it 'maps local variables from for constructs' do
     map = Solargraph::SourceMap.load_string(%(
       for x in y
