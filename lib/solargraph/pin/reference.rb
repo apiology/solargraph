@@ -10,6 +10,7 @@ module Solargraph
       autoload :Extend,     'solargraph/pin/reference/extend'
       autoload :Override,   'solargraph/pin/reference/override'
       autoload :TypeAlias,  'solargraph/pin/reference/type_alias'
+      autoload :DynamicMixin, 'solargraph/pin/reference/dynamic_mixin'
 
       attr_reader :generic_values
 
