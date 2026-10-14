@@ -65,7 +65,6 @@ def undercover
   status
 rescue StandardError => e
   warn "hit error: #{e.message}"
-  # @sg-ignore Need to add nil check here
   warn "Backtrace:\n#{e.backtrace.join("\n")}"
   warn "output: #{output}"
   puts 'Flushing'
