@@ -5,6 +5,38 @@ module Solargraph
     class FlowSensitiveTyping
       include Solargraph::Parser::NodeMethods
 
+      # Argument node types a repeated call can be matched on: their value is
+      # fixed by the source text
+      LITERAL_ARGUMENTS = %i[int sym str true false nil].freeze
+
+      # Methods that can remove, move or overwrite what 'receiver[...]'
+      # returns, ending the narrowing of every index on that receiver
+      INDEX_REMOVERS = %i[
+        delete delete_if reject! select! filter! keep_if clear replace shift
+        store merge! update push << append concat transform_keys!
+        compare_by_identity
+      ].freeze
+
+      # The word a receiver chain records for a call, e.g. 'location' or
+      # '[](int:0)' for '[0]'. Repeated calls only match when their arguments
+      # are the same literals, so this is nil for any other argument, and for
+      # a literal whose text contains the '.' that separates chain words.
+      #
+      # @param name [String]
+      # @param arguments [::Array<::Parser::AST::Node, nil>]
+      # @return [String, nil]
+      def self.call_word name, arguments
+        return name if arguments.empty?
+
+        keys = arguments.map do |argument|
+          return nil unless argument.is_a?(::Parser::AST::Node) && LITERAL_ARGUMENTS.include?(argument.type)
+
+          "#{argument.type}:#{argument.children.first.inspect}"
+        end
+        word = "#{name}(#{keys.join(',')})"
+        word.include?('.') ? nil : word
+      end
+
       # @param locals [Array<Solargraph::Pin::LocalVariable>]
       # @param ivars [Array<Solargraph::Pin::InstanceVariable>]
       # @param enclosing_breakable_pin [Solargraph::Pin::Breakable, nil]
@@ -293,12 +325,29 @@ module Solargraph
         return false unless target.type == :send
 
         name = target.children[1].to_s
-        return false unless wrapped || name.match?(/\A[a-z_]\w*=\z/i)
+        return true if removes_index?(target, words)
+        return false unless wrapped || name.match?(/\A[a-z_]\w*=\z/i) || name == '[]='
 
         receiver_words = write_receiver(target.children[0], words)
         return false if receiver_words.nil? || receiver_words.length >= words.length
 
-        receiver_words == words.first(receiver_words.length) && name.chomp('=') == words[receiver_words.length]
+        # 'table[:a] = x' writes to every 'table[...]', whatever the key
+        written = words.fetch(receiver_words.length).sub(/\(.*\z/m, '')
+        receiver_words == words.first(receiver_words.length) && name.chomp('=') == written
+      end
+
+      # @param send_node [Parser::AST::Node] e.g. 'table.delete(:a)'
+      # @param words [::Array<String>] e.g. ['table', '[](sym::a)']
+      # @return [Boolean] true for a call that can change every index read
+      #   in `words` on the call's receiver
+      def removes_index? send_node, words
+        return false unless INDEX_REMOVERS.include?(send_node.children[1])
+
+        receiver_words = write_receiver(send_node.children[0], words)
+        return false if receiver_words.nil? || receiver_words.length >= words.length
+
+        receiver_words == words.first(receiver_words.length) &&
+          words.fetch(receiver_words.length).start_with?('[](')
       end
 
       # @param node [Parser::AST::Node, nil] a setter's receiver, e.g.
@@ -328,22 +377,24 @@ module Solargraph
         return unless node.is_a?(::Parser::AST::Node)
         return [node.children[0].to_s] if %i[lvar ivar].include?(node.type)
         return unless node.type == :send
-        # no arguments -- children[2..] is only nil (rather than [])
-        # if the start index is out of bounds, which can't happen here
-        return unless (node.children[2..] || []).empty?
 
         method_name = node.children[1]
         return unless method_name.is_a?(Symbol)
 
+        # children[2..] is only nil (rather than []) if the start index is
+        # out of bounds, which can't happen here
+        word = FlowSensitiveTyping.call_word(method_name.to_s, node.children[2..] || [])
+        return unless word
+
         receiver = node.children[0]
         # bare call, e.g. `s(:send, nil, :foo)` - implicit self, so
         # 'foo' could be a local variable or a 0-arg method on self
-        return [method_name.to_s] if receiver.nil?
+        return [word] if receiver.nil?
 
         base = parse_receiver_chain(receiver)
         return unless base
 
-        base + [method_name.to_s]
+        base + [word]
       end
 
       # @param expression_node [Parser::AST::Node]
