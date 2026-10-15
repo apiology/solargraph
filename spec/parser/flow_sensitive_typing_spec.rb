@@ -1556,6 +1556,21 @@ describe Solargraph::Parser::FlowSensitiveTyping do
       expect(infer_guarded(body, 6)).to eq('::String')
     end
 
+    it 'narrows past a map on the receiver' do
+      body = "        return if list.empty?\n        list.map(&:upcase)\n        list.first\n"
+      expect(infer_guarded(body, 6)).to eq('::String')
+    end
+
+    it 'narrows past a select with a block on the receiver' do
+      body = "        return if list.empty?\n        list.select { |s| s.empty? }\n        list.first\n"
+      expect(infer_guarded(body, 6)).to eq('::String')
+    end
+
+    it 'ends the narrowing at a mutating call in a block on the receiver' do
+      body = "        return if list.empty?\n        list.select { list.clear }\n        list.first\n"
+      expect(infer_guarded(body, 6)).to eq('::String, nil')
+    end
+
     it 'narrows the lines of a String' do
       code = <<~RUBY
         # @param text [String]

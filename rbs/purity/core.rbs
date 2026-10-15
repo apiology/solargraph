@@ -33,6 +33,16 @@ class Array[unchecked out E]
   # reads the number of elements
   %a{pure}
   def size: ...
+
+  # builds a new Array and leaves this one unchanged (Array#map is an
+  # alias); its block may do anything, but a block form is never
+  # narrowed, and a call in the block on this Array ends narrowing on it
+  %a{pure}
+  def collect: ...
+
+  # same as collect
+  %a{pure}
+  def select: ...
 end
 
 class String

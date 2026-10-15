@@ -581,8 +581,11 @@ module Solargraph
             return false if words.nil? || words.empty? || words != receiver_path.first(words.length)
             return !reads_link?(words.length, name, node) if words.length < receiver_path.length
 
-            methods = receiver_type.items.flat_map { |type| api_map.get_method_stack(type.rooted_tag, name) }
-            methods.empty? || !methods.all? { |method| method.attribute? || method.pure? }
+            receiver_type.items.any? do |type|
+              # the first of the stack is the method the call dispatches to
+              method = api_map.get_method_stack(type.rooted_tag, name).first
+              method.nil? || !(method.attribute? || method.pure?)
+            end
           end
 
           # Whether the call reads the next link of the chain, which
