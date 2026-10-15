@@ -33,6 +33,11 @@ jobs:
             rbs-version: '4.0.1'
           - ruby-version: '3.1'
             rbs-version: '4.0.2'
+        include:
+          - ruby-version: '4.1.0-preview1'
+            rbs-version: '4.0.2'
+            # bundler 2.5.23 uses Pathname::SEPARATOR_PAT, removed in Ruby 4.1
+            bundler: 'latest'
     steps:
     - uses: actions/checkout@v3
     - name: Set up Ruby
@@ -50,7 +55,7 @@ jobs:
         # nil, failing spec/api_map_method_spec.rb's YAML test across
         # most of the matrix. Keep this in sync with Gemfile.lock's
         # BUNDLED WITH version, and with the same pin below.
-        bundler: 2.5.23
+        bundler: ${{ matrix.bundler || '2.5.23' }}
     - name: Set rbs version
       run: echo "gem 'rbs', '${{ matrix.rbs-version }}'" >> .Gemfile
     #  /home/runner/.rubies/ruby-head/lib/ruby/gems/3.5.0+2/gems/rbs-3.9.4/lib/rbs.rb:11:
