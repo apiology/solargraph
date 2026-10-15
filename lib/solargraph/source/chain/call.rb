@@ -572,13 +572,11 @@ module Solargraph
             return true if root_variable?(node)
             return false unless node.type == :send
 
-            receiver = node.children[0]
             name = node.children[1].to_s
+            words = chain_of(node.children[0])
             # a call on self may write an instance variable or reader
-            return !local_root && !reads_link?(0, name, node) if receiver.nil? || receiver.type == :self
-
-            words = Parser::FlowSensitiveTyping.receiver_chain(receiver)
-            return false if words.nil? || words.empty? || words != receiver_path.first(words.length)
+            return !local_root if words == ['self'] && receiver_path.first != 'self'
+            return false if words.nil? || words != receiver_path.first(words.length)
             return !reads_link?(words.length, name, node) if words.length < receiver_path.length
 
             receiver_type.items.any? do |type|
@@ -586,6 +584,19 @@ module Solargraph
               method = api_map.get_method_stack(type.rooted_tag, name).first
               method.nil? || !(method.attribute? || method.pure?)
             end
+          end
+
+          # @param node [::Parser::AST::Node, nil] a call's receiver
+          # @return [::Array<String>, nil] the chain it reads, e.g. ['list'],
+          #   or ['self', 'names'] for a bare 'names'
+          def chain_of node
+            return ['self'] if node.nil? || node.type == :self
+            return [node.children[0].to_s] if %i[lvar ivar].include?(node.type)
+            return nil unless node.type == :send
+
+            word = Parser::FlowSensitiveTyping.call_word(node.children[1].to_s, node.children[2..] || [])
+            base = chain_of(node.children[0])
+            base + [word] if word && base
           end
 
           # Whether the call reads the next link of the chain, which

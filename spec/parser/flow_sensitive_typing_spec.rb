@@ -1796,6 +1796,43 @@ describe Solargraph::Parser::FlowSensitiveTyping do
       expect(api_map.clip_at('test.rb', [9, 19]).infer.rooted_tags).to eq('::String')
     end
 
+    context 'when the receiver is an attr_reader on self' do
+      # @param body [String] statements in a method of a class whose
+      #   names attr_reader is an Array<String>
+      # @param line [Integer] zero-based line of the expression to infer
+      # @return [String]
+      def infer_self body, line
+        code = <<~RUBY
+          class Holder
+            # @return [Array<String>]
+            attr_reader :names
+
+            # @return [void]
+            def reset!; end
+
+            def demo
+          #{body}  end
+          end
+        RUBY
+        source = Solargraph::Source.load_string(code, 'test.rb')
+        api_map = Solargraph::ApiMap.new.map(source)
+        column = code.lines[line].rstrip.length
+        api_map.clip_at('test.rb', [line, column]).infer.rooted_tags
+      end
+
+      it 'narrows Array#last' do
+        expect(infer_self("    return if names.empty?\n    names.last\n", 9)).to eq('::String')
+      end
+
+      it 'narrows past a pure read on the receiver' do
+        expect(infer_self("    return if names.empty?\n    names.length\n    names.last\n", 10)).to eq('::String')
+      end
+
+      it 'ends the narrowing at another call on self' do
+        expect(infer_self("    return if names.empty?\n    reset!\n    names.last\n", 10)).to eq('::String, nil')
+      end
+    end
+
     it 'keeps a nilable element type nilable' do
       expect(infer_guarded("        return if list.empty?\n        list.first\n", 5, list_type: 'String, nil'))
         .to match(/(\A|, )(nil|::NilClass)(,|\z)/)
