@@ -2,6 +2,7 @@
 
 require 'tmpdir'
 require 'yard'
+require 'timeout'
 
 # run these in order so we don't uncache backport right when we
 # need it before
@@ -51,12 +52,12 @@ describe Solargraph::Library, order: :defined do
           adapter.remo
         end
       ), filename, 0)
-      # give Solargraph time to cache the gem
-      while (completion = library.completions_at(filename, 5, 19)).pins.empty?
-        sleep 0.25
+      Timeout.timeout 60 do
+        # give Solargraph time to cache the gem
+        sleep 0.25 while (completion = library.completions_at(filename, 5, 19)).pins.empty?
+        expect(completion).to be_a(Solargraph::SourceMap::Completion)
+        expect(completion.pins.map(&:name)).to include('remote')
       end
-      expect(completion).to be_a(Solargraph::SourceMap::Completion)
-      expect(completion.pins.map(&:name)).to include('remote')
     end
   end
 
@@ -210,7 +211,7 @@ describe Solargraph::Library, order: :defined do
 
   describe '#references_from' do
     before :context do
-      Solargraph::Shell.new.gems('backport')
+      Solargraph::Shell.new.cache('backport')
     end
 
     it 'collects references to a new method on a constant from assignment of Class.new' do

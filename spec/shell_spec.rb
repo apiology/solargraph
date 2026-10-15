@@ -137,7 +137,7 @@ describe Solargraph::Shell do
 
         capture_both do
           shell.options = { rebuild: false }
-          shell.gems
+          shell.cache
         end
 
         expect(Solargraph::Collection::Gem).to have_received(:load_all).with([metagem], out: anything, rebuild: false)
@@ -152,7 +152,7 @@ describe Solargraph::Shell do
 
         output = capture_both do
           shell.options = { rebuild: false }
-          shell.gems
+          shell.cache
         end
 
         expect(output).to include('Caching abcd343kfk 1.0.0 (abcd343kfk-1.0.0)')
@@ -165,7 +165,7 @@ describe Solargraph::Shell do
 
         output = capture_both do
           shell.options = { rebuild: true }
-          shell.gems('core')
+          shell.cache('core')
         end
 
         expect(output).to include('Caching core')
@@ -179,7 +179,7 @@ describe Solargraph::Shell do
 
         capture_both do
           shell.options = { rebuild: false }
-          shell.gems('core')
+          shell.cache('core')
         end
 
         expect(Solargraph::Collection::Core).not_to have_received(:uncache)
@@ -191,7 +191,7 @@ describe Solargraph::Shell do
 
         capture_both do
           shell.options = { rebuild: false }
-          shell.gems('98765')
+          shell.cache('98765')
         end
 
         expect(Solargraph::Collection::Gem).to have_received(:load_all).with([metagem], out: anything, rebuild: false)
