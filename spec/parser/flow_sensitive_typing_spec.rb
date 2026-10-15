@@ -1526,12 +1526,12 @@ describe Solargraph::Parser::FlowSensitiveTyping do
       expect(infer_guarded("        return if list.empty?\n        list.last\n", 5)).to eq('::String')
     end
 
-    it 'narrows Array#[] with index 0 after return if empty?' do
-      expect(infer_guarded("        return if list.empty?\n        list[0]\n", 5)).to eq('::String')
+    it 'does not narrow Array#[] with index 0, which is also Hash#[]' do
+      expect(infer_guarded("        return if list.empty?\n        list[0]\n", 5)).to eq('::String, nil')
     end
 
-    it 'narrows Array#[] with index -1 after return if empty?' do
-      expect(infer_guarded("        return if list.empty?\n        list[-1]\n", 5)).to eq('::String')
+    it 'does not narrow Array#[] with index -1, which is also Hash#[]' do
+      expect(infer_guarded("        return if list.empty?\n        list[-1]\n", 5)).to eq('::String, nil')
     end
 
     it 'narrows inside unless empty?' do
@@ -1582,6 +1582,72 @@ describe Solargraph::Parser::FlowSensitiveTyping do
       source = Solargraph::Source.load_string(code, 'test.rb')
       api_map = Solargraph::ApiMap.new.map(source)
       expect(api_map.clip_at('test.rb', [3, 17]).infer.rooted_tags).to eq('::String')
+    end
+
+    it 'does not narrow Hash#[] with a literal key' do
+      code = <<~RUBY
+        # @param table [Hash{Integer => String}]
+        def demo(table)
+          return if table.empty?
+          table[0]
+        end
+      RUBY
+      source = Solargraph::Source.load_string(code, 'test.rb')
+      api_map = Solargraph::ApiMap.new.map(source)
+      expect(api_map.clip_at('test.rb', [3, 10]).infer.rooted_tags).to eq('::String, nil')
+    end
+
+    it 'narrows within the rest of an or' do
+      code = <<~RUBY
+        # @param list [Array<String>]
+        def demo(list)
+          list.empty? || list.first
+        end
+      RUBY
+      source = Solargraph::Source.load_string(code, 'test.rb')
+      api_map = Solargraph::ApiMap.new.map(source)
+      expect(api_map.clip_at('test.rb', [2, 27]).infer.rooted_tags).to eq('::String')
+    end
+
+    it 'ends a chain narrowing at a call on part of the chain' do
+      code = <<~RUBY
+        class Holder
+          # @return [Array<String>]
+          attr_reader :names
+
+          # @return [void]
+          def reset!; end
+        end
+
+        # @param holder [Holder]
+        def demo(holder)
+          return if holder.names.empty?
+          holder.reset!
+          holder.names.last
+        end
+      RUBY
+      source = Solargraph::Source.load_string(code, 'test.rb')
+      api_map = Solargraph::ApiMap.new.map(source)
+      expect(api_map.clip_at('test.rb', [12, 19]).infer.rooted_tags).to eq('::String, nil')
+    end
+
+    it 'narrows a chain past a read of part of the chain' do
+      code = <<~RUBY
+        class Holder
+          # @return [Array<String>]
+          attr_reader :names
+        end
+
+        # @param holder [Holder]
+        def demo(holder)
+          return if holder.names.empty?
+          holder.names.length
+          holder.names.last
+        end
+      RUBY
+      source = Solargraph::Source.load_string(code, 'test.rb')
+      api_map = Solargraph::ApiMap.new.map(source)
+      expect(api_map.clip_at('test.rb', [9, 19]).infer.rooted_tags).to eq('::String')
     end
 
     it 'keeps a nilable element type nilable' do

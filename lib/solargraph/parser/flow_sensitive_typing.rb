@@ -30,8 +30,9 @@ module Solargraph
       end
 
       # Reads that return an element of a non-empty Array, each with the
-      # index Array#fetch reads the same element with
-      ELEMENT_READS = { 'first' => 0, 'last' => -1, '[](int:0)' => 0, '[](int:-1)' => -1 }.freeze
+      # index Array#fetch reads the same element with. Not '[]': it is
+      # also Hash#[], where 'h[0]' on a non-empty Hash can still be nil
+      ELEMENT_READS = { 'first' => 0, 'last' => -1 }.freeze
 
       # Recognizes receivers shaped like 'foo', '@foo', 'foo.bar', or
       # '@foo.bar.baz' -- a chain of simple, argument-less, blockless
@@ -541,8 +542,8 @@ module Solargraph
 
       # Handles 'xs.empty?' (non-empty when false) and a blockless,
       # argument-less 'xs.any?' (non-empty when true): while 'xs' is
-      # non-empty, 'xs.first' and 'xs[0]' read what 'xs.fetch(0)' does,
-      # and 'xs.last' and 'xs[-1]' what 'xs.fetch(-1)' does, so they lose
+      # non-empty, 'xs.first' reads what 'xs.fetch(0)' does and 'xs.last'
+      # what 'xs.fetch(-1)' does, so they lose
       # only the nil an empty Array returns, never one from the element
       # type. Chain::Call ends this at a call on 'xs' that is not pure.
       #
