@@ -35,6 +35,12 @@ class Array[unchecked out E]
   def size: ...
 end
 
+class String
+  # reads the lines; a block form is never narrowed
+  %a{pure}
+  def lines: ...
+end
+
 class Hash[unchecked out K, unchecked out V]
   # reads a value; a default proc runs on a missing key, as Steep also
   # accepts

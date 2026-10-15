@@ -1556,6 +1556,19 @@ describe Solargraph::Parser::FlowSensitiveTyping do
       expect(infer_guarded(body, 6)).to eq('::String')
     end
 
+    it 'narrows the lines of a String' do
+      code = <<~RUBY
+        # @param text [String]
+        def demo(text)
+          return if text.lines.empty?
+          text.lines.last
+        end
+      RUBY
+      source = Solargraph::Source.load_string(code, 'test.rb')
+      api_map = Solargraph::ApiMap.new.map(source)
+      expect(api_map.clip_at('test.rb', [3, 17]).infer.rooted_tags).to eq('::String')
+    end
+
     it 'keeps a nilable element type nilable' do
       expect(infer_guarded("        return if list.empty?\n        list.first\n", 5, list_type: 'String, nil'))
         .to match(/(\A|, )(nil|::NilClass)(,|\z)/)
