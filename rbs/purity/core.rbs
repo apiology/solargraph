@@ -21,6 +21,18 @@ class Array[unchecked out E]
   # reads the last element(s)
   %a{pure}
   def last: ...
+
+  # reads whether there are no elements
+  %a{pure}
+  def empty?: ...
+
+  # reads the number of elements
+  %a{pure}
+  def length: ...
+
+  # reads the number of elements
+  %a{pure}
+  def size: ...
 end
 
 class Hash[unchecked out K, unchecked out V]

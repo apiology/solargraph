@@ -29,6 +29,41 @@ module Solargraph
         word.include?('.') ? nil : word
       end
 
+      # Reads that return an element of a non-empty Array, each with the
+      # index Array#fetch reads the same element with
+      ELEMENT_READS = { 'first' => 0, 'last' => -1, '[](int:0)' => 0, '[](int:-1)' => -1 }.freeze
+
+      # Recognizes receivers shaped like 'foo', '@foo', 'foo.bar', or
+      # '@foo.bar.baz' -- a chain of simple, argument-less, blockless
+      # calls/variables rooted in a local, ivar, or unresolved name.
+      #
+      # @param node [Parser::AST::Node, nil]
+      # @return [::Array<String>, nil] Dotted-word chain, e.g. ['pin',
+      #   'location'], or nil if `node` doesn't have this shape.
+      def self.receiver_chain node
+        return unless node.is_a?(::Parser::AST::Node)
+        return [node.children[0].to_s] if %i[lvar ivar].include?(node.type)
+        return unless node.type == :send
+
+        method_name = node.children[1]
+        return unless method_name.is_a?(Symbol)
+
+        # children[2..] is only nil (rather than []) if the start index is
+        # out of bounds, which can't happen here
+        word = FlowSensitiveTyping.call_word(method_name.to_s, node.children[2..] || [])
+        return unless word
+
+        receiver = node.children[0]
+        # bare call, e.g. `s(:send, nil, :foo)` - implicit self, so
+        # 'foo' could be a local variable or a 0-arg method on self
+        return [word] if receiver.nil?
+
+        base = receiver_chain(receiver)
+        return unless base
+
+        base + [word]
+      end
+
       # @param locals [Array<Solargraph::Pin::LocalVariable>]
       # @param ivars [Array<Solargraph::Pin::InstanceVariable>]
       # @param enclosing_breakable_pin [Solargraph::Pin::Breakable, nil]
@@ -108,6 +143,7 @@ module Solargraph
 
         process_isa(node, true_presences, false_presences)
         process_nilp(node, true_presences, false_presences)
+        process_emptiness(node, true_presences, false_presences)
         process_bang(node, true_presences, false_presences)
       end
 
@@ -341,35 +377,10 @@ module Solargraph
         process_call_chain(expression_node, true_ranges, false_ranges)
       end
 
-      # Recognizes receivers shaped like 'foo', '@foo', 'foo.bar', or
-      # '@foo.bar.baz' -- a chain of simple, argument-less, blockless
-      # calls/variables rooted in a local, ivar, or unresolved name.
-      #
       # @param node [Parser::AST::Node, nil]
-      # @return [::Array<String>, nil] Dotted-word chain, e.g. ['pin',
-      #   'location'], or nil if `node` doesn't have this shape.
+      # @return [::Array<String>, nil] see FlowSensitiveTyping.receiver_chain
       def parse_receiver_chain node
-        return unless node.is_a?(::Parser::AST::Node)
-        return [node.children[0].to_s] if %i[lvar ivar].include?(node.type)
-        return unless node.type == :send
-
-        method_name = node.children[1]
-        return unless method_name.is_a?(Symbol)
-
-        # children[2..] is only nil (rather than []) if the start index is
-        # out of bounds, which can't happen here
-        word = FlowSensitiveTyping.call_word(method_name.to_s, node.children[2..] || [])
-        return unless word
-
-        receiver = node.children[0]
-        # bare call, e.g. `s(:send, nil, :foo)` - implicit self, so
-        # 'foo' could be a local variable or a 0-arg method on self
-        return [word] if receiver.nil?
-
-        base = parse_receiver_chain(receiver)
-        return unless base
-
-        base + [word]
+        FlowSensitiveTyping.receiver_chain(node)
       end
 
       # @param call_node [Parser::AST::Node]
@@ -526,6 +537,37 @@ module Solargraph
         if_false[pin] ||= []
         if_false[pin] << { not_type: ComplexType::NIL }
         process_facts(if_false, false_presences)
+      end
+
+      # Handles 'xs.empty?' (non-empty when false) and a blockless,
+      # argument-less 'xs.any?' (non-empty when true): while 'xs' is
+      # non-empty, 'xs.first' and 'xs[0]' read what 'xs.fetch(0)' does,
+      # and 'xs.last' and 'xs[-1]' what 'xs.fetch(-1)' does, so they lose
+      # only the nil an empty Array returns, never one from the element
+      # type. Chain::Call ends this at a call on 'xs' that is not pure.
+      #
+      # @param node [Parser::AST::Node]
+      # @param true_presences [Array<Range>]
+      # @param false_presences [Array<Range>]
+      #
+      # @return [void]
+      def process_emptiness node, true_presences, false_presences
+        return unless node.children.length == 2 && %i[empty? any?].include?(node.children[1])
+
+        receiver = node.children[0]
+        chain_words = parse_receiver_chain(receiver)
+        return if chain_words.nil? || chain_words.empty?
+
+        range = Range.from_node(node)
+        return unless range
+
+        presences = node.children[1] == :empty? ? false_presences : true_presences
+        ELEMENT_READS.each_pair do |word, index|
+          fetch = ::Parser::AST::Node.new(:send, [receiver, :fetch, ::Parser::AST::Node.new(:int, [index])],
+                                          location: node.location)
+          pin = chain_pin(chain_words + [word], fetch, range.start)
+          process_facts({ pin => [{}] }, presences) if pin
+        end
       end
 
       # @param bang_node [Parser::AST::Node]
