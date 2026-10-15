@@ -197,9 +197,7 @@ module Solargraph
       end
 
       # @return [Boolean]
-      # @sg-ignore false "return type could not be inferred"
       def require_parameter?
-        # @sg-ignore false "Unresolved call to require_parameter? on Solargraph::Source::Chain::Link"
         links.last.is_a?(Chain::Parameter) && links.last.require_parameter?
       end
 
@@ -358,9 +356,12 @@ module Solargraph
         stable = !pins.empty? && pins.all? do |pin|
           pin.is_a?(Pin::BaseVariable) || (pin.is_a?(Pin::Method) && (pin.attribute? || pin.pure?))
         end
-        return path + [word] if stable
+        return nil unless stable
+        # a head call that isn't a local is an implicit-self call, e.g.
+        # 'location' in 'location.filename'; see Call#resolve
+        return ['self', word] if path.empty? && pins.none? { |pin| pin.is_a?(Pin::BaseVariable) && pin.name == link.word }
 
-        nil
+        path + [word]
       end
 
       # @param type [ComplexType, ComplexType::UniqueType]
