@@ -9,9 +9,21 @@ module Solargraph
       attr_reader :declared_binder
 
       # @param declared_binder [ComplexType, ComplexType::UniqueType, nil]
+      # @param assignment [Parser::AST::Node, nil]
+      # @param assignments [Array<Parser::AST::Node>]
+      # @param mass_assignment [::Array(Parser::AST::Node, Integer), nil]
+      # @param presence [Range, nil]
+      # @param return_type [ComplexType, nil]
+      # @param intersection_return_type [ComplexType, nil]
+      # @param exclude_return_type [ComplexType, nil]
       # @param [Hash{Symbol => Object}] splat
-      def initialize declared_binder: nil, **splat
-        super(**splat)
+      def initialize declared_binder: nil, assignment: nil, assignments: [], mass_assignment: nil,
+                     presence: nil, return_type: nil, intersection_return_type: nil,
+                     exclude_return_type: nil, **splat
+        super(assignment: assignment, assignments: assignments, mass_assignment: mass_assignment,
+              presence: presence, return_type: return_type,
+              intersection_return_type: intersection_return_type,
+              exclude_return_type: exclude_return_type, **splat)
         @declared_binder = declared_binder
       end
 
