@@ -3187,4 +3187,38 @@ describe Solargraph::SourceMap::Clip do
     clip = api_map.clip_at('test.rb', [9, 13])
     expect(clip.complete.pins.map(&:path)).to eq(['Top::Foo::Bar'])
   end
+
+  it 'infers instance variable types a module declares' do
+    source = Solargraph::Source.load_string(%(
+      module Mixin
+        # @type @items [Array<String>]
+
+        def first_item
+          @items
+        end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [5, 11])
+    expect(clip.infer.to_s).to eq('Array<String>')
+  end
+
+  it 'infers instance variable types from a module an including class declares' do
+    source = Solargraph::Source.load_string(%(
+      module Mixin
+        # @type @items [Array<String>]
+      end
+
+      class Host
+        include Mixin
+
+        def first_item
+          @items
+        end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [9, 11])
+    expect(clip.infer.to_s).to eq('Array<String>')
+  end
 end

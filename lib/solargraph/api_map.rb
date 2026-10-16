@@ -358,11 +358,13 @@ module Solargraph
       result = []
       [namespace]
       result.concat store.get_instance_variables(namespace, scope)
+      result.concat get_mixin_declared_instance_variables(namespace) if scope == :instance
       sc_fqns = namespace
       while (sc = store.get_superclass(sc_fqns))
         # @sg-ignore flow sensitive typing needs to handle "if foo = bar"
         sc_fqns = store.constants.dereference(sc)
         result.concat store.get_instance_variables(sc_fqns, scope)
+        result.concat get_mixin_declared_instance_variables(sc_fqns) if scope == :instance
       end
       result
     end
@@ -776,6 +778,25 @@ module Solargraph
     end
 
     private
+
+    # Instance variables declared by the modules a namespace includes or
+    # prepends, e.g. with `@type @name [Type]` in the module body
+    #
+    # @param fqns [String, nil]
+    # @param visited [Set<String>]
+    # @return [Array<Pin::InstanceVariable>]
+    def get_mixin_declared_instance_variables fqns, visited = Set.new
+      return [] if fqns.nil? || !visited.add?(fqns)
+
+      (store.get_includes(fqns) + store.get_prepends(fqns)).flat_map do |ref|
+        tag = dereference(ref)
+        next [] if tag.nil?
+
+        mod = ComplexType.parse(tag).namespace
+        store.get_instance_variables(mod, :instance).select(&:declared?) +
+          get_mixin_declared_instance_variables(mod, visited)
+      end
+    end
 
     # A hash of source maps with filename keys.
     #

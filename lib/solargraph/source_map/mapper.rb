@@ -12,7 +12,7 @@ module Solargraph
 
       private_class_method :new
 
-      DIRECTIVE_REGEXP = /(@!method|@!attribute|@!visibility|@!scope|@!domain|@!macro|@!parse|@!override)/
+      DIRECTIVE_REGEXP = /(@!method|@!attribute|@!visibility|@!scope|@!domain|@!macro|@!parse|@!override|@type @)/
 
       # Generate the data.
       #
@@ -76,6 +76,32 @@ module Solargraph
           pos = Solargraph::Position.new(comment_position.line + line_num - 1, comment_position.column)
           process_directive(source_position, pos, d)
           last_line = line_num + 1
+        end
+        process_declared_instance_variables(comment_position, parse.to_docstring)
+      end
+
+      # Map `@type @name [Type]` tags in a namespace body to the instance
+      # variables the namespace declares, e.g. ones a mixin reads.
+      #
+      # @param comment_position [Position]
+      # @param docstring [YARD::Docstring]
+      # @return [void]
+      def process_declared_instance_variables comment_position, docstring
+        namespace = YardMap::Directives::MethodDirective.closure_at(@pins, comment_position)
+        return unless namespace.is_a?(Pin::Namespace)
+
+        location = Location.new(@filename, Range.new(comment_position, comment_position))
+        docstring.tags(:type).each do |tag|
+          next unless tag.name&.start_with?('@') && tag.types
+
+          @pins.push Pin::InstanceVariable.new(
+            name: tag.name,
+            closure: namespace,
+            declared_binder: namespace.return_type.reduce_class_type,
+            location: location,
+            comments: "@type [#{tag.types.join(', ')}]",
+            source: :yard_map
+          )
         end
       end
 

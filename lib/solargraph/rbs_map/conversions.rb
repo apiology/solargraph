@@ -655,6 +655,7 @@ module Solargraph
         pin = Solargraph::Pin::InstanceVariable.new(
           name: decl.name.to_s,
           closure: closure,
+          declared_binder: closure.return_type.reduce_class_type,
           type_location: location_decl_to_pin_location(decl.location),
           comments: decl.comment&.string,
           source: :rbs
