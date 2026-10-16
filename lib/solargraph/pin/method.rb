@@ -690,6 +690,10 @@ module Solargraph
         varname = "@#{name.gsub(/=$/, '')}"
         pins = api_map.get_instance_variable_pins(binder.namespace, binder.scope).select { |iv| iv.name == varname }
         pins.each do |pin|
+          # Flow-sensitive narrowings hold only within their presence;
+          # the assignments they narrow are already in the list
+          next if pin.presence
+
           type = pin.typify(api_map)
           type = pin.probe(api_map) if type.undefined?
           types.push type if type.defined?
