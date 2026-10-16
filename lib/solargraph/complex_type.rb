@@ -563,8 +563,10 @@ module Solargraph
     private
 
     # Narrows what a generic member binds against: context members this type
-    # already matches concretely are dropped. Nothing left over means no value
-    # can reach the generic, which is bot.
+    # already matches concretely are dropped. A match is the same type with
+    # the same parameters, ignoring rooting; Array<String> does not absorb
+    # Array<Integer>. Nothing left over means no value can reach the generic,
+    # which is bot.
     #
     # @param unique_type [UniqueType] A member of @items
     # @param context_type [ComplexType, UniqueType, nil]
@@ -572,10 +574,10 @@ module Solargraph
     def destructure_context_type unique_type, context_type
       return context_type unless unique_type.generic? && context_type.is_a?(ComplexType) && @items.length > 1
 
-      concrete_items = @items.reject(&:generic?)
+      concrete_items = @items.reject(&:generic?).map(&:force_rooted)
       return context_type if concrete_items.empty?
 
-      remaining_items = context_type.items.reject { |ct| concrete_items.any? { |ci| ci.name == ct.name } }
+      remaining_items = context_type.items.reject { |ct| concrete_items.include?(ct.force_rooted) }
       return BOT if remaining_items.empty?
 
       ComplexType.new(remaining_items)
