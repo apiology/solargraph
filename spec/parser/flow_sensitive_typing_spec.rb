@@ -1906,13 +1906,13 @@ describe Solargraph::Parser::FlowSensitiveTyping do
       expect(infer_at(code, [16, 12])).to eq('Integer, nil')
     end
 
-    it 'does not narrow a key computed by a method call' do
+    it 'does not narrow a key computed by an impure method call' do
       code = %(
         # @param h [Hash{String => Integer}]
-        # @param k [Symbol]
+        # @param k [Array<String>]
         def foo h, k
-          return 0 unless h.key?(k.to_s)
-          v = h[k.to_s]
+          return 0 unless h.key?(k.join)
+          v = h[k.join]
           v
         end
       )
