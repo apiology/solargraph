@@ -26,7 +26,8 @@ module Solargraph
             FlowSensitiveTyping.new(locals,
                                     ivars,
                                     enclosing_breakable_pin,
-                                    enclosing_compound_statement_pin).process_and(node)
+                                    enclosing_compound_statement_pin,
+                                    region: region).process_and(node)
           end
         end
       end

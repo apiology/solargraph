@@ -12,10 +12,13 @@ module Solargraph
       # @param only_downcast_these_names [Array<String>, nil] If given,
       #   only apply a downcast to variables with these names, ignoring
       #   any other variable the analyzed condition happens to mention.
+      # @param region [Region, nil] Where the condition is, for ivars
+      #   no assignment in this method has reached yet
       def initialize locals, ivars, enclosing_breakable_pin, enclosing_compound_statement_pin,
-                     only_downcast_these_names: nil
+                     only_downcast_these_names: nil, region: nil
         @locals = locals
         @ivars = ivars
+        @region = region
         @enclosing_breakable_pin = enclosing_breakable_pin
         @enclosing_compound_statement_pin = enclosing_compound_statement_pin
         @only_downcast_these_names = only_downcast_these_names
@@ -303,7 +306,7 @@ module Solargraph
         return if names.empty?
 
         FlowSensitiveTyping.new(locals, ivars, enclosing_breakable_pin, enclosing_compound_statement_pin,
-                                only_downcast_these_names: names)
+                                only_downcast_these_names: names, region: region)
                            .process_expression(conditional_node, true_ranges, false_ranges)
       end
 
@@ -464,8 +467,10 @@ module Solargraph
       # @param position [Position]
       #
       # @return [Solargraph::Pin::LocalVariable, Solargraph::Pin::InstanceVariable, nil]
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1223
       def find_var variable_name, position
-        pins = variable_name.start_with?('@') ? ivars : locals
+        ivar = variable_name.start_with?('@')
+        pins = ivar ? ivars : locals
         # Latest-starting presence wins: an original declaration and a
         # later reassignment can both cover this position. Skip pins
         # still evaluating their own RHS (`baz ||= begin ... end`).
@@ -475,9 +480,14 @@ module Solargraph
           next false unless !pin.presence || pin.presence.include?(position)
 
           other_loc = Location.new(pin.location&.filename, Range.new(position, position))
-          !pin.within_own_assignment?(other_loc)
+          next false if pin.within_own_assignment?(other_loc)
+
+          # an ivar assignment elsewhere - possibly in another method,
+          # and only if earlier in the file - is no basis for a guard
+          !ivar || pin.presence || pin.definite_reaches?(other_loc)
         end
-        matches.max_by { |pin| pin.presence&.start || reaching_start(pin, position) }
+        found = matches.max_by { |pin| pin.presence&.start || reaching_start(pin, position) }
+        found || (ivar ? unassigned_ivar(variable_name, position) : nil)
       end
 
       # Where an ivar assignment, which has no presence, starts if it
@@ -493,6 +503,24 @@ module Solargraph
         return Position.new(0, 0) unless start && pin.definite_reaches?(here)
 
         start
+      end
+
+      # A stand-in for an ivar no assignment reaches at `position`, so a
+      # guard on it narrows whatever values it has from other methods
+      #
+      # @param variable_name [String]
+      # @param position [Position]
+      # @return [Pin::InstanceVariable, nil]
+      def unassigned_ivar variable_name, position
+        return unless region
+
+        Pin::InstanceVariable.new(
+          location: Location.new(region.filename, Range.new(position, position)),
+          closure: region.closure,
+          name: variable_name,
+          definite: false,
+          source: :flow_sensitive_typing
+        )
       end
 
       # @param isa_node [Parser::AST::Node]
@@ -654,7 +682,7 @@ module Solargraph
       end
 
       attr_reader :locals, :ivars, :enclosing_breakable_pin, :enclosing_compound_statement_pin,
-                  :only_downcast_these_names
+                  :only_downcast_these_names, :region
     end
   end
 end

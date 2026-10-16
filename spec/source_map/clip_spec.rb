@@ -3238,4 +3238,24 @@ describe Solargraph::SourceMap::Clip do
     expect(api_map.clip_at('test.rb', [24, 11]).infer.to_s).to eq('String')
     expect(api_map.clip_at('test.rb', [27, 14]).infer.to_s).to eq('Symbol, Integer')
   end
+
+  it 'keeps an instance variable guard out of attribute inference in either method order' do
+    run = %(
+      def run
+        @x = 'a' unless @x
+      end
+    )
+    reset = %(
+      def reset
+        @x = nil
+      end
+    )
+    [[run, reset], [reset, run]].each do |first, second|
+      source = Solargraph::Source.load_string("class Foo\n#{first}\n#{second}\nattr_reader :x\nend\nFoo.new.x\n",
+                                              'test.rb')
+      api_map.map source
+      clip = api_map.clip_at('test.rb', [source.code.lines.length - 1, 9])
+      expect(clip.infer.items.map(&:to_s).sort).to eq(%w[String nil])
+    end
+  end
 end
