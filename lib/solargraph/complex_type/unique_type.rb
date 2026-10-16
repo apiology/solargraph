@@ -460,6 +460,9 @@ module Solargraph
               end
             # @todo Treating parameterized classes and tuples the same for now
             # elsif context_type.all?(&:implicit_union?) || true
+            elsif definitions.generics.length > 1
+              # one type argument per parameter, e.g., Hash<K, V>
+              context_type.all_params[idx] || ComplexType::UNDEFINED
             elsif idx.zero? && !context_type.all_params.empty?
               ComplexType.new(context_type.all_params)
             else
