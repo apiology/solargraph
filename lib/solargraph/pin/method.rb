@@ -381,11 +381,12 @@ module Solargraph
       end
 
       # True when the method is declared to return the same value for the
-      # same receiver and arguments, with no side effects (RBS %a{pure})
+      # same receiver and arguments, with no side effects (RBS %a{pure} or
+      # YARD @pure). Solargraph trusts the declaration without checking it.
       #
       # @return [Boolean]
       def pure?
-        @pure
+        @pure ||= docstring.has_tag?('pure')
       end
 
       # @parm other [self]

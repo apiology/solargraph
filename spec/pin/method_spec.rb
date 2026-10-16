@@ -113,6 +113,16 @@ describe Solargraph::Pin::Method do
     expect(pin.return_type.tag).to eq('Hash')
   end
 
+  it 'is pure when its comments have a @pure tag' do
+    pin = described_class.new(name: 'bar', comments: "@pure\n@return [String]")
+    expect(pin).to be_pure
+  end
+
+  it 'is not pure without a @pure tag' do
+    pin = described_class.new(name: 'bar', comments: '@return [String]')
+    expect(pin).not_to be_pure
+  end
+
   it 'ignores malformed return tags' do
     pin = described_class.new(name: 'bar', comments: '@return [Array<String')
     expect(pin.return_type).to be_undefined
