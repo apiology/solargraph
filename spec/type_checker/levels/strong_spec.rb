@@ -1065,5 +1065,44 @@ describe Solargraph::TypeChecker do
 
       expect(checker.problems.map(&:message)).to eq([])
     end
+
+    it 'narrows repeated calls to a Ruby method tagged @pure after a nil guard' do
+      checker = type_checker(%(
+        class Sig
+          # @pure
+          # @return [String, nil]
+          def label; end
+        end
+
+        class User
+          # @param sig [Sig]
+          # @return [void]
+          def run sig
+            return if sig.label.nil?
+            sig.label.upcase
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq([])
+    end
+
+    it 'does not narrow repeated calls to an untagged Ruby method' do
+      checker = type_checker(%(
+        class Sig
+          # @return [String, nil]
+          def label; end
+        end
+
+        class User
+          # @param sig [Sig]
+          # @return [void]
+          def run sig
+            return if sig.label.nil?
+            sig.label.upcase
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq(['Unresolved call to upcase on String, nil'])
+    end
   end
 end

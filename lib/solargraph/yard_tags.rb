@@ -16,5 +16,9 @@ end
 # Define a @type tag for documenting variables
 YARD::Tags::Library.define_tag('Type', :type, :with_types_and_name)
 
+# Define a @pure tag for declaring that a method returns the same value for
+# the same receiver and arguments, with no side effects
+YARD::Tags::Library.define_tag('Pure', :pure)
+
 # Define an @!override directive for overriding method tags
 YARD::Tags::Library.define_directive('override', :with_name, Solargraph::DomainDirective)
