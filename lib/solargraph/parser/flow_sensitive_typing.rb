@@ -467,6 +467,11 @@ module Solargraph
       # @param position [Position]
       #
       # @return [Solargraph::Pin::LocalVariable, Solargraph::Pin::InstanceVariable, nil]
+      # @sg-ignore Declared return type
+      #   ::Solargraph::Pin::LocalVariable, ::Solargraph::Pin::InstanceVariable, nil
+      #   does not match inferred type ::Solargraph::Pin::InstanceVariable,
+      #   ::Solargraph::Pin::LocalVariable, ::NilClass for
+      #   Solargraph::Parser::FlowSensitiveTyping#find_var
       def find_var variable_name, position
         ivar = variable_name.start_with?('@')
         pins = ivar ? ivars : locals
@@ -486,9 +491,7 @@ module Solargraph
           !ivar || pin.presence || pin.definite_reaches?(other_loc)
         end
         found = matches.max_by { |pin| pin.presence&.start || reaching_start(pin, position) }
-        return found if found || !ivar
-
-        unassigned_ivar(variable_name, position)
+        found || (ivar ? unassigned_ivar(variable_name, position) : nil)
       end
 
       # Where an ivar assignment, which has no presence, starts if it
