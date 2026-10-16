@@ -42,17 +42,13 @@ jobs:
         # See https://github.com/apiology/solargraph/actions/runs/21799883466/job/62893545490?pr=27
         rubygems: latest
         bundler-cache: true
-        # Without this pin, ruby/setup-ruby uses whatever bundler ships
-        # with each matrix Ruby version individually, rather than one
-        # consistent version across the matrix. Confirmed by removing
-        # it: stdlib/default-gem resolution changed enough that
+        # Without this, ruby/setup-ruby uses whatever bundler ships
+        # with each matrix Ruby version individually. Confirmed by
+        # removing it: stdlib/default-gem resolution changed enough that
         # Workspace::Gemspecs#resolve_require('yaml') started returning
         # nil, failing spec/api_map_method_spec.rb's YAML test across
-        # most of the matrix. Keep this in sync with Gemfile.lock's
-        # BUNDLED WITH version, and with the same pin below. Ruby 4.1
-        # needs a newer one: 2.5.23 uses Pathname::SEPARATOR_PAT, which
-        # Ruby 4.1 removed.
-        bundler: ${{ startsWith(matrix.ruby-version, '4.1') && 'latest' || '2.5.23' }}
+        # most of the matrix. Keep in sync with the same setting below.
+        bundler: latest
     - name: Set rbs version
       run: echo "gem 'rbs', '${{ matrix.rbs-version }}'" >> .Gemfile
     #  /home/runner/.rubies/ruby-head/lib/ruby/gems/3.5.0+2/gems/rbs-3.9.4/lib/rbs.rb:11:
@@ -116,14 +112,13 @@ jobs:
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: '3.4'
-        # See the matching pin in the rspec matrix job above for why
-        # this is needed - keep both in sync with Gemfile.lock's
-        # BUNDLED WITH version.
-        bundler: 2.5.23
+        # See the matching setting in the rspec matrix job above for why
+        # this is needed - keep both in sync.
+        bundler: latest
         bundler-cache: true
     - name: Install gems
       run: |
-        bundle _2.5.23_ install
+        bundle install
         bundle update rbs # use latest available for this Ruby version
     - name: Compute yardoc cache key
       id: yardoc-cache-key
