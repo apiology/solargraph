@@ -70,7 +70,9 @@ module Solargraph
             result.push Chain::Call.new(method_name.to_s, Location.from_node(n), node_args(n), passed_block(n))
           in [:send, nil, Symbol => method_name, *args]
             # @sg-ignore Need to add nil check here
-            args.map do |c|
+            args.map do |child|
+              # raises NoMatchingPatternError on a non-node child
+              child => ::Parser::AST::Node => c
               NodeChainer.chain(c, @filename, n)
             end
             result.push Chain::Call.new(method_name.to_s, Location.from_node(n), node_args(n), passed_block(n))
@@ -227,7 +229,9 @@ module Solargraph
           node => [_, _, _, *args]
           # @sg-ignore Need to add nil check here
           args.map do |child|
-            NodeChainer.chain(child, @filename, node)
+            # raises NoMatchingPatternError on a non-node child
+            child => ::Parser::AST::Node => c
+            NodeChainer.chain(c, @filename, node)
           end
         end
       end
