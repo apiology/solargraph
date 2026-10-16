@@ -41,9 +41,6 @@ jobs:
         bundle exec solargraph config
         yq -yi '.plugins += ["solargraph-rails"]' .solargraph.yml
         yq -yi '.plugins += ["solargraph-rspec"]' .solargraph.yml
-    - name: Compute yardoc cache key
-      id: yardoc-cache-key
-      run: echo "v=$({ ruby -v; bundle list; } | shasum | cut -c1-16)" >> "$GITHUB_OUTPUT"
     - name: Cache gem yardocs
       uses: actions/cache@v4
       with:
@@ -53,10 +50,10 @@ jobs:
         # identical across commits, so carrying those would serve pins built by
         # different lib/ code.
         #
-        # ruby -v and github.job are in the key so jobs sharing one gem
+        # github.job and the matrix Ruby version are in the key so jobs sharing one gem
         # set do not race to reserve the same entry and fail to save.
         path: ~/.cache/solargraph/yard-*
-        key: sg-yard-${{ runner.os }}-${{ github.job }}-${{ steps.yardoc-cache-key.outputs.v }}
+        key: sg-yard-${{ runner.os }}-${{ github.job }}-${{ matrix.ruby-version }}-${{ hashFiles('Gemfile.lock') }}
         restore-keys: |
           sg-yard-${{ runner.os }}-${{ github.job }}-
           sg-yard-${{ runner.os }}-
@@ -91,9 +88,6 @@ jobs:
         bundle exec solargraph config
         yq -yi '.plugins += ["solargraph-rails"]' .solargraph.yml
         yq -yi '.plugins += ["solargraph-rspec"]' .solargraph.yml
-    - name: Compute yardoc cache key
-      id: yardoc-cache-key
-      run: echo "v=$({ ruby -v; bundle list; } | shasum | cut -c1-16)" >> "$GITHUB_OUTPUT"
     - name: Cache gem yardocs
       uses: actions/cache@v4
       with:
@@ -103,10 +97,10 @@ jobs:
         # identical across commits, so carrying those would serve pins built by
         # different lib/ code.
         #
-        # ruby -v and github.job are in the key so jobs sharing one gem
+        # github.job and the matrix Ruby version are in the key so jobs sharing one gem
         # set do not race to reserve the same entry and fail to save.
         path: ~/.cache/solargraph/yard-*
-        key: sg-yard-${{ runner.os }}-${{ github.job }}-${{ steps.yardoc-cache-key.outputs.v }}
+        key: sg-yard-${{ runner.os }}-${{ github.job }}-${{ matrix.ruby-version }}-${{ hashFiles('Gemfile.lock') }}
         restore-keys: |
           sg-yard-${{ runner.os }}-${{ github.job }}-
           sg-yard-${{ runner.os }}-
@@ -174,9 +168,6 @@ jobs:
       run: |
         cd ../solargraph-rspec
         cp .solargraph.yml.example .solargraph.yml
-    - name: Compute yardoc cache key
-      id: yardoc-cache-key
-      run: echo "v=$({ ruby -v; bundle list; } | shasum | cut -c1-16)" >> "$GITHUB_OUTPUT"
     - name: Cache gem yardocs
       uses: actions/cache@v4
       with:
@@ -186,10 +177,10 @@ jobs:
         # identical across commits, so carrying those would serve pins built by
         # different lib/ code.
         #
-        # ruby -v and github.job are in the key so jobs sharing one gem
+        # github.job and the matrix Ruby version are in the key so jobs sharing one gem
         # set do not race to reserve the same entry and fail to save.
         path: ${{ env.SOLARGRAPH_CACHE }}/yard-*
-        key: sg-yard-${{ runner.os }}-${{ github.job }}-${{ steps.yardoc-cache-key.outputs.v }}
+        key: sg-yard-${{ runner.os }}-${{ github.job }}-${{ matrix.ruby-version }}-${{ hashFiles('Gemfile.lock') }}
         restore-keys: |
           sg-yard-${{ runner.os }}-${{ github.job }}-
           sg-yard-${{ runner.os }}-
@@ -257,9 +248,6 @@ jobs:
       env:
         MATRIX_RAILS_VERSION: "7.0"
         MATRIX_RAILS_MAJOR_VERSION: '7'
-    - name: Compute yardoc cache key
-      id: yardoc-cache-key
-      run: echo "v=$({ ruby -v; bundle list; } | shasum | cut -c1-16)" >> "$GITHUB_OUTPUT"
     - name: Cache gem yardocs
       uses: actions/cache@v4
       with:
@@ -269,10 +257,10 @@ jobs:
         # identical across commits, so carrying those would serve pins built by
         # different lib/ code.
         #
-        # ruby -v and github.job are in the key so jobs sharing one gem
+        # github.job and the matrix Ruby version are in the key so jobs sharing one gem
         # set do not race to reserve the same entry and fail to save.
         path: ~/.cache/solargraph/yard-*
-        key: sg-yard-${{ runner.os }}-${{ github.job }}-${{ steps.yardoc-cache-key.outputs.v }}
+        key: sg-yard-${{ runner.os }}-${{ github.job }}-${{ matrix.ruby-version }}-${{ hashFiles('Gemfile.lock') }}
         restore-keys: |
           sg-yard-${{ runner.os }}-${{ github.job }}-
           sg-yard-${{ runner.os }}-
