@@ -2284,7 +2284,6 @@ describe Solargraph::SourceMap::Clip do
   end
 
   it 'uses types to determine overload to match' do
-    pending 'Overload resolution by argument type currently unions signatures instead of narrowing (see castwide/solargraph#1246)'
     source = Solargraph::Source.load_string(%(
       # @generic A
       # @generic B
@@ -2314,7 +2313,6 @@ describe Solargraph::SourceMap::Clip do
   end
 
   it 'uses types to determine overload of [] to match' do
-    pending 'Overload resolution by argument type currently unions signatures instead of narrowing (see castwide/solargraph#1246)'
     source = Solargraph::Source.load_string(%(
       # @generic A
       # @generic B
@@ -3186,5 +3184,55 @@ describe Solargraph::SourceMap::Clip do
 
     clip = api_map.clip_at('test.rb', [9, 13])
     expect(clip.complete.pins.map(&:path)).to eq(['Top::Foo::Bar'])
+  end
+
+  context 'with inline RBS superclass type arguments' do
+    it 'binds generic superclass parameters to the subclass generics' do
+      source = Solargraph::Source.load_string(%(
+        # @generic K
+        # @generic V
+        class ArrayHash < Hash #[K, V]
+        end
+
+        # @type [ArrayHash{String => Array<Integer>}]
+        h = ArrayHash.new
+        h.keys
+        h.values
+        h.each
+      ), 'test.rb')
+      api_map = Solargraph::ApiMap.new.map(source)
+
+      expect(api_map.clip_at('test.rb', [8, 10]).infer.to_s).to eq('Array<String>')
+      expect(api_map.clip_at('test.rb', [9, 10]).infer.to_s).to eq('Array<Array<Integer>>')
+      expect(api_map.clip_at('test.rb', [10, 10]).infer.to_s)
+        .to eq('Enumerator<Array(String, Array<Integer>), ArrayHash{String => Array<Integer>}>')
+    end
+
+    it 'binds a single generic superclass parameter' do
+      source = Solargraph::Source.load_string(%(
+        # @generic T
+        class Box < Array #[T]
+        end
+
+        # @type [Box<String>]
+        b = Box.new
+        b.first
+      ), 'test.rb')
+      api_map = Solargraph::ApiMap.new.map(source)
+
+      expect(api_map.clip_at('test.rb', [7, 11]).infer.to_s).to eq('String, nil')
+    end
+
+    it 'keeps concrete superclass type arguments' do
+      source = Solargraph::Source.load_string(%(
+        class Foo < Array #[String]
+        end
+
+        Foo.new.first
+      ), 'test.rb')
+      api_map = Solargraph::ApiMap.new.map(source)
+
+      expect(api_map.clip_at('test.rb', [4, 17]).infer.to_s).to eq('String, nil')
+    end
   end
 end
