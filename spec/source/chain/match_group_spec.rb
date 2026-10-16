@@ -55,4 +55,8 @@ describe Solargraph::Source::Chain::MatchGroup do
   it 'keeps a group nilable for a parameter whose default is a match' do
     expect(infer_last_line('md[1]', ', md = s.match(/(a)/)')).to eq('::String, nil')
   end
+
+  it 'terminates on a variable reassigned from its own group' do
+    expect(infer_last_line("md = s.match(/(a)/)\nmd = md[1].match(/(b)/)\nmd[1]")).to eq('::String, nil')
+  end
 end
