@@ -212,6 +212,8 @@ module Solargraph
             if pin.path == 'Class#new' && name_pin.binder.tag != 'Class'
               reduced_context = name_pin.binder.reduce_class_type
               pin.proxy(reduced_context)
+            elsif pin.path == 'Array#compact'
+              compact_pin(pin)
             else
               # @sg-ignore Need to add nil check here
               next pin if pin.return_type.undefined?
@@ -221,6 +223,26 @@ module Solargraph
               selfy == pin.return_type ? pin : pin.proxy(selfy)
             end
           end
+        end
+
+        # Array#compact drops nil elements, which its RBS signature
+        # (`() -> ::Array[Elem]`) cannot express.
+        #
+        # @param pin [Pin::Base] the resolved Array#compact pin
+        # @return [Pin::Base]
+        def compact_pin pin
+          compacted = ComplexType.new(pin.return_type.items.map { |type| without_nil_elements(type) })
+          compacted == pin.return_type ? pin : pin.proxy(compacted)
+        end
+
+        # @param type [ComplexType::UniqueType]
+        # @return [ComplexType::UniqueType]
+        def without_nil_elements type
+          non_nil_items = type.subtypes.map do |subtype|
+            subtype.items.reject { |item| item.nil_type? || item.name == 'NilClass' }
+          end
+          subtypes = non_nil_items.reject(&:empty?).map { |items| ComplexType.new(items) }
+          subtypes.empty? ? type : type.recreate(new_subtypes: subtypes)
         end
 
         # @param api_map [ApiMap]

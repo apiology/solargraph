@@ -124,6 +124,85 @@ describe Solargraph::Source::Chain::Call do
     expect(type.tag).to eq('Array<String>')
   end
 
+  it 'removes nil from the element type of Array#compact' do
+    source = Solargraph::Source.load_string(%(
+      # @type [Array<String, nil>]
+      list = array_of_strings
+      list.compact
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+    clip = api_map.clip_at('test.rb', [3, 12])
+    expect(clip.infer.tag).to eq('Array<String>')
+  end
+
+  it 'removes nil from a block-built element type in Array#compact' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @param list [Array<Integer>]
+        def bar list
+          list.map { |i| Foo.new if i > 0 }.compact
+        end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+    clip = api_map.clip_at('test.rb', [4, 45])
+    expect(clip.infer.tag).to eq('Array<Foo>')
+  end
+
+  it 'leaves non-nil element types of Array#compact unchanged' do
+    source = Solargraph::Source.load_string(%(
+      # @type [Array<String, Integer>]
+      list = array_of_things
+      list.compact
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+    clip = api_map.clip_at('test.rb', [3, 12])
+    expect(clip.infer.tag).to eq('Array<String, Integer>')
+  end
+
+  it 'leaves an all-nil element type of Array#compact unchanged' do
+    source = Solargraph::Source.load_string(%(
+      # @type [Array<nil>]
+      list = array_of_nils
+      list.compact
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+    clip = api_map.clip_at('test.rb', [3, 12])
+    expect(clip.infer.tag).to eq('Array<NilClass>')
+  end
+
+  it 'keeps nil in the return type of a compact method not from Array' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @return [Array<String, nil>]
+        def compact
+          []
+        end
+      end
+      Foo.new.compact
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+    clip = api_map.clip_at('test.rb', [7, 15])
+    expect(clip.infer.tag).to eq('Array<String, NilClass>')
+  end
+
+  it 'keeps nil in the element type of Array#compact!' do
+    source = Solargraph::Source.load_string(%(
+      # @type [Array<String, nil>]
+      list = array_of_strings
+      list.compact!
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+    clip = api_map.clip_at('test.rb', [3, 12])
+    expect(clip.infer.tag).to eq('Array<String, NilClass>')
+  end
+
   it 'infers constant return types via returns, ignoring blocks' do
     source = Solargraph::Source.load_string(%(
       def yielder(&blk)
