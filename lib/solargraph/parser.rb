@@ -8,6 +8,7 @@ module Solargraph
     autoload :NodeProcessor, 'solargraph/parser/node_processor'
     autoload :FlowSensitiveTyping, 'solargraph/parser/flow_sensitive_typing'
     autoload :Snippet, 'solargraph/parser/snippet'
+    autoload :RegexpGroups, 'solargraph/parser/regexp_groups'
 
     class SyntaxError < StandardError
     end
