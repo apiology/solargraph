@@ -104,7 +104,7 @@ module Solargraph
             indexed = elements.take_while { |element| element.type != :match_rest }
             elements.each_with_index do |element, index|
               if subject && index < indexed.length && element.type == :match_var
-                add_capture(element, mass_assignment: [subject, index])
+                add_capture(element, mass_assignment: [subject, index], deconstructs: true)
               elsif element in [:match_rest, ::Parser::AST::Node[:match_var, *] => rest_var]
                 add_rest_capture(rest_var, subject, rest_range(pattern, index))
               else
@@ -123,7 +123,7 @@ module Solargraph
           def add_rest_capture rest_var, subject, range
             return add_capture(rest_var, comments: '@type [::Array]') if subject.nil?
 
-            add_capture(rest_var, mass_assignment: [subject, range])
+            add_capture(rest_var, mass_assignment: [subject, range], deconstructs: true)
           end
 
           # Positions a rest covers, e.g. 1..-2 for `[a, *rest, b]`.  A
@@ -142,9 +142,10 @@ module Solargraph
           # @param var [Parser::AST::Node] a match_var node
           # @param assignment [Parser::AST::Node, nil]
           # @param mass_assignment [::Array(Parser::AST::Node, [Integer, ::Range<Integer>]), nil]
+          # @param deconstructs [Boolean]
           # @param comments [String, nil]
           # @return [void]
-          def add_capture var, assignment: nil, mass_assignment: nil, comments: nil
+          def add_capture var, assignment: nil, mass_assignment: nil, deconstructs: false, comments: nil
             closure_location = region.closure.location
             # Captures outlive the match, like any local assignment
             presence = Range.new(get_node_start_position(var), closure_location.range.ending) if closure_location
@@ -154,6 +155,7 @@ module Solargraph
               name: var.children.fetch(0).to_s,
               assignment: assignment,
               mass_assignment: mass_assignment,
+              deconstructs: deconstructs,
               comments: comments,
               presence: presence,
               source: :parser

@@ -1295,4 +1295,38 @@ end
     api_map = Solargraph::ApiMap.new.map(source)
     expect(api_map.clip_at('test.rb', [9, 8]).infer.to_s).to eq('Array<Symbol>')
   end
+
+  it 'types positional captures from the subject deconstruct method elements' do
+    source = Solargraph::Source.load_string(%(
+      class Pair
+        # @return [Array<Symbol, String>]
+        def deconstruct; end
+      end
+
+      # @param pair [Pair]
+      def m(pair)
+        pair => [:left, value]
+        value
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    expect(api_map.clip_at('test.rb', [9, 8]).infer.to_s).to eq('Symbol, String')
+  end
+
+  it 'does not type mass assignment from a deconstruct method' do
+    source = Solargraph::Source.load_string(%(
+      class Pair
+        # @return [Array<Symbol>]
+        def deconstruct; end
+      end
+
+      # @param pair [Pair]
+      def m(pair)
+        _left, value = pair
+        value
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    expect(api_map.clip_at('test.rb', [9, 8]).infer.to_s).to eq('undefined')
+  end
 end
