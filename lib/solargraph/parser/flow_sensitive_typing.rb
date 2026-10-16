@@ -467,11 +467,7 @@ module Solargraph
       # @param position [Position]
       #
       # @return [Solargraph::Pin::LocalVariable, Solargraph::Pin::InstanceVariable, nil]
-      # @sg-ignore Declared return type
-      #   ::Solargraph::Pin::LocalVariable, ::Solargraph::Pin::InstanceVariable, nil
-      #   does not match inferred type ::Solargraph::Pin::InstanceVariable,
-      #   ::Solargraph::Pin::LocalVariable, ::NilClass for
-      #   Solargraph::Parser::FlowSensitiveTyping#find_var
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1223
       def find_var variable_name, position
         ivar = variable_name.start_with?('@')
         pins = ivar ? ivars : locals
