@@ -1659,4 +1659,269 @@ describe Solargraph::Parser::FlowSensitiveTyping do
         .to eq('::String, nil')
     end
   end
+
+  context 'with an emptiness guard' do
+    # @param body [String] statements using 'list' and 'other'
+    # @param line [Integer] zero-based line of the expression to infer
+    # @param list_type [String] element type of 'list'
+    # @return [String]
+    def infer_guarded body, line, list_type: 'String'
+      code = <<~RUBY
+
+        # @param list [Array<#{list_type}>]
+        # @param other [Array<String>]
+        def demo(list, other)
+        #{body}end
+      RUBY
+      source = Solargraph::Source.load_string(code, 'test.rb')
+      api_map = Solargraph::ApiMap.new.map(source)
+      column = code.lines[line].rstrip.length
+      api_map.clip_at('test.rb', [line, column]).infer.rooted_tags
+    end
+
+    it 'narrows Array#first after return if empty?' do
+      expect(infer_guarded("        return if list.empty?\n        list.first\n", 5)).to eq('::String')
+    end
+
+    it 'narrows Array#last after return if empty?' do
+      expect(infer_guarded("        return if list.empty?\n        list.last\n", 5)).to eq('::String')
+    end
+
+    it 'does not narrow Array#[] with index 0, which is also Hash#[]' do
+      expect(infer_guarded("        return if list.empty?\n        list[0]\n", 5)).to eq('::String, nil')
+    end
+
+    it 'does not narrow Array#[] with index -1, which is also Hash#[]' do
+      expect(infer_guarded("        return if list.empty?\n        list[-1]\n", 5)).to eq('::String, nil')
+    end
+
+    it 'narrows inside unless empty?' do
+      expect(infer_guarded("        unless list.empty?\n          list.first\n        end\n", 5)).to eq('::String')
+    end
+
+    it 'narrows inside if !empty?' do
+      expect(infer_guarded("        if !list.empty?\n          list.first\n        end\n", 5)).to eq('::String')
+    end
+
+    it 'narrows inside if any? without a block' do
+      expect(infer_guarded("        if list.any?\n          list.first\n        end\n", 5)).to eq('::String')
+    end
+
+    it 'narrows after next if empty? in a block' do
+      body = "        [1].each do\n          next if list.empty?\n          list.first\n        end\n"
+      expect(infer_guarded(body, 6)).to eq('::String')
+    end
+
+    it 'narrows past calls to pure methods on the receiver' do
+      body = "        return if list.empty?\n        list.length\n        list.first\n"
+      expect(infer_guarded(body, 6)).to eq('::String')
+    end
+
+    it 'narrows past a map on the receiver' do
+      body = "        return if list.empty?\n        list.map(&:upcase)\n        list.first\n"
+      expect(infer_guarded(body, 6)).to eq('::String')
+    end
+
+    it 'narrows past a select with a block on the receiver' do
+      body = "        return if list.empty?\n        list.select { |s| s.empty? }\n        list.first\n"
+      expect(infer_guarded(body, 6)).to eq('::String')
+    end
+
+    it 'ends the narrowing at a mutating call in a block on the receiver' do
+      body = "        return if list.empty?\n        list.select { list.clear }\n        list.first\n"
+      expect(infer_guarded(body, 6)).to eq('::String, nil')
+    end
+
+    it 'narrows the lines of a String' do
+      code = <<~RUBY
+        # @param text [String]
+        def demo(text)
+          return if text.lines.empty?
+          text.lines.last
+        end
+      RUBY
+      source = Solargraph::Source.load_string(code, 'test.rb')
+      api_map = Solargraph::ApiMap.new.map(source)
+      expect(api_map.clip_at('test.rb', [3, 17]).infer.rooted_tags).to eq('::String')
+    end
+
+    it 'does not narrow Hash#[] with a literal key' do
+      code = <<~RUBY
+        # @param table [Hash{Integer => String}]
+        def demo(table)
+          return if table.empty?
+          table[0]
+        end
+      RUBY
+      source = Solargraph::Source.load_string(code, 'test.rb')
+      api_map = Solargraph::ApiMap.new.map(source)
+      expect(api_map.clip_at('test.rb', [3, 10]).infer.rooted_tags).to eq('::String, nil')
+    end
+
+    it 'narrows within the rest of an or' do
+      code = <<~RUBY
+        # @param list [Array<String>]
+        def demo(list)
+          list.empty? || list.first
+        end
+      RUBY
+      source = Solargraph::Source.load_string(code, 'test.rb')
+      api_map = Solargraph::ApiMap.new.map(source)
+      expect(api_map.clip_at('test.rb', [2, 27]).infer.rooted_tags).to eq('::String')
+    end
+
+    it 'ends a chain narrowing at a call on part of the chain' do
+      code = <<~RUBY
+        class Holder
+          # @return [Array<String>]
+          attr_reader :names
+
+          # @return [void]
+          def reset!; end
+        end
+
+        # @param holder [Holder]
+        def demo(holder)
+          return if holder.names.empty?
+          holder.reset!
+          holder.names.last
+        end
+      RUBY
+      source = Solargraph::Source.load_string(code, 'test.rb')
+      api_map = Solargraph::ApiMap.new.map(source)
+      expect(api_map.clip_at('test.rb', [12, 19]).infer.rooted_tags).to eq('::String, nil')
+    end
+
+    it 'narrows a chain past a read of part of the chain' do
+      code = <<~RUBY
+        class Holder
+          # @return [Array<String>]
+          attr_reader :names
+        end
+
+        # @param holder [Holder]
+        def demo(holder)
+          return if holder.names.empty?
+          holder.names.length
+          holder.names.last
+        end
+      RUBY
+      source = Solargraph::Source.load_string(code, 'test.rb')
+      api_map = Solargraph::ApiMap.new.map(source)
+      expect(api_map.clip_at('test.rb', [9, 19]).infer.rooted_tags).to eq('::String')
+    end
+
+    context 'when the receiver is an attr_reader on self' do
+      # @param body [String] statements in a method of a class whose
+      #   names attr_reader is an Array<String>
+      # @param line [Integer] zero-based line of the expression to infer
+      # @return [String]
+      def infer_self body, line
+        code = <<~RUBY
+          class Holder
+            # @return [Array<String>]
+            attr_reader :names
+
+            # @return [void]
+            def reset!; end
+
+            def demo
+          #{body}  end
+          end
+        RUBY
+        source = Solargraph::Source.load_string(code, 'test.rb')
+        api_map = Solargraph::ApiMap.new.map(source)
+        column = code.lines[line].rstrip.length
+        api_map.clip_at('test.rb', [line, column]).infer.rooted_tags
+      end
+
+      it 'narrows Array#last' do
+        expect(infer_self("    return if names.empty?\n    names.last\n", 9)).to eq('::String')
+      end
+
+      it 'narrows past a pure read on the receiver' do
+        expect(infer_self("    return if names.empty?\n    names.length\n    names.last\n", 10)).to eq('::String')
+      end
+
+      it 'ends the narrowing at another call on self' do
+        expect(infer_self("    return if names.empty?\n    reset!\n    names.last\n", 10)).to eq('::String, nil')
+      end
+    end
+
+    it 'keeps a nilable element type nilable' do
+      expect(infer_guarded("        return if list.empty?\n        list.first\n", 5, list_type: 'String, nil'))
+        .to match(/(\A|, )(nil|::NilClass)(,|\z)/)
+    end
+
+    it 'does not narrow Array#[] with index 1' do
+      expect(infer_guarded("        return if list.empty?\n        list[1]\n", 5)).to eq('::String, nil')
+    end
+
+    it 'does not narrow a different receiver' do
+      expect(infer_guarded("        return if list.empty?\n        other.first\n", 5)).to eq('::String, nil')
+    end
+
+    it 'does not narrow where the receiver may be empty' do
+      expect(infer_guarded("        if list.empty?\n          list.first\n        end\n", 5)).to eq('::String, nil')
+    end
+
+    it 'does not narrow an any? with a block' do
+      body = "        if list.any? { |s| s.empty? }\n          list.first\n        end\n"
+      expect(infer_guarded(body, 5)).to eq('::String, nil')
+    end
+
+    it 'ends the narrowing at a mutating call on the receiver' do
+      body = "        return if list.empty?\n        list.pop\n        list.first\n"
+      expect(infer_guarded(body, 6)).to eq('::String, nil')
+    end
+
+    it 'ends the narrowing at a mutating call inside a block' do
+      body = "        return if list.empty?\n        other.each { list.clear }\n        list.first\n"
+      expect(infer_guarded(body, 6)).to eq('::String, nil')
+    end
+
+    it 'ends the narrowing when the receiver is passed to a method' do
+      body = "        return if list.empty?\n        other.concat(list)\n        list.first\n"
+      expect(infer_guarded(body, 6)).to eq('::String, nil')
+    end
+
+    context 'when the receiver is an instance variable' do
+      # @param body [String] statements in a method of a class whose
+      #   @list is an Array<String>
+      # @param line [Integer] zero-based line of the expression to infer
+      # @return [String]
+      def infer_ivar body, line
+        code = <<~RUBY
+          class Holder
+            def initialize
+              # @type [Array<String>]
+              @list = []
+            end
+
+            def reset; end
+
+            def demo
+          #{body}  end
+          end
+        RUBY
+        source = Solargraph::Source.load_string(code, 'test.rb')
+        api_map = Solargraph::ApiMap.new.map(source)
+        column = code.lines[line].rstrip.length
+        api_map.clip_at('test.rb', [line, column]).infer.rooted_tags
+      end
+
+      it 'narrows Array#first' do
+        expect(infer_ivar("    return if @list.empty?\n    @list.first\n", 10)).to eq('::String')
+      end
+
+      it 'ends the narrowing at a call on self' do
+        expect(infer_ivar("    return if @list.empty?\n    reset\n    @list.first\n", 11)).to eq('::String, nil')
+      end
+    end
+
+    it 'ends the narrowing at a reassignment of the receiver' do
+      body = "        return if list.empty?\n        list = other\n        list.first\n"
+      expect(infer_guarded(body, 6)).to eq('::String, nil')
+    end
+  end
 end

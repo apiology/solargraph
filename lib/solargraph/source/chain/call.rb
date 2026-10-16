@@ -207,11 +207,44 @@ module Solargraph
 
           readers = method_pins(api_map, name_pin)
           return nil if readers.empty? || !readers.all? { |reader| reader.attribute? || reader.pure? }
+          # a pure read can change with its receiver; an attr_reader's
+          # narrowing already ends at writes to the attribute
+          return nil if !readers.all?(&:attribute?) && receiver_changed?(api_map, name_pin, locals, receiver_path, pin)
 
           # An uninferrable narrowed pin would shadow the method lookup
           type = pin.typify(api_map)
           type = pin.probe(api_map) if type.undefined?
           type.defined? ? pin : nil
+        end
+
+        # Whether code between the narrowing's start and this call may have
+        # changed the receiver, e.g. the 'list.pop' in 'return if
+        # list.empty?; list.pop; list.first': a call on the receiver, or on
+        # any part of its chain, that is not pure or an attr_reader; the
+        # root variable read other than as a receiver, e.g. passed to a
+        # method that could change it; or, unless the chain is rooted in a
+        # local variable, any call on self.
+        #
+        # @param api_map [ApiMap]
+        # @param name_pin [Pin::Base] name_pin.binder is the receiver's type
+        # @param locals [::Array<Pin::Base>]
+        # @param receiver_path [::Array<String>] e.g. ['list']
+        # @param pin [Pin::BaseVariable] the narrowed pin
+        # @return [Boolean]
+        def receiver_changed? api_map, name_pin, locals, receiver_path, pin
+          start = pin.presence&.start
+          finish = location&.range&.start
+          filename = location&.filename
+          return true if start.nil? || finish.nil? || filename.nil?
+          source_map = api_map.source_maps.find { |map| map.filename == filename }
+          return true if source_map.nil?
+
+          root = receiver_path.first
+          node = source_map.source.node
+          return true if root.nil? || node.nil?
+
+          local_root = !root.start_with?('@') && !api_map.var_at_location(locals, root, name_pin, location).nil?
+          ChangeScan.new(api_map, name_pin.binder, receiver_path, local_root, start...finish).touched?(node)
         end
 
         # @param pins [::Enumerable<Pin::Base>]
@@ -475,6 +508,106 @@ module Solargraph
         def equality_fields
           # @sg-ignore literal arrays in this module turn into ::Solargraph::Source::Chain::Array
           super + [arguments, block]
+        end
+
+        # Finds code in a span of a source that may change a narrowed
+        # receiver chain (see Call#receiver_changed?).
+        class ChangeScan
+          # @param api_map [ApiMap]
+          # @param receiver_type [ComplexType, ComplexType::UniqueType] type
+          #   of the whole chain
+          # @param receiver_path [::Array<String>] e.g. ['pin', 'parameters']
+          # @param local_root [Boolean] whether the chain starts at a local
+          # @param span [::Range<Position>] from the guard up to the read
+          def initialize api_map, receiver_type, receiver_path, local_root, span
+            @api_map = api_map
+            @receiver_type = receiver_type
+            @receiver_path = receiver_path
+            @local_root = local_root
+            @span = span
+          end
+
+          # @param node [::Parser::AST::Node]
+          # @return [Boolean]
+          def touched? node
+            range = Range.from_node(node)
+            return true if range && span.cover?(range.start) && touches?(node)
+
+            receiver = node.children.first if node.type == :send
+            node.children.any? do |child|
+              # a root variable read as a receiver is checked as the call
+              next false if child.equal?(receiver) && root_variable?(child)
+
+              child.is_a?(::Parser::AST::Node) && touched?(child)
+            end
+          end
+
+          private
+
+          # @return [ApiMap]
+          attr_reader :api_map
+
+          # @return [ComplexType, ComplexType::UniqueType]
+          attr_reader :receiver_type
+
+          # @return [::Array<String>]
+          attr_reader :receiver_path
+
+          # @return [Boolean]
+          attr_reader :local_root
+
+          # @return [::Range<Position>]
+          attr_reader :span
+
+          # @param node [::Parser::AST::Node, Object]
+          def root_variable? node
+            node.is_a?(::Parser::AST::Node) && %i[lvar ivar].include?(node.type) &&
+              node.children[0].to_s == receiver_path.first
+          end
+
+          # @param node [::Parser::AST::Node]
+          # @return [Boolean]
+          def touches? node
+            # read other than as a receiver, so it may change elsewhere
+            return true if root_variable?(node)
+            return false unless node.type == :send
+
+            name = node.children[1].to_s
+            words = chain_of(node.children[0])
+            # a call on self may write an instance variable or reader
+            return !local_root if words == ['self'] && receiver_path.first != 'self'
+            return false if words.nil? || words != receiver_path.first(words.length)
+            return !reads_link?(words.length, name, node) if words.length < receiver_path.length
+
+            receiver_type.items.any? do |type|
+              # the first of the stack is the method the call dispatches to
+              method = api_map.get_method_stack(type.rooted_tag, name).first
+              method.nil? || !(method.attribute? || method.pure?)
+            end
+          end
+
+          # @param node [::Parser::AST::Node, nil] a call's receiver
+          # @return [::Array<String>, nil] the chain it reads, e.g. ['list'],
+          #   or ['self', 'names'] for a bare 'names'
+          def chain_of node
+            return ['self'] if node.nil? || node.type == :self
+            return [node.children[0].to_s] if %i[lvar ivar].include?(node.type)
+            return nil unless node.type == :send
+
+            word = Parser::FlowSensitiveTyping.call_word(node.children[1].to_s, node.children[2..] || [])
+            base = chain_of(node.children[0])
+            base + [word] if word && base
+          end
+
+          # Whether the call reads the next link of the chain, which
+          # Chain#next_receiver_path already found pure or an attr_reader
+          #
+          # @param index [Integer] position of that link in the chain
+          # @param name [String]
+          # @param node [::Parser::AST::Node]
+          def reads_link? index, name, node
+            Parser::FlowSensitiveTyping.call_word(name, node.children[2..] || []) == receiver_path[index]
+          end
         end
       end
     end
