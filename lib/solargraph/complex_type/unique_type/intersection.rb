@@ -104,7 +104,7 @@ module Solargraph
           return nil if resolved.empty?
 
           # @param p [Pin::Base]
-          resolved.flatten.uniq { |p| [p.path, p.return_type.rooted_tags] }
+          narrowest_groups(resolved, api_map).flatten.uniq { |p| [p.path, p.return_type.rooted_tags] }
         end
 
         # @sg-ignore https://github.com/castwide/solargraph/pull/1277
@@ -662,6 +662,33 @@ module Solargraph
         # @sg-ignore https://github.com/castwide/solargraph/pull/1277
         def namespace_kind(*, **, &)
           raise NotImplementedError, "Intersection cannot answer ##{__method__} - resolve each conjunct instead"
+        end
+
+        # A value of this type satisfies every conjunct, so where several
+        # implement a method, a return conforming to all the others is
+        # the one a call can rely on, e.g. `Exception & _Raised` gets
+        # `Array[String]` from #backtrace rather than `Array[String]?`.
+        # Falls back to every group when none is narrowest.
+        #
+        # @param groups [::Array<::Array<Pin::Base>>] pins per conjunct
+        # @param api_map [ApiMap]
+        # @return [::Array<::Array<Pin::Base>>]
+        def narrowest_groups groups, api_map
+          narrowest = groups.select do |group|
+            groups.all? { |other| other.equal?(group) || returns_conform?(group, other, api_map) }
+          end
+          narrowest.empty? ? groups : narrowest
+        end
+
+        # @param group [::Array<Pin::Base>]
+        # @param other [::Array<Pin::Base>]
+        # @param api_map [ApiMap]
+        def returns_conform? group, other, api_map
+          group.all? do |pin|
+            next false if pin.return_type.undefined?
+
+            other.any? { |o| pin.return_type.conforms_to?(api_map, o.return_type, :return_type) }
+          end
         end
 
         # Renders conjuncts as a tag, bracketing multi-item ones since

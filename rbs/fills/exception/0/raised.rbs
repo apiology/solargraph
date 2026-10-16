@@ -1,0 +1,7 @@
+# An exception that has been raised, e.g. the variable bound by
+# `rescue => e`.  Raising sets the backtrace, so unlike
+# Exception#backtrace these are never nil.
+interface _Raised
+  def backtrace: () -> Array[String]
+  def backtrace_locations: () -> Array[Thread::Backtrace::Location]
+end

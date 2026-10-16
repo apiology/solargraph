@@ -15,6 +15,13 @@ describe Solargraph::ComplexType::UniqueType::Intersection do
     expect(intersection.method_stack_pins('upcase', api_map).map(&:path)).to eq(['String#upcase'])
   end
 
+  # The value satisfies every conjunct, so the narrowest return is the
+  # one a call can rely on.
+  it 'answers with the narrowest return when several conjuncts define the method' do
+    intersection = described_class.new([conjunct('::StandardError'), conjunct('::_Raised')])
+    expect(intersection.method_stack_pins('backtrace', api_map).map(&:path)).to eq(['_Raised#backtrace'])
+  end
+
   it 'answers nil when no conjunct defines the method' do
     intersection = described_class.new([conjunct('::String'), conjunct('::Comparable')])
     expect(intersection.method_stack_pins('frobnicate', api_map)).to be_nil
