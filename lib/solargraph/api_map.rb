@@ -793,7 +793,7 @@ module Solargraph
         next [] if tag.nil?
 
         mod = ComplexType.parse(tag).namespace
-        store.get_instance_variables(mod, :instance).select(&:declared?) +
+        store.get_declared_instance_variables(mod) +
           get_mixin_declared_instance_variables(mod, visited)
       end
     end
