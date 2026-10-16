@@ -1329,4 +1329,23 @@ end
     api_map = Solargraph::ApiMap.new.map(source)
     expect(api_map.clip_at('test.rb', [9, 8]).infer.to_s).to eq('undefined')
   end
+
+  it 'types captures from each member of a union subject' do
+    source = Solargraph::Source.load_string(%(
+      class Pair
+        # @return [Array<Symbol, String>]
+        def deconstruct; end
+      end
+
+      # @param pair [Integer, Pair]
+      def m(pair)
+        pair => [:left, value, *rest]
+        value
+        rest
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    expect(api_map.clip_at('test.rb', [9, 8]).infer.to_s).to eq('Symbol, String')
+    expect(api_map.clip_at('test.rb', [10, 8]).infer.to_s).to eq('Array<Symbol, String>')
+  end
 end

@@ -238,7 +238,7 @@ module Solargraph
       # @param types [::Array<ComplexType>] the subject's types
       # @return [ComplexType]
       def element_type api_map, types
-        elements = types.flat_map do |type|
+        elements = types.flat_map(&:items).flat_map do |type|
           type = deconstructed_type(api_map, type)
           next [] unless ['::Array', '::Set', '::Enumerable'].include?(type.rooted_name)
 
@@ -254,7 +254,7 @@ module Solargraph
       # method.
       #
       # @param api_map [ApiMap]
-      # @param type [ComplexType]
+      # @param type [ComplexType, ComplexType::UniqueType]
       # @return [ComplexType, ComplexType::UniqueType]
       def deconstructed_type api_map, type
         return type if type.rooted_name == '::Array'
