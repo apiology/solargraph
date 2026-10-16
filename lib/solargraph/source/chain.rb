@@ -339,7 +339,8 @@ module Solargraph
       # Resolves 'h[k]' to the pin FlowSensitiveTyping records after a
       # 'h.key?(k)' guard, whose type excludes nil. Applies only when 'h'
       # is a Hash whose values can't be nil, and 'h' and 'k' read
-      # variables or attr_readers, which return the same value every time.
+      # variables, attr_readers or %a{pure} methods, which return the same
+      # value every time.
       #
       # @param index [Integer] position of the possible '[]' link
       # @param api_map [ApiMap]
@@ -384,14 +385,14 @@ module Solargraph
       # @param api_map [ApiMap]
       # @param name_pin [Pin::Base]
       # @param locals [::Array<Pin::LocalVariable>]
-      # @return [Boolean] true if each link reads a variable or an
-      #   attr_reader
+      # @return [Boolean] true if each link reads a variable, an
+      #   attr_reader or a %a{pure} method
       def stable_links? chain_links, api_map, name_pin, locals
         (1..chain_links.length).all? do |length|
           # @sg-ignore https://github.com/castwide/solargraph/pull/1316
           pins = Chain.new(chain_links.first(length)).define(api_map, name_pin, locals)
           !pins.empty? && pins.all? do |pin|
-            pin.is_a?(Pin::BaseVariable) || (pin.is_a?(Pin::Method) && pin.attribute?)
+            pin.is_a?(Pin::BaseVariable) || (pin.is_a?(Pin::Method) && (pin.attribute? || pin.pure?))
           end
         end
       end
