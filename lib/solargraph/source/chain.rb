@@ -110,10 +110,17 @@ module Solargraph
         #
         # @todo ProxyType uses 'type' for the binder, but '
         working_pin = name_pin
+        # Dotted-word path of the receiver chain seen so far (e.g. ['pin',
+        # 'location'] while about to resolve 'filename' in
+        # 'pin.location.filename'), or nil once a link is seen that isn't a
+        # variable or an argument-less attr_reader call. Lets Chain::Call
+        # look up flow-sensitive-typing facts recorded against repeated
+        # calls to the same attr_reader.
+        receiver_path = []
         # @sg-ignore Need to add nil check here
         links[0..-2].each_with_index do |link, index|
           pins = key_guarded_pins(index, api_map, name_pin, working_pin, locals) ||
-                 link.resolve(api_map, working_pin, locals)
+                 link.resolve(api_map, working_pin, locals, receiver_path)
           type = infer_from_definitions(pins, working_pin, api_map, locals)
           if type.undefined?
             logger.debug do
@@ -127,13 +134,19 @@ module Solargraph
           # for the binder, as this is chaining off of it, and the
           # binder is now the lhs of the rhs we are evaluating.
           working_pin = Pin::ProxyType.anonymous(name_pin.context, binder: type, closure: name_pin, source: :chain)
+          receiver_path = next_receiver_path(receiver_path, link, pins)
           logger.debug do
             "Chain#define(links=#{links.map(&:desc)}, name_pin=#{name_pin.inspect}, locals=#{locals}) - after processing #{link.desc}, new working_pin=#{working_pin} with binder #{working_pin.binder}"
           end
         end
-        links.last.last_context = working_pin
+        # links is never empty -- the constructor pads an empty links
+        # array with UNDEFINED_CALL -- but Array#last is typed nilable.
+        last_link = links.last
+        return [] if last_link.nil?
+
+        last_link.last_context = working_pin
         key_guarded_pins(links.length - 1, api_map, name_pin, working_pin, locals) ||
-          links.last.resolve(api_map, working_pin, locals)
+          last_link.resolve(api_map, working_pin, locals, receiver_path)
       end
 
       # @param api_map [ApiMap]
@@ -186,9 +199,7 @@ module Solargraph
       end
 
       # @return [Boolean]
-      # @sg-ignore false "return type could not be inferred"
       def require_parameter?
-        # @sg-ignore false "Unresolved call to require_parameter? on Solargraph::Source::Chain::Link"
         links.last.is_a?(Chain::Parameter) && links.last.require_parameter?
       end
 
@@ -395,6 +406,36 @@ module Solargraph
             # 'nil' can arrive spelled 'NilClass'
             t.value_types.none? { |value| value.each_unique_type.any? { |u| u.namespace == 'NilClass' } }
         end
+      end
+
+      # Extends a receiver-chain path (see #define) with the word from
+      # `link`, or breaks the chain (returns nil) once `link` is anything
+      # other than a variable, an argument-less attr_reader call, or a pure
+      # call whose arguments are literals.
+      # Only those are known to return the same value on a repeat call.
+      #
+      # @param path [::Array<String>, nil]
+      # @param link [Chain::Link]
+      # @param pins [::Array<Pin::Base>] what `link` resolved to
+      # @return [::Array<String>, nil]
+      def next_receiver_path path, link, pins
+        return nil if path.nil?
+        return path + [link.word] if link.is_a?(Chain::InstanceVariable)
+
+        return nil unless link.is_a?(Chain::Call) && !link.is_a?(Chain::ZSuper) && !link.with_block?
+
+        word = Parser::FlowSensitiveTyping.call_word(link.word, link.arguments.map(&:node))
+        return nil unless word
+        # variables include Call#narrowed_call_pin results, already readers
+        stable = !pins.empty? && pins.all? do |pin|
+          pin.is_a?(Pin::BaseVariable) || (pin.is_a?(Pin::Method) && (pin.attribute? || pin.pure?))
+        end
+        return nil unless stable
+        # a head call that isn't a local is an implicit-self call, e.g.
+        # 'location' in 'location.filename'; see Call#resolve
+        return ['self', word] if path.empty? && pins.none? { |pin| pin.is_a?(Pin::BaseVariable) && pin.name == link.word }
+
+        path + [word]
       end
 
       # @param type [ComplexType, ComplexType::UniqueType]
