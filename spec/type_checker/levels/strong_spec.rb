@@ -954,6 +954,46 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message)).to eq([])
     end
 
+    it 'types an ivar assignment expression by its value after a truthiness guard' do
+      checker = type_checker(%(
+        class Foo
+          # @param resolved [String, nil]
+          def initialize resolved: nil
+            @resolved = resolved
+          end
+
+          # @return [String, nil]
+          def resolve
+            return if @resolved
+
+            @resolved = 'a'
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq([])
+    end
+
+    it 'reports an ivar assignment expression whose value mismatches the return tag' do
+      checker = type_checker(%(
+        class Foo
+          # @param resolved [String, nil]
+          def initialize resolved: nil
+            @resolved = resolved
+          end
+
+          # @return [Integer, nil]
+          def resolve
+            return if @resolved
+
+            @resolved = 'a'
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq(
+        ['Declared return type ::Integer, nil does not match inferred type ::String, nil for Foo#resolve']
+      )
+    end
+
     it 'supports !@x.nil && @x.y' do
       checker = type_checker(%(
         class Bar
