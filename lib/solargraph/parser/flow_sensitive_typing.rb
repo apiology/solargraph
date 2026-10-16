@@ -471,11 +471,15 @@ module Solargraph
       def find_var variable_name, position
         ivar = variable_name.start_with?('@')
         pins = ivar ? ivars : locals
+        binder = enclosing_compound_statement_pin&.binder
         # Latest-starting presence wins: an original declaration and a
         # later reassignment can both cover this position. Skip pins
         # still evaluating their own RHS (`baz ||= begin ... end`).
         matches = pins.select do |pin|
           next false unless pin.name == variable_name
+          # an ivar of the same name in another class or scope is a
+          # different variable
+          next false if ivar && !same_binder?(pin.binder, binder)
           # @sg-ignore flow sensitive typing needs to handle attrs
           next false unless !pin.presence || pin.presence.include?(position)
 
@@ -488,6 +492,15 @@ module Solargraph
         end
         found = matches.max_by { |pin| pin.presence&.start || reaching_start(pin, position) }
         found || (ivar ? unassigned_ivar(variable_name, position) : nil)
+      end
+
+      # @param ivar_binder [ComplexType, ComplexType::UniqueType]
+      # @param binder [ComplexType, ComplexType::UniqueType, nil]
+      # @return [Boolean]
+      def same_binder? ivar_binder, binder
+        return true if binder.nil?
+
+        ivar_binder.namespace == binder.namespace && ivar_binder.scope == binder.scope
       end
 
       # Where an ivar assignment, which has no presence, starts if it
