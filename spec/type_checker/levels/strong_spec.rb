@@ -1470,6 +1470,39 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message)).to eq([])
     end
 
+    context 'with an ivar assigned under a guard on it and reset elsewhere' do
+      let(:run) do
+        %(
+          # @return [void]
+          def run
+            unless @x
+              @x = 'a'
+            end
+            @x.upcase
+          end
+        )
+      end
+
+      let(:reset) do
+        %(
+          # @return [void]
+          def reset
+            @x = nil
+          end
+        )
+      end
+
+      it 'narrows after the guard when the reset comes first' do
+        checker = type_checker("class Foo\n#{reset}\n#{run}\nend\n")
+        expect(checker.problems.map(&:message)).to eq([])
+      end
+
+      it 'narrows after the guard when the reset comes last' do
+        checker = type_checker("class Foo\n#{run}\n#{reset}\nend\n")
+        expect(checker.problems.map(&:message)).to eq([])
+      end
+    end
+
     it 'narrows an ivar assigned in an unless guard on the ivar' do
       checker = type_checker(%(
         class Foo
