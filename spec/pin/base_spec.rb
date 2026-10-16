@@ -78,15 +78,15 @@ describe Solargraph::Pin::Base do
   describe '#macro_names' do
     it 'returns names' do
       pin = described_class.new(name: 'Example', comments: "@macro addcomment\n@macro returnself")
-      expect(pin.macro_names).to eq(['addcomment', 'returnself'])
+      expect(pin.macro_names).to eq(%w[addcomment returnself])
     end
   end
 
   describe '#nearly?' do
     it 'avoids recursion when two pins have the same closure' do
-      pin1 = Solargraph::Pin::Base.new(name: 'foo')
+      pin1 = described_class.new(name: 'foo')
       pin1.closure = pin1
-      pin2 = Solargraph::Pin::Base.new(name: 'foo', closure: pin1)
+      pin2 = described_class.new(name: 'foo', closure: pin1)
       expect { pin1.nearly?(pin2) }.not_to raise_error
     end
   end
