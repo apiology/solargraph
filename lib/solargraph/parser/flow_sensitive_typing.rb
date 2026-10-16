@@ -299,12 +299,27 @@ module Solargraph
       # @return [Solargraph::Pin::LocalVariable, Solargraph::Pin::InstanceVariable, nil]
       def find_var variable_name, position
         if variable_name.start_with?('@')
-          # @sg-ignore flow sensitive typing needs to handle attrs
-          ivars.find { |ivar| ivar.name == variable_name && (!ivar.presence || ivar.presence.include?(position)) }
+          # an ivar of the same name in another class or scope is a
+          # different variable
+          binder = enclosing_compound_statement_pin&.binder
+          ivars.find do |ivar|
+            ivar.name == variable_name && same_binder?(ivar.binder, binder) &&
+              # @sg-ignore flow sensitive typing needs to handle attrs
+              (!ivar.presence || ivar.presence.include?(position))
+          end
         else
           # @sg-ignore flow sensitive typing needs to handle attrs
           locals.find { |pin| pin.name == variable_name && (!pin.presence || pin.presence.include?(position)) }
         end
+      end
+
+      # @param ivar_binder [ComplexType, ComplexType::UniqueType]
+      # @param binder [ComplexType, ComplexType::UniqueType, nil]
+      # @return [Boolean]
+      def same_binder? ivar_binder, binder
+        return true if binder.nil?
+
+        ivar_binder.namespace == binder.namespace && ivar_binder.scope == binder.scope
       end
 
       # @param isa_node [Parser::AST::Node]
