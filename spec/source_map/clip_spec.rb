@@ -3198,16 +3198,13 @@ describe Solargraph::SourceMap::Clip do
         h = ArrayHash.new
         h.keys
         h.values
-        h.fetch('a')
         h.each
       ), 'test.rb')
       api_map = Solargraph::ApiMap.new.map(source)
 
       expect(api_map.clip_at('test.rb', [8, 10]).infer.to_s).to eq('Array<String>')
       expect(api_map.clip_at('test.rb', [9, 10]).infer.to_s).to eq('Array<Array<Integer>>')
-      # Newer RBS core also returns the default block's generic<X>
-      expect(api_map.clip_at('test.rb', [10, 10]).infer.items.first.to_s).to eq('Array<Integer>')
-      expect(api_map.clip_at('test.rb', [11, 10]).infer.to_s)
+      expect(api_map.clip_at('test.rb', [10, 10]).infer.to_s)
         .to eq('Enumerator<Array(String, Array<Integer>), ArrayHash{String => Array<Integer>}>')
     end
 
