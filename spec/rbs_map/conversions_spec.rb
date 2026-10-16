@@ -53,6 +53,26 @@ describe Solargraph::RbsMap::Conversions do
       it { is_expected.to be_a(Solargraph::Pin::Method) }
     end
 
+    context 'with a module instance variable' do
+      subject(:ivar_pin) { api_map.get_instance_variable_pins('Foo', :instance).find { |pin| pin.name == '@bar' } }
+
+      let(:rbs) do
+        <<~RBS
+          module Foo
+            @bar: Integer
+          end
+        RBS
+      end
+
+      it 'is an instance-scope variable of the module' do
+        expect(ivar_pin.binder.to_s).to eq('Foo')
+      end
+
+      it 'has the declared type' do
+        expect(ivar_pin.return_type.tag).to eq('Integer')
+      end
+    end
+
     context 'with self alias to self method' do
       subject(:alias_pin) { api_map.get_method_stack('Foo', 'bar?', scope: :class).first }
 

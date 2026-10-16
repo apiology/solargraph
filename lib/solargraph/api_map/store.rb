@@ -141,6 +141,13 @@ module Solargraph
 
       # @param fqns [String]
       #
+      # @return [Array<Solargraph::Pin::InstanceVariable>]
+      def get_declared_instance_variables fqns
+        namespace_children(fqns).select { |pin| pin.is_a?(Pin::InstanceVariable) && pin.declared? }
+      end
+
+      # @param fqns [String]
+      #
       # @return [Enumerable<Solargraph::Pin::ClassVariable>]
       def get_class_variables fqns
         namespace_children(fqns).select { |pin| pin.is_a?(Pin::ClassVariable) }

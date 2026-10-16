@@ -57,7 +57,6 @@ module Solargraph
       end
 
       # @return [ComplexType, ComplexType::UniqueType]
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1100
       def binder
         @binder || context
       end
