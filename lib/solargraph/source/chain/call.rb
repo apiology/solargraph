@@ -73,6 +73,14 @@ module Solargraph
 
         private
 
+        # MatchData#[] declares its result nilable, but group 0 is the
+        # whole match, which always exists.
+        #
+        # @return [Boolean] true if this call's sole argument is a literal 0
+        def zero_literal_arg?
+          arguments.map(&:node) == [::Parser::AST::Node.new(:int, [0])]
+        end
+
         # Checks whether a single overload signature matches the call's
         # arguments/block and, if so, resolves its return type. Threaded
         # through the caller's accumulator so behavior matches the
@@ -192,6 +200,7 @@ module Solargraph
               type, new_signature_pin = match_overload_type(ol, p, api_map, name_pin, locals, type, new_signature_pin)
               break if type.defined?
             end
+            type = type.without_nil if type.nullable? && p.path == 'MatchData#[]' && zero_literal_arg?
             p = p.with_single_signature(new_signature_pin) unless new_signature_pin.nil?
             next p.proxy(type) if type.defined?
             if !p.macros.empty?
