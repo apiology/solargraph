@@ -1129,5 +1129,23 @@ describe Solargraph::TypeChecker do
       ))
       expect(checker.problems.map(&:message)).to be_empty
     end
+
+    it 'trusts a Hash lookup after an if/else whose branches both end with an ||= on it' do
+      checker = type_checker(%(
+        # @param h [Hash{String => Array<String>}]
+        # @param k [String]
+        # @param flag [Boolean]
+        # @return [Array<String>]
+        def foo h, k, flag
+          if flag
+            h[k] ||= []
+          else
+            h[k] ||= ['b']
+          end
+          h[k] << 'a'
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
   end
 end
