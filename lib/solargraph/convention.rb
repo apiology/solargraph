@@ -11,6 +11,7 @@ module Solargraph
     autoload :Rakefile, 'solargraph/convention/rakefile'
     autoload :StructDefinition, 'solargraph/convention/struct_definition'
     autoload :DataDefinition,   'solargraph/convention/data_definition'
+    autoload :ClassDefinition,  'solargraph/convention/class_definition'
     autoload :ActiveSupportConcern, 'solargraph/convention/active_support_concern'
 
     # @type [Set<Convention::Base>]
@@ -70,6 +71,15 @@ module Solargraph
                                  deep, skip, no_core)
       end
       result
+    end
+
+    # @param root [String] the gem's root directory
+    # @param require_paths [Array<String>] the gem's require paths, relative to root
+    # @return [Array<String>] paths inside the gem, relative to root, to map beyond require_paths
+    def self.extra_source_paths root:, require_paths:
+      @@conventions.flat_map do |conv|
+        conv.extra_source_paths(root: root, require_paths: require_paths)
+      end.uniq
     end
 
     register Gemfile
