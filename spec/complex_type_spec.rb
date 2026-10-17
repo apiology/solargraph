@@ -550,7 +550,13 @@ describe 'YARD type specifier list parsing' do
         non_discriminating_preserves_already_resolved_generic: ['generic<A>, nil', 'String, nil', { 'A' => 'Integer' },
                                                                 %w[A], 'Integer, nil', { 'A' => 'Integer' }],
         discriminating_reordered_context_members: ['generic<A>, nil', 'nil, String', {}, %w[A], 'String, nil',
-                                                   { 'A' => 'String' }]
+                                                   { 'A' => 'String' }],
+        discriminating_by_type_parameters: ['generic<A>, Array<String>', 'Array<Integer>, Array<String>', {}, %w[A],
+                                            'Array<Integer>, Array<String>', { 'A' => 'Array<Integer>' }],
+        discriminating_nil_and_false: ['nil, false, generic<U>', 'nil, false, String', {}, %w[U],
+                                       'nil, false, String', { 'U' => 'String' }],
+        discriminating_across_rooting: ['generic<A>, String', '::String, nil', {}, %w[A], 'nil, String',
+                                        { 'A' => 'nil' }]
       }.freeze
 
       # The concrete members cover the whole context, so no value can reach the
