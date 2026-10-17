@@ -198,6 +198,7 @@ module Solargraph
                                     get_node_end_position(else_clause))
         end
 
+        process_if_index_or_asgns(if_node)
         process_expression(conditional_node, true_ranges, false_ranges)
       end
 
@@ -245,20 +246,8 @@ module Solargraph
       #
       # @return [void]
       def process_index_or_asgn or_asgn_node
-        return unless or_asgn_node.type == :or_asgn
-
-        lookup = or_asgn_node.children[0]
-        return unless lookup.is_a?(::Parser::AST::Node) && lookup.type == :send
-        return unless lookup.children[1] == :[] && lookup.children.length == 3
-
-        body = enclosing_compound_statement_pin&.node
-        parent = body && parent_of(or_asgn_node, body)
-        # only statements that follow it in sequence run after it, unlike
-        # e.g. what follows 'cond && (h[k] ||= v)'
-        return unless parent && %i[begin kwbegin].include?(parent.type)
-
-        presence = Range.new(get_node_end_position(or_asgn_node), get_node_end_position(parent))
-        add_key_fact(or_asgn_node, lookup, [presence])
+        lookup = index_or_asgn_lookup(or_asgn_node)
+        add_key_fact_after(or_asgn_node, lookup) if lookup
       end
 
       class << self
@@ -776,6 +765,61 @@ module Solargraph
         )
         presences = clip_at_key_writes(presences, receiver, key)
         process_facts({ pin => [{ not_type: ComplexType::NIL }] }, presences)
+      end
+
+      # Records that 'h[k]' is not nil after an if/else whose branches
+      # both end with 'h[k] ||= v' for the same 'h[k]', since whichever
+      # branch runs ends with the lookup set.
+      #
+      # @param if_node [Parser::AST::Node]
+      #
+      # @return [void]
+      def process_if_index_or_asgns if_node
+        then_lookup = index_or_asgn_lookup(last_statement(if_node.children[1]))
+        else_lookup = index_or_asgn_lookup(last_statement(if_node.children[2]))
+        # a statement after the '||=' inside a branch could remove the key
+        # unseen, so only a trailing '||=' counts
+        return unless then_lookup && then_lookup == else_lookup
+
+        add_key_fact_after(if_node, then_lookup)
+      end
+
+      # @param node [Parser::AST::Node, nil]
+      # @return [Parser::AST::Node, nil] the 'h[k]' in 'h[k] ||= v'
+      def index_or_asgn_lookup node
+        return if node.nil? || node.type != :or_asgn
+
+        lookup = node.children[0]
+        return unless lookup.is_a?(::Parser::AST::Node) && lookup.type == :send
+        return unless lookup.children[1] == :[] && lookup.children.length == 3
+
+        lookup
+      end
+
+      # @param clause [Parser::AST::Node, nil]
+      # @return [Parser::AST::Node, nil] the statement a clause ends with
+      def last_statement clause
+        return clause if clause.nil? || clause.type != :begin
+
+        clause.children.last
+      end
+
+      # Records that 'h[k]' is not nil for the rest of the statements
+      # after `statement`.
+      #
+      # @param statement [Parser::AST::Node]
+      # @param lookup [Parser::AST::Node] e.g. 'h[k]'
+      #
+      # @return [void]
+      def add_key_fact_after statement, lookup
+        body = enclosing_compound_statement_pin&.node
+        parent = body && parent_of(statement, body)
+        # only statements that follow it in sequence run after it, unlike
+        # e.g. what follows 'cond && (h[k] ||= v)'
+        return unless parent && %i[begin kwbegin].include?(parent.type)
+
+        presence = Range.new(get_node_end_position(statement), get_node_end_position(parent))
+        add_key_fact(statement, lookup, [presence])
       end
 
       # @param node [Parser::AST::Node]

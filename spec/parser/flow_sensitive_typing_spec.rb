@@ -1956,5 +1956,74 @@ describe Solargraph::Parser::FlowSensitiveTyping do
       )
       expect(infer_at(code, [9, 12])).to eq('Array<Integer>')
     end
+
+    it 'drops nil from a lookup after an if/else whose branches both end with an ||= on it' do
+      code = %(
+        # @param h [Hash{String => Array<Integer>}]
+        # @param k [String]
+        def foo h, k
+          if bar
+            h[k] ||= []
+          else
+            baz
+            h[k] ||= [1]
+          end
+          v = h[k]
+          v
+        end
+      )
+      expect(infer_at(code, [11, 10])).to eq('Array<Integer>')
+    end
+
+    it 'does not narrow a lookup after an if without an else' do
+      code = %(
+        # @param h [Hash{String => Array<Integer>}]
+        # @param k [String]
+        def foo h, k
+          if bar
+            h[k] ||= []
+          end
+          v = h[k]
+          v
+        end
+      )
+      expect(infer_at(code, [8, 10])).to eq('Array<Integer>, nil')
+    end
+
+    it 'does not narrow a lookup after a branch whose ||= is followed by another statement' do
+      code = %(
+        # @param h [Hash{String => Array<Integer>}]
+        # @param k [String]
+        def foo h, k
+          if bar
+            h[k] ||= []
+          else
+            h[k] ||= []
+            h.delete(k)
+          end
+          v = h[k]
+          v
+        end
+      )
+      expect(infer_at(code, [11, 10])).to eq('Array<Integer>, nil')
+    end
+
+    it 'does not narrow a lookup after branches ending with ||= on different keys' do
+      code = %(
+        # @param h [Hash{String => Array<Integer>}]
+        # @param k [String]
+        # @param j [String]
+        def foo h, k, j
+          if bar
+            h[k] ||= []
+          else
+            h[j] ||= []
+          end
+          v = h[k]
+          v
+        end
+      )
+      expect(infer_at(code, [11, 10])).to eq('Array<Integer>, nil')
+    end
   end
 end
