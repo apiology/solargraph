@@ -66,6 +66,15 @@ module Solargraph
       # @return [void]
       def rebind api_map; end
 
+      # Rebind every enclosing closure, outermost first, then this one.
+      #
+      # @param api_map [Solargraph::ApiMap]
+      # @return [void]
+      def rebind_enclosing api_map
+        closure&.rebind_enclosing(api_map)
+        rebind api_map
+      end
+
       # @return [::Array<String>]
       def generics
         @generics ||= docstring.tags(:generic).map(&:name)

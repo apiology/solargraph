@@ -306,7 +306,7 @@ module Solargraph
         chain = Solargraph::Parser.chain(const, filename)
         # @sg-ignore Need to add nil check here
         closure_pin = source_map.locate_closure_pin(rng.start.line, rng.start.column)
-        closure_pin.rebind(api_map)
+        closure_pin.rebind_enclosing(api_map)
         # @sg-ignore Need to add nil check here
         location = Location.new(filename, rng)
         locals = source_map.locals_at(location)
@@ -338,7 +338,7 @@ module Solargraph
           closure_pin = closure_pin.closure
         end
         # @sg-ignore Need to add nil check here
-        closure_pin.rebind(api_map)
+        closure_pin.rebind_enclosing(api_map)
         # @sg-ignore Need to add nil check here
         location = Location.new(filename, rng)
         locals = source_map.locals_at(location)

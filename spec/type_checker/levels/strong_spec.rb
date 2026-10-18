@@ -39,6 +39,27 @@ describe Solargraph::TypeChecker do
       expect(checker.problems).to be_empty
     end
 
+    it 'resolves calls in blocks nested inside rebound blocks' do
+      checker = type_checker(%(
+        class Other
+          # @return [Integer]
+          def only_other; 1; end
+        end
+        class Foo
+          # @param o [Other]
+          # @return [void]
+          def m o
+            o.instance_eval do
+              [1].each do
+                only_other
+              end
+            end
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).not_to include('Unresolved call to only_other')
+    end
+
     it 'requires strict return tags when nil is involved and used second in a ternary' do
       checker = type_checker(%(
         class Foo

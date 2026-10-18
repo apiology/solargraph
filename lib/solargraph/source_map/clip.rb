@@ -12,9 +12,12 @@ module Solargraph
         @api_map = api_map
         @cursor = cursor
         closure_pin = closure
-        # @sg-ignore Need to add nil check here
-        if closure_pin.is_a?(Pin::Block) && !Solargraph::Range.from_node(closure_pin.receiver)&.contain?(cursor.range.start)
-          closure_pin.rebind(api_map)
+        if closure_pin.is_a?(Pin::Block)
+          if Solargraph::Range.from_node(closure_pin.receiver)&.contain?(cursor.range.start)
+            closure_pin.closure&.rebind_enclosing(api_map)
+          else
+            closure_pin.rebind_enclosing(api_map)
+          end
         end
       end
 

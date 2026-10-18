@@ -748,6 +748,29 @@ describe Solargraph::SourceMap::Clip do
     expect(clip.complete.pins.map(&:path)).to include('String#upcase')
   end
 
+  it 'infers calls in blocks nested inside rebound blocks' do
+    source = Solargraph::Source.load_string(%(
+      class Other
+        # @return [Integer]
+        def only_other; 1; end
+      end
+      class Foo
+        # @param o [Other]
+        def m o
+          o.instance_eval do
+            [1].each do
+              only_other
+            end
+          end
+        end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+    clip = api_map.clip_at('test.rb', [10, 14])
+    expect(clip.infer.tags).to eq('Integer')
+  end
+
   it 'completes instance variable methods in define_method blocks' do
     source = Solargraph::Source.load_string(%(
       class Foo

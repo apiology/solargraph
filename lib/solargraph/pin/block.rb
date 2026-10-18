@@ -33,6 +33,8 @@ module Solargraph
 
       def binder
         out = @rebind if @rebind&.defined?
+        enclosing = closure
+        out ||= enclosing.binder if enclosing.is_a?(Block)
         out ||= super
       end
 
