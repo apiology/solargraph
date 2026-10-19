@@ -32,10 +32,6 @@ module Solargraph
     #   being expanded in this call chain, to detect recursive aliases
     # @return [ComplexType]
     def self.to_complex_type type, type_alias_decls: {}, expanding_aliases: []
-      # See the comment on type_to_tag - case/when doesn't narrow
-      # `type` for the type checker, so member calls that only exist
-      # on the matched class (#name, #args) need an inline ignore
-      # comment. Tracked at https://github.com/castwide/solargraph/issues/1241
       case type
       when RBS::Types::Intersection
         intersection_complex_type(type, type_alias_decls, expanding_aliases)
@@ -54,25 +50,19 @@ module Solargraph
         # recursive, or if it's generic (e.g. "type box[T] = Array[T] |
         # nil") - expanding those would leak an unbound generic<T> tag,
         # since args aren't substituted into the expansion.
-        # @sg-ignore https://github.com/castwide/solargraph/issues/1241 - case/when doesn't narrow type
         alias_name = type.name.to_s
         alias_decl = type_alias_decls[alias_name]
-        # @sg-ignore https://github.com/castwide/solargraph/issues/1241 - case/when doesn't narrow type
         if alias_decl.nil? || expanding_aliases.include?(alias_name) || !type.args.empty?
-          # @sg-ignore https://github.com/castwide/solargraph/issues/1241 - case/when doesn't narrow type
           ComplexType.new([build_unique_type(type.name, type.args, type_alias_decls: type_alias_decls, expanding_aliases: expanding_aliases)]).force_rooted
         else
-          # @sg-ignore Wrong argument type for to_complex_type: type expected RBS::Types::Bases::Base, received union of concrete subtypes
           to_complex_type(alias_decl.type, type_alias_decls: type_alias_decls, expanding_aliases: expanding_aliases + [alias_name])
         end
       when RBS::Types::ClassInstance, RBS::Types::Interface
         # `Interface` represents a mix-in module which can be considered a
         # subtype of a consumer of it
-        # @sg-ignore https://github.com/castwide/solargraph/issues/1241 - case/when doesn't narrow type
         ComplexType.new([build_unique_type(type.name, type.args, type_alias_decls: type_alias_decls, expanding_aliases: expanding_aliases)]).force_rooted
       when RBS::Types::ClassSingleton
         # e.g., singleton(String)
-        # @sg-ignore https://github.com/castwide/solargraph/issues/1241 - case/when doesn't narrow type
         ComplexType.new([build_unique_type(type.name, type_alias_decls: type_alias_decls, expanding_aliases: expanding_aliases)]).force_rooted
       else
         tag = type_to_tag(type)
@@ -93,7 +83,6 @@ module Solargraph
                     when :kwrestarg
                       RbsTranslator.to_kwrestarg_return_type(param_type.type, type_alias_decls: type_alias_decls)
                     else
-                      # @sg-ignore Wrong argument type for to_complex_type: type expected RBS::Types::Bases::Base, received union of concrete subtypes
                       RbsTranslator.to_complex_type(param_type.type, type_alias_decls: type_alias_decls)
                     end
       Solargraph::Pin::Parameter.new(decl: decl, name: name, closure: closure, return_type: return_type, source: :rbs, type_location: to_sg_location(param_type.location) || closure.type_location)
@@ -109,7 +98,6 @@ module Solargraph
     # @param type_alias_decls [Hash{String => RBS::AST::Declarations::TypeAlias}]
     # @return [ComplexType]
     def self.to_restarg_return_type elem_rbs_type, type_alias_decls: {}
-      # @sg-ignore Wrong argument type for to_complex_type: type expected RBS::Types::Bases::Base, received union of concrete subtypes
       elem_type = RbsTranslator.to_complex_type(elem_rbs_type, type_alias_decls: type_alias_decls)
       return ComplexType.parse('Array') if elem_type.undefined?
       ComplexType.new([ComplexType::UniqueType.new('Array', [], [elem_type], rooted: true, parameters_type: :list)])
@@ -122,7 +110,6 @@ module Solargraph
     # @param type_alias_decls [Hash{String => RBS::AST::Declarations::TypeAlias}]
     # @return [ComplexType]
     def self.to_kwrestarg_return_type elem_rbs_type, type_alias_decls: {}
-      # @sg-ignore Wrong argument type for to_complex_type: type expected RBS::Types::Bases::Base, received union of concrete subtypes
       elem_type = RbsTranslator.to_complex_type(elem_rbs_type, type_alias_decls: type_alias_decls)
       return ComplexType.parse('Hash{Symbol => Object}') if elem_type.undefined?
       ComplexType.new([ComplexType::UniqueType.new('Hash', [ComplexType.try_parse('Symbol')], [elem_type], rooted: true, parameters_type: :hash)])
@@ -192,11 +179,9 @@ module Solargraph
       # handle those correctly
       generics = method_type.type_params.map(&:name).map(&:to_s).uniq
       parameters = to_parameter_pins(method_type, closure, parameter_names, type_alias_decls: type_alias_decls)
-      # @sg-ignore Wrong argument type for to_complex_type: type expected RBS::Types::Bases::Base, received union of concrete subtypes
       return_type = to_complex_type(method_type.type.return_type, type_alias_decls: type_alias_decls)
       block = if method_type.block
                 block_parameters = to_parameter_pins(method_type.block, closure, type_alias_decls: type_alias_decls)
-                # @sg-ignore Wrong argument type for to_complex_type: type expected RBS::Types::Bases::Base, received union of concrete subtypes
                 block_return_type = to_complex_type(method_type.block.type.return_type, type_alias_decls: type_alias_decls)
                 Pin::Signature.new(generics: generics, parameters: block_parameters, return_type: block_return_type, source: :rbs, type_location: closure.location, closure: closure)
               end
@@ -243,7 +228,6 @@ module Solargraph
       # @param expanding_aliases [Array<String>]
       # @return [ComplexType]
       def intersection_complex_type type, type_alias_decls = {}, expanding_aliases = []
-        # @sg-ignore Wrong argument type for to_complex_type: type expected RBS::Types::Bases::Base, received union of concrete subtypes
         conjuncts = type.types.map { |member| RbsTranslator.to_complex_type(member, type_alias_decls: type_alias_decls, expanding_aliases: expanding_aliases) }
         ComplexType.new([ComplexType::UniqueType::Intersection.new(conjuncts)]).force_rooted
       end
@@ -253,7 +237,6 @@ module Solargraph
       # @param expanding_aliases [Array<String>]
       # @return [ComplexType]
       def optional_complex_type type, type_alias_decls = {}, expanding_aliases = []
-        # @sg-ignore Wrong argument type for to_complex_type: type expected RBS::Types::Bases::Base, received union of concrete subtypes
         inner = RbsTranslator.to_complex_type(type.type, type_alias_decls: type_alias_decls, expanding_aliases: expanding_aliases)
         ComplexType.new(inner.items + [ComplexType::UniqueType::NIL]).force_rooted
       end
@@ -263,7 +246,6 @@ module Solargraph
       # @param expanding_aliases [Array<String>]
       # @return [ComplexType]
       def union_complex_type type, type_alias_decls = {}, expanding_aliases = []
-        # @sg-ignore Wrong argument type for to_complex_type: type expected RBS::Types::Bases::Base, received union of concrete subtypes
         ComplexType.new(type.types.flat_map { |t| RbsTranslator.to_complex_type(t, type_alias_decls: type_alias_decls, expanding_aliases: expanding_aliases).items }).force_rooted
       end
 
@@ -272,7 +254,6 @@ module Solargraph
       # @param expanding_aliases [Array<String>]
       # @return [ComplexType]
       def tuple_complex_type type, type_alias_decls = {}, expanding_aliases = []
-        # @sg-ignore Wrong argument type for to_complex_type: type expected RBS::Types::Bases::Base, received union of concrete subtypes
         subtypes = type.types.map { |t| RbsTranslator.to_complex_type(t, type_alias_decls: type_alias_decls, expanding_aliases: expanding_aliases) }
         ComplexType.new([ComplexType::UniqueType.new('Array', [], subtypes, rooted: true, parameters_type: :fixed)]).force_rooted
       end
@@ -285,18 +266,10 @@ module Solargraph
       # @param type [RBS::Types::t]
       # @return [String]
       def type_to_tag type
-        # Every branch below narrows `type` by class via `when`, but
-        # the type checker doesn't propagate that narrowing to calls
-        # inside the branch body - it still sees the full RBS::Types::t
-        # union, so calls to members that only exist on the matched
-        # class (e.g. #type, #types, #literal, #name, #args) need an
-        # inline ignore comment. Tracked at
-        # https://github.com/castwide/solargraph/issues/1241
         case type
         when RBS::Types::Bases::Bool
           'Boolean'
         when RBS::Types::Literal
-          # @sg-ignore https://github.com/castwide/solargraph/issues/1241 - case/when doesn't narrow type
           type.literal.inspect
         when RBS::Types::Record
           # @todo Better record support
@@ -306,7 +279,6 @@ module Solargraph
         when RBS::Types::Bases::Void
           'void'
         when RBS::Types::Variable
-          # @sg-ignore https://github.com/castwide/solargraph/issues/1241 - case/when doesn't narrow type
           "#{Solargraph::ComplexType::GENERIC_TAG_NAME}<#{type.name}>"
         when RBS::Types::Bases::Self, RBS::Types::Bases::Instance
           'self'
