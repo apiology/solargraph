@@ -11,6 +11,10 @@ module Solargraph
 
       attr_accessor :mass_assignment
 
+      # @return [Boolean] whether mass_assignment is a pattern match,
+      #   which reads its subject through #deconstruct
+      attr_reader :deconstructs
+
       # @return [Range, nil]
       attr_reader :presence
 
@@ -45,8 +49,9 @@ module Solargraph
       # @see https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#union-types
       # @see https://en.wikipedia.org/wiki/Intersection_type#TypeScript_example
       # @param presence [Range, nil]
+      # @param deconstructs [Boolean] mass_assignment is a pattern match
       # @param [Hash{Symbol => Object}] splat
-      def initialize assignment: nil, assignments: [], mass_assignment: nil,
+      def initialize assignment: nil, assignments: [], mass_assignment: nil, deconstructs: false,
                      presence: nil, return_type: nil,
                      intersection_return_type: nil, exclude_return_type: nil,
                      **splat
@@ -54,6 +59,7 @@ module Solargraph
         @assignments = (assignment.nil? ? [] : [assignment]) + assignments
         # @type [nil, ::Array(Parser::AST::Node, [Integer, ::Range<Integer>])]
         @mass_assignment = mass_assignment
+        @deconstructs = deconstructs
         @return_type = return_type
         @intersection_return_type = intersection_return_type
         @exclude_return_type = exclude_return_type
@@ -92,6 +98,7 @@ module Solargraph
                                   assignment: choose(other, :assignment),
                                   assignments: new_assignments,
                                   mass_assignment: combine_mass_assignment(other),
+                                  deconstructs: mass_assignment ? deconstructs : other.deconstructs,
                                   return_type: combine_return_type(other),
                                   intersection_return_type: combine_types(other, :intersection_return_type),
                                   exclude_return_type: combine_types(other, :exclude_return_type),
@@ -189,6 +196,7 @@ module Solargraph
           mass_node, index = @mass_assignment
           types = return_types_from_node(mass_node, api_map)
           return adjust_type api_map, rest_capture_type(api_map, types) if index.is_a?(::Range)
+          return adjust_type api_map, element_type(api_map, types) if deconstructs
 
           types.map! do |type|
             if type.tuple?
@@ -217,17 +225,31 @@ module Solargraph
       # @param types [::Array<ComplexType>] the subject's types
       # @return [ComplexType]
       def rest_capture_type api_map, types
-        elements = types.flat_map do |type|
+        element = element_type(api_map, types)
+        return ComplexType.parse('::Array') if element.undefined?
+
+        array_type = ComplexType::UniqueType.new('Array', [], [element], rooted: true, parameters_type: :list)
+        ComplexType.new([array_type]).qualify(api_map, *gates)
+      end
+
+      # Any one element of the subject's deconstructed elements, the
+      # type of a positional capture such as `a` in `[_, a, *]`.
+      # Positions do not narrow it, so it is the union of every
+      # element type.
+      #
+      # @param api_map [ApiMap]
+      # @param types [::Array<ComplexType>] the subject's types
+      # @return [ComplexType]
+      def element_type api_map, types
+        elements = types.flat_map(&:items).flat_map do |type|
           type = deconstructed_type(api_map, type)
           next [] unless ['::Array', '::Set', '::Enumerable'].include?(type.rooted_name)
 
           type.all_params
         end
-        return ComplexType.parse('::Array') if elements.empty?
+        return ComplexType::UNDEFINED if elements.empty?
 
-        element_type = ComplexType.new(elements.flat_map(&:items).uniq)
-        array_type = ComplexType::UniqueType.new('Array', [], [element_type], rooted: true, parameters_type: :list)
-        ComplexType.new([array_type]).qualify(api_map, *gates)
+        ComplexType.new(elements.flat_map(&:items).uniq).qualify(api_map, *gates)
       end
 
       # What an array pattern matches against: the type itself if it is
@@ -235,7 +257,7 @@ module Solargraph
       # method.
       #
       # @param api_map [ApiMap]
-      # @param type [ComplexType]
+      # @param type [ComplexType, ComplexType::UniqueType]
       # @return [ComplexType, ComplexType::UniqueType]
       def deconstructed_type api_map, type
         return type if type.rooted_name == '::Array'
