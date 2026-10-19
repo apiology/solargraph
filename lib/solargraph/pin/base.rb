@@ -486,19 +486,17 @@ module Solargraph
       # @param other [Solargraph::Pin::Base, Object]
       # @return [Boolean]
       def nearly? other
-        instance_of?(other.class) &&
-          # @sg-ignore Translate to something flow sensitive typing understands
+        # other.class always equals self.class here, so this is_a? is
+        # implied rather than a new runtime check - it exists to let
+        # flow-sensitive typing narrow other for the rest of the method.
+        instance_of?(other.class) && other.is_a?(Solargraph::Pin::Base) &&
           name == other.name &&
           # @sg-ignore flow sensitive typing needs to handle attrs
           (closure.equal?(other.closure) || (closure&.nearly?(other.closure))) &&
-          # @sg-ignore Translate to something flow sensitive typing understands
           (comments == other.comments ||
-           # @sg-ignore Translate to something flow sensitive typing understands
            (((maybe_directives? == false && other.maybe_directives? == false) ||
              compare_directives(directives,
-                                # @sg-ignore Translate to something flow sensitive typing understands
                                 other.directives)) &&
-             # @sg-ignore Translate to something flow sensitive typing understands
              compare_docstring_tags(docstring, other.docstring))
           )
       end
