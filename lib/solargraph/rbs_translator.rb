@@ -26,7 +26,7 @@ module Solargraph
     # `void`, generic type variables, `self`/`instance`, `Proc`, etc.)
     # go through the tag-string fallback in type_to_tag.
     #
-    # @param type [RBS::Types::Bases::Base]
+    # @param type [RBS::Types::t]
     # @param type_alias_decls [Hash{String => RBS::AST::Declarations::TypeAlias}]
     # @param expanding_aliases [Array<String>] Names of aliases already
     #   being expanded in this call chain, to detect recursive aliases
@@ -282,7 +282,7 @@ module Solargraph
       # Tuple, Intersection, Alias, ClassInstance, ClassSingleton) are
       # handled directly in to_complex_type instead - see its comment.
       #
-      # @param type [RBS::Types::Bases::Base]
+      # @param type [RBS::Types::t]
       # @return [String]
       def type_to_tag type
         # Every branch below narrows `type` by class via `when`, but

@@ -25,6 +25,9 @@ module Solargraph
       # @return [Pin::CompoundStatement, nil]
       attr_reader :compound_statement
 
+      # @return [String, nil]
+      attr_reader :type_assertion
+
       # @param return_type [ComplexType, nil]
       # @param assignment [Parser::AST::Node, nil] First assignment
       #   that was made to this variable
@@ -71,14 +74,18 @@ module Solargraph
       #   falls within this pin's own range may still treat the
       #   assignment as an override rather than merely unioning it
       #   with earlier possible types - see #definite_reaches?.
+      # @param type_assertion [String, nil] RBS type from a trailing
+      #   rbs-inline `#: TYPE` comment on the assignment
       # @param [Hash{Symbol => Object}] splat
       def initialize assignment: nil, assignments: [], mass_assignment: nil,
                      presence: nil, return_type: nil,
                      narrowed_return_type: nil, exclude_return_type: nil,
                      definite: true,
                      compound_statement: nil,
+                     type_assertion: nil,
                      **splat
         super(**splat)
+        @type_assertion = type_assertion
         @assignments = (assignment.nil? ? [] : [assignment]) + assignments
         # @type [nil, ::Array(Parser::AST::Node, Integer, Boolean)]
         @mass_assignment = mass_assignment
@@ -160,7 +167,8 @@ module Solargraph
                                   # have executed, that assignment's type is
                                   # eligible to override (not just be unioned
                                   # with) the variable's other possible types
-                                  definite: definite || other.definite || superseded
+                                  definite: definite || other.definite || superseded,
+                                  type_assertion: choose(other, :type_assertion)
                                 })
         super(other, new_attrs)
       end
@@ -665,11 +673,28 @@ module Solargraph
         :instance
       end
 
+      # An rbs-inline type assertion takes precedence over a @type tag,
+      # as inline RBS method signatures do over YARD tags.
+      #
       # @return [ComplexType, nil]
       def generate_complex_type
+        asserted = type_from_assertion
+        return asserted unless asserted.nil?
         tag = docstring.tag(:type)
         return ComplexType.try_parse(*tag.types) unless tag.nil? || tag.types.nil? || tag.types.empty?
         nil
+      end
+
+      # @return [ComplexType, nil]
+      def type_from_assertion
+        assertion = type_assertion
+        return nil if assertion.nil? || assertion.empty?
+        @type_from_assertion ||= begin
+          rbs_type = RBS::Parser.parse_type(assertion, require_eof: true)
+          RbsTranslator.to_complex_type(rbs_type) unless rbs_type.nil?
+        rescue RBS::ParsingError
+          nil
+        end
       end
     end
   end
