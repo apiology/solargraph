@@ -86,6 +86,11 @@ describe Solargraph::RbsMap::Core do
     expect(pins.map(&:closure).map(&:namespace)).to include('Enumerator')
   end
 
+  it 'types Kernel#<=> as the comparison contract, not Object#<=> alone' do
+    pin = Solargraph::ApiMap.new.get_method_stack('Kernel', '<=>').first
+    expect(pin.signatures.map { |sig| sig.return_type.to_s }).to eq(['Integer, nil'])
+  end
+
   it 'ensures Foo#allocate returns Foo' do
     source = Solargraph::Source.load_string(%(
       class Foo
