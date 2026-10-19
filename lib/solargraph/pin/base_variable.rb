@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'rbs'
+
 module Solargraph
   module Pin
     class BaseVariable < Base
