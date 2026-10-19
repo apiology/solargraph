@@ -485,6 +485,7 @@ module Solargraph
         result.concat inner_get_methods('Module', scope, visibility, deep, skip) if scope == :module
       end
       result = resolve_method_aliases(result, visibility)
+      result = type_module_methods_from_overridden(result) unless rooted_tag == ''
       if namespace_pin && rooted_tag != rooted_type.name
         result = result.map { |method_pin| method_pin.resolve_generics(namespace_pin, rooted_type) }
       end
@@ -781,6 +782,29 @@ module Solargraph
     #
     # @return [Hash{String => SourceMap}]
     attr_reader :source_map_hash
+
+    # An undocumented method in a module can only find the method it
+    # overrides through the class that includes it, so give it the type of
+    # the nearest later method of the same name in that class's ancestry.
+    # A later pin at the same path is the same method from another source,
+    # not the one it overrides, and a type with another namespace's
+    # unresolved generics would not apply here.
+    #
+    # @param pins [Array<Pin::Base>] One namespace's methods, highest precedence first
+    # @return [Array<Pin::Base>]
+    def type_module_methods_from_overridden pins
+      # @type [Hash{String => Pin::Base}]
+      overridden = {}
+      pins.reverse.map do |pin|
+        later = overridden[pin.name]
+        if later && later.path != pin.path && !later.return_type.generic? &&
+           pin.return_type.undefined? && pin.is_a?(Pin::Method) && get_namespace_type(pin.namespace) == :module
+          pin = pin.proxy(later.return_type.qualify(self, *later.gates))
+        end
+        overridden[pin.name] = pin if pin.return_type.defined?
+        pin
+      end.reverse
+    end
 
     # @return [ApiMap::Store]
     def store

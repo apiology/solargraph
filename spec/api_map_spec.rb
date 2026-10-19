@@ -1045,4 +1045,57 @@ describe Solargraph::ApiMap do
     expect(api_map.get_path_pins('Example.foo_one')).to be_one
     expect(api_map.get_path_pins('Example.foo_two')).to be_one
   end
+
+  it 'types an undocumented module method from the method it overrides in the including class' do
+    source = Solargraph::Source.load_string(%(
+      class Base
+        # @return [Hash]
+        def serialize; end
+      end
+
+      class Klass < Base; end
+
+      module Mod
+        def serialize
+          super
+        end
+      end
+
+      Klass.include Mod
+      Klass.new.serialize
+    ), 'test.rb')
+    api_map = described_class.new.map(source)
+    pin = api_map.get_methods('Klass').find { |p| p.name == 'serialize' }
+    expect(pin.path).to eq('Mod#serialize')
+    expect(pin.typify(api_map).tag).to eq('Hash')
+    expect(api_map.clip_at('test.rb', [15, 18]).infer.tag).to eq('Hash')
+  end
+
+  it 'does not type a module method from another pin of the same method' do
+    source = Solargraph::Source.load_string(%(
+      class Base
+        # @return [Hash]
+        def serialize; end
+      end
+
+      module Mod
+        def serialize
+          super
+        end
+      end
+
+      module Mod
+        # @return [String]
+        def serialize; end
+      end
+
+      class Klass < Base
+        include Mod
+      end
+    ), 'test.rb')
+    api_map = described_class.new.map(source)
+    pins = api_map.get_methods('Klass').select { |p| p.name == 'serialize' }
+    expect(pins.map(&:path)).to eq(['Mod#serialize', 'Mod#serialize', 'Base#serialize'])
+    expect(pins.first.return_type).to be_undefined
+  end
 end
