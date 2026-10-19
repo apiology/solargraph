@@ -1310,7 +1310,7 @@ describe Solargraph::TypeChecker do
 
     it 'complains on an inline rbs assertion that does not match' do
       checker = type_checker(%(
-        x = 1 #: String
+        x = 'x'.size #: String
       ))
       expect(checker.problems.map(&:message))
         .to eq ['Declared type String does not match inferred type Integer for variable x']
