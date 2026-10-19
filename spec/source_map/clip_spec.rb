@@ -3796,14 +3796,14 @@ describe Solargraph::SourceMap::Clip do
     it 'does not apply the assertion to the next statement' do
       expect(infer_at(%(
         x = 1 #: String
-        y = 1
+        y = 'y'.size
         y
       ), 3, 8)).to eq('Integer')
     end
 
     it 'ignores comments that are not valid RBS types' do
       expect(infer_at(%(
-        x = 1 #:nodoc:
+        x = 'x'.size #:nodoc:
         x
       ), 2, 8)).to eq('Integer')
     end
