@@ -411,6 +411,12 @@ describe Solargraph::TypeChecker do
           def foo(bar, baz, quux)
             [self]
           end
+
+          # @param value [generic<T>]
+          # @return [generic<T>]
+          def same(value)
+            value
+          end
         end
       ))
       expect(checker.problems.map(&:message)).to be_empty

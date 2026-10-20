@@ -275,7 +275,7 @@ module Solargraph
       return false if type.nil?
 
       # @type [Array<ComplexType::UniqueType>]
-      params = type.items.flat_map { |item| item.all_params.flat_map(&:items) }
+      params = type.items.reject(&:generic?).flat_map { |item| item.all_params.flat_map(&:items) }
       params.any? do |param|
         next false if param.undefined? || param.generic? || param.name == 'self'
 
