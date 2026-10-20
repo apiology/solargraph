@@ -71,7 +71,7 @@ module Solargraph
           pool.wait_for_termination
         end
 
-        milliseconds = Integer(time.real * 1000)
+        milliseconds = (time.real * 1000).round
         return unless out && milliseconds > SLOW_BATCH_MS
 
         out.puts "Built #{metagems.length} gems in #{milliseconds} ms in #{pool_size} threads"
