@@ -219,10 +219,30 @@ module Solargraph
           elsif %i[super zsuper].include?(node.type)
             result.push node
             node.children.each { |child| result.concat call_nodes_from(child) }
+          elsif node.type == :op_asgn
+            operator_call = op_asgn_operator_call(node)
+            result.push operator_call if operator_call
+            node.children.each { |child| result.concat call_nodes_from(child) }
           else
             node.children.each { |child| result.concat call_nodes_from(child) }
           end
           result
+        end
+
+        # The call an op-assign makes implicitly, e.g. `a + b` for `a += b`
+        #
+        # @param node [Parser::AST::Node] an :op_asgn node
+        # @return [Parser::AST::Node, nil]
+        def op_asgn_operator_call node
+          target, operator, argument = node.children
+          return unless target.is_a?(::Parser::AST::Node)
+          receiver = if %i[send csend].include?(target.type)
+                       target
+                     elsif %i[lvasgn ivasgn gvasgn cvasgn].include?(target.type)
+                       target.updated(target.type.to_s.sub(/vasgn$/, 'var').to_sym)
+                     end
+          return unless receiver
+          node.updated(:send, [receiver, operator, argument])
         end
 
         # Find all the nodes within the provided node that potentially return a

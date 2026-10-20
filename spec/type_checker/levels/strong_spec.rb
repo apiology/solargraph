@@ -1294,5 +1294,86 @@ describe Solargraph::TypeChecker do
       ), ['forwardable'])
       expect(checker.problems).to be_empty
     end
+
+    context 'with op-assigns' do
+      it 'checks the operator call of a local variable op-assign' do
+        checker = type_checker(%(
+          # @param arr [Array<Integer>]
+          # @return [void]
+          def foo(arr)
+            x = arr.first
+            x += 1
+          end
+        ))
+        expect(checker.problems.map(&:message)).to eq(['Unresolved call to +'])
+      end
+
+      it 'checks the operator call of an index op-assign' do
+        checker = type_checker(%(
+          # @param opts [Hash{Symbol => Array<String>}]
+          # @param extra [Array<String>]
+          # @return [void]
+          def foo(opts, extra)
+            opts[:fields] += extra
+          end
+        ))
+        expect(checker.problems.map(&:message)).to eq(['Unresolved call to + on Array<String>, nil'])
+      end
+
+      it 'checks the operator call of an attribute op-assign' do
+        checker = type_checker(%(
+          class Foo
+            # @return [Integer, nil]
+            attr_accessor :count
+          end
+
+          # @param foo [Foo]
+          # @return [void]
+          def bar(foo)
+            foo.count += 1
+          end
+        ))
+        expect(checker.problems.map(&:message)).to eq(['Unresolved call to + on Integer, nil'])
+      end
+
+      it 'checks the argument of an op-assign operator call' do
+        checker = type_checker(%(
+          # @param num [Integer]
+          # @return [void]
+          def foo(num)
+            num += 'a'
+          end
+        ))
+        expect(checker.problems.map(&:message)).to all(start_with('Wrong argument type for Integer#+'))
+        expect(checker.problems).not_to be_empty
+      end
+
+      it 'accepts a valid op-assign' do
+        checker = type_checker(%(
+          # @param num [Integer]
+          # @param list [Array<String>]
+          # @return [void]
+          def foo(num, list)
+            num += 1
+            list += ['a']
+          end
+        ))
+        expect(checker.problems).to be_empty
+      end
+
+      it 'does not check or-assigns and and-assigns as operator calls' do
+        checker = type_checker(%(
+          # @param arr [Array<Integer>]
+          # @return [void]
+          def foo(arr)
+            x = arr.first
+            x ||= 1
+            y = arr.first
+            y &&= 2
+          end
+        ))
+        expect(checker.problems).to be_empty
+      end
+    end
   end
 end
