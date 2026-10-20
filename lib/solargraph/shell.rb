@@ -275,11 +275,13 @@ module Solargraph
           # @todo to add nil check here
           # @todo should warn on nil dereference below
           warn "Error testing #{pin_description(pin)} #{if pin.location
+                                                          # @sg-ignore https://github.com/castwide/solargraph/pull/1258
                                                           "at #{pin.location.filename}:#{pin.location.range.start.line + 1}"
                                                         end}"
           warn "[#{e.class}]: #{e.message}"
           # @todo Need to add nil check here
           # @todo flow sensitive typing should be able to handle redefinition
+          # @sg-ignore https://github.com/apiology/solargraph/pull/176
           warn e.backtrace.join("\n")
           exit 1
         end

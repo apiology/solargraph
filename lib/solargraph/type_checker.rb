@@ -141,6 +141,8 @@ module Solargraph
     # @return [Array<Problem>]
     def method_return_type_problems_for pin
       return [] if pin.is_a?(Pin::MethodAlias)
+      # An unresolvable DelegatedMethod's type comes from its @!method directive, not a @return tag.
+      return [] if pin.is_a?(Pin::DelegatedMethod) && !pin.resolvable?(api_map)
       result = []
       declared = pin.typify(api_map).self_to_type(pin.full_context).qualify(api_map, *pin.gates)
       if declared.undefined?
@@ -278,7 +280,9 @@ module Solargraph
             elsif declared_externally?(pin)
               ignored_pins.push pin
             end
-          elsif !pin.is_a?(Pin::Parameter) && !resolved_constant?(pin)
+          # A @type tag belongs to the declaring pin; narrowed copies
+          # carry no tag of their own, so only the declaration is checked
+          elsif !pin.is_a?(Pin::Parameter) && !pin.presence_certain? && !resolved_constant?(pin)
             result.push Problem.new(pin.location, "Unresolved type #{pin.return_type} for variable #{pin.name}",
                                     pin: pin)
           end
