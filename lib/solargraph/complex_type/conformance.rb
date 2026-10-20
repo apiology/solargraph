@@ -97,10 +97,21 @@ module Solargraph
 
       def conforms_via_reverse_match?
         return false unless rules.include? :allow_reverse_match
+        # Compare the parameters of the same generic one by one
+        # instead, so that each one gets the same allowance as a
+        # member of a top-level union: Array<Object> may still be
+        # passed as Array<Integer>, but Array<String, nil> may not be
+        # passed as Array<String>, just as String, nil may not be
+        # passed as String.
+        return false if same_parameterized_type?
 
         expected.conforms_to?(api_map, inferred, situation,
                               rules - [:allow_reverse_match],
                               variance: variance)
+      end
+
+      def same_parameterized_type?
+        inferred.name == expected.name && inferred.parameters? && expected.parameters?
       end
 
       def erased_type_conforms?
