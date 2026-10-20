@@ -234,7 +234,7 @@ module Solargraph
         callable
       end
 
-      # @param arguments [::Array<Chain>]
+      # @param arguments [::Array<Source::Chain>]
       # @param with_block [Boolean]
       # @return [Boolean]
       def arity_matches? arguments, with_block

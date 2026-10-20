@@ -93,7 +93,7 @@ module Solargraph
       # Start processing a request from the client. After the message is
       # processed, caller is responsible for sending the response.
       #
-      # @param request [Hash{String => unspecified}] The contents of the message.
+      # @param request [Hash{String => undefined}] The contents of the message.
       #
       # @return [Solargraph::LanguageServer::Message::Base, Solargraph::LanguageServer::Request, nil] The message handler.
       def receive request
