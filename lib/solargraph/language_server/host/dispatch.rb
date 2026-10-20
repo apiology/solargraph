@@ -118,13 +118,12 @@ module Solargraph
                                                   .tap { |lib| lib.add_observer self }
         end
 
-        # The Library observer callback that #generic_library registers.
-        #
-        # @abstract
         # @param progress [Solargraph::LanguageServer::Progress, nil]
+        #
         # @return [void]
         def update progress
-          raise NotImplementedError, 'Host::Dispatch requires an update method'
+          # @sg-ignore https://github.com/apiology/solargraph/pull/228
+          progress&.send(self)
         end
       end
     end
