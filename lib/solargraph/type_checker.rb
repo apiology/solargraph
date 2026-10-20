@@ -417,6 +417,9 @@ module Solargraph
         return ap unless ap.empty?
         return [] if !rules.validate_calls? || base.links.first.is_a?(Solargraph::Source::Chain::ZSuper)
 
+        void_errors = void_argument_problems_for(location, locals, closure_pin, arguments, pin)
+        return void_errors unless void_errors.empty?
+
         all_errors = []
         pin.signatures.sort_by { |sig| sig.parameters.length }.each do |sig|
           params = param_details_from_stack(sig, pins)
@@ -433,6 +436,25 @@ module Solargraph
         result.concat all_errors
       end
       result
+    end
+
+    # A void method's value means nothing, whatever the parameter
+    # accepts - including restarg and untyped parameters, which the
+    # signature checks skip (e.g. `puts run` where run is void).
+    #
+    # @param location [Location]
+    # @param locals [Array<Pin::LocalVariable>]
+    # @param closure_pin [Pin::Closure]
+    # @param arguments [Array<Source::Chain>]
+    # @param pin [Pin::Method]
+    #
+    # @return [Array<Problem>]
+    def void_argument_problems_for location, locals, closure_pin, arguments, pin
+      arguments.filter_map do |argchain|
+        next unless argchain.infer(api_map, closure_pin, locals).void?
+
+        Problem.new(location, "Void value passed as an argument to #{pin.path}")
+      end
     end
 
     # @param location [Location]
