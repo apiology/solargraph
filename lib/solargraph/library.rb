@@ -425,7 +425,8 @@ module Solargraph
         end
       end
       repargs.each_pair do |reporter, args|
-        result.concat reporter.new(*args.uniq).diagnose(source, api_map)
+        # @sg-ignore Class<Diagnostics::Base> doesn't resolve #new
+        result.concat reporter.new(*args.uniq).diagnose(source, api_map, workspace: workspace)
       end
       result
     end
@@ -580,7 +581,7 @@ module Solargraph
       source_map_hash[source.filename] = Solargraph::SourceMap.map(source)
     end
 
-    # @return [Set<Gem::Specification>]
+    # @return [Set<Metagem>]
     def cache_errors
       @cache_errors ||= Set.new
     end
@@ -627,7 +628,7 @@ module Solargraph
       end
     end
 
-    # @return [Array<Gem::Specification>]
+    # @return [Array<Metagem>]
     def queued_gemspec_cache
       @queued_gemspec_cache ||= []
     end

@@ -34,13 +34,6 @@ Layout/EndAlignment:
     - 'lib/solargraph/shell.rb'
 
 # This cop supports safe autocorrection (--autocorrect).
-# Configuration parameters: EnforcedStyle.
-# SupportedStyles: normal, indented_internal_methods
-Layout/IndentationConsistency:
-  Exclude:
-    - 'spec/shell_spec.rb'
-
-# This cop supports safe autocorrection (--autocorrect).
 # Configuration parameters: Width, EnforcedStyleAlignWith, AllowedPatterns.
 # SupportedStylesAlignWith: start_of_line, relative_to_receiver
 Layout/IndentationWidth:
@@ -56,7 +49,6 @@ Layout/IndentationWidth:
 Layout/TrailingWhitespace:
   Exclude:
     - 'lib/solargraph/pin/base.rb'
-    - 'spec/api_map_method_spec.rb'
 
 Lint/BinaryOperatorWithIdenticalOperands:
   Exclude:
@@ -232,6 +224,7 @@ RSpec/BeforeAfterAll:
     - 'spec/api_map_spec.rb'
     - 'spec/language_server/host/dispatch_spec.rb'
     - 'spec/language_server/protocol_spec.rb'
+    - 'spec/library_spec.rb'
 
 # Configuration parameters: IgnoredMetadata.
 RSpec/DescribeClass:
@@ -242,14 +235,6 @@ RSpec/DescribeClass:
     - '**/spec/system/**/*'
     - '**/spec/views/**/*'
     - 'spec/complex_type_spec.rb'
-
-# This cop supports unsafe autocorrection (--autocorrect-all).
-# Configuration parameters: SkipBlocks, EnforcedStyle, OnlyStaticConstants.
-# SupportedStyles: described_class, explicit
-RSpec/DescribedClass:
-  Exclude:
-    - 'spec/api_map_method_spec.rb'
-    - 'spec/pin/base_spec.rb'
 
 # This cop supports safe autocorrection (--autocorrect).
 # Configuration parameters: AllowConsecutiveOneLiners.
@@ -277,15 +262,11 @@ RSpec/MultipleExpectations:
 
 # Configuration parameters: AllowSubject.
 RSpec/MultipleMemoizedHelpers:
-  Max: 8
+  Max: 7
 
 # Configuration parameters: AllowedGroups.
 RSpec/NestedGroups:
   Max: 4
-
-RSpec/RemoveConst:
-  Exclude:
-    - 'spec/diagnostics/rubocop_helpers_spec.rb'
 
 # This cop supports unsafe autocorrection (--autocorrect-all).
 # Configuration parameters: EnforcedStyle, AllowModifiersOnSymbols, AllowModifiersOnAttrs, AllowModifiersOnAliasMethod.
@@ -460,20 +441,12 @@ Style/TrivialAccessors:
     - 'lib/solargraph/api_map.rb'
 
 # This cop supports safe autocorrection (--autocorrect).
-# Configuration parameters: WordRegex.
-# SupportedStyles: percent, brackets
-Style/WordArray:
-  EnforcedStyle: percent
-  MinSize: 3
-
-# This cop supports safe autocorrection (--autocorrect).
 # Configuration parameters: EnforcedStylePrototypeName.
 # SupportedStylesPrototypeName: before, after
 YARD/MismatchName:
   Exclude:
     - 'lib/solargraph/pin/reference.rb'
     - 'lib/solargraph/rbs_map/conversions.rb'
-    - 'lib/solargraph/shell.rb'
 
 YARD/TagTypeSyntax:
   Exclude:

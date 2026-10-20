@@ -48,6 +48,7 @@ module Solargraph
       @repaired = code
       @filename = filename
       @version = version
+      @finalize_mutex = Mutex.new
     end
 
     # @param range [Solargraph::Range]
@@ -417,6 +418,13 @@ module Solargraph
 
     # @return [void]
     def finalize
+      # @finalized is set before the parse finishes, so a thread arriving
+      # mid-parse must wait for it instead of reading a nil node.
+      @finalize_mutex.synchronize { finalize_unsynchronized }
+    end
+
+    # @return [void]
+    def finalize_unsynchronized
       return if @finalized && changes.empty?
 
       changes.each do |change|

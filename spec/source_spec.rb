@@ -331,4 +331,27 @@ y = 1 #foo
     expect(bar_comments).not_to include('Exclude from Bar')
     expect(bar_comments).to include('Include with Bar')
   end
+
+  # The language server's diagnoser thread and its request thread can both
+  # map a newly opened source, so the first parse may happen on either one.
+  it 'gives a thread the parsed node while another thread is parsing it' do
+    source = described_class.new('class Foo; end', 'file.rb')
+    parsing = Queue.new
+    proceed = Queue.new
+    parse = Solargraph::Parser.method(:parse_with_comments)
+    allow(Solargraph::Parser).to receive(:parse_with_comments) do |*args|
+      parsing << true
+      proceed.pop
+      parse.call(*args)
+    end
+
+    first = Thread.new { source.node }
+    parsing.pop
+    second = Thread.new { source.node }
+    # Wait until the second thread has finished or is waiting on the first
+    Thread.pass while second.status == 'run'
+    proceed << true
+
+    expect([first.value, second.value]).to all(be_a(Parser::AST::Node))
+  end
 end
