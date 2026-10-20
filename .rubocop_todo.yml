@@ -467,15 +467,6 @@ Style/WordArray:
   MinSize: 3
 
 # This cop supports safe autocorrection (--autocorrect).
-# Configuration parameters: EnforcedStyle.
-# SupportedStyles: long, short
-YARD/CollectionStyle:
-  Exclude:
-    - 'lib/solargraph/api_map/constants.rb'
-    - 'lib/solargraph/api_map/store.rb'
-    - 'lib/solargraph/source_map.rb'
-
-# This cop supports safe autocorrection (--autocorrect).
 # Configuration parameters: EnforcedStylePrototypeName.
 # SupportedStylesPrototypeName: before, after
 YARD/MismatchName:
