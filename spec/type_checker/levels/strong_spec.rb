@@ -1294,5 +1294,20 @@ describe Solargraph::TypeChecker do
       ), ['forwardable'])
       expect(checker.problems).to be_empty
     end
+
+    it 'resolves calls on a global variable assigned an unknown value' do
+      checker = type_checker(%(
+        # @return [void]
+        def swap
+          $stderr = unknown_thing
+        end
+
+        # @return [void]
+        def log
+          $stderr.puts 'x'
+        end
+      ))
+      expect(checker.problems.map(&:message)).not_to include('Unresolved call to puts')
+    end
   end
 end

@@ -301,6 +301,9 @@ module Solargraph
           @@inference_stack.push(pin.identity)
           type = pin.probe(api_map)
           @@inference_stack.pop
+          # Each global variable pin is one assignment anywhere in the
+          # program, gems included; an unknown one adds no information
+          next if type.undefined? && pin.is_a?(Pin::GlobalVariable)
           types.push type if type
         end
         @@inference_depth -= 1
