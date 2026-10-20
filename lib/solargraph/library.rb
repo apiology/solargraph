@@ -581,7 +581,7 @@ module Solargraph
       source_map_hash[source.filename] = Solargraph::SourceMap.map(source)
     end
 
-    # @return [Set<Gem::Specification>]
+    # @return [Set<Metagem>]
     def cache_errors
       @cache_errors ||= Set.new
     end
@@ -628,7 +628,7 @@ module Solargraph
       end
     end
 
-    # @return [Array<Gem::Specification>]
+    # @return [Array<Metagem>]
     def queued_gemspec_cache
       @queued_gemspec_cache ||= []
     end
