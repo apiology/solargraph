@@ -3769,6 +3769,20 @@ describe Solargraph::SourceMap::Clip do
       ), 2, 8)).to eq('Array<Integer>')
     end
 
+    it 'types variables initialized as tuples' do
+      expect(infer_at(%(
+        pair = ['a', 1] #: [String, Integer]
+        pair
+      ), 2, 8)).to eq('Array(String, Integer)')
+    end
+
+    it 'types variables initialized from hash literals' do
+      expect(infer_at(%(
+        opts = { 'a' => 1 } #: Hash[String, Integer]
+        opts
+      ), 2, 8)).to eq('Hash{String => Integer}')
+    end
+
     it 'types ||= assignments' do
       expect(infer_at(%(
         x ||= [] #: Array[String]
