@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   rspec:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         # Each Ruby once, and each supported rbs line once; older Rubies
@@ -87,7 +87,7 @@ jobs:
 
         bundle exec rake full_spec
   undercover:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v3
       with:
