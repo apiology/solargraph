@@ -464,8 +464,10 @@ module Solargraph
       # @param position [Position]
       #
       # @return [Solargraph::Pin::LocalVariable, Solargraph::Pin::InstanceVariable, nil]
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1223
       def find_var variable_name, position
-        pins = variable_name.start_with?('@') ? ivars : locals
+        ivar = variable_name.start_with?('@')
+        pins = ivar ? ivars : locals
         # Latest-starting presence wins: an original declaration and a
         # later reassignment can both cover this position. Skip pins
         # still evaluating their own RHS (`baz ||= begin ... end`).
@@ -475,9 +477,14 @@ module Solargraph
           next false unless !pin.presence || pin.presence.include?(position)
 
           other_loc = Location.new(pin.location&.filename, Range.new(position, position))
-          !pin.within_own_assignment?(other_loc)
+          next false if pin.within_own_assignment?(other_loc)
+
+          # an ivar assignment elsewhere - possibly in another method,
+          # and only if earlier in the file - is no basis for a guard
+          !ivar || pin.presence || pin.definite_reaches?(other_loc)
         end
-        matches.max_by { |pin| pin.presence&.start || reaching_start(pin, position) }
+        found = matches.max_by { |pin| pin.presence&.start || reaching_start(pin, position) }
+        found || (ivar ? unassigned_ivar(variable_name, position) : nil)
       end
 
       # Where an ivar assignment, which has no presence, starts if it
@@ -493,6 +500,28 @@ module Solargraph
         return Position.new(0, 0) unless start && pin.definite_reaches?(here)
 
         start
+      end
+
+      # A stand-in for an ivar no assignment reaches at `position`, so a
+      # guard on it narrows whatever values it has from other methods
+      #
+      # @param variable_name [String]
+      # @param position [Position]
+      # @return [Pin::InstanceVariable, nil]
+      def unassigned_ivar variable_name, position
+        statement = enclosing_compound_statement_pin
+        return if statement.nil?
+
+        filename = statement.location&.filename
+        return if filename.nil?
+
+        Pin::InstanceVariable.new(
+          location: Location.new(filename, Range.new(position, position)),
+          closure: statement.is_a?(Pin::Closure) ? statement : statement.closure,
+          name: variable_name,
+          definite: false,
+          source: :flow_sensitive_typing
+        )
       end
 
       # @param isa_node [Parser::AST::Node]
