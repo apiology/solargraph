@@ -12,13 +12,10 @@ module Solargraph
       # @param only_downcast_these_names [Array<String>, nil] If given,
       #   only apply a downcast to variables with these names, ignoring
       #   any other variable the analyzed condition happens to mention.
-      # @param region [Region, nil] Where the condition is, for ivars
-      #   no assignment in this method has reached yet
       def initialize locals, ivars, enclosing_breakable_pin, enclosing_compound_statement_pin,
-                     only_downcast_these_names: nil, region: nil
+                     only_downcast_these_names: nil
         @locals = locals
         @ivars = ivars
-        @region = region
         @enclosing_breakable_pin = enclosing_breakable_pin
         @enclosing_compound_statement_pin = enclosing_compound_statement_pin
         @only_downcast_these_names = only_downcast_these_names
@@ -306,7 +303,7 @@ module Solargraph
         return if names.empty?
 
         FlowSensitiveTyping.new(locals, ivars, enclosing_breakable_pin, enclosing_compound_statement_pin,
-                                only_downcast_these_names: names, region: region)
+                                only_downcast_these_names: names)
                            .process_expression(conditional_node, true_ranges, false_ranges)
       end
 
@@ -512,11 +509,15 @@ module Solargraph
       # @param position [Position]
       # @return [Pin::InstanceVariable, nil]
       def unassigned_ivar variable_name, position
-        return unless region
+        statement = enclosing_compound_statement_pin
+        return if statement.nil?
+
+        filename = statement.location&.filename
+        return if filename.nil?
 
         Pin::InstanceVariable.new(
-          location: Location.new(region.filename, Range.new(position, position)),
-          closure: region.closure,
+          location: Location.new(filename, Range.new(position, position)),
+          closure: statement.is_a?(Pin::Closure) ? statement : statement.closure,
           name: variable_name,
           definite: false,
           source: :flow_sensitive_typing
@@ -682,7 +683,7 @@ module Solargraph
       end
 
       attr_reader :locals, :ivars, :enclosing_breakable_pin, :enclosing_compound_statement_pin,
-                  :only_downcast_these_names, :region
+                  :only_downcast_these_names
     end
   end
 end

@@ -11,8 +11,7 @@ module Solargraph
             flow_sensitive_typing = FlowSensitiveTyping.new(locals,
                                                             ivars,
                                                             enclosing_breakable_pin,
-                                                            enclosing_compound_statement_pin,
-                                                            region: region)
+                                                            enclosing_compound_statement_pin)
 
             # Note - this should not be considered a block, as the
             # while statement doesn't create a closure - e.g.,

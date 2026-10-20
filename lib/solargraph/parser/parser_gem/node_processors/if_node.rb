@@ -25,8 +25,7 @@ module Solargraph
             FlowSensitiveTyping.new(locals,
                                     ivars,
                                     enclosing_breakable_pin,
-                                    enclosing_compound_statement_pin,
-                                    region: region).process_if(node)
+                                    enclosing_compound_statement_pin).process_if(node)
             then_node = node.children[1]
             if then_node
               then_cs = Solargraph::Pin::CompoundStatement.new(
