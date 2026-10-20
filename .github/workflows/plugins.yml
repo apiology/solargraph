@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   rails_and_rspec_typechecking:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v3
@@ -64,7 +64,7 @@ jobs:
       # @todo Temporary, expect to revert in 0.60
       continue-on-error: true
   rails_and_rspec_specs:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v3
@@ -126,7 +126,7 @@ jobs:
         bundle exec rake full_spec
   run_solargraph_rspec_specs:
     # check out solargraph-rspec as well as this project, and point the former to use the latter as a local gem
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     env:
       SOLARGRAPH_CACHE: ${{ github.workspace }}/../solargraph-rspec/vendor/solargraph/cache
       BUNDLE_PATH: ${{ github.workspace }}/../solargraph-rspec/vendor/bundle
@@ -214,7 +214,7 @@ jobs:
 
   run_solargraph_rails_specs:
     # check out solargraph-rails as well as this project, and point the former to use the latter as a local gem
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
     - name: clone solargraph-rails
