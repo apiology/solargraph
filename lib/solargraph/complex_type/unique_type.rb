@@ -38,6 +38,7 @@ module Solargraph
         subtypes = []
         parameters_type = nil
         unless substring.empty?
+          # @sg-ignore Translate to something flow sensitive typing understands
           subs = ComplexType.parse(substring[1..-2], partial: true)
           # @sg-ignore Need to add nil check here
           parameters_type = PARAMETERS_TYPE_BY_STARTING_TAG.fetch(substring[0])
@@ -103,7 +104,7 @@ module Solargraph
       # @return [self]
       def simplify_literals
         transform do |t|
-          next t unless t.literal?
+          next t unless t.simplifyable_literal?
           t.recreate(new_name: t.non_literal_name)
         end
       end
@@ -147,13 +148,17 @@ module Solargraph
       end
 
       def literal?
-        return false
         non_literal_name != name
       end
 
       # @return [String]
       def non_literal_name
         @non_literal_name ||= determine_non_literal_name
+      end
+
+      # @return [self]
+      def non_literal_type
+        recreate(new_name: non_literal_name)
       end
 
       # @return [self]
@@ -373,9 +378,9 @@ module Solargraph
         block.yield self
       end
 
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1266
       # @return [UniqueType]
       def downcast_to_literal_if_possible
-        return self
         SINGLE_SUBTYPE.fetch(rooted_tag, self)
       end
 
