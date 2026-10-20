@@ -44,7 +44,10 @@ module Solargraph
       end
 
       def without_yard
-        files = metagem.require_paths.flat_map { |path| Dir.glob(File.join(metagem.full_path, path, '**', '*.rb')) }
+        # Rails engines keep code under app/, which YARD's default source
+        # glob also covers
+        paths = (metagem.require_paths + ['app']).uniq
+        files = paths.flat_map { |path| Dir.glob(File.join(metagem.full_path, path, '**', '*.rb')) }
         source_maps = files.map { |file| Solargraph::SourceMap.load(file) }
 
         # Generating an ApiMap is necessary for processing macros
