@@ -538,7 +538,7 @@ module Solargraph
 
       # @param decl [RBS::AST::Members::MethodDefinition]
       # @param pin [Pin::Method]
-      # @return [void]
+      # @return [Array<Pin::Signature>]
       def method_def_to_sigs decl, pin
         # @param overload [RBS::AST::Members::MethodDefinition::Overload]
         decl.overloads.map do |overload|

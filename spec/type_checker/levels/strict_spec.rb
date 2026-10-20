@@ -138,6 +138,32 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.first.message).to include('Wrong argument type')
     end
 
+    it 'reports void values passed to restarg parameters' do
+      checker = type_checker(%(
+        class Foo
+          # @return [void]
+          def run
+            'json'
+          end
+        end
+        puts Foo.new.run
+      ))
+      expect(checker.problems.map(&:message)).to eq(['Void value passed as an argument to Kernel#puts'])
+    end
+
+    it 'reports void values passed to untyped parameters' do
+      checker = type_checker(%(
+        class Foo
+          # @return [void]
+          def run; end
+
+          def take(value); end
+        end
+        Foo.new.take(Foo.new.run)
+      ))
+      expect(checker.problems.map(&:message)).to eq(['Void value passed as an argument to Foo#take'])
+    end
+
     it 'ignores missing optional arguments' do
       checker = type_checker(%(
         class Foo
