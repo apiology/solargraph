@@ -72,6 +72,7 @@ module Solargraph
         end
 
         milliseconds = (time.real * 1000).round
+        # @sg-ignore Gem source pin without @return shadows RBS return type (Benchmark::Tms#real)
         return unless out && milliseconds > SLOW_BATCH_MS
 
         out.puts "Built #{metagems.length} gems in #{milliseconds} ms in #{pool_size} threads"
