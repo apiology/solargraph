@@ -95,6 +95,7 @@ jobs:
         bundle exec rake full_spec
   undercover:
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
     - uses: actions/checkout@v3
       with:
@@ -159,4 +160,3 @@ jobs:
     - name: Check PR coverage
       run: |
         bundle exec rake undercover
-      continue-on-error: true
