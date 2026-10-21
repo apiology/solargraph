@@ -240,6 +240,17 @@ describe 'YARD type specifier list parsing' do
       expect(type.to_s).to eq('Array(Array(String), String)')
     end
 
+    it 'keeps the arity of a tuple whose parameters are all undefined, so it stays distinct from a bare type across a round trip' do
+      type = Solargraph::ComplexType.parse('::Array(generic<T>, generic<U>)').items.first.erase_generics(%w[T U])
+      expect(type.subtypes.map(&:tags)).to eq(%w[undefined undefined])
+      expect(type.tags).to eq('Array(undefined, undefined)')
+      expect(type.rooted_tags).to eq('::Array(undefined, undefined)')
+      reparsed = Solargraph::ComplexType.parse(type.rooted_tags).items.first
+      expect(reparsed.parameters?).to be(true)
+      expect(reparsed.parameters_type).to eq(:fixed)
+      expect(reparsed.rooted_tags).to eq(type.rooted_tags)
+    end
+
     # Literals
     #
     # Some literals are accepted by virtue of being Ruby literals, but
