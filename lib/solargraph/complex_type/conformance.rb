@@ -41,6 +41,9 @@ module Solargraph
           # :nocov:
         end
 
+        intersection = expected
+        return satisfies_every_conjunct?(intersection) if intersection.is_a?(UniqueType::Intersection)
+
         return true if ignore_interface?
         return true if conforms_via_reverse_match?
 
@@ -77,6 +80,14 @@ module Solargraph
       end
 
       private
+
+      # @param intersection [UniqueType::Intersection]
+      # @return [Boolean]
+      def satisfies_every_conjunct? intersection
+        intersection.conjuncts.all? do |conjunct|
+          inferred.conforms_to?(api_map, conjunct, situation, rules, variance: variance)
+        end
+      end
 
       def only_inferred_parameters?
         !expected.parameters? && inferred.parameters?

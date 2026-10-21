@@ -124,6 +124,51 @@ describe Solargraph::RbsMap::Conversions do
         expect(method_pin.signatures[3].block.return_type.to_s).to eq('Integer, nil')
       end
     end
+
+    context 'with intersection types' do
+      let(:rbs) do
+        <<~RBS
+          class Foo
+            FOO: String & Comparable
+            @bar: String & Comparable
+            self.@baz: String & Comparable
+            @@qux: String & Comparable
+            attr_reader quux: String & Comparable
+            attr_writer corge: String & Comparable
+            def grault: () -> (String & Comparable)
+            def garply: %a{implicitly-returns-nil} () -> (String & Comparable)
+          end
+          $waldo: String & Comparable
+        RBS
+      end
+
+      # @param name [String]
+      # @return [Solargraph::Pin::Base]
+      def pin_named name
+        conversions.pins.find { |pin| pin.name == name }
+      end
+
+      %w[FOO @bar @baz @@qux quux corge= grault $waldo].each do |name|
+        it "types #{name} as an intersection" do
+          expect(pin_named(name).return_type.items.map(&:class)).to eq([Solargraph::ComplexType::UniqueType::Intersection])
+        end
+
+        it "leaves the intersection on #{name} out of its YARD tags" do
+          expect(pin_named(name).docstring.tags.flat_map(&:types).compact).to be_empty
+        end
+      end
+
+      %w[quux corge=].each do |name|
+        it "keeps the intersection in the signature of attribute #{name}" do
+          expect(pin_named(name).signatures.first.return_type.items.map(&:class))
+            .to eq([Solargraph::ComplexType::UniqueType::Intersection])
+        end
+      end
+
+      it 'unions nil with an intersection an implicitly-returns-nil method returns' do
+        expect(pin_named('garply').return_type.rooted_tags).to eq('::String & ::Comparable, nil')
+      end
+    end
   end
 
   context 'with standard loads for solargraph project' do

@@ -265,6 +265,9 @@ module Solargraph
     # @return [Boolean]
     def duck_type_provides? api_map, inf, quack
       return true if inf.duck_type? && inf.to_s[1..] == quack
+      if inf.is_a?(UniqueType::Intersection)
+        return inf.conjuncts.any? { |conjunct| conjunct.all? { |type| duck_type_provides?(api_map, type, quack) } }
+      end
 
       !api_map.get_method_stack(inf.namespace, quack, scope: inf.scope).empty?
     end
@@ -289,6 +292,11 @@ module Solargraph
 
     def selfy?
       @items.any?(&:selfy?)
+    end
+
+    # True when this type or one of its parameters is an intersection
+    def intersection?
+      @items.any?(&:intersection?)
     end
 
     def generic?
