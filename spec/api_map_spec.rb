@@ -715,6 +715,92 @@ describe Solargraph::ApiMap do
     expect(pins.map(&:name)).to include('foo')
   end
 
+  context 'with a mixin argument that is a method call' do
+    let(:api_map) { described_class.new }
+
+    let(:registry) do
+      %(
+        module Helpers
+          def help; end
+        end
+
+        class Registry
+          def self.helpers
+            Helpers
+          end
+
+          def helpers
+            Helpers
+          end
+        end
+      )
+    end
+
+    it 'includes the module the method returns' do
+      api_map.map Solargraph::Source.load_string(registry + %(
+        class Example
+          include Registry.helpers
+        end
+      ))
+      expect(api_map.get_method_stack('Example', 'help').map(&:path)).to eq(['Helpers#help'])
+    end
+
+    it 'extends with the module the method returns' do
+      api_map.map Solargraph::Source.load_string(registry + %(
+        class Example
+          extend Registry.helpers
+        end
+      ))
+      expect(api_map.get_method_stack('Example', 'help', scope: :class).map(&:path)).to eq(['Helpers#help'])
+    end
+
+    it 'prepends the module the method returns' do
+      api_map.map Solargraph::Source.load_string(registry + %(
+        class Example
+          prepend Registry.helpers
+        end
+      ))
+      expect(api_map.get_method_stack('Example', 'help').map(&:path)).to eq(['Helpers#help'])
+    end
+
+    it 'infers the receiver from a block parameter' do
+      api_map.map Solargraph::Source.load_string(registry + %(
+        class Example
+          # @yieldparam registry [Registry]
+          def self.configure; end
+
+          configure do |registry|
+            include registry.helpers
+          end
+        end
+      ))
+      expect(api_map.get_method_stack('Example', 'help').map(&:path)).to eq(['Helpers#help'])
+    end
+
+    it 'ignores a method typed as an unspecified Module' do
+      api_map.map Solargraph::Source.load_string(registry + %(
+        class Anywhere
+          # @return [Module]
+          def self.mod; end
+        end
+
+        class Example
+          include Anywhere.mod
+        end
+      ))
+      expect(api_map.get_includes('Example')).to be_empty
+    end
+
+    it 'ignores a method that does not return a module' do
+      api_map.map Solargraph::Source.load_string(registry + %(
+        class Example
+          include Registry.name
+        end
+      ))
+      expect(api_map.get_includes('Example')).to be_empty
+    end
+  end
+
   it 'finds class methods in class << Example' do
     source = Solargraph::Source.load_string(%(
       class << Example = Class.new

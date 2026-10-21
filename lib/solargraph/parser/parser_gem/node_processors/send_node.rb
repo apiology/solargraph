@@ -7,6 +7,8 @@ module Solargraph
         class SendNode < Parser::NodeProcessor::Base
           include ParserGem::NodeMethods
 
+          DYNAMIC_MIXIN_NODE_TYPES = %i[send csend lvar ivar].freeze
+
           # @sg-ignore @override is adding, not overriding
           def process
             # @sg-ignore Variable type could not be inferred for method_name
@@ -298,11 +300,14 @@ module Solargraph
 
           # @return [void]
           def process_include
-            return unless node.children[2].is_a?(AST::Node) && node.children[2].type == :const
+            first = node.children[2]
+            return unless first.is_a?(AST::Node) && (first.type == :const || dynamic_mixin?(first))
             cp = region.closure
             # @sg-ignore Need to add nil check here
             node.children[2..].each do |i|
               type = region.scope == :class ? Pin::Reference::Extend : Pin::Reference::Include
+              next push_dynamic_mixin(type, i) if dynamic_mixin?(i)
+
               pins.push type.new(
                 location: get_node_location(i),
                 closure: cp,
@@ -314,10 +319,13 @@ module Solargraph
 
           # @return [void]
           def process_prepend
-            return unless node.children[2].is_a?(AST::Node) && node.children[2].type == :const
+            first = node.children[2]
+            return unless first.is_a?(AST::Node) && (first.type == :const || dynamic_mixin?(first))
             cp = region.closure
             # @sg-ignore Need to add nil check here
             node.children[2..].each do |i|
+              next push_dynamic_mixin(Pin::Reference::Prepend, i) if dynamic_mixin?(i)
+
               pins.push Pin::Reference::Prepend.new(
                 location: get_node_location(i),
                 closure: cp,
@@ -368,7 +376,9 @@ module Solargraph
             # @sg-ignore Need to add nil check here
             node.children[2..].each do |i|
               loc = get_node_location(node)
-              if i.type == :self
+              if dynamic_mixin?(i)
+                push_dynamic_mixin(Pin::Reference::Extend, i)
+              elsif i.type == :self
                 pins.push Pin::Reference::Extend.new(
                   location: loc,
                   closure: region.closure,
@@ -384,6 +394,30 @@ module Solargraph
                 )
               end
             end
+          end
+
+          # Whether a mixin argument is an expression to infer once the store
+          # is built, e.g. `registry.helpers`.
+          #
+          # @param arg [AST::Node, nil]
+          # @return [Boolean]
+          def dynamic_mixin? arg
+            arg.is_a?(AST::Node) && DYNAMIC_MIXIN_NODE_TYPES.include?(arg.type)
+          end
+
+          # @param mixin [Class<Pin::Reference::Include>, Class<Pin::Reference::Extend>, Class<Pin::Reference::Prepend>]
+          # @param arg [AST::Node]
+          # @return [void]
+          def push_dynamic_mixin mixin, arg
+            location = get_node_location(arg)
+            pins.push Pin::Reference::DynamicMixin.new(
+              location: location,
+              closure: region.closure,
+              mixin: mixin,
+              node: arg,
+              locals: locals.select { |pin| pin.visible_at?(region.closure, location) },
+              source: :parser
+            )
           end
 
           # @return [void]
