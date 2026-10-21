@@ -122,7 +122,7 @@ module Solargraph
         #
         # @return [void]
         def update progress
-          # @sg-ignore https://github.com/apiology/solargraph/pull/228
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1440
           progress&.send(self)
         end
       end
