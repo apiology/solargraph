@@ -416,5 +416,22 @@ describe Solargraph::Parser::NodeMethods do
       calls = described_class.call_nodes_from(source.node)
       expect(calls.length).to eq(2)
     end
+
+    it 'includes the operator call of an op-assign' do
+      source = Solargraph::Source.load_string(%(
+        x += 1
+        foo.bar += 2
+      ))
+      calls = described_class.call_nodes_from(source.node)
+      expect(calls.map { |call| call.children[1] }).to eq(%i[+ + bar foo])
+    end
+
+    it 'does not add operator calls for or-assigns' do
+      source = Solargraph::Source.load_string(%(
+        x ||= 1
+      ))
+      calls = described_class.call_nodes_from(source.node)
+      expect(calls).to be_empty
+    end
   end
 end
