@@ -765,4 +765,26 @@ describe 'YARD type specifier list parsing' do
       expect(atype.conforms_to?(api_map, ptype, :method_call)).to be(true)
     end
   end
+
+  context 'with Ruby equality of types' do
+    it 'considers two parses of a name that cannot be rooted equal' do
+      a = Solargraph::ComplexType.parse('undefined').items.first
+      b = Solargraph::ComplexType.parse('undefined').items.first
+      expect(a).to eql(b)
+      expect(a.hash).to eq(b.hash)
+    end
+
+    it 'treats the rooted flag as meaningless on a name that cannot be rooted' do
+      unrooted = Solargraph::ComplexType::UniqueType.new('undefined', rooted: false)
+      rooted = Solargraph::ComplexType::UniqueType.new('undefined', rooted: true)
+      expect(unrooted).to eql(rooted)
+      expect(unrooted.hash).to eq(rooted.hash)
+    end
+
+    it 'still distinguishes a name that can be rooted by its rooted flag' do
+      rooted = Solargraph::ComplexType::UniqueType.new('String', rooted: true)
+      unrooted = Solargraph::ComplexType::UniqueType.new('String', rooted: false)
+      expect(rooted).not_to eql(unrooted)
+    end
+  end
 end
