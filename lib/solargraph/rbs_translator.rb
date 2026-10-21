@@ -127,16 +127,16 @@ module Solargraph
       def build_complex_type type
         case type
         when RBS::Types::Intersection
-          # @sg-ignore flow sensitive typing ought to be able to handle 'when ClassName'
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1259
           intersection_complex_type(type)
         when RBS::Types::Optional
-          # @sg-ignore flow sensitive typing ought to be able to handle 'when ClassName'
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1259
           ComplexType.new([to_complex_type(type.type), ComplexType::NIL])
         when RBS::Types::Union
-          # @sg-ignore flow sensitive typing ought to be able to handle 'when ClassName'
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1259
           ComplexType.new(type.types.map { |member| to_complex_type(member) })
         when RBS::Types::Tuple
-          # @sg-ignore flow sensitive typing ought to be able to handle 'when ClassName'
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1259
           tuple_complex_type(type)
         when RBS::Types::ClassInstance, RBS::Types::Alias, RBS::Types::Interface
           # `Alias` is a top-level type alias, e.g., 'bool' in "type bool = true | false"
@@ -146,11 +146,11 @@ module Solargraph
           # `Interface represents a mix-in module which can be considered a
           # subtype of a consumer of it
           #
-          # @sg-ignore flow sensitive typing ought to be able to handle 'when ClassName'
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1259
           ComplexType.new([build_unique_type(type.name, type.args)])
         when RBS::Types::ClassSingleton
           # e.g., singleton(String)
-          # @sg-ignore flow sensitive typing ought to be able to handle 'when ClassName'
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1259
           ComplexType.new([build_unique_type(type.name)])
         else
           ComplexType.try_parse(type_to_tag(type))
