@@ -867,4 +867,32 @@ describe Solargraph::Source::Chain::Call do
     clip = api_map.clip_at('test.rb', [14, 14])
     expect(clip.infer.rooted_tags).to eq('::Set<::Foo::Bar::Symbol>')
   end
+
+  it 'treats MatchData#[] with a literal 0 as non-nil' do
+    source = Solargraph::Source.load_string(%(
+      # @param md [MatchData]
+      def foo(md)
+        md[0]
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+
+    clip = api_map.clip_at('test.rb', [3, 13])
+    expect(clip.infer.rooted_tags).to eq('::String')
+  end
+
+  it 'still treats MatchData#[] with a capture group index as nilable' do
+    source = Solargraph::Source.load_string(%(
+      # @param md [MatchData]
+      def foo(md)
+        md[1]
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+
+    clip = api_map.clip_at('test.rb', [3, 13])
+    expect(clip.infer.rooted_tags).to eq('::String, nil')
+  end
 end
