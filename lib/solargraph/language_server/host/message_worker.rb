@@ -74,7 +74,7 @@ module Solargraph
         # @return [void]
         def tick
           message = @mutex.synchronize do
-            @resource.wait(@mutex) if messages.empty?
+            @resource.wait(@mutex) while messages.empty? && !stopped?
             next_message
           end
           return if message.nil?

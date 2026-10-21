@@ -120,7 +120,6 @@ Metrics/AbcSize:
   Exclude:
     - 'lib/solargraph/api_map/source_to_yard.rb'
     - 'lib/solargraph/parser/parser_gem/node_chainer.rb'
-    - 'lib/solargraph/shell.rb'
     - 'lib/solargraph/source_map/clip.rb'
 
 # Configuration parameters: CountComments, CountAsOne, AllowedMethods, AllowedPatterns, inherit_mode.
@@ -284,11 +283,6 @@ Style/ArgumentsForwarding:
   Exclude:
     - 'lib/solargraph/complex_type.rb'
 
-# This cop supports unsafe autocorrection (--autocorrect-all).
-Style/ArrayIntersect:
-  Exclude:
-    - 'lib/solargraph/pin/base.rb'
-
 # This cop supports safe autocorrection (--autocorrect).
 # Configuration parameters: EnforcedStyle, ProceduralMethods, FunctionalMethods, AllowedMethods, AllowedPatterns, AllowBracesOnProceduralOneLiners, BracesRequiredMethods.
 # SupportedStyles: line_count_based, semantic, braces_for_chaining, always_braces
@@ -339,7 +333,6 @@ Style/FrozenStringLiteralComment:
 Style/GuardClause:
   Exclude:
     - 'lib/solargraph/rbs_map/conversions.rb'
-    - 'lib/solargraph/source_map/clip.rb'
 
 # This cop supports safe autocorrection (--autocorrect).
 Style/IfUnlessModifier:
