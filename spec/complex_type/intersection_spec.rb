@@ -140,4 +140,9 @@ describe Solargraph::ComplexType::UniqueType::Intersection do
     type = described_class.new([Solargraph::ComplexType.parse('String'), Solargraph::ComplexType.parse('Comparable')])
     expect(type.qualify(api_map).rooted_tags).to eq('::String & ::Comparable')
   end
+
+  it 'offers the methods of every conjunct' do
+    names = api_map.get_complex_type_methods(rbs_type('Integer & Enumerable[String]')).map(&:name)
+    expect(names).to include('even?', 'each_slice')
+  end
 end
