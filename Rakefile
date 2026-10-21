@@ -51,8 +51,15 @@ task :full_spec do
   # pin/base and strict all read pins nothing has built yet. Shell#gems
   # only warns on a name it cannot find, so check for a Caching line per
   # gem when editing this list.
-  sh 'bundle exec solargraph gems core stdlib ast parser ' \
-     'backport reverse_markdown yard kramdown-parser-gfm'
+  #
+  # The specs run both without a workspace and with the repo-root one,
+  # so cache once after loading each.
+  require 'solargraph'
+  gems = %w[gems core stdlib ast parser backport reverse_markdown yard kramdown-parser-gfm]
+  Solargraph::Workspace.new
+  Solargraph::Shell.start(gems)
+  Solargraph::Workspace.new(Dir.pwd)
+  Solargraph::Shell.start(gems)
   # Five files the balancer must not split, each over state that is one
   # copy for the whole run. library, external and yardoc uncache the
   # backport gem from the pin cache every worker shares; external and
