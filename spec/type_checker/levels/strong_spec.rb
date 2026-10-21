@@ -1585,6 +1585,52 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message)).to eq([])
     end
 
+    it 'narrows an ivar guard against its own class when another class shares the name' do
+      checker = type_checker(%(
+        class Other
+          def initialize
+            @x = 1
+          end
+        end
+
+        class Foo
+          # @param x [String, nil]
+          def initialize x
+            @x = x
+          end
+
+          # @return [String]
+          def up
+            return 'none' unless @x
+            @x.upcase
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq([])
+    end
+
+    it 'narrows an ivar guard against its own class inside an earlier class with the same ivar' do
+      checker = type_checker(%(
+        class Outer
+          @x = 1
+
+          class Foo
+            # @param x [String, nil]
+            def initialize x
+              @x = x
+            end
+
+            # @return [String]
+            def up
+              return 'none' unless @x
+              @x.upcase
+            end
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq([])
+    end
+
     it 'supports !@x.nil && @x.y' do
       checker = type_checker(%(
         class Bar
