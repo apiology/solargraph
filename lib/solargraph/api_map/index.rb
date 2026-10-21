@@ -171,6 +171,8 @@ module Solargraph
         end
       end
 
+      YIELD_TAGS = %w[yieldparam yieldreturn].freeze
+
       # @return [void]
       def map_overrides
         # @todo should complain when type for 'ovr' is not provided
@@ -192,6 +194,7 @@ module Solargraph
             ovr.tags.each do |tag|
               pin.docstring.add_tag(tag)
               redefine_return_type pin, tag
+              redefine_block pin, tag
               pin.reset_generated!
 
               next unless new_pin
@@ -214,6 +217,21 @@ module Solargraph
         pin.instance_variable_set(:@return_type, ComplexType.try_parse(tag.type))
         pin.signatures.each do |sig|
           sig.instance_variable_set(:@return_type, ComplexType.try_parse(tag.type))
+        end
+      end
+
+      # Rebuild each signature's block from the pin's yield tags. Signatures
+      # from RBS or an earlier docstring keep their block otherwise.
+      #
+      # @param pin [Pin::Base]
+      # @param tag [YARD::Tags::Tag]
+      # @return [void]
+      def redefine_block pin, tag
+        return unless pin.is_a?(Pin::Method) && YIELD_TAGS.include?(tag.tag_name)
+        pin.signatures.each do |sig|
+          block = pin.generate_signature(sig.parameters, sig.return_type).block
+          block&.closure = sig
+          sig.instance_variable_set(:@block, block)
         end
       end
 
