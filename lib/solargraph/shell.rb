@@ -113,10 +113,13 @@ module Solargraph
       Documentation will be regenerated as needed.
     )
     option :directory, type: :string, desc: 'Workspace directory', default: Dir.pwd
+    option :plugins, type: :string,
+                     desc: "Plugins to require instead of the workspace's, separated by #{File::PATH_SEPARATOR}"
     # @param gems [Array<String>]
     # @return [void]
     def uncache *gems
       raise ArgumentError, 'No gems specified.' if gems.empty?
+      require_plugins
       repo = Solargraph::Repo.new(options[:directory])
 
       gems.each do |gem|
@@ -158,10 +161,13 @@ module Solargraph
         can be stored between CI runs.
     )
     option :directory, type: :string, desc: 'Workspace directory', default: Dir.pwd
+    option :plugins, type: :string,
+                     desc: "Plugins to require instead of the workspace's, separated by #{File::PATH_SEPARATOR}"
     option :rebuild, type: :boolean, desc: 'Rebuild existing documentation', default: false
     # @param gem_names [Array<String>]
     # @return [void]
     def cache *gem_names
+      require_plugins
       repo = Solargraph::Repo.new(options[:directory])
       metagems = if gem_names.empty?
                    if repo.bundled?
@@ -541,6 +547,21 @@ module Solargraph
 
       workspace = Solargraph::Workspace.new(directory)
       workspace.filenames.find { |f| f.end_with?('.rb') }
+    end
+
+    # Plugins change the pins mapped from gem source and the gem cache
+    # directory, so the language server's cache subprocess needs them too.
+    #
+    # @return [void]
+    def require_plugins
+      return Workspace::Config.new(options[:directory] || Dir.pwd).require_plugins if options[:plugins].nil?
+
+      options[:plugins].split(File::PATH_SEPARATOR).each do |plugin|
+        require plugin
+        CacheDir.add_plugin plugin
+      rescue LoadError
+        Solargraph.logger.warn "Failed to load plugin '#{plugin}'"
+      end
     end
 
     # @param pin [Solargraph::Pin::Base]
