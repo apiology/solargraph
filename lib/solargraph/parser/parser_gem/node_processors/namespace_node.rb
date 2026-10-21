@@ -11,9 +11,7 @@ module Solargraph
             name = unpack_name(node.children[0])
             comments = comments_for(node)
 
-            superclass_name = if node.type == :class && node.children[1]&.type == :const
-              "#{type_from_node}#{parameters_from_inline_rbs}"
-            end
+            superclass_name = type_from_node if node.type == :class
 
             loc = get_node_location(node)
             nspin = Solargraph::Pin::Namespace.new(
@@ -32,6 +30,7 @@ module Solargraph
                 location: loc,
                 closure: pins.last,
                 name: superclass_name,
+                generic_values: superclass_generic_values(nspin.generics),
                 source: :parser
               )
             end
@@ -60,7 +59,27 @@ module Solargraph
             code = match[1].strip
             return if code.empty?
 
-            "<#{code}>"
+            code
+          end
+
+          # Type arguments for the superclass, with any names declared by
+          # the class's own `@generic` tags marked as generic parameters,
+          # e.g., `generic<K>` for `class Foo < Hash #[K, V]`.
+          #
+          # @param generics [Array<String>]
+          # @return [Array<String>]
+          def superclass_generic_values generics
+            code = parameters_from_inline_rbs
+            return [] unless code
+
+            type = ComplexType.try_parse("#{type_from_node}<#{code}>")
+            type.all_params.map do |param|
+              param.transform do |t|
+                next t unless generics.include?(t.name) && t.all_params.empty?
+
+                ComplexType.parse("#{ComplexType::GENERIC_TAG_NAME}<#{t.name}>").items.first
+              end.to_s
+            end
           end
 
           def type_from_node
