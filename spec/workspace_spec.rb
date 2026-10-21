@@ -145,4 +145,16 @@ describe Solargraph::Workspace do
       described_class.new('./path', config)
     end.not_to raise_error
   end
+
+  describe '#gemfile?' do
+    it 'returns true when the workspace directory has a Gemfile' do
+      File.write(File.join(dir_path, 'Gemfile'), "source 'https://rubygems.org'")
+
+      expect(workspace.gemfile?).to be(true)
+    end
+
+    it 'returns false when the workspace directory has no Gemfile' do
+      expect(workspace.gemfile?).to be(false)
+    end
+  end
 end
