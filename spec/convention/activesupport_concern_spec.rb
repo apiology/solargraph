@@ -43,6 +43,48 @@ describe Solargraph::Convention::ActiveSupportConcern do
     end
   end
 
+  context 'with a concern singleton method named like a ClassMethods method' do
+    let :source do
+      Solargraph::Source.load_string(%(
+      module Persistence
+        extend ActiveSupport::Concern
+
+        module ClassMethods
+          # @return [String]
+          def create; end
+        end
+      end
+
+      module Reflection
+        extend ActiveSupport::Concern
+
+        included do
+          # @return [Integer]
+          def self.create_reflection; end
+        end
+
+        # @return [Symbol]
+        def self.create; end
+      end
+
+      class Base
+        include Persistence
+        include Reflection
+      end
+    ), 'test.rb')
+    end
+
+    it 'ranks the ClassMethods method first' do
+      expect(api_map.get_method_stack('Base', 'create', scope: :class).map(&:path))
+        .to eq(['Persistence::ClassMethods#create', 'Reflection.create'])
+    end
+
+    it 'still gives the includer methods defined inside included blocks' do
+      expect(api_map.get_method_stack('Base', 'create_reflection', scope: :class).map(&:path))
+        .to eq(['Reflection.create_reflection'])
+    end
+  end
+
   context 'with static method defined in both included module and class' do
     let :source do
       Solargraph::Source.load_string(%(
@@ -157,6 +199,40 @@ describe Solargraph::Convention::ActiveSupportConcern do
 
       it 'is a Pin::Method' do
         expect(method_pins.first).to be_a(Solargraph::Pin::Method)
+      end
+    end
+
+    context 'with a concern singleton method named like a ClassMethods method' do
+      let(:rbs) do
+        <<~RBS
+          module MyActiveRecord
+            module Persistence
+              extend ActiveSupport::Concern
+
+              module ClassMethods
+                def create: (**untyped) -> instance
+              end
+            end
+
+            module Reflection
+              extend ActiveSupport::Concern
+
+              def self.create: (untyped macro, untyped name) -> untyped
+            end
+          end
+
+          module MyActiveRecord
+            class Base
+              include Persistence
+              include Reflection
+            end
+          end
+        RBS
+      end
+
+      it 'ranks the ClassMethods method first' do
+        expect(api_map.get_method_stack('MyActiveRecord::Base', 'create', scope: :class).map(&:path))
+          .to eq(['MyActiveRecord::Persistence::ClassMethods#create', 'MyActiveRecord::Reflection.create'])
       end
     end
 

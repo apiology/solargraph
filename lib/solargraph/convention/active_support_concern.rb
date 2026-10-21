@@ -59,9 +59,12 @@ module Solargraph
           @fqns = rooted_type.namespace
           @namespace_pin = api_map.get_path_pins(fqns).select { |p| p.is_a?(Pin::Namespace) }.first
 
+          # @type [Array<Pin::Base>]
+          @module_singleton_pins = []
           api_map.get_includes(fqns).reverse.each do |include_tag|
             process_include include_tag
           end
+          environ.pins.concat @module_singleton_pins
         end
 
         private
@@ -88,6 +91,8 @@ module Solargraph
           return unless module_extends.include? 'ActiveSupport::Concern'
           included_class_pins = api_map.inner_get_methods_from_reference(rooted_include_tag, namespace_pin, rooted_type,
                                                                          :class, visibility, deep, skip, true)
+          module_singleton_pins, included_class_pins = included_class_pins.partition { |pin| module_singleton?(pin) }
+          @module_singleton_pins.concat module_singleton_pins
           logger.debug do
             "ActiveSupportConcern#object(#{fqns}, #{scope}, #{visibility}, #{deep}) - " \
               "Found #{included_class_pins.length} inluded class methods for #{rooted_include_tag}"
@@ -104,6 +109,17 @@ module Solargraph
               "class methods for #{classmethods_include_tag}"
           end
           environ.pins.concat included_classmethods_pins
+        end
+
+        # Rails gives the includer the methods from `included` blocks
+        # and `ClassMethods`, but not the concern's own `def self.foo`.
+        # YARD and RBS put both kinds on the concern itself, so these
+        # pins stay, ranked after every `ClassMethods` method so the
+        # concern's own methods cannot shadow a real class method.
+        #
+        # @param pin [Pin::Base]
+        def module_singleton? pin
+          pin.is_a?(Pin::Method) && pin.scope == :class && !pin.closure.is_a?(Pin::Block)
         end
       end
     end
