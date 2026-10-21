@@ -1294,5 +1294,103 @@ describe Solargraph::TypeChecker do
       ), ['forwardable'])
       expect(checker.problems).to be_empty
     end
+
+    context 'with an RBS intersection type' do
+      let(:classes) do
+        %(
+          class A
+            # @return [void]
+            def foo; end
+          end
+
+          class B
+            # @return [void]
+            def bar; end
+          end
+
+          class Factory
+            #: () -> (A & B)
+            def make; end
+          end
+        )
+      end
+
+      it 'resolves a method defined on one conjunct of the receiver' do
+        checker = type_checker(%(
+          #{classes}
+          class Caller
+            # @return [void]
+            def go
+              Factory.new.make.foo
+              Factory.new.make.bar
+            end
+          end
+        ))
+        expect(checker.problems.map(&:message).grep(/Unresolved call/)).to be_empty
+      end
+
+      it 'accepts the value where one conjunct is expected' do
+        checker = type_checker(%(
+          #{classes}
+          class Caller
+            # @param a [A]
+            # @return [void]
+            def take(a); end
+
+            # @return [void]
+            def go
+              take(Factory.new.make)
+            end
+          end
+        ))
+        expect(checker.problems.map(&:message).grep(/Wrong argument type/)).to be_empty
+      end
+
+      it 'accepts the value where a duck type one conjunct provides is expected' do
+        checker = type_checker(%(
+          #{classes}
+          class Caller
+            # @param q [#bar]
+            # @return [void]
+            def take(q); end
+
+            # @return [void]
+            def go
+              take(Factory.new.make)
+            end
+          end
+        ))
+        expect(checker.problems.map(&:message).grep(/Wrong argument type/)).to be_empty
+      end
+
+      it 'rejects a value of one conjunct alone where the intersection is expected' do
+        checker = type_checker(%(
+          #{classes}
+          class Caller
+            #: (A & B) -> void
+            def take(x); end
+
+            # @return [void]
+            def go
+              take(A.new)
+            end
+          end
+        ))
+        expect(checker.problems.map(&:message)).to include('Wrong argument type for Caller#take: x expected A & B, received A')
+      end
+
+      it 'accepts an intersection returned as the same intersection in another order' do
+        checker = type_checker(%(
+          #{classes}
+          class Caller
+            #: () -> (B & A)
+            def go
+              Factory.new.make
+            end
+          end
+        ))
+        expect(checker.problems.map(&:message).grep(/Caller#go/)).to be_empty
+      end
+    end
   end
 end

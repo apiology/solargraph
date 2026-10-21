@@ -718,9 +718,7 @@ module Solargraph
 
       # @return [ComplexType]
       def generate_complex_type
-        tags = docstring.tags(:return).map(&:types).flatten.compact
-        return ComplexType::UNDEFINED if tags.empty?
-        ComplexType.try_parse(*tags)
+        TypeTag.complex_type_of(docstring.tags(:return))
       end
 
       # @param api_map [ApiMap]

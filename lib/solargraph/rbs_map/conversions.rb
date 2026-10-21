@@ -356,9 +356,7 @@ module Solargraph
           fqns = parts.first
           closure = Solargraph::Pin::ROOT_PIN
         end
-        rooted_tag = type.rooted_tags
-        rooted_tag = "#{base}<#{rooted_tag}>" if base
-        return_type = ComplexType.try_parse(rooted_tag).force_rooted
+        return_type = (base ? ComplexType.try_parse("#{base}<#{type.rooted_tags}>") : type).force_rooted
         Solargraph::Pin::Constant.new(
           name: fqns,
           closure: closure,
@@ -770,7 +768,7 @@ module Solargraph
       # @return [ComplexType]
       def extract_method_type_return_type type, implicit_nil
           tag = RbsTranslator.to_complex_type(type.type.return_type)
-          return ComplexType.parse("#{tag}, nil") if tag && implicit_nil
+          return ComplexType.new([tag, ComplexType::NIL]) if tag && implicit_nil
           tag
       end
 

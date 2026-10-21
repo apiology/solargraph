@@ -56,35 +56,74 @@ module Solargraph
           # need to worry about the not-nil case
 
           binder = binder.without_nil if nullable?
-          # Resolve one unique type at a time, so a `self` return type narrows to the one that supplied the pin.
-          # @type [::Array<Pin::Base>]
-          resolved = []
-          unresolved_type = false
-          binder.each_unique_type do |context|
-            ns_tag = context.namespace == '' ? '' : context.namespace_type.tag
-            stack = api_map.get_method_stack(ns_tag, word, scope: context.scope)
-            pin = stack.first
-            if pin.nil?
-              unresolved_type = true
-              next
-            end
-            # Bind name_pin to this type alone, so #inferred_pins (incl. Class#new) cannot see the others.
-            type_name_pin = Pin::ProxyType.anonymous(name_pin.context,
-                                                     closure: name_pin.closure,
-                                                     gates: name_pin.gates,
-                                                     binder: context,
-                                                     source: :chain)
-            resolved.concat inferred_pins([pin], api_map, type_name_pin, locals)
-          end
-          return [] if unresolved_type && !api_map.loose_unions
-          return [] if resolved.empty?
-          # Accumulating every type's result treats the binder as a union, which is the only
-          # multi-type binder ComplexType builds; dedup on rooted_tags rather than #tag, which
-          # reports only the first member and so collapses two distinct unions.
+          resolved = binder_pins(binder, api_map, name_pin, locals)
+          return [] if resolved.nil? || resolved.empty?
+          # Dedup on rooted_tags rather than #tag, which reports only the first member and so
+          # collapses two distinct unions.
           resolved.uniq { |pin| [pin.path, pin.return_type.rooted_tags] }
         end
 
         private
+
+        # Resolve one unique type at a time, so a `self` return type narrows to the one that supplied the pin.
+        #
+        # @param binder [ComplexType, ComplexType::UniqueType]
+        # @param api_map [ApiMap]
+        # @param name_pin [Pin::Base]
+        # @param locals [::Array<Pin::LocalVariable>]
+        # @return [::Array<Pin::Base>, nil] nil when a member of the union cannot answer
+        def binder_pins binder, api_map, name_pin, locals
+          # @type [::Array<Pin::Base>]
+          resolved = []
+          unresolved_type = false
+          binder.each_unique_type do |context|
+            pins = context_pins(context, api_map, name_pin, locals)
+            if pins.nil?
+              unresolved_type = true
+              next
+            end
+            resolved.concat pins
+          end
+          return nil if unresolved_type && !api_map.loose_unions
+          resolved
+        end
+
+        # @param context [ComplexType::UniqueType]
+        # @param api_map [ApiMap]
+        # @param name_pin [Pin::Base]
+        # @param locals [::Array<Pin::LocalVariable>]
+        # @return [::Array<Pin::Base>, nil] nil when the type has no such method
+        def context_pins context, api_map, name_pin, locals
+          return intersection_pins(context, api_map, name_pin, locals) if context.is_a?(ComplexType::UniqueType::Intersection)
+
+          ns_tag = context.namespace == '' ? '' : context.namespace_type.tag
+          stack = api_map.get_method_stack(ns_tag, word, scope: context.scope)
+          pin = stack.first
+          return nil if pin.nil?
+
+          # Bind name_pin to this type alone, so #inferred_pins (incl. Class#new) cannot see the others.
+          type_name_pin = Pin::ProxyType.anonymous(name_pin.context,
+                                                   closure: name_pin.closure,
+                                                   gates: name_pin.gates,
+                                                   binder: context,
+                                                   source: :chain)
+          inferred_pins([pin], api_map, type_name_pin, locals)
+        end
+
+        # A value of A & B is both an A and a B, so a method on any one conjunct answers.
+        #
+        # @param intersection [ComplexType::UniqueType::Intersection]
+        # @param api_map [ApiMap]
+        # @param name_pin [Pin::Base]
+        # @param locals [::Array<Pin::LocalVariable>]
+        # @return [::Array<Pin::Base>, nil]
+        def intersection_pins intersection, api_map, name_pin, locals
+          found = intersection.conjuncts.filter_map do |conjunct|
+            pins = binder_pins(conjunct, api_map, name_pin, locals)
+            pins unless pins.nil? || pins.empty?
+          end
+          found.flatten unless found.empty?
+        end
 
         # Checks whether a single overload signature matches the call's
         # arguments/block and, if so, resolves its return type. Threaded

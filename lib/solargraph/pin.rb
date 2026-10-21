@@ -29,6 +29,7 @@ module Solargraph
     autoload :Parameter,        'solargraph/pin/parameter'
     autoload :Reference,        'solargraph/pin/reference'
     autoload :Documenting,      'solargraph/pin/documenting'
+    autoload :TypeTag,          'solargraph/pin/type_tag'
     autoload :Block,            'solargraph/pin/block'
     autoload :ProxyType,        'solargraph/pin/proxy_type'
     autoload :DuckMethod,       'solargraph/pin/duck_method'

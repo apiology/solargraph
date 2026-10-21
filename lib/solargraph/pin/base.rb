@@ -830,7 +830,6 @@ module Solargraph
       #
       # @return [void]
       def sync_return_type_tag
-        rooted_tags = @return_type.items.map(&:rooted_tag)
         # Replace rather than assign #types on the tag in place: a proxy holds
         # a duplicated docstring whose tag objects the original still shares.
         # Carry the first description over, so replacing the tag does not drop
@@ -840,7 +839,7 @@ module Solargraph
         # @sg-ignore https://github.com/castwide/solargraph/pull/1259
         @docstring.delete_tags(return_type_tag_name)
         # @sg-ignore https://github.com/castwide/solargraph/pull/1259
-        @docstring.add_tag(YARD::Tags::Tag.new(return_type_tag_name, text.to_s, rooted_tags))
+        @docstring.add_tag(TypeTag.new(return_type_tag_name, text.to_s, ComplexType.new([@return_type])))
       end
 
       # The docstring tag name that holds this pin's return type. Method
