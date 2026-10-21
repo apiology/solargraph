@@ -62,6 +62,18 @@ describe Solargraph::Collection::Gem do
 
       expect(described_class).not_to have_received(:load)
     end
+
+    it 'stops its workers when a gem fails to load' do
+      pools = []
+      allow(Concurrent::FixedThreadPool).to receive(:new).and_wrap_original do |original, *args|
+        original.call(*args).tap { |pool| pools << pool }
+      end
+      allow(described_class).to receive(:load).and_raise(RuntimeError, 'boom')
+
+      expect { described_class.load_all([metagem]) }.to raise_error(RuntimeError, 'boom')
+
+      expect(pools.map(&:running?)).to eq([false])
+    end
   end
 
   context 'with a convention that names extra source paths' do

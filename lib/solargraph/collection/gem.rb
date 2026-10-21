@@ -73,6 +73,10 @@ module Solargraph
           Concurrent::Promises.zip(*futures).value!
           pool.shutdown
           pool.wait_for_termination
+        ensure
+          # A raise or a caller's timeout skips the shutdown above; stop the
+          # workers rather than leave them mapping gems in the background.
+          pool.kill
         end
 
         milliseconds = (time.real * 1000).round
