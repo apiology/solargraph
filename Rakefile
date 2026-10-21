@@ -45,12 +45,9 @@ task :full_spec do
   # workers racing to generate the same ones is what takes
   # rbs_map/conversions_spec from 17s to over four minutes.
   #
-  # The trailing four are needed rather than merely slow. Run serially
-  # the suite caches them in passing before anything asserts on them,
-  # but a worker only runs its own share, so on a cold cache external,
-  # pin/base and strict all read pins nothing has built yet. This only
-  # warns on a name it cannot find, so check for a Caching line per gem
-  # when editing this list.
+  # The specs cache any gem they need themselves, so this only saves
+  # time. It only warns on a name it cannot find, so check for a
+  # Caching line per gem when editing this list.
   #
   # The specs map gems both with no workspace and with the repo-root
   # one, so cache once after loading each.
