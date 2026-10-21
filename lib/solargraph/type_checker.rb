@@ -163,6 +163,8 @@ module Solargraph
         elsif rules.must_tag_or_infer? && pin.probe(api_map).undefined?
           result.push Problem.new(pin.location, "Untyped method #{pin.path} could not be inferred")
         end
+      elsif unresolved_type_params?(pin.return_type, pin.gates)
+        result.push Problem.new(pin.location, "Unresolved return type #{pin.return_type} for #{pin.path}", pin: pin)
       elsif rules.validate_tags?
         # Attribute pins never have a node (attr_reader/attr_writer/attr_accessor are
         # synthesized, not parsed method bodies), but their inferred type is still
@@ -245,7 +247,41 @@ module Solargraph
           end
         end
       end
-      result
+      result.concat unresolved_param_tag_type_problems_for(pin)
+    end
+
+    # @param pin [Pin::Method]
+    # @return [Array<Problem>]
+    def unresolved_param_tag_type_problems_for pin
+      pin.docstring.tags(:param).filter_map do |tag|
+        next if tag.types.nil?
+
+        type = ComplexType.try_parse(*tag.types)
+        next unless type.defined? && unresolved_type_params?(type, pin.gates)
+
+        Problem.new(pin.location, "Unresolved type #{type} for #{tag.name} param on #{pin.path}", pin: pin)
+      end
+    end
+
+    # Qualifying a type turns an unknown name nested in its type
+    # parameters (the Strng in Array<Strng>) into undefined while
+    # the type itself stays defined, so checks that look only at
+    # the outer type never report it.
+    #
+    # @param type [ComplexType, ComplexType::UniqueType, nil] a type as written in a tag
+    # @param gates [Array<String>]
+    # @return [Boolean]
+    def unresolved_type_params? type, gates
+      return false if type.nil?
+
+      # @type [Array<ComplexType::UniqueType>]
+      params = type.items.reject(&:generic?).flat_map { |item| item.all_params.flat_map(&:items) }
+      params.any? do |param|
+        next false if param.undefined? || param.generic? || param.name == 'self'
+
+        ComplexType.new([param]).qualify(api_map, *gates).undefined? ||
+          unresolved_type_params?(param, gates)
+      end
     end
 
     # @return [Array<Pin::Base>]
@@ -281,6 +317,10 @@ module Solargraph
               ignored_pins.push pin
             end
           elsif !pin.is_a?(Pin::Parameter) && !resolved_constant?(pin)
+            result.push Problem.new(pin.location, "Unresolved type #{pin.return_type} for variable #{pin.name}",
+                                    pin: pin)
+          end
+          if declared.defined? && !pin.is_a?(Pin::Parameter) && unresolved_type_params?(pin.return_type, pin.gates)
             result.push Problem.new(pin.location, "Unresolved type #{pin.return_type} for variable #{pin.name}",
                                     pin: pin)
           end
@@ -526,7 +566,7 @@ module Solargraph
       result = []
       kwargs = convert_hash(argchain.node)
       par = sig.parameters[idx]
-      # @type [Solargraph::Source::Chain]
+      # @type [Solargraph::Source::Chain, nil]
       argchain = kwargs[par.name.to_sym]
       if par.decl == :kwrestarg || (par.decl == :optarg && idx == pin.parameters.length - 1 && par.asgn_code == '{}')
         result.concat kwrestarg_problems_for(api_map, closure_pin, locals, location, pin, params, kwargs)
