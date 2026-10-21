@@ -661,6 +661,17 @@ describe Solargraph::Pin::Method do
       expect(pin.return_type.to_s).to eq('Array<String>')
     end
 
+    it 'sets intersection return types' do
+      source = Solargraph::Source.load_string(%(
+        #: () -> (String & Comparable)
+        def foo; end
+      ))
+      api_map = Solargraph::ApiMap.new
+      api_map.map source
+      pin = api_map.get_path_pins('#foo').first
+      expect(pin.return_type.first).to be_a(Solargraph::ComplexType::UniqueType::Intersection)
+    end
+
     it 'sets YARD conventional return types' do
       source = Solargraph::Source.load_string(%(
         #: () -> bool

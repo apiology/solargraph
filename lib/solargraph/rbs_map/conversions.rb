@@ -361,10 +361,12 @@ module Solargraph
           closure: closure,
           type_location: location_decl_to_pin_location(decl.location),
           comments: comments,
+          return_type: (yardless(type) unless base),
           source: :rbs
         )
-        rooted_tag = type.rooted_tags
-        rooted_tag = "#{base}<#{rooted_tag}>" if base
+        return add_type_tag(constant_pin, :return, type) unless base
+
+        rooted_tag = "#{base}<#{type.rooted_tags}>"
         # @todo alt version
         # tag = "#{base}<#{tag}>" if base
         # rooted_tag = ComplexType.parse(tag).force_rooted.rooted_tags
@@ -403,15 +405,16 @@ module Solargraph
       def global_decl_to_pin decl
         closure = Solargraph::Pin::ROOT_PIN
         name = decl.name.to_s
+        type = RbsTranslator.to_complex_type(decl.type).force_rooted
         pin = Solargraph::Pin::GlobalVariable.new(
           name: name,
           closure: closure,
           comments: decl.comment&.string,
           type_location: location_decl_to_pin_location(decl.location),
+          return_type: yardless(type),
           source: :rbs
         )
-        rooted_tag = RbsTranslator.to_complex_type(decl.type).force_rooted.rooted_tags
-        pin.docstring.add_tag(YARD::Tags::Tag.new(:type, '', rooted_tag))
+        add_type_tag pin, :type, type
         pins.push pin
       end
 
@@ -588,6 +591,7 @@ module Solargraph
         name = decl.name.to_s
         final_scope = decl.kind == :instance ? :instance : :class
         visibility = calculate_method_visibility(decl, context, closure, final_scope, name)
+        type = RbsTranslator.to_complex_type(decl.type).force_rooted
         pin = Solargraph::Pin::Method.new(
           name: name,
           type_location: location_decl_to_pin_location(decl.location),
@@ -596,10 +600,10 @@ module Solargraph
           scope: final_scope,
           attribute: true,
           visibility: visibility,
+          return_type: yardless(type),
           source: :rbs
         )
-        rooted_tag = RbsTranslator.to_complex_type(decl.type).force_rooted.rooted_tags
-        pin.docstring.add_tag(YARD::Tags::Tag.new(:return, '', rooted_tag))
+        add_type_tag pin, :return, type
         logger.debug do
           "Conversions#attr_reader_to_pin(name=#{name.inspect}, visibility=#{visibility.inspect}) => #{pin.inspect}"
         end
@@ -615,6 +619,7 @@ module Solargraph
         name = "#{decl.name}="
         visibility = calculate_method_visibility(decl, context, closure, final_scope, name)
         type_location = location_decl_to_pin_location(decl.location)
+        type = RbsTranslator.to_complex_type(decl.type).force_rooted
         pin = Solargraph::Pin::Method.new(
           name: name,
           type_location: type_location,
@@ -624,6 +629,7 @@ module Solargraph
           scope: final_scope,
           attribute: true,
           visibility: visibility,
+          return_type: yardless(type),
           source: :rbs
         )
         pin.parameters <<
@@ -634,8 +640,7 @@ module Solargraph
             closure: pin,
             type_location: type_location
           )
-        rooted_tag = RbsTranslator.to_complex_type(decl.type).force_rooted.rooted_tags
-        pin.docstring.add_tag(YARD::Tags::Tag.new(:return, '', rooted_tag))
+        add_type_tag pin, :return, type
         pins.push pin
       end
 
@@ -652,15 +657,16 @@ module Solargraph
       # @param closure [Pin::Namespace]
       # @return [void]
       def ivar_to_pin decl, closure
+        type = RbsTranslator.to_complex_type(decl.type).force_rooted
         pin = Solargraph::Pin::InstanceVariable.new(
           name: decl.name.to_s,
           closure: closure,
           type_location: location_decl_to_pin_location(decl.location),
           comments: decl.comment&.string,
+          return_type: yardless(type),
           source: :rbs
         )
-        rooted_tag = RbsTranslator.to_complex_type(decl.type).force_rooted.rooted_tags
-        pin.docstring.add_tag(YARD::Tags::Tag.new(:type, '', rooted_tag))
+        add_type_tag pin, :type, type
         pins.push pin
       end
 
@@ -669,15 +675,16 @@ module Solargraph
       # @return [void]
       def cvar_to_pin decl, closure
         name = decl.name.to_s
+        type = RbsTranslator.to_complex_type(decl.type).force_rooted
         pin = Solargraph::Pin::ClassVariable.new(
           name: name,
           closure: closure,
           comments: decl.comment&.string,
           type_location: location_decl_to_pin_location(decl.location),
+          return_type: yardless(type),
           source: :rbs
         )
-        rooted_tag = RbsTranslator.to_complex_type(decl.type).force_rooted.rooted_tags
-        pin.docstring.add_tag(YARD::Tags::Tag.new(:type, '', rooted_tag))
+        add_type_tag pin, :type, type
         pins.push pin
       end
 
@@ -686,15 +693,16 @@ module Solargraph
       # @return [void]
       def civar_to_pin decl, closure
         name = decl.name.to_s
+        type = RbsTranslator.to_complex_type(decl.type).force_rooted
         pin = Solargraph::Pin::InstanceVariable.new(
           name: name,
           closure: closure,
           comments: decl.comment&.string,
           type_location: location_decl_to_pin_location(decl.location),
+          return_type: yardless(type),
           source: :rbs
         )
-        rooted_tag = RbsTranslator.to_complex_type(decl.type).force_rooted.rooted_tags
-        pin.docstring.add_tag(YARD::Tags::Tag.new(:type, '', rooted_tag))
+        add_type_tag pin, :type, type
         pins.push pin
       end
 
@@ -773,8 +781,35 @@ module Solargraph
       # @return [ComplexType]
       def extract_method_type_return_type type, implicit_nil
           tag = RbsTranslator.to_complex_type(type.type.return_type)
-          return ComplexType.parse("#{tag}, nil") if tag && implicit_nil
+          return ComplexType.new([tag, ComplexType::NIL]) if tag && implicit_nil
           tag
+      end
+
+      # YARD cannot spell an intersection, so a type containing one goes
+      # on the pin itself instead of into a YARD tag.
+      #
+      # @param type [ComplexType, ComplexType::UniqueType]
+      # @return [ComplexType, nil]
+      def yardless type
+        ComplexType.new([type]) if intersection?(type)
+      end
+
+      # @generic T
+      # @param pin [generic<T>]
+      # @param tag_name [:type, :return]
+      # @param type [ComplexType, ComplexType::UniqueType]
+      # @return [generic<T>]
+      def add_type_tag pin, tag_name, type
+        pin.docstring.add_tag(YARD::Tags::Tag.new(tag_name, '', type.rooted_tags)) unless intersection?(type)
+        pin
+      end
+
+      # @param type [ComplexType, ComplexType::UniqueType]
+      # @return [Boolean]
+      def intersection? type
+        type.items.any? do |item|
+          item.is_a?(ComplexType::UniqueType::Intersection) || item.all_params.any? { |param| intersection?(param) }
+        end
       end
 
       # @param type_name [RBS::TypeName]
