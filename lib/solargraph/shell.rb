@@ -117,6 +117,7 @@ module Solargraph
     # @return [void]
     def uncache *gems
       raise ArgumentError, 'No gems specified.' if gems.empty?
+      require_plugins
       repo = Solargraph::Repo.new(options[:directory])
 
       gems.each do |gem|
@@ -162,6 +163,7 @@ module Solargraph
     # @param gem_names [Array<String>]
     # @return [void]
     def cache *gem_names
+      require_plugins
       repo = Solargraph::Repo.new(options[:directory])
       metagems = if gem_names.empty?
                    if repo.bundled?
@@ -541,6 +543,14 @@ module Solargraph
 
       workspace = Solargraph::Workspace.new(directory)
       workspace.filenames.find { |f| f.end_with?('.rb') }
+    end
+
+    # Plugins change the pins mapped from gem source and the gem cache
+    # directory, so the language server's cache subprocess needs them too.
+    #
+    # @return [void]
+    def require_plugins
+      Workspace::Config.new(options[:directory] || Dir.pwd).require_plugins
     end
 
     # @param pin [Solargraph::Pin::Base]

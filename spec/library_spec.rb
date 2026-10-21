@@ -182,7 +182,7 @@ describe Solargraph::Library, order: :defined do
   it 'diagnoses using all reporters' do
     directory = ''
     config = instance_double(Solargraph::Workspace::Config)
-    allow(config).to receive_messages(plugins: [], required: [], reporters: ['all!'], type_checker_rules: {})
+    allow(config).to receive_messages(require_plugins: nil, required: [], reporters: ['all!'], type_checker_rules: {})
     workspace = Solargraph::Workspace.new directory, config
     library = described_class.new workspace
     # keep this from syncing a bunch of bundle gems in background
@@ -197,7 +197,7 @@ describe Solargraph::Library, order: :defined do
 
   it 'rejects a diagnostics reporter entry with no name' do
     config = instance_double(Solargraph::Workspace::Config)
-    allow(config).to receive_messages(plugins: [], required: [], reporters: [':'])
+    allow(config).to receive_messages(require_plugins: nil, required: [], reporters: [':'])
     workspace = Solargraph::Workspace.new '', config
     library = described_class.new workspace
     library.attach Solargraph::Source.load_string('puts 1', 'file.rb', 0)
