@@ -627,6 +627,9 @@ module Solargraph
         stack = rest_of_stack api_map
         return nil if stack.empty?
         stack.each do |pin|
+          # An explicit self.new can return anything, so the overridden constructor's self says nothing about it
+          # @sg-ignore Need to add nil check here
+          next if name == 'new' && scope == :class && pin.return_type.tags == 'self'
           # @sg-ignore Need to add nil check here
           return pin.return_type unless pin.return_type.undefined?
         end

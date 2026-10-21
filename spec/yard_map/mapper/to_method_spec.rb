@@ -69,6 +69,20 @@ describe Solargraph::YardMap::Mapper::ToMethod do
     expect(param.full).to eq('&bar')
   end
 
+  it 'returns self from a constructor made from initialize' do
+    namespace = YARD::CodeObjects::ClassObject.new(nil, 'Example')
+    initialize = YARD::CodeObjects::MethodObject.new(namespace, 'initialize')
+    pin = described_class.make(initialize, 'new', :class)
+    expect(pin.return_type.to_s).to eq('self')
+  end
+
+  it 'leaves the return type of an explicit self.new undefined' do
+    namespace = YARD::CodeObjects::ClassObject.new(nil, 'Example')
+    explicit_new = YARD::CodeObjects::MethodObject.new(namespace, 'new', :class)
+    pin = described_class.make(explicit_new)
+    expect(pin.return_type).to be_undefined
+  end
+
   it 'parses undeclared but typed blockargs' do
     pending('block args coming from YARD alone')
 
