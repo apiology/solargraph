@@ -580,6 +580,66 @@ describe Solargraph::Pin::Method do
       expect(pin.probe(api_map).tag).to eq('String')
     end
 
+    it 'ignores truthiness guards when inferring from instance variables' do
+      source = Solargraph::Source.load_string(%(
+        class Foo
+          attr_reader :bar
+          # @param bar [String, nil]
+          def initialize bar
+            @bar = bar
+          end
+
+          def check
+            return if @bar
+            puts 'none'
+          end
+        end
+      ))
+      api_map = Solargraph::ApiMap.new
+      api_map.map source
+      pin = api_map.get_path_pins('Foo#bar').first
+      expect(pin.probe(api_map).simple_tags).to eq('String, nil')
+    end
+
+    it 'ignores truthiness guards on untyped instance variables' do
+      source = Solargraph::Source.load_string(%(
+        class Foo
+          attr_reader :bar
+          def initialize bar
+            @bar = bar
+          end
+
+          def check
+            puts 'none' unless @bar
+          end
+        end
+      ))
+      api_map = Solargraph::ApiMap.new
+      api_map.map source
+      pin = api_map.get_path_pins('Foo#bar').first
+      expect(pin.probe(api_map)).to be_undefined
+    end
+
+    it 'unions instance variable assignments from every method' do
+      source = Solargraph::Source.load_string(%(
+        class Foo
+          attr_reader :bar
+          def initialize
+            @bar = 'x'
+          end
+
+          def reset
+            return unless @bar
+            @bar = 1
+          end
+        end
+      ))
+      api_map = Solargraph::ApiMap.new
+      api_map.map source
+      pin = api_map.get_path_pins('Foo#bar').first
+      expect(pin.probe(api_map).simple_tags).to eq('String, Integer')
+    end
+
     it 'infers return types from method rescue block' do
       source = Solargraph::Source.load_string(%(
         class Foo
