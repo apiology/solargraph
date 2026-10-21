@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'rbs'
+
 module Solargraph
   module Parser
     module NodeProcessor
@@ -91,10 +93,17 @@ module Solargraph
           region.source.comments_for(node)
         end
 
+        # The type in an rbs-inline `#: TYPE` assertion trailing the node.
+        #
         # @param node [Parser::AST::Node]
-        # @return [String, nil]
+        # @return [ComplexType, nil]
         def type_assertion_for node
-          region.source.type_assertion_for(node)
+          assertion = region.source.type_assertion_for(node)
+          return nil if assertion.nil? || assertion.empty?
+          rbs_type = RBS::Parser.parse_type(assertion, require_eof: true)
+          RbsTranslator.to_complex_type(rbs_type) unless rbs_type.nil?
+        rescue RBS::ParsingError
+          nil
         end
 
         # @param position [Solargraph::Position]
