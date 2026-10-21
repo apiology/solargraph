@@ -233,11 +233,11 @@ module Solargraph
           next if current.nil? || current.empty? || visited.include?(current)
           visited.add(current)
 
-          current = current.gsub(/^::/, '')
-
           # Add superclass
           ref = get_superclass(current)
-          superclass = ref && constants.dereference(ref)
+          # dereference yields the type as it was written, arguments and all.
+          tag = ref && constants.dereference(ref)
+          superclass = ComplexType.parse(tag).namespace unless tag.to_s.empty?
           if superclass && !superclass.empty? && !visited.include?(superclass)
             ancestors << superclass
             queue << superclass
@@ -247,7 +247,7 @@ module Solargraph
           [get_includes(current), get_prepends(current), get_extends(current)].each do |refs|
             next if refs.nil?
             # @param ref [String]
-            refs.map(&:type).map(&:to_s).each do |ref|
+            refs.map { |r| r.type.namespace }.each do |ref|
               # @sg-ignore flow sensitive typing should be able to handle redefinition
               next if ref.nil? || ref.empty? || visited.include?(ref)
               # @sg-ignore flow sensitive typing should be able to handle redefinition
