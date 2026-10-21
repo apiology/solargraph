@@ -97,26 +97,20 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.first.message).to include('not_a_method')
     end
 
-    context 'with a cached external gem' do
-      before do
-        # ApiMap.load leaves uncached gems unloaded
-        metagem = Solargraph::Metagem.from_specification(Gem::Specification.find_by_name('kramdown-parser-gfm'))
-        Solargraph::Collection::Gem.load(metagem) unless Solargraph::Collection::Gem.cached?(metagem)
-      end
-
-      it 'ignores undefined method calls from external sources' do
-        # @todo This test uses kramdown-parser-gfm because it's a gem dependency known to
-        #   lack typed methods. A better test wouldn't depend on the state of
-        #   vendored code.
-        source_map = Solargraph::SourceMap.load_string(%(
-          require 'kramdown-parser-gfm'
-          Kramdown::Parser::GFM.undefined_call
-        ), 'test.rb')
-        api_map = Solargraph::ApiMap.load '.'
-        api_map.catalog Solargraph::Bench.new(source_maps: [source_map], external_requires: ['kramdown-parser-gfm'])
-        checker = described_class.new('test.rb', api_map: api_map, level: :strict)
-        expect(checker.problems).to be_empty
-      end
+    it 'ignores undefined method calls from external sources' do
+      # @todo This test uses kramdown-parser-gfm because it's a gem dependency known to
+      #   lack typed methods. A better test wouldn't depend on the state of
+      #   vendored code.
+      source_map = Solargraph::SourceMap.load_string(%(
+        require 'kramdown-parser-gfm'
+        Kramdown::Parser::GFM.undefined_call
+      ), 'test.rb')
+      api_map = Solargraph::ApiMap.load '.'
+      bench = Solargraph::Bench.new(source_maps: [source_map], external_requires: ['kramdown-parser-gfm'])
+      api_map.catalog bench
+      cache_unloaded_gems(api_map, bench)
+      checker = described_class.new('test.rb', api_map: api_map, level: :strict)
+      expect(checker.problems).to be_empty
     end
 
     it 'validates existing param tags' do
