@@ -1334,5 +1334,13 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message))
         .to eq ['Declared type String does not match inferred type Integer for variable x']
     end
+
+    it 'complains on an inline rbs assertion that removes nil' do
+      checker = type_checker(%(
+        x = ENV['A'] #: String
+      ))
+      expect(checker.problems.map(&:message))
+        .to eq ['Declared type String does not match inferred type String, nil for variable x']
+    end
   end
 end
