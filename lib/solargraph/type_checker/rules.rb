@@ -75,7 +75,7 @@ module Solargraph
       # @todo 22: Translate to something flow sensitive typing understands
       # @todo 3: Need a downcast here
       #
-      # flow sensitive typing could handle (109):
+      # flow sensitive typing could handle (107):
       #
       # @todo 36: flow sensitive typing needs to handle attrs
       # @todo 29: flow sensitive typing should be able to handle redefinition
@@ -94,7 +94,6 @@ module Solargraph
       # @todo 2: flow sensitive typing should handle return nil if location&.name.nil?
       # @todo 2: flow sensitive typing should handle is_a? and next
       # @todo 2: Need to look at Tuple#include? handling
-      # @todo 2: Should better support meaning of '&' in RBS
       # @todo 2: (*) flow sensitive typing needs to handle "if foo = bar"
       # @todo 2: flow sensitive typing needs to handle "if foo = bar"
       # @todo 2: Need to handle duck-typed method calls on union types
