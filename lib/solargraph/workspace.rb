@@ -104,7 +104,7 @@ module Solargraph
       source_hash.values
     end
 
-    # @param filename [String]
+    # @param filename [String, nil]
     # @return [Boolean]
     def has_file? filename
       source_hash.key?(filename)
@@ -113,7 +113,7 @@ module Solargraph
     # Get a source by its filename.
     #
     # @param filename [String]
-    # @return [Solargraph::Source]
+    # @return [Solargraph::Source, nil]
     def source filename
       source_hash[filename]
     end
@@ -164,7 +164,7 @@ module Solargraph
       source_hash[updater.filename] = source.synchronize(updater)
     end
 
-    # @sg-ignore return type could not be inferred
+    # @sg-ignore https://github.com/castwide/solargraph/pull/1366
     # @return [String]
     def command_path
       server['commandPath'] || 'solargraph'

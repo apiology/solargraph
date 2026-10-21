@@ -77,6 +77,7 @@ module Solargraph
                'return unless Gem::Specification === spec; ' \
                'puts({name: spec.name, paths: spec.require_paths}.to_json)']
         o, e, s = Open3.capture3(*cmd)
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1223
         if s.success?
           begin
             last_line = o.split("\n").last
@@ -84,7 +85,7 @@ module Solargraph
             return [] if hash.empty?
             hash['paths'].map { |path| File.join(base, path) }
           rescue StandardError => e
-            # @sg-ignore flow sensitive typing should be able to handle redefinition
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1338
             Solargraph.logger.warn "Error reading #{gemspec_file_path}: [#{e.class}] #{e.message}"
             []
           end

@@ -362,6 +362,14 @@ Style/MutableConstant:
     - 'lib/solargraph/rbs_map/conversions.rb'
     - 'lib/solargraph/rbs_translator.rb'
 
+# This cop supports safe autocorrection (--autocorrect).
+# Configuration parameters: EnforcedStyle, MinBodyLength, AllowConsecutiveConditionals.
+# SupportedStyles: skip_modifier_ifs, always
+Style/Next:
+  Exclude:
+    - 'lib/solargraph/parser/parser_gem/node_methods.rb'
+    - 'lib/solargraph/rbs_map/conversions.rb'
+
 # This cop supports unsafe autocorrection (--autocorrect-all).
 # Configuration parameters: EnforcedStyle, AllowedMethods, AllowedPatterns.
 # SupportedStyles: predicate, comparison
@@ -439,11 +447,11 @@ Style/TrivialAccessors:
 YARD/MismatchName:
   Exclude:
     - 'lib/solargraph/pin/reference.rb'
-    - 'lib/solargraph/rbs_map/conversions.rb'
 
 YARD/TagTypeSyntax:
   Exclude:
     - 'lib/solargraph/parser/comment_ripper.rb'
+    - 'lib/solargraph/yard_map/mapper/to_method.rb'
 
 # This cop supports safe autocorrection (--autocorrect).
 # Configuration parameters: AllowHeredoc, AllowURI, AllowQualifiedName, URISchemes, AllowRBSInlineAnnotation, AllowCopDirectives, AllowedPatterns, SplitStrings.

@@ -19,9 +19,7 @@ module Solargraph
 
         protected
 
-        # @sg-ignore return type could not be inferred
         def equality_fields
-          # @sg-ignore literal arrays in this module turn into ::Solargraph::Source::Chain::Array
           super + [@links]
         end
       end

@@ -27,6 +27,7 @@ module Solargraph
         File.join CacheDir.gem_dir, "#{metagem.cache_name}.ser"
       end
 
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1364
       def load
         return super if metagem.cacheable?
         @@path_source_cache[metagem.full_path] ||= pins
@@ -36,6 +37,7 @@ module Solargraph
         @pins ||= without_yard
       end
 
+      # @param metagem [Metagem]
       def self.cached? metagem
         metagem.cacheable? && File.exist?(new(metagem).cache_file)
       end
@@ -60,7 +62,9 @@ module Solargraph
         time = Benchmark.measure do
           futures = metagems.map do |metagem|
             Concurrent::Promises.future_on(pool, metagem) do |mg|
+              # @sg-ignore https://github.com/castwide/solargraph/pull/1400
               uncache mg if rebuild
+              # @sg-ignore https://github.com/castwide/solargraph/pull/1400
               load mg
             end
           end
@@ -80,13 +84,16 @@ module Solargraph
 
       private
 
+      # @return [Array<Pin::Base>]
       def with_yard
         code_objects = Yardoc.load!(metagem)
         yard_pins = YardMap::Mapper.new(code_objects, metagem).map
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1400
         rbs_pins = RbsMap::Gem.pins(metagem)
         RbsMap::Helpers.combine(yard_pins, rbs_pins)
       end
 
+      # @return [Array<Pin::Base>]
       def without_yard
         files = metagem.require_paths.flat_map { |path| Dir.glob(File.join(metagem.full_path, path, '**', '*.rb')) }
         source_maps = files.map { |file| Solargraph::SourceMap.load(file) }
@@ -95,6 +102,7 @@ module Solargraph
         bench = Bench.new(source_maps: source_maps)
         source_pins = ApiMap.new.catalog(bench).pins.select { |pin| files.include?(pin.filename) }
 
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1400
         rbs_pins = RbsMap::Gem.pins(metagem)
         RbsMap::Helpers.combine(source_pins, rbs_pins)
       end

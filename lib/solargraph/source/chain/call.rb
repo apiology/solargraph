@@ -115,7 +115,7 @@ module Solargraph
                                                     gates: name_pin.gates,
                                                     source: :chain)
             atype = atypes[idx] ||= arg.infer(api_map, arg_name_pin, locals)
-            # @sg-ignore flow sensitive typing should handle is_a? and next
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1245
             unless param.compatible_arg?(atype, api_map) || param.restarg?
               match = false
               break
@@ -124,6 +124,7 @@ module Solargraph
           return [type, new_signature_pin] unless match
 
           if overload.block && with_block?
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1258
             block_atypes = overload.block.parameters.map(&:return_type)
             # @todo Need to add nil check here
             blocktype = if block&.links&.map(&:class) == [BlockSymbol]
@@ -136,12 +137,11 @@ module Solargraph
           new_signature_pin = overload.resolve_generics_from_context_until_complete(overload.generics, atypes, nil, nil,
                                                                                     blocktype)
           # @todo It shouldn't be necessary to choose either generics or macros
-          # @sg-ignore Need to add nil check here
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1338
           new_return_type = if new_signature_pin.return_type.defined?
-                              # @sg-ignore Need to add nil check here
+                              # @sg-ignore https://github.com/castwide/solargraph/pull/1338
                               new_signature_pin.return_type
                             else
-                              # @sg-ignore Need to add nil check here
                               named_types = pin.parameter_names.zip(arguments.map { |arg| ComplexType.try_parse(simple_convert(arg.node).to_s) }).to_h
                               pin.typify(api_map).expand(named_types)
                             end
@@ -192,12 +192,10 @@ module Solargraph
             # reject it regardless
 
             with_block, without_block = overloads.partition(&:block?)
-            # @sg-ignore flow sensitive typing should handle is_a? and next
-            # @type Array<Pin::Signature>
+            # @type [::Array<Pin::Signature>]
             sorted_overloads = with_block + without_block
             # @type [Pin::Signature, nil]
             new_signature_pin = nil
-            # @sg-ignore flow sensitive typing should handle is_a? and next
             # @param ol [Pin::Signature]
             sorted_overloads.each do |ol|
               type, new_signature_pin = match_overload_type(ol, p, api_map, name_pin, locals, type, new_signature_pin)
@@ -207,11 +205,11 @@ module Solargraph
             next p.proxy(type) if type.defined?
             if !p.macros.empty?
               result = process_macro(p, api_map, name_pin.context, locals)
-              # @sg-ignore flow sensitive typing should be able to handle redefinition
+              # @sg-ignore https://github.com/castwide/solargraph/pull/1338
               next result unless result.return_type.undefined?
             elsif !p.directives.empty?
               result = process_directive(p, api_map, name_pin.context, locals)
-              # @sg-ignore flow sensitive typing should be able to handle redefinition
+              # @sg-ignore https://github.com/castwide/solargraph/pull/1338
               next result unless result.return_type.undefined?
             end
             p
@@ -243,6 +241,7 @@ module Solargraph
               next unless last_link.is_a?(Chain::Literal)
               argument_value = last_link.value
 
+              # @sg-ignore https://github.com/castwide/solargraph/pull/1245
               param.name == factory_param.param_name && argument_value == factory_param.value
             end
           end
@@ -323,7 +322,7 @@ module Solargraph
         def find_method_pin name_pin
           method_pin = name_pin
           until method_pin.is_a?(Pin::Method)
-            # @sg-ignore Need to support this in flow sensitive typing
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1338
             method_pin = method_pin.closure
             return if method_pin.nil?
           end
@@ -354,9 +353,9 @@ module Solargraph
           end
         end
 
-        # @param type [ComplexType]
+        # @param type [ComplexType, ComplexType::UniqueType]
         # @param context [ComplexType, ComplexType::UniqueType]
-        # @return [ComplexType]
+        # @return [ComplexType, ComplexType::UniqueType]
         def with_params type, context
           return type unless type.to_s.include?('$')
           ComplexType.try_parse(type.to_s.gsub('$', context.value_types.map(&:rooted_tag).join(', ')).gsub('<>', ''))
@@ -394,7 +393,7 @@ module Solargraph
           node_location = Solargraph::Location.from_node(block&.node)
           return if node_location.nil?
           block_pins = api_map.get_block_pins
-          # @sg-ignore Need to add nil check here
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1399
           block_pins.find { |pin| pin.location.contain?(node_location) }
         end
 
@@ -414,9 +413,7 @@ module Solargraph
 
         protected
 
-        # @sg-ignore return type could not be inferred
         def equality_fields
-          # @sg-ignore literal arrays in this module turn into ::Solargraph::Source::Chain::Array
           super + [arguments, block]
         end
       end

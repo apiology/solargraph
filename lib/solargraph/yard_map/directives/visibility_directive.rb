@@ -21,6 +21,7 @@ module Solargraph
 
           name = directive.tag.name
           closure = closure_at(pins, source_position) || pins.first
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1392
           closure = closure_at(pins, comment_position) if closure.location&.range&.start&.line&.< comment_position.line # rubocop:disable Style/SafeNavigationChainLength
           if closure.is_a?(Pin::Method) && no_empty_lines?(source.code, comment_position.line, source_position.line)
             # @todo Smelly instance variable access
@@ -51,15 +52,15 @@ module Solargraph
         # @param [Integer] line1
         # @param [Integer] line2
         # @return [Boolean]
-        # @sg-ignore return type could not be inferred
+        # @sg-ignore Need to add nil check here
         def no_empty_lines? code, line1, line2
-          # @sg-ignore unresolved call none? on the array.
+          # @sg-ignore Need to add nil check here
           code.lines[line1..line2].none? { |line| line.strip.empty? }
         end
 
         # @param [Array<Pin::Base>] pins
         # @param [Position] position
-        # @return [Pin::Closure]
+        # @return [Pin::Closure, nil]
         def closure_at pins, position
           pins.select { |pin| pin.is_a?(Pin::Closure) and pin.location&.range&.contain?(position) }.last
         end

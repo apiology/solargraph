@@ -13,7 +13,6 @@ module Solargraph
         @cursor = cursor
         closure_pin = closure
         if closure_pin.is_a?(Pin::Block) && closure_pin.receiver &&
-           # @sg-ignore Range.from_node can return nil for a node with no location, though a real receiver always has one
            !Solargraph::Range.from_node(closure_pin.receiver)&.contain?(cursor.range.start)
           closure_pin.rebind(api_map)
         end
@@ -26,7 +25,7 @@ module Solargraph
         result.concat file_global_methods
         if result.empty?
           result.concat((source_map.pins + source_map.locals).select do |p|
-            # @sg-ignore Need to add nil check here
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1399
             p.name == cursor.word && p.location.range.contain?(cursor.position)
           end)
         end
@@ -42,6 +41,7 @@ module Solargraph
       def complete
         return package_completions([]) if !source_map.source.parsed? || cursor.string?
         # TODO: Improve magic word comparsion == '<::Symbol>', too fragile
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1392
         if cursor.chain.literal? && cursor.chain.links.last.word == '<::Symbol>'
           return package_completions(api_map.get_symbols)
         end
@@ -109,7 +109,6 @@ module Solargraph
 
       # @return [SourceMap]
       def source_map
-        # @sg-ignore Need to add nil check here
         @source_map ||= api_map.source_map(cursor.filename)
       end
 
@@ -143,6 +142,8 @@ module Solargraph
             next unless param.keyword?
             result.push Pin::KeywordParam.new(pin.location, "#{param.name}:")
           end
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1258
+          #   empty? guards need https://github.com/apiology/solargraph/tree/narrow-first-last-after-empty-guard on top
           next unless !pin.parameters.empty? && pin.parameters.last.kwrestarg?
           pin.docstring.tags(:param).each do |tag|
             next if done.include?(tag.name)
@@ -167,7 +168,7 @@ module Solargraph
       # @return [Completion]
       def tag_complete
         result = []
-        # @sg-ignore Need to add nil check here
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1395
         match = source_map.code[0..(cursor.offset - 1)].match(/[\[<, ]([a-z0-9_:]*)\z/i)
         if match
           # @sg-ignore Need to add nil check here
@@ -195,11 +196,13 @@ module Solargraph
         result = []
         result.concat complete_keyword_parameters
         if cursor.chain.constant? || cursor.start_of_constant?
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1392
           full = cursor.chain.links.first.word
           type = if cursor.chain.undefined?
                    cursor.chain.base.infer(api_map, context_pin, locals)
+                 # @sg-ignore https://github.com/castwide/solargraph/pull/1392
                  elsif full.include?('::') && cursor.chain.links.length == 1
-                   # @sg-ignore Need to add nil check here
+                   # @sg-ignore https://github.com/castwide/solargraph/pull/1392
                    ComplexType.try_parse(full.split('::')[0..-2].join('::'))
                  elsif cursor.chain.links.length > 1
                    ComplexType.try_parse(full)
@@ -207,6 +210,7 @@ module Solargraph
                    ComplexType::UNDEFINED
                  end
           if type.undefined?
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1392
             if full.include?('::')
               result.concat api_map.get_constants(full, *gates)
             else

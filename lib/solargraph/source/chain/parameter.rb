@@ -43,8 +43,10 @@ module Solargraph
           end
         end
 
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1392
         # @return [Boolean] true if this is a parameter of Kernel#require
         def require_parameter?
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1392
           method_call_chain.links.last.word == 'require'
         end
 
@@ -52,7 +54,7 @@ module Solargraph
 
         # @return [Chain::Literal]
         attr_reader :literal
-        # @ return [Chain]
+        # @return [Chain]
         attr_reader :method_call_chain
 
         # @return [String] The name of the method that this parameter belongs to
@@ -60,19 +62,22 @@ module Solargraph
           @method_name ||= method_call.word
         end
 
-        # @return [Chain::Call]
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1392
+        # @return [Chain::Link]
         def method_call
           @method_call_chain.links.last
         end
 
         # The index of the literal in the method call chain.
         # @return [Integer, nil]
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1245
         def current_index
           @current_index ||= method_call_chain.node.children[2..].index(literal.node)
         end
 
         # @return [::String, ::Symbol] The literal value of the parameter
-        # @sg-ignore false "return type could not be inferred"
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1418
+        #   also needs https://github.com/castwide/solargraph/pull/1416
         def literal_value
           literal.node.children.first
         end

@@ -48,7 +48,7 @@ module Solargraph
 
       %i[comments parameters return_type signatures].each do |method|
         define_method(method) do
-          # @sg-ignore Need to set context correctly in define_method blocks
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1423
           @resolved_method ? @resolved_method.send(method) : super()
         end
       end
@@ -57,7 +57,7 @@ module Solargraph
         # @param api_map [ApiMap]
         define_method(method) do |api_map|
           resolve_method(api_map)
-          # @sg-ignore Need to set context correctly in define_method blocks
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1423
           @resolved_method ? @resolved_method.send(method, api_map) : super(api_map)
         end
       end
@@ -74,9 +74,7 @@ module Solargraph
       #
       # @param api_map [ApiMap]
       # @return [Pin::Method, nil]
-      # @sg-ignore Declared return type ::Solargraph::Pin::Method, nil
-      #   does not match inferred type nil, false for
-      #   Solargraph::Pin::DelegatedMethod#resolve_method
+      # @sg-ignore https://github.com/apiology/solargraph/pull/178
       def resolve_method api_map
         chain = @receiver_chain
         return if @resolved_method || chain.nil?
@@ -88,24 +86,24 @@ module Solargraph
           return
         end
 
-        # @sg-ignore Need to add nil check here
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1245
         receiver_type = resolver.return_type
 
-        # @sg-ignore Need to add nil check here
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1245
         return if receiver_type.undefined?
 
         receiver_path, method_scope =
           if chain.constant?
             # HACK: the `return_type` of a constant is Class<Whatever>, but looking up a method expects
             # the arguments `"Whatever"` and `scope: :class`.
-            # @sg-ignore Need to add nil check here
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1245
             [receiver_type.to_s.sub(/^Class<(.+)>$/, '\1'), :class]
           else
-            # @sg-ignore Need to add nil check here
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1245
             [receiver_type.to_s, :instance]
           end
 
-        # @sg-ignore Need to add nil check here
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1392
         method_stack = api_map.get_method_stack(receiver_path, @receiver_method_name, scope: method_scope)
         @resolved_method = method_stack.first
       end

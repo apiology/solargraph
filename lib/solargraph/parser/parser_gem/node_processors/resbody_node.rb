@@ -12,7 +12,7 @@ module Solargraph
             if node.children[1] # Exception local variable name
               # @sg-ignore missing flow-sensitive typing on array elements
               here = get_node_start_position(node.children[1])
-              # @sg-ignore Need to add nil check here
+              # @sg-ignore https://github.com/castwide/solargraph/pull/1399
               presence = Range.new(here, region.closure.location.range.ending)
               # @sg-ignore missing flow-sensitive typing on array elements
               loc = get_node_location(node.children[1])
@@ -34,7 +34,8 @@ module Solargraph
                 source: :parser
               )
             end
-            # @sg-ignore missing flow-sensitive typing on array elements
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1418
+            #   also needs https://github.com/castwide/solargraph/pull/1416
             NodeProcessor.process(node.children[2], region, pins, locals, ivars)
           end
         end

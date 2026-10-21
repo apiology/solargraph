@@ -6,6 +6,7 @@ module Solargraph
   class RbsCollection
     attr_reader :lockfile
 
+    # @param lockfile [String, nil]
     def initialize lockfile
       @lockfile = File.expand_path(lockfile) if lockfile
     end
@@ -20,6 +21,7 @@ module Solargraph
       mem_cache[key] ||= RbsMap::Path.pins(path)
     end
 
+    # @return [Array<String>]
     def gem_keys
       gem_path_map.keys
     end
@@ -31,8 +33,10 @@ module Solargraph
     # so they can never be located by a gem name/version lookup.
     #
     # @return [Array<String>]
+    # @sg-ignore Library method has no usable type
     def stdlib_names
       @stdlib_names ||= raw_data[:gems].select { |gem| gem.dig(:source, :type).to_s == 'stdlib' }
+                                       # @sg-ignore Library method has no usable type
                                        .map { |gem| gem[:name].to_s }.uniq
     end
 
@@ -52,11 +56,15 @@ module Solargraph
     # The versions available in the collection for each gem name.
     #
     # @return [Hash{String => Array<String>}]
+    # @sg-ignore Library method has no usable type
     def versions_by_name
       @versions_by_name ||= raw_data[:gems].group_by { |gem| gem[:name].to_s }
+                                           # @sg-ignore Library method has no usable type
                                            .transform_values { |gems| gems.map { |gem| gem[:version].to_s } }
     end
 
+    # @param metagem [Metagem]
+    # @return [String, nil]
     def best_key metagem
       key = "#{metagem.name}-#{metagem.version}"
       return key if gem_path_map.key?(key)
@@ -64,6 +72,7 @@ module Solargraph
       full_key = "#{metagem.name}-#{metagem.version}."
       zero_key = "#{metagem.name}-0"
       found = gem_path_map.find { |key, _| full_key.start_with?("#{key}.") } ||
+              # @sg-ignore https://github.com/castwide/solargraph/pull/1231
               gem_path_map.find { |key, _| key == zero_key }
       found&.first || closest_key(metagem)
     end
@@ -89,6 +98,7 @@ module Solargraph
                end
       chosen ||= usable.min_by { |_, parsed_version| parsed_version }
       chosen ||= parsed.first
+      # @sg-ignore Library method has no usable type
       "#{metagem.name}-#{chosen[0]}"
     end
 
@@ -101,6 +111,7 @@ module Solargraph
     end
 
     # @param gem_hash [Hash]
+    # @return [String, nil]
     def gem_source_path gem_hash
       root_path = gem_hash.dig(:source, :path) || raw_data[:path]
       return unless root_path
@@ -108,11 +119,13 @@ module Solargraph
       File.expand_path(gem_path, File.dirname(lockfile))
     end
 
+    # @return [String, nil]
     def gem_rbs_collection_path
       @gem_rbs_collection_path ||= File.expand_path(raw_data[:path]) if raw_data[:path]
     end
 
     # @return [Hash]
+    # @sg-ignore Library method has no usable type
     def raw_data
       @raw_data ||= if lockfile && File.file?(lockfile)
                       YAML.load_file(lockfile, symbolize_names: true)
@@ -121,6 +134,7 @@ module Solargraph
                     end
     end
 
+    # @return [Hash{String => Array<Pin::Base>}]
     def mem_cache
       @mem_cache ||= {}
     end

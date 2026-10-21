@@ -22,12 +22,18 @@ module Solargraph
       end
 
       # @return [Array<Pin::Base>]
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1400
       def self.load(...)
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1400
         new(...).load
       end
 
+      # @return [void]
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1400
       def self.uncache(...)
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1400
         cache_file = new(...).cache_file
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1281
         FileUtils.rm_rf cache_file
         Collection.mem_cache.delete cache_file
       end
@@ -46,9 +52,11 @@ module Solargraph
         raise TypeError, "#{cache_file} does not contain an array of pins"
       end
 
+      # @return [Array<Pin::Base>]
       def generate_pin_caches
         Collection.mem_cache[cache_file] = pins
         serial = Marshal.dump(pins)
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1281
         FileUtils.mkdir_p File.dirname(cache_file)
         # Write to a temp file in the same directory and rename into place
         # (rename is atomic on the same filesystem) so that concurrent

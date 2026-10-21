@@ -6,7 +6,7 @@ module Solargraph
       # @return [::Symbol]
       attr_reader :decl
 
-      # @return [String]
+      # @return [String, nil]
       attr_reader :asgn_code
 
       # allow this to be set to the method after the method itself has
@@ -63,7 +63,7 @@ module Solargraph
       end
 
       def kwrestarg?
-        # @sg-ignore flow sensitive typing needs to handle attrs
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
         decl == :kwrestarg || (assignment && %i[HASH hash].include?(assignment.type))
       end
 
@@ -174,14 +174,13 @@ module Solargraph
                     end
       end
 
-      # @sg-ignore super always sets @return_type to something
       # @return [ComplexType]
       def return_type
         if @return_type.nil?
           @return_type = ComplexType::UNDEFINED
           found = param_tag
           @return_type = ComplexType.try_parse(*found.types) unless found.nil? || found.types.nil?
-          # @sg-ignore flow sensitive typing should be able to handle redefinition
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1338
           if @return_type.undefined?
             case decl
             when :restarg
@@ -198,11 +197,11 @@ module Solargraph
 
       # The parameter's zero-based location in the block's signature.
       #
-      # @sg-ignore Need to add nil check here
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1393
       # @return [Integer]
       def index
         method_pin = closure
-        # @sg-ignore Need to add nil check here
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1393
         method_pin.parameter_names.index(name)
       end
 
@@ -234,7 +233,7 @@ module Solargraph
         ptype.generic?
       end
 
-      # @sg-ignore flow sensitive typing needs to handle attrs
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1258
       def documentation
         tag = param_tag
         return '' if tag.nil? || tag.text.nil?
@@ -249,13 +248,14 @@ module Solargraph
 
       # @return [YARD::Tags::Tag, nil]
       def param_tag
-        # @sg-ignore Need to add nil check here
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1393
         params = closure.docstring.tags(:param)
-        # @sg-ignore Need to add nil check here
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1393
         params.each do |p|
           return p if p.name == name
         end
-        # @sg-ignore Need to add nil check here
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
+        #   pure calls need https://github.com/apiology/solargraph/tree/narrow-pure-rbs-calls on top
         params[index] if index && params[index] && (params[index].name.nil? || params[index].name.empty?)
       end
 
@@ -270,7 +270,7 @@ module Solargraph
       # @param api_map [ApiMap]
       # @return [ComplexType]
       def typify_method_param api_map
-        # @sg-ignore Need to add nil check here
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1393
         meths = api_map.get_method_stack(closure.full_context.tag, closure.name, scope: closure.scope)
         # meths.shift # Ignore the first one
         meths.each do |meth|
@@ -287,7 +287,7 @@ module Solargraph
           end
           unless found.nil? || found.types.nil?
             return ComplexType.try_parse(*found.types).qualify(api_map,
-                                                               # @sg-ignore Need to add nil check here
+                                                               # @sg-ignore https://github.com/castwide/solargraph/pull/1393
                                                                *meth.closure.gates)
           end
         end
@@ -303,7 +303,7 @@ module Solargraph
         # This should actually be an intersection type
         # @param ref [YARD::Tags::Tag, Solargraph::Yard::Tags::RefTag]
         heredoc.ref_tags.each do |ref|
-          # @sg-ignore ref should actually be an intersection type
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1231
           next unless ref.tag_name == 'param' && ref.owner
           # @todo ref should actually be an intersection type
           result = resolve_reference(ref.owner.to_s, api_map, skip)

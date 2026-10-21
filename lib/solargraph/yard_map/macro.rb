@@ -48,9 +48,6 @@ module Solargraph
               namespace_pin.name.to_sym
             )
           end
-          # @sg-ignore Wrong argument type for YARD::CodeObjects::MethodObject.new: namespace
-          # expected YARD::CodeObjects::NamespaceObject, got nil.
-          #   False positive because namespace_object is set in the loop above.
           YARD::CodeObjects::MethodObject.new(namespace_object, method_pin.name)
         end
       end
@@ -101,7 +98,7 @@ module Solargraph
 
         # @param generated_pins [Array<Pin::Base>]
         generate_yardoc_from(chain, source_map).reduce([]) do |generated_pins, directive|
-          # @sg-ignore flow sensitive typing confuses this block variable with the #directive attr reader
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1326
           if directive.tag.tag_name == 'scope'
             inherited_scope = Directives::ScopeDirective.parse_scope(directive) || inherited_scope
             next generated_pins

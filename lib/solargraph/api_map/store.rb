@@ -32,9 +32,10 @@ module Solargraph
 
         # @todo Fix this map
         @fqns_pins_map = nil
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1223
         return catalog(pinsets) if changed.zero?
 
-        # @sg-ignore Need to add nil check here
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1395
         pinsets[changed..].each_with_index do |pins, idx|
           @pinsets[changed + idx] = pins
           @indexes[changed + idx] = if pins.empty?
@@ -43,8 +44,10 @@ module Solargraph
                                       @indexes[changed + idx - 1].merge(pins)
                                     end
         end
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1392
         # @type [Index]
         @index = @indexes.last.clone
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1104
         @index = @index.merge(block.call) if block
         constants.clear
         cached_qualify_superclass.clear
@@ -92,6 +95,7 @@ module Solargraph
         return nil if fqns.nil? || fqns.empty?
         return BOOLEAN_SUPERCLASS_PIN if %w[TrueClass FalseClass].include?(fqns)
 
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1422
         superclass_references[fqns].first || try_special_superclasses(fqns)
       end
 
@@ -164,7 +168,7 @@ module Solargraph
         pins_by_class(Solargraph::Pin::Namespace)
       end
 
-      # @return [Enumerable<Solargraph::Pin::Method>]
+      # @return [Set<Solargraph::Pin::Method>]
       def method_pins
         pins_by_class(Solargraph::Pin::Method)
       end
@@ -240,14 +244,13 @@ module Solargraph
 
           # Add includes, prepends, and extends
           [get_includes(current), get_prepends(current), get_extends(current)].each do |refs|
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1223
             next if refs.nil?
             # @param ref [String]
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1223
             refs.map(&:type).map(&:to_s).each do |ref|
-              # @sg-ignore flow sensitive typing should be able to handle redefinition
               next if ref.nil? || ref.empty? || visited.include?(ref)
-              # @sg-ignore flow sensitive typing should be able to handle redefinition
               ancestors << ref
-              # @sg-ignore flow sensitive typing should be able to handle redefinition
               queue << ref
             end
           end
@@ -282,12 +285,12 @@ module Solargraph
         index.alias_hash[name]
       end
 
-      # @return [Array<String>]
+      # @return [Set<String>]
       def macro_method_names
         index.macro_method_names
       end
 
-      # @return [Hash{String => Array<Pin::Method>}]
+      # @return [Hash{String => Set<Pin::Method>}]
       def macro_method_name_pins
         index.macro_method_name_pins
       end
@@ -368,6 +371,7 @@ module Solargraph
 
       # @param name [String]
       # @return [Enumerable<Solargraph::Pin::Base>]
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1422
       def namespace_children name
         return [] unless index.namespace_hash.key?(name)
         index.namespace_hash[name]
@@ -392,7 +396,9 @@ module Solargraph
 
       # @param fq_sub_tag [String]
       # @return [String, nil]
+      # @sg-ignore https://github.com/apiology/solargraph/pull/225
       def qualify_and_cache_superclass fq_sub_tag
+        # @sg-ignore https://github.com/apiology/solargraph/pull/225
         cached_qualify_superclass[fq_sub_tag] = uncached_qualify_superclass(fq_sub_tag)
       end
 

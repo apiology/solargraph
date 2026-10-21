@@ -46,7 +46,6 @@ module Solargraph
         # @param source [Source]
         # @return [Array(Array<Pin::Base>, Array<Pin::LocalVariable>)]
         def map source
-          # @sg-ignore Need to add nil check here
           pins, locals, ivars = NodeProcessor.process(source.node, Region.new(source: source))
           pins.concat(ivars)
           [pins, locals]
@@ -57,6 +56,7 @@ module Solargraph
         # @return [Array<Location>]
         def references source, name
           if name.end_with?('=')
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1395
             reg = /#{Regexp.escape name[0..-2]}\s*=/
             # @param code [String]
             # @param offset [Integer]
@@ -76,7 +76,7 @@ module Solargraph
           end
           inner_node_references(name, source.node).filter_map do |n|
             rng = Range.from_node(n)
-            # @sg-ignore Need to add nil check here
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1394
             offset = Position.to_offset(source.code, rng.start)
             soff, eoff = extract_offset[source.code, offset]
             # Operator calls like foo[0] do not spell the method name
@@ -93,7 +93,7 @@ module Solargraph
         end
 
         # @param name [String]
-        # @param top [AST::Node]
+        # @param top [AST::Node, Object, nil]
         # @return [Array<AST::Node>]
         def inner_node_references name, top
           # @type [Array<AST::Node>]
@@ -150,20 +150,20 @@ module Solargraph
         def string_ranges node
           return [] unless is_ast_node?(node)
           result = []
-          # @sg-ignore Translate to something flow sensitive typing understands
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1396
           result.push Range.from_node(node) if node.type == :str
-          # @sg-ignore Translate to something flow sensitive typing understands
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1396
           node.children.each do |child|
             result.concat string_ranges(child)
           end
-          # @sg-ignore Translate to something flow sensitive typing understands
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1396
           if node.type == :dstr && node.children.last.nil?
-            # @sg-ignore Translate to something flow sensitive typing understands
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1396
             last = node.children[-2]
-            # @sg-ignore Need to add nil check here
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1394
             unless last.nil?
               rng = Range.from_node(last)
-              # @sg-ignore Need to add nil check here
+              # @sg-ignore https://github.com/castwide/solargraph/pull/1394
               pos = Position.new(rng.ending.line, rng.ending.column - 1)
               result.push Range.new(pos, pos)
             end

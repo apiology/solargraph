@@ -25,6 +25,8 @@ module Solargraph
           def const_name
             namespace_node = node.children[0]
             if namespace_node
+              # @sg-ignore https://github.com/castwide/solargraph/pull/1418
+              #   also needs https://github.com/castwide/solargraph/pull/1416
               Parser::NodeMethods.unpack_name(namespace_node) + "::#{node.children[1]}"
             else
               node.children[1].to_s

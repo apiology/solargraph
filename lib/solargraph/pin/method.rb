@@ -12,7 +12,7 @@ module Solargraph
 
       attr_writer :signatures
 
-      # @return [Parser::AST::Node]
+      # @return [Parser::AST::Node, nil]
       attr_reader :node
 
       # @param visibility [::Symbol] :public, :protected, or :private
@@ -142,6 +142,7 @@ module Solargraph
         attribute? ? Solargraph::LanguageServer::SymbolKinds::PROPERTY : LanguageServer::SymbolKinds::METHOD
       end
 
+      # @return [ComplexType]
       def return_type
         @return_type ||= return_type_from_inline_rbs || ComplexType.new(signatures.map(&:return_type).flat_map(&:items))
       end
@@ -212,6 +213,7 @@ module Solargraph
         detail += if signatures.length > 1
                     '(*) '
                   else
+                    # @sg-ignore https://github.com/castwide/solargraph/pull/1392
                     "(#{signatures.first.parameters.map(&:full).join(', ')}) " unless signatures.first.parameters.empty?
                   end.to_s
         unless return_type.undefined?
@@ -248,8 +250,11 @@ module Solargraph
       def to_rbs
         return nil if signatures.empty?
 
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
+        #   empty? guards need https://github.com/apiology/solargraph/tree/narrow-first-last-after-empty-guard on top
         rbs = "def #{name}: #{signatures.first.to_rbs}"
-        # @sg-ignore Need to add nil check here
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
+        #   empty? guards need https://github.com/apiology/solargraph/tree/narrow-first-last-after-empty-guard on top
         signatures[1..].each do |sig|
           rbs += "\n"
           rbs += (' ' * (4 + name.length))
@@ -258,6 +263,7 @@ module Solargraph
         rbs
       end
 
+      # @return [String]
       def path
         @path ||= "#{namespace}#{scope == :instance ? '#' : '.'}#{name}"
       end
@@ -293,7 +299,7 @@ module Solargraph
         type = see_reference(api_map) || typify_from_super(api_map)
         logger.debug { "Method#typify(self=#{self}) - type=#{type&.rooted_tags.inspect}" }
         unless type.nil?
-          # @sg-ignore Need to add nil check here
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1393
           qualified = type.qualify(api_map, *closure.gates)
           logger.debug { "Method#typify(self=#{self}) => #{qualified.rooted_tags.inspect}" }
           return qualified
@@ -379,14 +385,11 @@ module Solargraph
         @attribute
       end
 
-      # @parm other [self]
+      # @param other [self]
       def nearly? other
         super &&
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1050
           parameters == other.parameters &&
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1050
           scope == other.scope &&
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1050
           visibility == other.visibility
       end
 
@@ -408,7 +411,9 @@ module Solargraph
             generics: generics,
             # @param src [Array(String, String)]
             parameters: tag.parameters.map do |src|
+              # @sg-ignore https://github.com/castwide/solargraph/pull/1392
               name, decl = parse_overload_param(src.first)
+              # @sg-ignore https://github.com/castwide/solargraph/pull/1223
               Pin::Parameter.new(
                 location: location,
                 closure: self,
@@ -416,6 +421,7 @@ module Solargraph
                 name: name,
                 decl: decl,
                 presence: location&.range,
+                # @sg-ignore https://github.com/castwide/solargraph/pull/1392
                 return_type: param_type_from_name(tag, src.first),
                 source: :overloads
               )
@@ -463,6 +469,7 @@ module Solargraph
 
       protected
 
+      # @sg-ignore https://github.com/apiology/solargraph/pull/178
       attr_writer :signature_help, :documentation, :return_type
 
       # @param value [Pin::Signature, nil]
@@ -472,6 +479,7 @@ module Solargraph
         @block = value
       end
 
+      # @return [Boolean]
       def dodgy_visibility_source?
         # as of 2025-03-12, the RBS generator used for
         # e.g. activesupport did not understand 'private' markings
@@ -511,6 +519,7 @@ module Solargraph
         by_type_arity = {}
         signature_pins.each do |signature_pin|
           by_type_arity[signature_pin.type_arity] ||= []
+          # @sg-ignore flow sensitive typing needs to track reassignment
           by_type_arity[signature_pin.type_arity] << signature_pin
         end
 
@@ -608,9 +617,9 @@ module Solargraph
         # This should actually be an intersection type
         # @param ref [YARD::Tags::Tag, YARD::Tags::RefTag]
         docstring.ref_tags.each do |ref|
-          # @sg-ignore ref should actually be an intersection type
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1231
           next unless ref.tag_name == 'return' && ref.owner
-          # @sg-ignore should actually be an intersection type
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1231
           result = resolve_reference(ref.owner.to_s, api_map)
           return result unless result.nil?
         end
@@ -658,9 +667,15 @@ module Solargraph
       # @return [Parser::AST::Node, nil]
       def method_body_node
         return nil if node.nil?
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1418
+        #   also needs https://github.com/castwide/solargraph/pull/1416
         return node.children[1].children.last if node.type == :DEFN
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1418
+        #   also needs https://github.com/castwide/solargraph/pull/1416
         return node.children[2].children.last if node.type == :DEFS
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
         return node.children[2] if %i[def DEFS].include?(node.type)
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
         return node.children[3] if node.type == :defs
         nil
       end
@@ -680,11 +695,11 @@ module Solargraph
           rng = Range.from_node(n)
           next unless rng
           clip = api_map.clip_at(
-            # @sg-ignore Need to add nil check here
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1399
             location.filename,
             rng.ending
           )
-          # @sg-ignore Need to add nil check here
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1399
           chain = Solargraph::Parser.chain(n, location.filename)
           type = chain.infer(api_map, self, clip.locals)
           result.push type unless type.undefined?

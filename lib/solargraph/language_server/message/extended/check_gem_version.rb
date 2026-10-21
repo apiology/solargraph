@@ -59,6 +59,7 @@ module Solargraph
               # fetch_available sets an error whenever it finds no version
               message = error
               Solargraph::Logging.logger.warn message
+              # @sg-ignore https://github.com/castwide/solargraph/pull/1245
               host.show_message(message, MessageTypes::ERROR) if message && params['verbose']
             end
             set_result({
@@ -99,7 +100,7 @@ module Solargraph
             @fetched ||= false
           end
 
-          # @return [String, nil]
+          # @return [String, Hash, nil]
           attr_reader :error
         end
       end

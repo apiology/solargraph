@@ -18,7 +18,6 @@ module Solargraph
 
             require_rubocop(config['version'])
             options, paths = ::RuboCop::Options.new.parse(args)
-            # @sg-ignore Unresolved call to []=
             options[:stdin] = original
 
             # Ensure only one instance of RuboCop::Runner is running at
@@ -29,7 +28,6 @@ module Solargraph
                 ::RuboCop::Runner.new(options, ::RuboCop::ConfigStore.new).run(paths)
               end
             end
-            # @sg-ignore Unresolved call to []=
             result = options[:stdin]
 
             log_corrections(corrections)
@@ -84,7 +82,6 @@ module Solargraph
           end
 
           # @param config [Hash{String => String}]
-          # @sg-ignore
           # @return [Class<RuboCop::Formatter::BaseFormatter>]
           def formatter_class config
             if self.class.const_defined?('BlankRubocopFormatter')
@@ -96,7 +93,7 @@ module Solargraph
             end
           end
 
-          # @param value [Array, String]
+          # @param value [Array, String, nil]
           #
           # @return [String, nil]
           def cop_list value
@@ -122,6 +119,8 @@ module Solargraph
                      else
                        {
                          line: original.lines.length - 1,
+                         # @sg-ignore https://github.com/castwide/solargraph/pull/1258
+                         #   empty? guards need https://github.com/apiology/solargraph/tree/narrow-first-last-after-empty-guard on top
                          character: original.lines.last.length
                        }
                      end

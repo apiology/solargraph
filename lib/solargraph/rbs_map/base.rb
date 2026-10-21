@@ -3,6 +3,7 @@
 module Solargraph
   module RbsMap
     class Base
+      # @return [Array<Pin::Base>]
       def pins
         @pins ||= RbsMap::Conversions.new(loader: loader).pins
       end
@@ -14,6 +15,7 @@ module Solargraph
 
       # @return [RBS::EnvironmentLoader]
       def loader
+        # @sg-ignore https://github.com/apiology/solargraph/pull/225
         @loader ||= RBS::EnvironmentLoader.new(core_root: nil, repository: repository)
       end
 
@@ -23,7 +25,10 @@ module Solargraph
         pins.select { |p| p.path == path }
       end
 
+      # @return [Array<Pin::Base>]
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1400
       def self.pins(...)
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1400
         new(...).pins
       end
     end
