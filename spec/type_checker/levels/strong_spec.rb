@@ -1294,5 +1294,40 @@ describe Solargraph::TypeChecker do
       ), ['forwardable'])
       expect(checker.problems).to be_empty
     end
+
+    it 'reports nil in an element type passed where it is not expected' do
+      checker = type_checker(%(
+        class Foo
+          # @param names [Array<String>]
+          # @return [void]
+          def greet(names); end
+
+          # @param names [Array<String, nil>]
+          # @return [void]
+          def call_greet(names)
+            greet(names)
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message))
+        .to eq(['Wrong argument type for Foo#greet: names expected Array<String>, received Array<String, NilClass>'])
+    end
+
+    it 'still allows a downcast in an element type' do
+      checker = type_checker(%(
+        class Foo
+          # @param numbers [Array<Integer>]
+          # @return [void]
+          def total(numbers); end
+
+          # @param numbers [Array<Object>]
+          # @return [void]
+          def call_total(numbers)
+            total(numbers)
+          end
+        end
+      ))
+      expect(checker.problems).to be_empty
+    end
   end
 end

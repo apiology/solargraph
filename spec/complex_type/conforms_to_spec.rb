@@ -40,6 +40,27 @@ describe Solargraph::ComplexType do
     expect(match).to be(false)
   end
 
+  it 'allows a downcast in parameters of Array in allow_reverse_match mode' do
+    exp = described_class.parse('Array<Integer>')
+    inf = described_class.parse('Array<Object>')
+    match = inf.conforms_to?(api_map, exp, :method_call, [:allow_reverse_match])
+    expect(match).to be(true)
+  end
+
+  it 'rejects nil in parameters of Array in allow_reverse_match mode' do
+    exp = described_class.parse('Array<String>')
+    inf = described_class.parse('Array<String, nil>')
+    match = inf.conforms_to?(api_map, exp, :method_call, [:allow_reverse_match])
+    expect(match).to be(false)
+  end
+
+  it 'rejects nil in value types of Hash in allow_reverse_match mode' do
+    exp = described_class.parse('Hash{String => String}')
+    inf = described_class.parse('Hash{String => String, nil}')
+    match = inf.conforms_to?(api_map, exp, :return_type, [:allow_reverse_match])
+    expect(match).to be(false)
+  end
+
   it 'allows covariant behavior in key types of Hash' do
     exp = described_class.parse('Hash{Object => String}')
     inf = described_class.parse('Hash{Integer => String}')
