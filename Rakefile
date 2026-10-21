@@ -52,8 +52,9 @@ task :full_spec do
   # but a worker only runs its own share, so on a cold cache external,
   # pin/base and strict all read pins nothing has built yet. Shell#gems
   # only warns on a name it cannot find, so check for a Caching line per
-  # gem when editing this list.
-  sh 'bundle exec solargraph gems core stdlib ast parser ' \
+  # gem when editing this list. --plugins= loads no plugins, so the pins
+  # land in the cache directory the spec processes, which load none, read.
+  sh 'bundle exec solargraph gems --plugins= core stdlib ast parser ' \
      'backport reverse_markdown yard kramdown-parser-gfm'
   # Five files the balancer must not split, each over state that is one
   # copy for the whole run. library, external and yardoc uncache the
