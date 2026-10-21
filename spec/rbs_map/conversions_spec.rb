@@ -152,9 +152,11 @@ describe Solargraph::RbsMap::Conversions do
         it "types #{name} as an intersection" do
           expect(pin_named(name).return_type.items.map(&:class)).to eq([Solargraph::ComplexType::UniqueType::Intersection])
         end
+      end
 
-        it "leaves the intersection on #{name} out of its YARD tags" do
-          expect(pin_named(name).docstring.tags.flat_map(&:types).compact).to be_empty
+      %w[FOO @bar @baz @@qux quux corge= $waldo].each do |name|
+        it "documents the intersection on #{name} in its YARD tag" do
+          expect(pin_named(name).docstring.tags.flat_map(&:types).compact).to eq(['::String & ::Comparable'])
         end
       end
 

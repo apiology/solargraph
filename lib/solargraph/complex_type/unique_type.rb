@@ -576,10 +576,6 @@ module Solargraph
         @name == 'self' || @key_types.any?(&:selfy?) || @subtypes.any?(&:selfy?)
       end
 
-      def intersection?
-        all_params.any?(&:intersection?)
-      end
-
       # @param dst [ComplexType]
       # @return [self]
       def self_to_type dst

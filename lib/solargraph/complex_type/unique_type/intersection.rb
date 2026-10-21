@@ -50,10 +50,6 @@ module Solargraph
           conjuncts.any?(&:selfy?)
         end
 
-        def intersection?
-          true
-        end
-
         def rooted?
           conjuncts.all?(&:rooted?)
         end

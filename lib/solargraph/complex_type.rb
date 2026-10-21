@@ -294,11 +294,6 @@ module Solargraph
       @items.any?(&:selfy?)
     end
 
-    # True when this type or one of its parameters is an intersection
-    def intersection?
-      @items.any?(&:intersection?)
-    end
-
     def generic?
       any?(&:generic?)
     end
