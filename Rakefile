@@ -34,19 +34,58 @@ task :typecheck_alpha do
 end
 
 desc 'Run RSpec tests, starting with the ones that failed last time'
-task spec: %i[spec_failed undercover_no_fail full_spec] do
+task spec: %i[spec_failed full_spec] do
   undercover
 end
 
 desc 'Run all RSpec tests'
 task :full_spec do
   warn 'starting spec'
-  sh 'TEST_COVERAGE_COMMAND_NAME=full-new bundle exec rspec' #  --profile'
-  warn 'ending spec'
-  # move coverage/full-new to coverage/full on success so that we
-  # always have the last successful run's 'coverage info
+  # Build the pins the suite leans on hardest before forking. Four
+  # workers racing to generate the same ones is what takes
+  # rbs_map/conversions_spec from 17s to over four minutes.
+  #
+  # The specs cache any gem they need themselves, so this only saves
+  # time. It only warns on a name it cannot find, so check for a
+  # Caching line per gem when editing this list.
+  #
+  # The specs map gems both with no workspace and with the repo-root
+  # one, so cache once after loading each.
+  require 'solargraph'
+  puts 'Caching core'
+  Solargraph::Collection::Core.load
+  ['', Dir.pwd].each do |directory|
+    repo = Solargraph::Repo.new(Solargraph::Workspace.new(directory).directory_or_nil)
+    metagems = %w[ast parser backport reverse_markdown yard kramdown-parser-gfm].filter_map do |name|
+      repo.find_by_name(name) || warn("Gem #{name} not found")
+    end
+    # @sg-ignore filter_map result type keeps the nil the block can return
+    metagems.each { |metagem| puts "Caching #{metagem.name} #{metagem.version}" }
+    # @sg-ignore filter_map result type keeps the nil the block can return
+    Solargraph::Collection::Gem.load_all metagems, out: $stdout
+  end
+  # Five files the balancer must not split, each over state that is one
+  # copy for the whole run. library, external and yardoc uncache the
+  # backport gem from the pin cache every worker shares; external and
+  # repo delete and reinstall the same fixture Gemfile.lock under
+  # spec/fixtures/external_bundled_gem, which is where the path gem
+  # gem-with-yard-macros comes from. Apart, one worker destroys what
+  # another is mid-way through reading.
+  #
+  # rubocop_helpers is here for an unrelated reason: it needs rubocop
+  # unloaded, and RSpec requires every file in a group before running
+  # any example, so protocol_spec's top-level `require 'rubocop'` has to
+  # land in a different worker. --isolate is what keeps it out.
+  sh 'TEST_COVERAGE_COMMAND_NAME=full-new bundle exec parallel_rspec --runtime-log spec/parallel_runtime_rspec.log ' \
+     '--single "spec/(library|external|yardoc|repo)_spec\.rb|spec/diagnostics/rubocop_helpers_spec\.rb" --isolate ' \
+     '--verbose-command spec/' #  --profile'
+  # clear now-outdated coverage
   FileUtils.rm_rf('coverage/full')
-  FileUtils.mv('coverage/full-new', 'coverage/full')
+  # move coverage/full-new to coverage/full on success so that we
+  # always have the last successful run's coverage info
+  unless ENV['SIMPLECOV_DISABLED']
+    FileUtils.mv('coverage/full-new', 'coverage/full')
+  end
 end
 
 # @sg-ignore #undercover return type could not be inferred
@@ -90,6 +129,8 @@ desc 'Re-run failed specs.  Add --fail-fast in your .rspec-local file if desired
 task :spec_failed do
   # allow user to check out any persistent failures while looking for
   # more in the whole test suite
+  #
+  # Note: prspec doesn't support --only-failures, so we have to use rspec directly here.
   sh 'TEST_COVERAGE_COMMAND_NAME=next-failure bundle exec rspec --only-failures || true'
 end
 

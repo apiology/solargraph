@@ -46,17 +46,22 @@ jobs:
           echo "gem 'vernier', '>1.0', '<2'" >> .Gemfile
           bundle install
 
-      - name: Restore cache of gem annotations
-        id: dot-cache-restore
-        uses: actions/cache/restore@v4
+      - name: Cache gem yardocs
+        uses: actions/cache@v4
         with:
-          key: |
-            2025-06-26-09-${{ runner.os }}-dot-cache-${{ hashFiles('Gemfile.lock') }}
+          # Only the yardoc subtree: its path embeds each gem name and version, so a
+          # restored entry is either correct or never looked up, and a prefix hit is
+          # safe. The sibling .ser pins are keyed on Solargraph::VERSION, which is
+          # identical across commits, so carrying those would serve pins built by
+          # different lib/ code.
+          #
+          # github.job and the matrix Ruby version are in the key so jobs sharing one gem
+          # set do not race to reserve the same entry and fail to save.
+          path: ~/.cache/solargraph/yard-*
+          key: sg-yard-${{ runner.os }}-${{ github.job }}-${{ matrix.ruby-version }}-${{ hashFiles('Gemfile.lock') }}
           restore-keys: |
-            2025-06-26-09-${{ runner.os }}-dot-cache
-            2025-06-26-09-${{ runner.os }}-dot-cache-
-          path: |
-            /home/runner/.cache/solargraph
+            sg-yard-${{ runner.os }}-${{ github.job }}-
+            sg-yard-${{ runner.os }}-
 
       - name: Install gem types
         run: bundle exec rbs collection install
@@ -108,7 +113,7 @@ jobs:
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: 3.4
-        bundler-cache: false
+        bundler-cache: true
 
     - name: Install gems
       run: bundle install
@@ -118,6 +123,10 @@ jobs:
   rubocop_todo:
     name: .rubocop_todo.yml
     runs-on: ubuntu-latest
+    # Needed only so the auto-update step (push-to-master only, below) can
+    # push a commit back to the branch it checked out.
+    permissions:
+      contents: write
 
     steps:
     - uses: actions/checkout@v3
@@ -131,21 +140,26 @@ jobs:
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: 3.4
-        bundler-cache: false
+        bundler-cache: true
 
     - name: Install gems
       run: bundle install
 
     - name: Run RuboCop
       run: bundle exec rubocop -c .rubocop.yml
-      # @todo Temporary, expect to revert in 0.60
-      continue-on-error: true
 
+    # PRs and other non-master events: contributors are expected to have
+    # regenerated .rubocop_todo.yml locally and committed it; fail with the
+    # diff if they didn't. We can't auto-push here because GITHUB_TOKEN
+    # can't write to a fork's branch, which is where most PRs come from.
     - name: Run RuboCop against todo file
-      continue-on-error: true
+      if: github.event_name != 'push' || github.ref != 'refs/heads/master'
       run: |
         cmd="bundle exec rubocop --auto-gen-config --exclude-limit=5 --no-offense-counts --no-auto-gen-timestamp"
-        ${cmd:?}
+        # --auto-gen-config's exit code reflects the underlying offense count,
+        # not whether new offenses were introduced; the git diff check below
+        # is the actual pass/fail signal.
+        ${cmd:?} || true
         set +e
         if [ -n "$(git status --porcelain)" ]
         then
@@ -153,4 +167,24 @@ jobs:
           git diff -u .
            >&2 echo "Please address any new issues, then run '${cmd:?}' and push up any improvements"
            exit 1
+        fi
+
+    # Diffs here can only be a shrink: "Run RuboCop" above already
+    # confirmed no new offenses exist against .rubocop_todo.yml.
+    - name: Auto-update .rubocop_todo.yml
+      if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+      continue-on-error: true
+      run: |
+        cmd="bundle exec rubocop --auto-gen-config --exclude-limit=5 --no-offense-counts --no-auto-gen-timestamp"
+        ${cmd:?} || true
+        if [ -n "$(git status --porcelain -- .rubocop_todo.yml)" ]
+        then
+          git diff -u -- .rubocop_todo.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .rubocop_todo.yml
+          git commit -m "Auto-update .rubocop_todo.yml [skip ci]"
+          git push origin HEAD:master
+        else
+          echo "No .rubocop_todo.yml cleanup needed."
         fi
