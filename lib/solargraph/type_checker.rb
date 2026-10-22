@@ -363,8 +363,7 @@ module Solargraph
           closest = ComplexType.new(all_closest.flat_map(&:items).uniq)
           # foo&.bar never calls bar on nil
           closest = closest.without_nil if missing.links.last&.nullable?
-          # @todo remove the internal_or_core? check at a higher-than-strict level
-          if (!found || found.is_a?(Pin::BaseVariable) || (closest.defined? && internal_or_core?(found))) && !(closest.generic? || ignored_pins.include?(found))
+          if (!found || found.is_a?(Pin::BaseVariable) || (closest.defined? && (rules.require_all_unique_types_support_call? || internal_or_core?(found)))) && !(closest.generic? || ignored_pins.include?(found))
             if closest.defined?
               result.push Problem.new(location, "Unresolved call to #{missing.links.last.word} on #{closest}")
             else
@@ -595,6 +594,7 @@ module Solargraph
         next if param_details.key? tag.name.to_s
         next if tag.types.nil?
         details = {
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1258
           tagged: tag.types.join(', '),
           qualified: Solargraph::ComplexType.try_parse(*tag.types).qualify(api_map, pin.full_context.namespace)
         }
@@ -626,6 +626,7 @@ module Solargraph
         next if result.key? tag.name.to_s
         next if tag.types.nil?
         result[tag.name.to_s] = {
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1258
           tagged: tag.types.join(', '),
           # @sg-ignore need to add a nil check here
           qualified: Solargraph::ComplexType.try_parse(*tag.types).qualify(api_map, *pin.closure.gates)
