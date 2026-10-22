@@ -118,7 +118,6 @@ module Solargraph
         rules = Rules.new(level, {})
         api_map ||= Solargraph::ApiMap.new(loose_unions:
                                              !rules.require_all_unique_types_support_call?)
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1259
         api_map.map(source)
         new(filename, api_map: api_map, level: level, rules: rules)
       end

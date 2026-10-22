@@ -59,46 +59,37 @@ module Solargraph
       def convert_decl_to_pin decl, closure
         case decl
         when RBS::AST::Declarations::Class
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1259
           unless closure.name == '' || decl.name.absolute?
             Solargraph.assert_or_log(:rbs_closure, "Ignoring closure #{closure.inspect} on class #{decl.inspect}")
           end
           class_decl_to_pin decl
         when RBS::AST::Declarations::Interface
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1259
           unless closure.name == '' || decl.name.absolute?
             Solargraph.assert_or_log(:rbs_closure, "Ignoring closure #{closure.inspect} on interface #{decl.inspect}")
           end
           interface_decl_to_pin decl
         when RBS::AST::Declarations::TypeAlias
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1259
           unless closure.name == '' || decl.name.absolute?
             Solargraph.assert_or_log(:rbs_closure,
-                                     # @sg-ignore https://github.com/castwide/solargraph/pull/1259
                                      "Ignoring closure #{closure.inspect} on alias type name #{decl.name}")
           end
           pins.push(
             Solargraph::Pin::Reference::TypeAlias.new(
-              # @sg-ignore https://github.com/castwide/solargraph/pull/1259
               name: ComplexType.try_parse(decl.name.to_s).to_s, return_type: RbsTranslator.to_complex_type(decl.type).force_rooted, closure: closure, source: :rbs, type_location: location_decl_to_pin_location(decl.location)
             )
           )
         when RBS::AST::Declarations::Module
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1259
           unless closure.name == '' || decl.name.absolute?
             Solargraph.assert_or_log(:rbs_closure,
-                                     # @sg-ignore https://github.com/castwide/solargraph/pull/1259
                                      "Ignoring closure #{closure.inspect} on alias type name #{decl.name}")
           end
           module_decl_to_pin decl
         when RBS::AST::Declarations::Constant
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1259
           unless closure.name == '' || decl.name.absolute?
             Solargraph.assert_or_log(:rbs_closure, "Ignoring closure #{closure.inspect} on constant #{decl.inspect}")
           end
           constant_decl_to_pin decl
         when RBS::AST::Declarations::ClassAlias
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1259
           unless closure.name == '' || decl.new_name.absolute?
             Solargraph.assert_or_log(:rbs_closure, "Ignoring closure #{closure.inspect} on class alias #{decl.inspect}")
           end
@@ -193,44 +184,32 @@ module Solargraph
       def convert_member_to_pin member, closure, context
         case member
         when RBS::AST::Members::MethodDefinition
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1259
           method_def_to_pin(member, closure, context)
         when RBS::AST::Members::AttrReader
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1259
           attr_reader_to_pin(member, closure, context)
         when RBS::AST::Members::AttrWriter
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1259
           attr_writer_to_pin(member, closure, context)
         when RBS::AST::Members::AttrAccessor
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1259
           attr_accessor_to_pin(member, closure, context)
         when RBS::AST::Members::Include
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1259
           include_to_pin(member, closure)
         when RBS::AST::Members::Prepend
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1259
           prepend_to_pin(member, closure)
         when RBS::AST::Members::Extend
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1259
           extend_to_pin(member, closure)
         when RBS::AST::Members::Alias
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1259
           alias_to_pin(member, closure)
         when RBS::AST::Members::ClassInstanceVariable
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1259
           civar_to_pin(member, closure)
         when RBS::AST::Members::ClassVariable
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1259
           cvar_to_pin(member, closure)
         when RBS::AST::Members::InstanceVariable
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1259
           ivar_to_pin(member, closure)
         when RBS::AST::Members::Public
           return Context.new(:public)
         when RBS::AST::Members::Private
           return Context.new(:private)
         when RBS::AST::Declarations::Base
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1259
           convert_decl_to_pin(member, closure)
         else
           Solargraph.logger.warn "Skipping member type #{member.class}"
@@ -463,7 +442,6 @@ module Solargraph
       # @param scope [Symbol] :instance or :class
       # @param name [String] The name of the method
       # @return [Symbol]
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1259
       def calculate_method_visibility decl, context, closure, scope, name
         override_key = [closure.path, scope, name]
         visibility = VISIBILITY_OVERRIDE[override_key]
