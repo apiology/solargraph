@@ -131,10 +131,8 @@ module Solargraph
             "Chain#define(links=#{links.map(&:desc)}, name_pin=#{name_pin.inspect}, locals=#{locals}) - after processing #{link.desc}, new working_pin=#{working_pin} with binder #{working_pin.binder}"
           end
         end
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1392
-        links.last.last_context = working_pin
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1392
-        links.last.resolve(api_map, working_pin, locals)
+        links.fetch(-1).last_context = working_pin
+        links.fetch(-1).resolve(api_map, working_pin, locals)
       end
 
       # @param api_map [ApiMap]
@@ -172,8 +170,7 @@ module Solargraph
           end
           return ComplexType::UNDEFINED
         end
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1392
-        type = infer_from_definitions(pins, links.last.last_context, api_map, locals)
+        type = infer_from_definitions(pins, links.fetch(-1).last_context, api_map, locals)
         out = maybe_nil(type, api_map)
         logger.debug do
           "Chain#infer_uncached(links=#{links.map(&:desc)}, locals=#{locals.map(&:desc)}, " \

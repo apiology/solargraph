@@ -334,7 +334,6 @@ module Solargraph
             if node in [:send, _, _, *args]
               # @sg-ignore Need to add nil check here
               if !args.empty?
-                # @sg-ignore https://github.com/castwide/solargraph/pull/1392
                 return node if prev && args.include?(prev)
               elsif source.synchronized?
                 return node if source.code[0..(offset - 1)] =~ /\(\s*\z/ && source.code[offset..] =~ /^\s*\)/

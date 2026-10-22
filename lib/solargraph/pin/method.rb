@@ -213,7 +213,6 @@ module Solargraph
         detail += if signatures.length > 1
                     '(*) '
                   else
-                    # @sg-ignore https://github.com/castwide/solargraph/pull/1392
                     "(#{signatures.first.parameters.map(&:full).join(', ')}) " unless signatures.first.parameters.empty?
                   end.to_s
         unless return_type.undefined?
@@ -411,8 +410,7 @@ module Solargraph
             generics: generics,
             # @param src [Array(String, String)]
             parameters: tag.parameters.map do |src|
-              # @sg-ignore https://github.com/castwide/solargraph/pull/1392
-              name, decl = parse_overload_param(src.first)
+              name, decl = parse_overload_param(src.fetch(0))
               # @sg-ignore https://github.com/castwide/solargraph/pull/1223
               Pin::Parameter.new(
                 location: location,
@@ -421,8 +419,7 @@ module Solargraph
                 name: name,
                 decl: decl,
                 presence: location&.range,
-                # @sg-ignore https://github.com/castwide/solargraph/pull/1392
-                return_type: param_type_from_name(tag, src.first),
+                return_type: param_type_from_name(tag, src.fetch(0)),
                 source: :overloads
               )
             end,
