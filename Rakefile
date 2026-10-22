@@ -59,7 +59,9 @@ task :full_spec do
     metagems = %w[ast parser backport reverse_markdown yard kramdown-parser-gfm].filter_map do |name|
       repo.find_by_name(name) || warn("Gem #{name} not found")
     end
+    # @sg-ignore filter_map result type keeps the nil the block can return
     metagems.each { |metagem| puts "Caching #{metagem.name} #{metagem.version}" }
+    # @sg-ignore filter_map result type keeps the nil the block can return
     Solargraph::Collection::Gem.load_all metagems, out: $stdout
   end
   # Five files the balancer must not split, each over state that is one
