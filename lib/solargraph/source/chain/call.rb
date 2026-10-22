@@ -142,6 +142,7 @@ module Solargraph
                               # @sg-ignore https://github.com/castwide/solargraph/pull/1338
                               new_signature_pin.return_type
                             else
+                              # @sg-ignore Found after #1418 merged
                               named_types = pin.parameter_names.zip(arguments.map { |arg| ComplexType.try_parse(simple_convert(arg.node).to_s) }).to_h
                               pin.typify(api_map).expand(named_types)
                             end

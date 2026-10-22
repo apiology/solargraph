@@ -25,54 +25,34 @@ module Solargraph
           #
           # @param node [Parser::AST::Node]
           def match? node
-            return false unless node&.type == :casgn
-            assignment_node = node.children[2]
-            return false if assignment_node.nil?
+            # s(:casgn, scope, name, value) - value is the call, or a block on it
+            return false unless node in [:casgn, _, _, ::Parser::AST::Node => value, *]
 
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-            #   also needs https://github.com/castwide/solargraph/pull/1416
-            struct_node = if assignment_node.type == :block
-                            # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-                            #   also needs https://github.com/castwide/solargraph/pull/1416
-                            assignment_node.children.fetch(0)
-                          else
-                            assignment_node
-                          end
+            struct_node = (value in [:block, ::Parser::AST::Node => call, *]) ? call : value
 
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1245
             struct_definition_node?(struct_node)
           end
         end
 
         def class_name
-          namespace_node = node.children[0]
-          if namespace_node
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-            #   also needs https://github.com/castwide/solargraph/pull/1416
-            Parser::NodeMethods.unpack_name(namespace_node) + "::#{node.children[1]}"
+          # s(:casgn, scope, name, value) - scope is nil for a bare name
+          node => [_, ::Parser::AST::Node | nil => scope, Symbol => name, *]
+
+          if scope
+            Parser::NodeMethods.unpack_name(scope) + "::#{name}"
           else
-            node.children[1].to_s
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1416
+            name.to_s
           end
         end
 
         private
 
         # @return [Parser::AST::Node]
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-        #   also needs https://github.com/castwide/solargraph/pull/1416
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1416
         def struct_node
-          assignment_node = node.children[2]
-          return nil if assignment_node.nil?
-
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-          #   also needs https://github.com/castwide/solargraph/pull/1416
-          if assignment_node.type == :block
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-            #   also needs https://github.com/castwide/solargraph/pull/1416
-            assignment_node.children[0]
-          else
-            assignment_node
-          end
+          node => [_, _, _, ::Parser::AST::Node => value, *]
+          (value in [:block, ::Parser::AST::Node => call, *]) ? call : value
         end
       end
     end

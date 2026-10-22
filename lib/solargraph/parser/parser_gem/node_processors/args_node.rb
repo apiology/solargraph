@@ -11,28 +11,25 @@ module Solargraph
               if node.type == :forward_args
                 forward(callable)
               else
-                node.children.each do |u|
-                  # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-                  #   also needs https://github.com/castwide/solargraph/pull/1416
+                node.children.each do |child|
+                  # s(:args, *params) - every parameter is a node
+                  # raises NoMatchingPatternError on a non-node child
+                  child => ::Parser::AST::Node => u
+                  # s(:arg, name), s(:optarg, name, default), s(:restarg) for an anonymous splat,
+                  # or s(:mlhs, *args) for |(a, b)|
+                  name = (u in [_, Symbol | ::Parser::AST::Node | nil => first, *]) ? first : nil
+                  default = (u in [_, _, ::Parser::AST::Node => second, *]) ? second : nil
                   loc = get_node_location(u)
                   # @sg-ignore https://github.com/apiology/solargraph/pull/225
                   locals.push Solargraph::Pin::Parameter.new(
                     location: loc,
                     closure: callable,
                     comments: comments_for(node),
-                    # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-                    #   also needs https://github.com/castwide/solargraph/pull/1416
-                    name: u.children[0].to_s,
-                    # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-                    #   also needs https://github.com/castwide/solargraph/pull/1416
-                    assignment: u.children[1],
-                    # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-                    #   also needs https://github.com/castwide/solargraph/pull/1416
-                    asgn_code: u.children[1] ? region.code_for(u.children[1]) : nil,
+                    name: name.to_s,
+                    assignment: default,
+                    asgn_code: default ? region.code_for(default) : nil,
                     # @sg-ignore https://github.com/castwide/solargraph/pull/1399
                     presence: callable.location.range,
-                    # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-                    #   also needs https://github.com/castwide/solargraph/pull/1416
                     decl: get_decl(u),
                     source: :parser
                   )

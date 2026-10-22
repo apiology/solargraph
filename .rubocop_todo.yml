@@ -28,7 +28,6 @@ Layout/ElseAlignment:
 # SupportedStylesAlignWith: keyword, variable, start_of_line
 Layout/EndAlignment:
   Exclude:
-    - 'lib/solargraph/parser/parser_gem/node_processors/namespace_node.rb'
     - 'lib/solargraph/pin/method.rb'
     - 'lib/solargraph/rbs_translator.rb'
     - 'lib/solargraph/shell.rb'
@@ -38,7 +37,6 @@ Layout/EndAlignment:
 # SupportedStylesAlignWith: start_of_line, relative_to_receiver
 Layout/IndentationWidth:
   Exclude:
-    - 'lib/solargraph/parser/parser_gem/node_processors/namespace_node.rb'
     - 'lib/solargraph/pin/method.rb'
     - 'lib/solargraph/rbs_map/conversions.rb'
     - 'lib/solargraph/rbs_translator.rb'
@@ -414,11 +412,6 @@ Style/RedundantParentheses:
 Style/RedundantRegexpCharacterClass:
   Exclude:
     - 'lib/solargraph/pin/base.rb'
-
-# This cop supports unsafe autocorrection (--autocorrect-all).
-Style/SlicingWithRange:
-  Exclude:
-    - 'lib/solargraph/convention/struct_definition/struct_definition_node.rb'
 
 # This cop supports safe autocorrection (--autocorrect).
 # Configuration parameters: EnforcedStyle, ConsistentQuotesInMultiline.
