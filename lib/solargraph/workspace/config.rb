@@ -111,16 +111,28 @@ module Solargraph
         raw_data['plugins']
       end
 
-      # Require the configured plugins, recording each one that loads in
-      # the gem cache key.
+      # Require the configured plugins.
       #
-      # @return [void]
+      # @return [Hash{String => String, nil}] the gem name and version of
+      #   each plugin that loaded, for {CacheDir.gem_dir}
       def require_plugins
-        plugins.each do |plugin|
-          require plugin
-          CacheDir.add_plugin plugin
+        Config.require_plugins plugins
+      end
+
+      # Require plugins by require path.
+      #
+      # @param paths [Array<String>]
+      # @return [Hash{String => String, nil}] the gem name and version of
+      #   each plugin that loaded, for {CacheDir.gem_dir}
+      def self.require_plugins paths
+        paths.each_with_object({}) do |path, loaded|
+          require path
+          # @sg-ignore Unresolved call to name on Gem::BasicSpecification, Hash{String => Gem::BasicSpecification}
+          spec = Gem.loaded_specs.each_value.find { |s| s.name == path || s.contains_requirable_file?(path) }
+          # @sg-ignore each_with_object does not type its memo block param as the Hash passed in
+          loaded[spec&.name || path] = spec&.version&.to_s
         rescue LoadError
-          Solargraph.logger.warn "Failed to load plugin '#{plugin}'"
+          Solargraph.logger.warn "Failed to load plugin '#{path}'"
         end
       end
 

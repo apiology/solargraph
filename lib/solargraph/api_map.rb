@@ -116,7 +116,7 @@ module Solargraph
     end
 
     def external
-      @external ||= External.new(workspace&.directory, [])
+      @external ||= External.new(workspace&.directory, [], plugins: workspace&.plugins || {})
     end
 
     def unresolved_requires
@@ -229,7 +229,8 @@ module Solargraph
 
       api_map.external.unloaded_gems.each do |metagem|
         out&.puts "Caching gem #{metagem.name} (#{metagem.cache_name})"
-        Collection::Gem.load metagem
+        # @sg-ignore Argument forwarding with (...) is not modelled - https://github.com/castwide/solargraph/issues/1108
+        Collection::Gem.load metagem, api_map.external.plugins
       end
       load(directory, loose_unions: loose_unions)
     end

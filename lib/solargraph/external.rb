@@ -7,18 +7,24 @@ module Solargraph
   #   bundle or dependency updates
   #
   class External
-    # @return [String]
+    # @return [String, nil]
     attr_reader :directory
 
     # @return [Array<String>]
     attr_reader :requires
 
-    # @param directory [String]
+    # @return [Hash{String => String, nil}]
+    attr_reader :plugins
+
+    # @param directory [String, nil]
     # @param requires [Array<String>]
-    def initialize directory, requires
+    # @param plugins [Hash{String => String, nil}] the workspace's plugins,
+    #   which select the gem cache directory (see {Workspace#plugins})
+    def initialize directory, requires, plugins: {}
       @repo = Repo.new(directory)
       @directory = directory
       @requires = requires
+      @plugins = plugins
       update!
     end
 
@@ -69,6 +75,7 @@ module Solargraph
     # @return [String, nil]
     def rbs_collection_config_path
       # @todo Get rid of the '*' case
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1258
       @rbs_collection_config_path ||= unless directory.nil? || directory.empty? || directory == '*'
                                         yaml_file = File.join(directory, 'rbs_collection.yaml')
                                         yaml_file if File.file?(yaml_file)
@@ -85,7 +92,7 @@ module Solargraph
     end
 
     def cache_changed?
-      unloaded_gems.any? { |gem| Collection::Gem.cached?(gem) }
+      unloaded_gems.any? { |gem| Collection::Gem.cached?(gem, plugins) }
     end
 
     def load_requires
@@ -114,6 +121,7 @@ module Solargraph
     end
 
     def rbs_collection_lockfile
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1258
       return if directory.nil? || directory.empty? || directory == '*'
       lockfile = File.join(directory, 'rbs_collection.lock.yaml')
       lockfile if File.file?(lockfile)
@@ -128,14 +136,16 @@ module Solargraph
       loaded_stdlibs.clear
     end
 
+    # @param metagem [Metagem]
     def process_gem metagem
       return if loaded_gems.include?(metagem) || unloaded_gems.include?(metagem)
 
-      if metagem.cacheable? && !Collection::Gem.cached?(metagem)
+      if metagem.cacheable? && !Collection::Gem.cached?(metagem, plugins)
         unloaded_gems.add metagem
       else
         loaded_gems.add metagem
-        base_pins = Collection::Gem.load(metagem)
+        # @sg-ignore Argument forwarding with (...) is not modelled - https://github.com/castwide/solargraph/issues/1108
+        base_pins = Collection::Gem.load(metagem, plugins)
         rbsc_pins = rbs_collection.load(metagem)
         if rbsc_pins.empty?
           pins.concat base_pins
