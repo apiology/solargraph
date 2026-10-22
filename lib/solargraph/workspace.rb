@@ -34,8 +34,14 @@ module Solargraph
       @server = server
       load_sources
       @gemnames = []
-      require_plugins
+      @plugins = require_plugins
     end
+
+    # The gem name and version of each configured plugin that loaded, which
+    # selects this workspace's {CacheDir.gem_dir}.
+    #
+    # @return [Hash{String => String, nil}]
+    attr_reader :plugins
 
     # The require paths associated with the workspace.
     #
@@ -220,7 +226,7 @@ module Solargraph
       end
     end
 
-    # @return [void]
+    # @return [Hash{String => String, nil}]
     def require_plugins
       config.require_plugins
     end

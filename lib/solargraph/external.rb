@@ -13,12 +13,18 @@ module Solargraph
     # @return [Array<String>]
     attr_reader :requires
 
+    # @return [Hash{String => String, nil}]
+    attr_reader :plugins
+
     # @param directory [String]
     # @param requires [Array<String>]
-    def initialize directory, requires
+    # @param plugins [Hash{String => String, nil}] the workspace's plugins,
+    #   which select the gem cache directory (see {Workspace#plugins})
+    def initialize directory, requires, plugins: {}
       @repo = Repo.new(directory)
       @directory = directory
       @requires = requires
+      @plugins = plugins
       update!
     end
 
@@ -85,7 +91,7 @@ module Solargraph
     end
 
     def cache_changed?
-      unloaded_gems.any? { |gem| Collection::Gem.cached?(gem) }
+      unloaded_gems.any? { |gem| Collection::Gem.cached?(gem, plugins) }
     end
 
     def load_requires
@@ -128,14 +134,16 @@ module Solargraph
       loaded_stdlibs.clear
     end
 
+    # @param metagem [Metagem]
     def process_gem metagem
       return if loaded_gems.include?(metagem) || unloaded_gems.include?(metagem)
 
-      if metagem.cacheable? && !Collection::Gem.cached?(metagem)
+      if metagem.cacheable? && !Collection::Gem.cached?(metagem, plugins)
         unloaded_gems.add metagem
       else
         loaded_gems.add metagem
-        base_pins = Collection::Gem.load(metagem)
+        # @sg-ignore Argument forwarding with (...) is not modelled - https://github.com/castwide/solargraph/issues/1108
+        base_pins = Collection::Gem.load(metagem, plugins)
         rbsc_pins = rbs_collection.load(metagem)
         if rbsc_pins.empty?
           pins.concat base_pins

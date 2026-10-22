@@ -12,13 +12,16 @@ module Solargraph
       @@path_source_cache = {}
 
       # @param metagem [Metagem]
-      def initialize metagem
+      # @param plugins [Hash{String => String, nil}] the plugins of the
+      #   workspace the gem is mapped for (see {Workspace#plugins})
+      def initialize metagem, plugins = {}
         super()
         @metagem = metagem
+        @plugins = plugins
       end
 
       def cache_file
-        File.join CacheDir.gem_dir, "#{metagem.cache_name}.ser"
+        File.join CacheDir.gem_dir(@plugins), "#{metagem.cache_name}.ser"
       end
 
       def load
@@ -30,8 +33,10 @@ module Solargraph
         @pins ||= without_yard
       end
 
-      def self.cached? metagem
-        metagem.cacheable? && File.exist?(new(metagem).cache_file)
+      # @param metagem [Metagem]
+      # @param plugins [Hash{String => String, nil}]
+      def self.cached? metagem, plugins = {}
+        metagem.cacheable? && File.exist?(new(metagem, plugins).cache_file)
       end
 
       private
