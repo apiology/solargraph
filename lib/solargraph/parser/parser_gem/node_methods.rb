@@ -87,30 +87,31 @@ module Solargraph
         # @return [String]
         def drill_signature node, signature
           return signature unless node.is_a?(AST::Node)
-          if %i[const cbase].include?(node.type)
-            child = node.children[0]
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-            #   also needs https://github.com/castwide/solargraph/pull/1416
-            signature += drill_signature(child, signature) unless child.nil?
+          if node in [:const, ::Parser::AST::Node | nil => scope, Symbol => name, *]
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1416
+            signature += drill_signature(scope, signature) unless scope.nil?
             signature += '::' unless signature.empty?
-            signature += node.children[1].to_s
-          elsif %i[lvar ivar cvar].include?(node.type)
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1416
+            signature += name.to_s
+          elsif node in [:cbase, *]
+            signature += '::' unless signature.empty?
+          elsif node in [:lvar | :ivar | :cvar, Symbol => name, *]
             signature += '.' unless signature.empty?
-            signature += node.children[0].to_s
-          elsif node.type == :send
-            child = node.children[0]
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-            #   also needs https://github.com/castwide/solargraph/pull/1416
-            signature += drill_signature(child, signature) unless child.nil?
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1416
+            signature += name.to_s
+          elsif node in [:send, ::Parser::AST::Node | nil => receiver, Symbol => name, *]
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1416
+            signature += drill_signature(receiver, signature) unless receiver.nil?
             signature += '.' unless signature.empty?
-            signature += node.children[1].to_s
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1416
+            signature += name.to_s
           end
           signature
         end
 
         # Convert a DSL method call argument with directly inferrable simple params.
-        # @param node [Parser::AST::Node, nil]
-        # @return [String, Integer, Float, Symbol, Array, Hash, Source::Chain, nil]
+        # @param node [Parser::AST::Node]
+        # @return [String, Integer, Float, Symbol, Parser::AST::Node, Array, Hash, Source::Chain, nil]
         def simple_convert node
           return nil unless Parser.is_ast_node?(node)
 
@@ -119,8 +120,9 @@ module Solargraph
           when :const
             unpack_name(node)
           when :str, :dstr, :int, :float, :sym, true, false
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1396
-            node.children[0]
+            # a dstr converts to its first part, e.g. s(:str, "foo") for "foo\#{bar}"
+            # str: String, int: Integer, float: Float, sym: Symbol, dstr: its first part node
+            (node in [_, String | Integer | Float | Symbol | ::Parser::AST::Node => value, *]) ? value : nil
           when :array
             # @sg-ignore https://github.com/castwide/solargraph/pull/1396
             simple_convert_array(node)
@@ -136,9 +138,12 @@ module Solargraph
         # @return [Array]
         def simple_convert_array node
           return [] unless Parser.is_ast_node?(node) && node.type == :array
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-          #   also needs https://github.com/castwide/solargraph/pull/1416
-          node.children.compact.map { |c| simple_convert(c) }
+          # s(:array, *elements) - every element is a node
+          node.children.compact.map do |child|
+            # raises NoMatchingPatternError on a non-node child
+            child => ::Parser::AST::Node => c
+            simple_convert(c)
+          end
         end
 
         # @param node [Parser::AST::Node]
@@ -148,10 +153,11 @@ module Solargraph
           result = {}
           # @param pair [Parser::AST::Node]
           node.children.each do |pair|
-            next unless Parser.is_ast_node?(pair) && pair.children[0]
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-            #   also needs https://github.com/castwide/solargraph/pull/1416
-            result[pair.children[0].children[0]] = simple_convert(pair.children[1])
+            # s(:pair, s(:sym, key), value); a kwsplat contributes its operand's name with a nil value
+            next unless pair in ::Parser::AST::Node[_, ::Parser::AST::Node => key_node, *rest]
+
+            key = (key_node in [_, key_value, *]) ? key_value : nil
+            result[key] = simple_convert((rest in [::Parser::AST::Node => value, *]) ? value : nil)
           end
           result
         end
@@ -160,20 +166,21 @@ module Solargraph
         # @return [Hash{Symbol => Source::Chain}]
         def convert_hash node
           return {} unless Parser.is_ast_node?(node)
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1396
-          return convert_hash(node.children[0]) if node.type == :kwsplat
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1258
-          #   pure calls need https://github.com/apiology/solargraph/tree/narrow-pure-rbs-calls on top
-          if Parser.is_ast_node?(node.children[0]) && node.children[0].type == :kwsplat
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1396
-            return convert_hash(node.children[0])
+          if node in [:kwsplat, ::Parser::AST::Node => splatted, *]
+            return convert_hash(splatted)
+          end
+          if node in [_, ::Parser::AST::Node[:kwsplat, *] => first_child, *]
+            return convert_hash(first_child)
           end
           # @sg-ignore https://github.com/castwide/solargraph/pull/1396
           return {} unless node.type == :hash
           result = {}
           # @sg-ignore https://github.com/castwide/solargraph/pull/1396
           node.children.each do |pair|
-            result[pair.children[0].children[0]] = Solargraph::Parser.chain(pair.children[1])
+            # s(:pair, s(:sym, key), value)
+            pair => [_, ::Parser::AST::Node => key_node, *rest]
+            key = (key_node in [_, key_value, *]) ? key_value : nil
+            result[key] = Solargraph::Parser.chain((rest in [::Parser::AST::Node => value, *]) ? value : nil)
           end
           result
         end
@@ -189,28 +196,30 @@ module Solargraph
           if node.type == :const
             result.push node
           else
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-            #   also needs https://github.com/castwide/solargraph/pull/1416
-            node.children.each { |child| result.concat const_nodes_from(child) }
+            node.children.each do |child|
+              # children that are not nodes (names, literals, nil) hold no constants
+              next unless child in ::Parser::AST::Node => child_node
+
+              result.concat const_nodes_from(child_node)
+            end
           end
           result
         end
 
         # @param node [Parser::AST::Node]
         # @return [Boolean]
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-        #   also needs https://github.com/castwide/solargraph/pull/1416
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1416
         def splatted_hash? node
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1245
-          Parser.is_ast_node?(node.children[0]) && node.children[0].type == :kwsplat
+          node in [_, ::Parser::AST::Node[:kwsplat, *], *]
         end
 
         # @param node [Parser::AST::Node]
         def splatted_call? node
-          return false unless Parser.is_ast_node?(node)
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-          #   also needs https://github.com/castwide/solargraph/pull/1416
-          Parser.is_ast_node?(node.children[0]) && node.children[0].type == :kwsplat && node.children[0].children[0].type != :hash
+          # **splatted as the first child, unless splatted is a hash literal
+          return false unless node in ::Parser::AST::Node[_, ::Parser::AST::Node[:kwsplat, ::Parser::AST::Node => splatted, *], *]
+
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1416
+          splatted.type != :hash
         end
 
         # @param nodes [Enumerable<Parser::AST::Node>]
@@ -224,37 +233,34 @@ module Solargraph
         def call_nodes_from node
           return [] unless node.is_a?(::Parser::AST::Node)
           result = []
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1259
-          if node.type == :block
+          if node in [:block, ::Parser::AST::Node => call, *block_rest]
             result.push node
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1258
-            #   pure calls need https://github.com/apiology/solargraph/tree/narrow-pure-rbs-calls on top
-            if Parser.is_ast_node?(node.children[0]) && node.children[0].children.length > 2
-              # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-              #   also needs https://github.com/castwide/solargraph/pull/1416
-              node.children[0].children[2..].each { |child| result.concat call_nodes_from(child) }
+            if call in ::Parser::AST::Node[_, _, _, *call_args]
+              # @sg-ignore https://github.com/castwide/solargraph/pull/1416
+              call_args.each { |child| result.concat call_nodes_from(child) }
             end
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-            #   also needs https://github.com/castwide/solargraph/pull/1416
-            node.children[1..].each { |child| result.concat call_nodes_from(child) }
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1259
-          elsif node.type == :send
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1416
+            block_rest.each { |child| result.concat call_nodes_from(child) }
+          elsif node in [:send, ::Parser::AST::Node | nil => receiver, _, *args]
             result.push node
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1223
-            result.concat call_nodes_from(node.children.first)
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-            #   also needs https://github.com/castwide/solargraph/pull/1416
-            node.children[2..].each { |child| result.concat call_nodes_from(child) }
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1259
+            result.concat call_nodes_from(receiver)
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1416
+            args.each { |child| result.concat call_nodes_from(child) }
           elsif %i[super zsuper].include?(node.type)
             result.push node
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1259
-            #   also needs https://github.com/castwide/solargraph/pull/1418
-            node.children.each { |child| result.concat call_nodes_from(child) }
+            node.children.each do |child|
+              # children that are not nodes (names, literals, nil) hold no calls
+              next unless child in ::Parser::AST::Node => child_node
+
+              result.concat call_nodes_from(child_node)
+            end
           else
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1259
-            #   also needs https://github.com/castwide/solargraph/pull/1418
-            node.children.each { |child| result.concat call_nodes_from(child) }
+            node.children.each do |child|
+              # children that are not nodes (names, literals, nil) hold no calls
+              next unless child in ::Parser::AST::Node => child_node
+
+              result.concat call_nodes_from(child_node)
+            end
           end
           result
         end
@@ -309,9 +315,8 @@ module Solargraph
           # @type [AST::Node, nil]
           prev = nil
           tree.each do |node|
-            if node.type == :send
-              args = node.children[2..]
-              # @sg-ignore https://github.com/castwide/solargraph/pull/1392
+            if node in [:send, _, _, *args]
+              # @sg-ignore Need to add nil check here
               if !args.empty?
                 # @sg-ignore https://github.com/castwide/solargraph/pull/1392
                 return node if prev && args.include?(prev)
@@ -515,40 +520,44 @@ module Solargraph
               if COMPOUND_STATEMENTS.include?(node.type)
                 result.concat from_value_position_compound_statement node
               elsif CONDITIONAL_ALL_BUT_FIRST.include?(node.type)
-                # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-                #   also needs https://github.com/castwide/solargraph/pull/1416
-                result.concat reduce_to_value_nodes(node.children[1..])
+                # s(:if, condition, then, else)
+                node => [_, _, *branches]
+                result.concat reduce_to_value_nodes(branches)
                 # result.push NIL_NODE unless node.children[2]
               elsif ONLY_ONE_CHILD.include?(node.type)
-                result.concat reduce_to_value_nodes([node.children[0]])
+                # s(:return) or s(:return, value, *more_values)
+                returned = (node in [_, ::Parser::AST::Node => value, *]) ? value : nil
+                result.concat reduce_to_value_nodes([returned])
               elsif FIRST_TWO_CHILDREN.include?(node.type)
-                result.concat reduce_to_value_nodes([node.children[0], node.children[1]])
+                # s(:rescue, body, resbody, *more_resbodies, else)
+                node => [_, ::Parser::AST::Node | nil => body, ::Parser::AST::Node => first_resbody, *]
+                result.concat reduce_to_value_nodes([body, first_resbody])
               elsif FUNCTION_VALUE.include?(node.type)
                 # the block itself is a first class value that could be returned
                 result.push node
                 # @todo any explicit returns actually return from
                 #   scope in which the proc is run.  This asssumes
                 #   that the function is executed here.
-                if include_explicit_returns
-                  # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-                  #   also needs https://github.com/castwide/solargraph/pull/1416
-                  result.concat explicit_return_values_from_compound_statement(node.children[2])
+                # s(:block, call, args, body)
+                if include_explicit_returns && (node in [_, _, _, ::Parser::AST::Node => block_body, *])
+                  result.concat explicit_return_values_from_compound_statement(block_body)
                 end
               elsif CASE_STATEMENT.include?(node.type)
+                # s(:case, subject, *whens, else)
+                node => [_, _, *clauses]
                 # @sg-ignore https://github.com/castwide/solargraph/pull/1416
-                #   also needs https://github.com/castwide/solargraph/pull/1418
-                node.children[1..].each do |cc|
+                clauses.each do |cc|
                   if cc.nil?
                     result.push NIL_NODE
-                  elsif cc.type == :when
-                    result.concat reduce_to_value_nodes([cc.children.last])
+                  elsif cc in [:when, *, ::Parser::AST::Node | nil => when_body]
+                    result.concat reduce_to_value_nodes([when_body])
                   else
                     # else clause in case
                     result.concat reduce_to_value_nodes([cc])
                   end
                 end
-              elsif node.type == :resbody
-                result.concat reduce_to_value_nodes([node.children[2]])
+              elsif node in [:resbody, _, _, ::Parser::AST::Node | nil => body, *]
+                result.concat reduce_to_value_nodes([body])
               else
                 result.push node
               end
@@ -571,45 +580,30 @@ module Solargraph
             def from_value_position_compound_statement parent
               result = []
               nodes = parent.children.select { |n| n.is_a?(AST::Node) }
-              nodes.each_with_index do |node, idx|
-                # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-                #   also needs https://github.com/castwide/solargraph/pull/1416
-                if node.type == :block
-                  # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-                  #   also needs https://github.com/castwide/solargraph/pull/1416
-                  result.concat explicit_return_values_from_compound_statement(node.children[2])
-                # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-                #   also needs https://github.com/castwide/solargraph/pull/1416
-                elsif node.type == :rescue
+              nodes.each_with_index do |child, idx|
+                # nodes holds only the node children
+                child => ::Parser::AST::Node => node
+                if node in [:block, _, _, ::Parser::AST::Node | nil => body, *]
+                  result.concat explicit_return_values_from_compound_statement(body) if body
+                elsif node in [:rescue, ::Parser::AST::Node | nil => body, ::Parser::AST::Node => first_resbody, *]
                   # body statements
-                  # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-                  #   also needs https://github.com/castwide/solargraph/pull/1416
-                  result.concat from_value_position_statement(node.children[0])
+                  result.concat from_value_position_statement(body) if body
                   # rescue statements
-                  # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-                  #   also needs https://github.com/castwide/solargraph/pull/1416
-                  result.concat from_value_position_statement(node.children[1])
-                # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-                #   also needs https://github.com/castwide/solargraph/pull/1416
+                  result.concat from_value_position_statement(first_resbody)
+                # @sg-ignore https://github.com/castwide/solargraph/pull/1416
                 elsif SKIPPABLE.include?(node.type)
                   next
-                # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-                #   also needs https://github.com/castwide/solargraph/pull/1416
-                elsif node.type == :resbody
-                  # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-                  #   also needs https://github.com/castwide/solargraph/pull/1416
-                  result.concat reduce_to_value_nodes([node.children[2]])
-                # @sg-ignore https://github.com/castwide/solargraph/pull/1418
+                elsif node in [:resbody, _, _, ::Parser::AST::Node | nil => body, *]
+                  result.concat reduce_to_value_nodes([body])
+                # @sg-ignore https://github.com/castwide/solargraph/pull/1416
                 elsif node.type == :return
-                  # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-                  #   also needs https://github.com/castwide/solargraph/pull/1416
-                  result.concat reduce_to_value_nodes([node.children[0]])
+                  returned = (node in [_, ::Parser::AST::Node => value, *]) ? value : nil
+                  result.concat reduce_to_value_nodes([returned])
                   # Return here because the rest of the code is
                   # unreachable and shouldn't be looked at
                   return result
                 else
-                  # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-                  #   also needs https://github.com/castwide/solargraph/pull/1416
+                  # @sg-ignore https://github.com/castwide/solargraph/pull/1416
                   result.concat explicit_return_values_from_compound_statement(node)
                 end
                 # handle last line of compound statements, which is in
@@ -636,23 +630,20 @@ module Solargraph
             def explicit_return_values_from_compound_statement parent
               return [] unless parent.is_a?(::Parser::AST::Node)
               result = []
-              nodes = parent.children.select { |n| n.is_a?(::Parser::AST::Node) }
-              nodes.each do |node|
-                # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-                #   also needs https://github.com/castwide/solargraph/pull/1416
+              parent.children.each do |child|
+                # names, literals and nil hold no return statements
+                next unless child in ::Parser::AST::Node => node
+                # @sg-ignore https://github.com/castwide/solargraph/pull/1416
                 next if SKIPPABLE.include?(node.type)
-                # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-                #   also needs https://github.com/castwide/solargraph/pull/1416
+                # @sg-ignore https://github.com/castwide/solargraph/pull/1416
                 if node.type == :return
-                  # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-                  #   also needs https://github.com/castwide/solargraph/pull/1416
-                  result.concat reduce_to_value_nodes([node.children[0]])
+                  returned = (node in [_, ::Parser::AST::Node => value, *]) ? value : nil
+                  result.concat reduce_to_value_nodes([returned])
                   # Return the result here because the rest of the code is
                   # unreachable
                   return result
                 else
-                  # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-                  #   also needs https://github.com/castwide/solargraph/pull/1416
+                  # @sg-ignore https://github.com/castwide/solargraph/pull/1416
                   result.concat explicit_return_values_from_compound_statement(node)
                 end
               end
@@ -670,13 +661,20 @@ module Solargraph
                   # @sg-ignore https://github.com/castwide/solargraph/pull/1259
                   result.concat from_value_position_compound_statement(node)
                 elsif CONDITIONAL_ALL_BUT_FIRST.include?(node.type)
-                  result.concat reduce_to_value_nodes(node.children[1..])
+                  node => [_, _, *branches]
+                  result.concat reduce_to_value_nodes(branches)
+                # @sg-ignore flow sensitive typing needs to narrow down type with an if is_a? check
                 elsif node.type == :return
-                  result.concat reduce_to_value_nodes([node.children[0]])
+                  returned = (node in [_, ::Parser::AST::Node => value, *]) ? value : nil
+                  result.concat reduce_to_value_nodes([returned])
+                # @sg-ignore flow sensitive typing needs to narrow down type with an if is_a? check
                 elsif node.type == :block
-                  result.concat explicit_return_values_from_compound_statement(node.children[2])
+                  body = (node in [_, _, _, ::Parser::AST::Node | nil => block_body, *]) ? block_body : nil
+                  result.concat explicit_return_values_from_compound_statement(body) unless body.nil?
+                # @sg-ignore flow sensitive typing needs to narrow down type with an if is_a? check
                 elsif node.type == :resbody
-                  result.concat reduce_to_value_nodes([node.children[2]])
+                  body = (node in [_, _, _, ::Parser::AST::Node | nil => resbody_body, *]) ? resbody_body : nil
+                  result.concat reduce_to_value_nodes([body])
                 else
                   result.push node
                 end

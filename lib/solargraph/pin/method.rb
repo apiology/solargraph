@@ -667,17 +667,12 @@ module Solargraph
       # @return [Parser::AST::Node, nil]
       def method_body_node
         return nil if node.nil?
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-        #   also needs https://github.com/castwide/solargraph/pull/1416
-        return node.children[1].children.last if node.type == :DEFN
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-        #   also needs https://github.com/castwide/solargraph/pull/1416
-        return node.children[2].children.last if node.type == :DEFS
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
-        return node.children[2] if %i[def DEFS].include?(node.type)
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
-        return node.children[3] if node.type == :defs
-        nil
+        # s(:def, name, args, body) or s(:defs, receiver, name, args, body)
+        case node
+        in [:def, _, _, ::Parser::AST::Node | nil => body, *] then body
+        in [:defs, _, _, _, ::Parser::AST::Node | nil => defs_body, *] then defs_body
+        else nil
+        end
       end
 
       # @param api_map [ApiMap]

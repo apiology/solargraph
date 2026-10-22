@@ -8,12 +8,16 @@ module Solargraph
           include ParserGem::NodeMethods
 
           def process
+            # s(:casgn, scope, name, value) - scope is nil for a bare name; value is absent in an mlhs
+            node => [:casgn, ::Parser::AST::Node | nil => scope, Symbol => name, *rest]
+            assignment = (rest in [::Parser::AST::Node => value, *]) ? value : nil
+
             pins.push Solargraph::Pin::Constant.new(
               location: get_node_location(node),
               closure: region.closure,
-              name: const_name,
+              name: const_name(scope, name),
               comments: comments_for(node),
-              assignment: node.children[2],
+              assignment: assignment,
               source: :parser
             )
             process_children
@@ -21,15 +25,14 @@ module Solargraph
 
           private
 
+          # @param scope [Parser::AST::Node, nil]
+          # @param name [Symbol]
           # @return [String]
-          def const_name
-            namespace_node = node.children[0]
-            if namespace_node
-              # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-              #   also needs https://github.com/castwide/solargraph/pull/1416
-              Parser::NodeMethods.unpack_name(namespace_node) + "::#{node.children[1]}"
+          def const_name scope, name
+            if scope
+              Parser::NodeMethods.unpack_name(scope) + "::#{name}"
             else
-              node.children[1].to_s
+              name.to_s
             end
           end
         end

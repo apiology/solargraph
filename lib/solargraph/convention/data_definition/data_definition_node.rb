@@ -28,29 +28,20 @@ module Solargraph
           #
           # @param node [Parser::AST::Node]
           def match? node
-            return false unless node&.type == :class
+            return false unless node in [:class, _, ::Parser::AST::Node | nil => superclass, *]
 
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-            #   also needs https://github.com/castwide/solargraph/pull/1416
-            data_definition_node?(node.children[1])
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1416
+            data_definition_node?(superclass)
           end
 
           private
 
-          # @param data_node [Parser::AST::Node]
+          # @param data_node [Parser::AST::Node, nil]
           # @return [Boolean]
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1416
           def data_definition_node? data_node
-            return false unless data_node.is_a?(::Parser::AST::Node)
-            return false unless data_node&.type == :send
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-            #   also needs https://github.com/castwide/solargraph/pull/1416
-            return false unless data_node.children[0]&.type == :const
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-            #   also needs https://github.com/castwide/solargraph/pull/1416
-            return false unless data_node.children[0].children[1] == :Data
-            return false unless data_node.children[1] == :define
-
-            true
+            # Data.define(*args) - s(:send, s(:const, scope, :Data), :define, *args)
+            data_node in ::Parser::AST::Node[:send, [:const, _, :Data, *], :define, *]
           end
         end
 
@@ -67,16 +58,18 @@ module Solargraph
         # @return [Array<Array(Parser::AST::Node, String)>]
         def attributes
           data_attribute_nodes.map do |data_def_param|
-            next unless data_def_param.type == :sym
-            [data_def_param, data_def_param.children[0].to_s]
+            next unless data_def_param in [:sym, Symbol => name]
+
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1416
+            [data_def_param, name.to_s]
           end.compact
         end
 
         # @return [Parser::AST::Node, nil]
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-        #   also needs https://github.com/castwide/solargraph/pull/1416
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1416
         def body_node
-          node.children[2]
+          # s(:class, name, superclass, body)
+          (node in [_, _, _, ::Parser::AST::Node | nil => body, *]) ? body : nil
         end
 
         private
@@ -85,19 +78,16 @@ module Solargraph
         attr_reader :node
 
         # @return [Parser::AST::Node, nil]
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-        #   also needs https://github.com/castwide/solargraph/pull/1416
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1416
         def data_node
-          node.children[1]
+          (node in [_, _, ::Parser::AST::Node | nil => superclass, *]) ? superclass : nil
         end
 
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-        #   also needs https://github.com/castwide/solargraph/pull/1416
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1416
         # @return [Array<Parser::AST::Node>]
         def data_attribute_nodes
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1418
-          #   also needs https://github.com/castwide/solargraph/pull/1416
-          data_node.children[2..]
+          data_node => [_, _, _, *args]
+          args
         end
       end
     end
