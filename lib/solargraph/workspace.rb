@@ -43,6 +43,14 @@ module Solargraph
     # @return [Hash{String => String, nil}]
     attr_reader :plugins
 
+    # The plugin require paths configured when the workspace was created,
+    # which produced {plugins}. A later config reload does not change them,
+    # so the cache subprocess loads the same set and writes to the same
+    # {CacheDir.gem_dir}.
+    #
+    # @return [Array<String>]
+    attr_reader :plugin_paths
+
     # The require paths associated with the workspace.
     #
     # @return [Array<String>]
@@ -228,7 +236,8 @@ module Solargraph
 
     # @return [Hash{String => String, nil}]
     def require_plugins
-      config.require_plugins
+      @plugin_paths = config.plugins.dup
+      Config.require_plugins plugin_paths
     end
 
     # @return [String, nil]

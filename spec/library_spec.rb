@@ -165,7 +165,7 @@ describe Solargraph::Library do
   it 'diagnoses using all reporters' do
     directory = ''
     config = instance_double(Solargraph::Workspace::Config)
-    allow(config).to receive_messages(require_plugins: {}, required: [], reporters: ['all!'])
+    allow(config).to receive_messages(plugins: [], required: [], reporters: ['all!'])
     workspace = Solargraph::Workspace.new directory, config
     library = described_class.new workspace
     src = Solargraph::Source.load_string(%(
@@ -679,6 +679,44 @@ describe Solargraph::Library do
 
       library.catalog
       expect { library.send(:sync_catalog) }.not_to raise_error
+    end
+  end
+
+  describe '#cache_next_gemspec' do
+    let(:dir) { File.realpath(Dir.mktmpdir) }
+
+    before do
+      FileUtils.mkdir_p File.join(dir, 'plugins')
+      File.write(File.join(dir, 'plugins', 'library_probe_plugin.rb'), '')
+      File.write(File.join(dir, '.solargraph.yml'), "plugins:\n  - library_probe_plugin\n")
+      $LOAD_PATH.unshift File.join(dir, 'plugins')
+    end
+
+    after do
+      $LOAD_PATH.delete File.join(dir, 'plugins')
+      $LOADED_FEATURES.delete_if { |path| path.end_with?('library_probe_plugin.rb') }
+      FileUtils.rm_rf dir
+    end
+
+    it 'gives the cache subprocess the plugins its workspace loaded, after its config reloads' do
+      workspace = Solargraph::Workspace.new(dir)
+      File.write(File.join(dir, '.solargraph.yml'), "plugins: []\n")
+      File.write(File.join(dir, 'new_file.rb'), '')
+      workspace.merge Solargraph::Source.load(File.join(dir, 'new_file.rb'))
+
+      library = described_class.new(workspace)
+      gemspec = instance_double(Gem::Specification, name: 'gem_1', version: Gem::Version.new('1.0.0'))
+      allow(library.send(:api_map)).to receive(:unloaded_gems).and_return([gemspec])
+      allow(Solargraph::Yardoc).to receive(:processing?).and_return(false)
+      cache_job = nil
+      allow(Thread).to receive(:new) { |&block| cache_job = block }
+      allow(Open3).to receive(:capture3).and_return(['', '', instance_double(Process::Status, success?: true)])
+      allow(library).to receive(:catalog)
+      allow(library).to receive(:sync_catalog)
+
+      library.send(:cache_next_gemspec)
+      cache_job.call
+      expect(Open3).to have_received(:capture3).with(anything, 'cache', 'gem_1', '--plugins=library_probe_plugin', '--directory', dir)
     end
   end
 end
