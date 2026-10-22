@@ -145,4 +145,56 @@ describe Solargraph::Workspace do
       described_class.new('./path', config)
     end.not_to raise_error
   end
+
+  context 'with two workspaces, one with a plugin configured' do
+    # Holds the plugin's load path, the workspace without plugins and a gem
+    let(:scratch_dir) { File.realpath(Dir.mktmpdir) }
+    let(:metagem) do
+      Solargraph::Metagem.new(name: 'workspace_probe_gem', full_path: File.join(scratch_dir, 'workspace_probe_gem-1.0.0'),
+                              spec_file: '', source: 'rubygems repository', version: '1.0.0',
+                              require_paths: ['lib'], dependencies: [])
+    end
+
+    before do
+      FileUtils.mkdir_p [File.join(scratch_dir, 'plugins'), File.join(scratch_dir, 'plain'), File.join(metagem.full_path, 'lib')]
+      File.write(File.join(scratch_dir, 'plugins', 'workspace_probe_plugin.rb'), '')
+      File.write(File.join(dir_path, '.solargraph.yml'), "plugins:\n  - workspace_probe_plugin\n")
+      File.write(File.join(metagem.full_path, 'lib', 'workspace_probe_gem.rb'), 'module WorkspaceProbeGem; end')
+      $LOAD_PATH.unshift File.join(scratch_dir, 'plugins')
+    end
+
+    after do
+      $LOAD_PATH.delete File.join(scratch_dir, 'plugins')
+      $LOADED_FEATURES.delete_if { |path| path.end_with?('workspace_probe_plugin.rb') }
+      FileUtils.rm_rf scratch_dir
+    end
+
+    it 'keeps the plain gem directory after loading the plugin workspace' do
+      without_plugin = described_class.new(File.join(scratch_dir, 'plain'))
+      described_class.new(dir_path)
+      expect(without_plugin.cache_dir.gem_dir).to eq(File.join(Solargraph::CacheDir.work_dir, 'gems'))
+    end
+
+    it 'caches and reads gems in each workspace\'s own directory' do
+      with_plugin = described_class.new(dir_path)
+      without_plugin = described_class.new(File.join(scratch_dir, 'plain'))
+      Solargraph::Collection::Gem.load metagem, with_plugin.cache_dir
+      expect(Solargraph::Collection::Gem.cached?(metagem, without_plugin.cache_dir)).to be(false)
+
+      Solargraph::Collection::Gem.load metagem, without_plugin.cache_dir
+      cache_dirs = [with_plugin, without_plugin].map do |workspace|
+        File.dirname(Solargraph::Collection::Gem.new(metagem, workspace.cache_dir).cache_file)
+      end
+      expect(cache_dirs).to eq([File.join(Solargraph::CacheDir.work_dir, 'gems-workspace_probe_plugin'),
+                                File.join(Solargraph::CacheDir.work_dir, 'gems')])
+    ensure
+      [with_plugin, without_plugin].compact.each { |workspace| Solargraph::Collection::Gem.uncache metagem, workspace.cache_dir }
+    end
+
+    it 'passes its plugins to the ApiMap that catalogs it' do
+      api_map = Solargraph::ApiMap.new
+      api_map.catalog Solargraph::Bench.new(workspace: described_class.new(dir_path))
+      expect(api_map.external.cache_dir.plugins.keys).to eq(['workspace_probe_plugin'])
+    end
+  end
 end

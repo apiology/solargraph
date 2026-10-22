@@ -34,8 +34,17 @@ module Solargraph
       @server = server
       load_sources
       @gemnames = []
+      @cache_dir = CacheDir.new
       require_plugins
     end
+
+    # The cache directory keyed on the plugins this workspace loaded when
+    # it was created. A later config reload does not change it, so the
+    # cache subprocess loads the same plugins and writes to the same
+    # {CacheDir#gem_dir}.
+    #
+    # @return [CacheDir]
+    attr_reader :cache_dir
 
     # The require paths associated with the workspace.
     #
@@ -222,7 +231,7 @@ module Solargraph
 
     # @return [void]
     def require_plugins
-      config.require_plugins
+      config.require_plugins cache_dir
     end
 
     # @return [String, nil]
