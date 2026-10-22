@@ -354,8 +354,7 @@ module Solargraph
           found = nil
           # @type [Array<Solargraph::Pin::Base>]
           all_found = []
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1392
-          until base.links.first.undefined?
+          until base.links.fetch(0).undefined?
             # @sg-ignore https://github.com/castwide/solargraph/pull/1393
             all_found = base.define(api_map, closure_pin, locals)
             found = all_found.first
@@ -368,11 +367,9 @@ module Solargraph
           # @todo remove the internal_or_core? check at a higher-than-strict level
           if (!found || found.is_a?(Pin::BaseVariable) || (closest.defined? && internal_or_core?(found))) && !(closest.generic? || ignored_pins.include?(found))
             if closest.defined?
-              # @sg-ignore https://github.com/castwide/solargraph/pull/1392
-              result.push Problem.new(location, "Unresolved call to #{missing.links.last.word} on #{closest}")
+              result.push Problem.new(location, "Unresolved call to #{missing.links.fetch(-1).word} on #{closest}")
             else
-              # @sg-ignore https://github.com/castwide/solargraph/pull/1392
-              result.push Problem.new(location, "Unresolved call to #{missing.links.last.word}")
+              result.push Problem.new(location, "Unresolved call to #{missing.links.fetch(-1).word}")
             end
             @marked_ranges.push rng
           end
@@ -724,8 +721,7 @@ module Solargraph
         found = nil
         # @type [Array<Solargraph::Pin::Base>]
         all_found = []
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1392
-        until base.links.first.undefined?
+        until base.links.fetch(0).undefined?
           all_found = base.define(api_map, closure_pin, locals)
           found = all_found.first
           break if found
@@ -784,9 +780,7 @@ module Solargraph
                   kwargs.delete param.name.to_sym
                   settled_kwargs += 1
                 elsif param.decl == :kwarg
-                  # @sg-ignore https://github.com/castwide/solargraph/pull/1392
-                  last_arg_last_link = arguments.last.links.last
-                  # @sg-ignore https://github.com/castwide/solargraph/pull/1392
+                  last_arg_last_link = arguments.fetch(-1).links.fetch(-1)
                   return [] if last_arg_last_link.is_a?(Solargraph::Source::Chain::Hash) && last_arg_last_link.splatted?
                   return [Problem.new(location, "Missing keyword argument #{param.name} to #{pin.path}")]
                 end
