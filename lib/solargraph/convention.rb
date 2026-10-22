@@ -27,6 +27,7 @@ module Solargraph
       @@conventions_lock.synchronize do
         @@conventions = (@@conventions | [convention.new]).freeze
       end
+      CacheDir.add_convention convention
     end
 
     # @param convention [Class<Convention::Base>]
