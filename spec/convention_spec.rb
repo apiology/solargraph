@@ -107,40 +107,4 @@ describe Solargraph::Convention do
 
     described_class.unregister updated_dummy_convention
   end
-
-  describe '.add_plugin_conventions' do
-    let(:cache_dir) { Solargraph::CacheDir.new }
-    let(:convention) { Class.new(Solargraph::Convention::Base) }
-
-    before do
-      spec = Gem::Specification.new do |s|
-        s.name = 'fake-plugin'
-        s.version = '1.0.0'
-      end
-      allow(spec).to receive(:full_gem_path).and_return('/gems/fake-plugin-1.0.0')
-      allow(Gem).to receive(:loaded_specs).and_return({ 'fake-plugin' => spec })
-      allow(Object).to receive(:const_source_location).and_call_original
-      allow(Object).to receive(:const_source_location).with('FakePlugin::Convention')
-                                                      .and_return(['/gems/fake-plugin-1.0.0/lib/fake_plugin.rb', 1])
-      allow(convention).to receive(:name).and_return('FakePlugin::Convention')
-      described_class.register convention
-    end
-
-    after { described_class.unregister convention }
-
-    it 'adds conventions defined by the plugin gems' do
-      described_class.add_plugin_conventions cache_dir, ['fake-plugin']
-      expect(cache_dir.plugins).to eq('fake-plugin' => '1.0.0')
-    end
-
-    it 'leaves out conventions defined by other gems' do
-      described_class.add_plugin_conventions cache_dir, ['other-plugin']
-      expect(cache_dir.plugins).to be_empty
-    end
-
-    it 'does not change the cache directory of a workspace without plugin gems' do
-      described_class.add_plugin_conventions cache_dir, []
-      expect(cache_dir.gem_dir).to eq(File.join(Solargraph::CacheDir.work_dir, 'gems'))
-    end
-  end
 end

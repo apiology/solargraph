@@ -120,8 +120,8 @@ module Solargraph
         Config.require_plugins plugins, cache_dir
       end
 
-      # Require plugins by require path, adding each one that loads and the
-      # conventions it defines to a cache directory.
+      # Require plugins by require path, adding each one that loads to a
+      # cache directory.
       #
       # @param paths [Array<String>]
       # @param cache_dir [CacheDir]
@@ -133,7 +133,6 @@ module Solargraph
         rescue LoadError
           Solargraph.logger.warn "Failed to load plugin '#{path}'"
         end
-        Convention.add_plugin_conventions cache_dir, cache_dir.plugins.keys
       end
 
       # The maximum number of files to parse from the workspace.

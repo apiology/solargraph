@@ -32,29 +32,6 @@ describe Solargraph::CacheDir do
     expect(other.gem_dir).not_to eq(cache_dir.gem_dir)
   end
 
-  it 'keys a convention by the gem defining it' do
-    spec = Gem::Specification.new do |s|
-      s.name = 'fake-plugin'
-      s.version = '1.0.0'
-    end
-    allow(spec).to receive(:full_gem_path).and_return('/gems/fake-plugin-1.0.0')
-    allow(Gem).to receive(:loaded_specs).and_return({ 'fake-plugin' => spec })
-    allow(Object).to receive(:const_source_location).with('FakePlugin::Convention')
-                                                    .and_return(['/gems/fake-plugin-1.0.0/lib/fake_plugin.rb', 1])
-    convention = Class.new(Solargraph::Convention::Base)
-    allow(convention).to receive(:name).and_return('FakePlugin::Convention')
-    cache_dir.add_convention convention
-
-    via_plugin = described_class.new
-    via_plugin.add_plugin 'fake-plugin'
-    expect(cache_dir.gem_dir).to eq(via_plugin.gem_dir)
-  end
-
-  it 'ignores conventions defined by Solargraph itself' do
-    cache_dir.add_convention Solargraph::Convention::Gemfile
-    expect(cache_dir.gem_dir).to eq(File.join(described_class.work_dir, 'gems'))
-  end
-
   it 'does not depend on the order plugins are added in' do
     cache_dir.add_plugin 'first_plugin'
     cache_dir.add_plugin 'second_plugin'

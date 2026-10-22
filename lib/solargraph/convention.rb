@@ -23,21 +23,6 @@ module Solargraph
       @@conventions.add convention.new
     end
 
-    # Add the registered conventions defined by a workspace's plugin gems
-    # to its cache directory. A plugin gem registers its conventions once
-    # per process, when it is first required, so each workspace that
-    # configures it needs this to key its own cache directory on them.
-    #
-    # @param cache_dir [CacheDir]
-    # @param plugin_gems [Array<String>] the names of the plugin gems
-    # @return [void]
-    def self.add_plugin_conventions cache_dir, plugin_gems
-      @@conventions.each do |conv|
-        spec = CacheDir.convention_gem(conv.class)
-        cache_dir.add_convention conv.class if spec && plugin_gems.include?(spec.name)
-      end
-    end
-
     # @param convention [Class<Convention::Base>]
     # @return [void]
     def self.unregister convention

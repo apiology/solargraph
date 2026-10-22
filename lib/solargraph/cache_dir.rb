@@ -62,29 +62,6 @@ module Solargraph
       plugin_requires.push name unless plugin_requires.include?(name)
     end
 
-    # @param convention [Class<Convention::Base>]
-    # @return [void]
-    def add_convention convention
-      spec = CacheDir.convention_gem(convention)
-      plugins[spec.name] = spec.version.to_s unless spec.nil?
-    end
-
-    # The gem that defines a convention, unless it is Solargraph.
-    #
-    # @param convention [Class<Convention::Base>]
-    # @return [Gem::Specification, nil]
-    # @sg-ignore each_value block param is typed as the Hash pair, not the value
-    def self.convention_gem convention
-      name = convention.name
-      return if name.nil?
-      file = Object.const_source_location(name)&.first
-      return if file.nil?
-      # @sg-ignore each_value block param is typed as the Hash pair, not the value
-      spec = Gem.loaded_specs.each_value.find { |s| file.start_with?(File.join(s.full_gem_path, '')) }
-      # @sg-ignore each_value block param is typed as the Hash pair, not the value
-      spec unless spec.nil? || spec.name == 'solargraph'
-    end
-
     # The current stdlib directory.
     #
     # @return [String]
