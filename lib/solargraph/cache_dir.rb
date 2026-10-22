@@ -12,7 +12,7 @@ module Solargraph
     # The base directory for cached YARD documentation and serialized pins.
     #
     # @return [String]
-    # @sg-ignore An || chain ending in a String is inferred as nilable
+    # @sg-ignore https://github.com/apiology/solargraph/pull/225
     def self.base_dir
       ENV['SOLARGRAPH_CACHE'] ||
         (ENV['XDG_CACHE_HOME'] ? File.join(ENV['XDG_CACHE_HOME'], 'solargraph') : nil) ||
