@@ -111,16 +111,27 @@ module Solargraph
         raw_data['plugins']
       end
 
-      # Require the configured plugins, recording each one that loads in
-      # the gem cache key.
+      # Require the configured plugins, adding each one that loads to a
+      # cache directory.
       #
+      # @param cache_dir [CacheDir]
       # @return [void]
-      def require_plugins
-        plugins.each do |plugin|
-          require plugin
-          CacheDir.add_plugin plugin
+      def require_plugins cache_dir
+        Config.require_plugins plugins, cache_dir
+      end
+
+      # Require plugins by require path, adding each one that loads to a
+      # cache directory.
+      #
+      # @param paths [Array<String>]
+      # @param cache_dir [CacheDir]
+      # @return [void]
+      def self.require_plugins paths, cache_dir
+        paths.each do |path|
+          require path
+          cache_dir.add_plugin path
         rescue LoadError
-          Solargraph.logger.warn "Failed to load plugin '#{plugin}'"
+          Solargraph.logger.warn "Failed to load plugin '#{path}'"
         end
       end
 
