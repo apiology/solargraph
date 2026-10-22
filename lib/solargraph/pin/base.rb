@@ -595,7 +595,7 @@ module Solargraph
 
       # @todo Candidate for deprecation (see ApiMap#process_macros)
       def maybe_macros?
-        comments.include?('@macro')        
+        comments.include?('@macro')
       end
 
       def macros_names?
