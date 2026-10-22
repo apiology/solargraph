@@ -7,7 +7,7 @@ module Solargraph
   #   bundle or dependency updates
   #
   class External
-    # @return [String]
+    # @return [String, nil]
     attr_reader :directory
 
     # @return [Array<String>]
@@ -16,7 +16,7 @@ module Solargraph
     # @return [Hash{String => String, nil}]
     attr_reader :plugins
 
-    # @param directory [String]
+    # @param directory [String, nil]
     # @param requires [Array<String>]
     # @param plugins [Hash{String => String, nil}] the workspace's plugins,
     #   which select the gem cache directory (see {Workspace#plugins})
@@ -75,8 +75,9 @@ module Solargraph
     # @return [String, nil]
     def rbs_collection_config_path
       # @todo Get rid of the '*' case
-      @rbs_collection_config_path ||= unless directory.nil? || directory.empty? || directory == '*'
-                                        yaml_file = File.join(directory, 'rbs_collection.yaml')
+      dir = directory
+      @rbs_collection_config_path ||= unless dir.nil? || dir.empty? || dir == '*'
+                                        yaml_file = File.join(dir, 'rbs_collection.yaml')
                                         yaml_file if File.file?(yaml_file)
                                       end
     end
@@ -120,8 +121,9 @@ module Solargraph
     end
 
     def rbs_collection_lockfile
-      return if directory.nil? || directory.empty? || directory == '*'
-      lockfile = File.join(directory, 'rbs_collection.lock.yaml')
+      dir = directory
+      return if dir.nil? || dir.empty? || dir == '*'
+      lockfile = File.join(dir, 'rbs_collection.lock.yaml')
       lockfile if File.file?(lockfile)
     end
 

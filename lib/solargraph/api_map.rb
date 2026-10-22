@@ -116,7 +116,6 @@ module Solargraph
     end
 
     def external
-      # @sg-ignore External documents directory as String, but accepts and guards nil
       @external ||= External.new(workspace&.directory, [], plugins: workspace&.plugins || {})
     end
 
