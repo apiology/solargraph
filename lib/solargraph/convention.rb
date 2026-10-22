@@ -14,19 +14,27 @@ module Solargraph
     autoload :ClassDefinition,  'solargraph/convention/class_definition'
     autoload :ActiveSupportConcern, 'solargraph/convention/active_support_concern'
 
+    # Writers replace the set instead of mutating it, so readers in other
+    # threads (e.g. Library cache threads) iterate an unchanging snapshot.
+    #
     # @type [Set<Convention::Base>]
-    @@conventions = Set.new
+    @@conventions = Set.new.freeze
+    @@conventions_lock = Mutex.new
 
     # @param convention [Class<Convention::Base>]
     # @return [void]
     def self.register convention
-      @@conventions.add convention.new
+      @@conventions_lock.synchronize do
+        @@conventions = (@@conventions | [convention.new]).freeze
+      end
     end
 
     # @param convention [Class<Convention::Base>]
     # @return [void]
     def self.unregister convention
-      @@conventions.delete_if { |c| c.is_a?(convention) }
+      @@conventions_lock.synchronize do
+        @@conventions = Set.new(@@conventions.grep_v(convention)).freeze
+      end
     end
 
     # @param source_map [SourceMap]
