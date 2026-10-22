@@ -834,4 +834,9 @@ describe Solargraph::Pin::Method do
     pin = api_map.get_path_pins('Foo#bar').first
     expect { pin.typify(api_map) }.not_to raise_error
   end
+
+  it 'has no method body for a node that is not a method definition' do
+    pin = described_class.new(name: 'foo', node: Solargraph::Parser.parse('foo'))
+    expect(pin.send(:method_body_node)).to be_nil
+  end
 end

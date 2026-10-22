@@ -27,10 +27,8 @@ module Solargraph
             # @sg-ignore https://github.com/castwide/solargraph/pull/1259
             elsif node.type == :false
               @value = false
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1259
-            elsif %i[int sym].include?(node.type)
-              # @sg-ignore https://github.com/castwide/solargraph/pull/1259
-              @value = node.children.first
+            elsif node in [:int | :sym, Integer | Symbol => value, *]
+              @value = value
             end
           end
           @type = type
