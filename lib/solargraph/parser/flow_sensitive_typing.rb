@@ -191,23 +191,25 @@ module Solargraph
       end
 
       # The type a variable in locals has wherever an expression is
-      # truthy, e.g. `Foo` for `c` in `c.is_a?(Foo)`
+      # truthy, or falsy with truthy: false, e.g. `Foo` for `c` in
+      # `c.is_a?(Foo)`
       #
       # @param variable [Pin::LocalVariable]
       # @param expression_node [Parser::AST::Node]
       # @param api_map [ApiMap]
+      # @param truthy [Boolean]
       #
       # @return [ComplexType]
-      def type_where_true variable, expression_node, api_map
+      def type_where variable, expression_node, api_map, truthy:
         type = ComplexType.new(variable.typify(api_map).items)
-        truthy = Range.from_node(expression_node)
-        return type if truthy.nil?
+        presence = Range.from_node(expression_node)
+        return type if presence.nil?
 
-        process_expression(expression_node, [truthy], [])
+        truthy ? process_expression(expression_node, [presence], []) : process_expression(expression_node, [], [presence])
         # Facts that hold only within part of the expression, like
         # the left side of `a.is_a?(Foo) || a.zero?` on its right
         # side, have other presences
-        facts = locals.select { |pin| pin.name == variable.name && pin.presence == truthy }
+        facts = locals.select { |pin| pin.name == variable.name && pin.presence == presence }
         facts.each { |pin| type = type.intersect_with(ComplexType.new(pin.typify(api_map).items), api_map) }
         type
       end
@@ -215,26 +217,30 @@ module Solargraph
       class << self
         include Logging
 
-        # The type of the elements a `select` or `filter` call keeps:
-        # the type its block's only parameter has wherever the block
-        # body is truthy, e.g. `Foo` for `{ |c| c.is_a?(Foo) }`
+        # The types of the block parameters of a call that keeps the
+        # elements its block is truthy for, like `select`, or falsy
+        # for, like `reject`: the types they have wherever the block
+        # body is that, e.g. `Foo` for `select { |c| c.is_a?(Foo) }`
+        # and `String` for `reject { |_, v| v.nil? }` over `String, nil`
         #
         # @param block_body [Parser::AST::Node]
-        # @param element_type [ComplexType]
+        # @param param_types [Array<ComplexType>] Each block parameter's type
         # @param api_map [ApiMap]
+        # @param truthy [Boolean] Whether the call keeps elements its block is truthy for
         #
-        # @return [ComplexType]
-        def narrowed_select_element_type block_body, element_type, api_map
+        # @return [Array<ComplexType>]
+        def narrowed_element_types block_body, param_types, api_map, truthy:
           block_pin = api_map.get_block_pins.find { |pin| block_body_of(pin)&.equal?(block_body) }
-          return element_type if block_pin.nil? || block_pin.parameters.length != 1
+          return param_types if block_pin.nil? || block_pin.parameters.length != param_types.length
+          return param_types unless block_pin.parameters.all?(&:arg?)
 
-          param = block_pin.parameters.fetch(0)
-          return element_type unless param.arg?
-
-          element = Pin::LocalVariable.new(name: param.name, return_type: element_type, closure: block_pin,
-                                           location: param.location, source: :flow_sensitive_typing)
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1437
-          new([element], [], block_pin, block_pin).type_where_true(element, block_body, api_map)
+          param_types.each_with_index.map do |type, index|
+            param = block_pin.parameters.fetch(index)
+            element = Pin::LocalVariable.new(name: param.name, return_type: type, closure: block_pin,
+                                             location: param.location, source: :flow_sensitive_typing)
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1437
+            new([element], [], block_pin, block_pin).type_where(element, block_body, api_map, truthy: truthy)
+          end
         end
 
         private
