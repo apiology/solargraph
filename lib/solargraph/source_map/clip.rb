@@ -41,8 +41,7 @@ module Solargraph
       def complete
         return package_completions([]) if !source_map.source.parsed? || cursor.string?
         # TODO: Improve magic word comparsion == '<::Symbol>', too fragile
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1392
-        if cursor.chain.literal? && cursor.chain.links.last.word == '<::Symbol>'
+        if cursor.chain.literal? && cursor.chain.links.fetch(-1).word == '<::Symbol>'
           return package_completions(api_map.get_symbols)
         end
         return Completion.new([], cursor.range) if cursor.chain.literal?
@@ -196,13 +195,11 @@ module Solargraph
         result = []
         result.concat complete_keyword_parameters
         if cursor.chain.constant? || cursor.start_of_constant?
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1392
-          full = cursor.chain.links.first.word
+          full = cursor.chain.links.fetch(0).word
           type = if cursor.chain.undefined?
                    cursor.chain.base.infer(api_map, context_pin, locals)
-                 # @sg-ignore https://github.com/castwide/solargraph/pull/1392
                  elsif full.include?('::') && cursor.chain.links.length == 1
-                   # @sg-ignore https://github.com/castwide/solargraph/pull/1392
+                   # @sg-ignore Unresolved call to join on Array<String>, nil
                    ComplexType.try_parse(full.split('::')[0..-2].join('::'))
                  elsif cursor.chain.links.length > 1
                    ComplexType.try_parse(full)
@@ -210,7 +207,6 @@ module Solargraph
                    ComplexType::UNDEFINED
                  end
           if type.undefined?
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1392
             if full.include?('::')
               result.concat api_map.get_constants(full, *gates)
             else

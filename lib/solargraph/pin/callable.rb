@@ -247,8 +247,7 @@ module Solargraph
         # @todo this and its caller should be changed so that this can
         #   look at the kwargs provided and check names against what
         #   we acccept
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1392
-        return false if argcount < parcount && !(argcount == parcount - 1 && parameters.last.restarg?)
+        return false if argcount < parcount && !(argcount == parcount - 1 && parameters.fetch(-1).restarg?)
         true
       end
 

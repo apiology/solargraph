@@ -43,11 +43,9 @@ module Solargraph
           end
         end
 
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1392
         # @return [Boolean] true if this is a parameter of Kernel#require
         def require_parameter?
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1392
-          method_call_chain.links.last.word == 'require'
+          method_call_chain.links.fetch(-1).word == 'require'
         end
 
         private
@@ -62,8 +60,8 @@ module Solargraph
           @method_name ||= method_call.word
         end
 
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1392
         # @return [Chain::Link]
+        # @sg-ignore method_call inferred type includes nil
         def method_call
           @method_call_chain.links.last
         end

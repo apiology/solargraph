@@ -44,10 +44,8 @@ module Solargraph
                                       @indexes[changed + idx - 1].merge(pins)
                                     end
         end
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1392
         # @type [Index]
-        @index = @indexes.last.clone
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1104
+        @index = @indexes.fetch(-1).clone
         @index = @index.merge(block.call) if block
         constants.clear
         cached_qualify_superclass.clear
