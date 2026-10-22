@@ -131,7 +131,8 @@ module Solargraph
             #   s(:int, 123))
             lhs_chain = NodeChainer.chain lhs # s(:ivasgn, :@bar)
             rhs_chain = NodeChainer.chain rhs # s(:int, 123)
-            or_link = Chain::Or.new([lhs_chain, rhs_chain])
+            or_asgn_rhs_never_returns = always_leaves_compound_statement?(rhs)
+            or_link = Chain::Or.new([lhs_chain, rhs_chain], rhs_never_returns: or_asgn_rhs_never_returns)
             # this is just for a call chain, so we don't need to record the assignment
             result.push(or_link)
           in [:class | :module | :def | :defs, *]
@@ -140,8 +141,10 @@ module Solargraph
           in [:and, *, ::Parser::AST::Node => last]
             result.concat generate_links(last)
           in [:or, ::Parser::AST::Node => lhs, ::Parser::AST::Node => rhs, *]
-            result.push Chain::Or.new([NodeChainer.chain(lhs, @filename),
-                                       NodeChainer.chain(rhs, @filename, n)])
+            or_lhs_chain = NodeChainer.chain(lhs, @filename)
+            or_rhs_chain = NodeChainer.chain(rhs, @filename, n)
+            or_rhs_never_returns = always_leaves_compound_statement?(rhs)
+            result.push Chain::Or.new([or_lhs_chain, or_rhs_chain], rhs_never_returns: or_rhs_never_returns)
           in [:if, _, ::Parser::AST::Node | nil => then_node, ::Parser::AST::Node | nil => else_node, *]
             then_clause = if then_node
                             NodeChainer.chain(then_node, @filename, n)

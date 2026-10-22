@@ -5,12 +5,22 @@ module Solargraph
     module ParserGem
       module NodeProcessors
         class OrasgnNode < Parser::NodeProcessor::Base
+          include ParserGem::NodeMethods
+
           # @return [void]
           def process
             # s(:or_asgn, s(:lvasgn, name), value) is processed as s(:lvasgn, name, value)
             node => [:or_asgn,
                      ::Parser::AST::Node[Symbol => target_type, *target_children],
                      ::Parser::AST::Node => value]
+
+            closure_location = region.closure.location
+            if closure_location
+              here = get_node_start_position(node)
+              presence = Range.new(here, closure_location.range.ending)
+              FlowSensitiveTyping.new(locals, ivars, enclosing_breakable_pin,
+                                      enclosing_compound_statement_pin).process_or_asgn(node, presence)
+            end
 
             # @sg-ignore https://github.com/castwide/solargraph/pull/1416
             new_node = node.updated(target_type, target_children + [value])

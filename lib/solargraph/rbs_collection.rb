@@ -98,7 +98,6 @@ module Solargraph
                end
       chosen ||= usable.min_by { |_, parsed_version| parsed_version }
       chosen ||= parsed.first
-      # @sg-ignore Library method has no usable type
       "#{metagem.name}-#{chosen[0]}"
     end
 

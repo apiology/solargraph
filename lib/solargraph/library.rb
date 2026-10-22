@@ -424,7 +424,6 @@ module Solargraph
           name = args.shift
           raise DiagnosticsError, "Invalid diagnostics reporter entry #{line.inspect}" if name.nil?
 
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1259
           reporter = Diagnostics.reporter(name)
           raise DiagnosticsError, "Diagnostics reporter #{name} does not exist" if reporter.nil?
           repargs[reporter] ||= []
@@ -646,15 +645,11 @@ module Solargraph
     # @return [void]
     def report_cache_progress gem_name, pending
       @total ||= pending
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1259
       @total = pending if pending > @total
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1259
       finished = @total - pending
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1259
       pct = if @total.zero?
               0
             else
-              # @sg-ignore https://github.com/castwide/solargraph/pull/1259
               ((finished.to_f / @total) * 100).to_i
             end
       message = "#{gem_name}#{" (+#{pending})" if pending.positive?}"

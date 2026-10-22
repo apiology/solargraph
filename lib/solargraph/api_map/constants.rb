@@ -128,7 +128,6 @@ module Solargraph
           if resolved
             base = [resolved]
           else
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1259
             return resolve(name, first) unless first.empty?
           end
         end
