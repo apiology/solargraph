@@ -98,4 +98,15 @@ describe Solargraph::External do
     pin_paths = external.pins.map(&:path)
     expect(pin_paths).to include('Net::HTTP')
   end
+
+  describe '#rbs_collection_config_path' do
+    it 'finds the config in its directory' do
+      external = described_class.new(File.join('spec', 'fixtures', 'rbs_collection'), [])
+      expect(external.rbs_collection_config_path).to eq(File.join('spec', 'fixtures', 'rbs_collection', 'rbs_collection.yaml'))
+    end
+
+    it 'is nil without a directory' do
+      expect(described_class.new(nil, []).rbs_collection_config_path).to be_nil
+    end
+  end
 end

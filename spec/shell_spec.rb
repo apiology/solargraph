@@ -173,6 +173,15 @@ describe Solargraph::Shell do
       expect($LOADED_FEATURES).to include(end_with('cache_probe_plugin.rb'))
     end
 
+    it 'caches gems in the directory for the plugins it loaded' do
+      metagem = instance_double(Solargraph::Metagem, name: 'probe_gem', version: '1.0.0', cache_name: 'probe_gem-1.0.0')
+      allow(Solargraph::Repo).to receive(:new).and_return(instance_double(Solargraph::Repo, find_by_name: metagem))
+      allow(Solargraph::Collection::Gem).to receive(:uncache)
+      allow(Solargraph::Collection::Gem).to receive(:load)
+      capture_both { described_class.new([], directory: temp_dir, rebuild: true).cache('probe_gem') }
+      expect(Solargraph::Collection::Gem).to have_received(:load).with(metagem, { 'cache_probe_plugin' => nil })
+    end
+
     it 'warns about a plugin it cannot load' do
       allow(Solargraph.logger).to receive(:warn)
       capture_both { described_class.new([], directory: temp_dir, plugins: 'missing_probe_plugin').cache('nonexistentgem8675309') }
