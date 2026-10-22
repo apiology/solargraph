@@ -33,6 +33,9 @@ module Solargraph
       # @type [Source, nil]
       @current = nil
       @sync_count = 0
+      @stopped = false
+      # @type [Thread, nil]
+      @cache_thread = nil
     end
 
     def inspect
@@ -46,6 +49,21 @@ module Solargraph
     # @return [Boolean]
     def synchronized?
       @sync_count < 2
+    end
+
+    # Stop caching gems in the background. A gem already being cached
+    # finishes, but nothing gets cataloged or cached after it.
+    #
+    # @return [void]
+    def stop
+      @stopped = true
+    end
+
+    # True if no background gem caching is still running.
+    #
+    # @return [Boolean]
+    def fully_stopped?
+      @stopped && !@cache_thread&.alive?
     end
 
     # Attach a source to the library.
@@ -588,7 +606,7 @@ module Solargraph
 
     # @return [void]
     def cache_next_gemspec
-      return if @cache_progress
+      return if @stopped || @cache_progress
 
       spec = api_map.unloaded_gems.first
       return end_cache_progress unless spec
@@ -608,7 +626,7 @@ module Solargraph
         cache_next_gemspec
       else
         logger.info "Caching #{spec.name} #{spec.version}"
-        Thread.new do
+        @cache_thread = Thread.new do
           report_cache_progress spec.name, pending
 
           cmd = [workspace.command_path, 'cache', spec.name]
@@ -622,6 +640,8 @@ module Solargraph
             logger.warn e
           end
           end_cache_progress
+          next if @stopped
+
           catalog
           sync_catalog
         end

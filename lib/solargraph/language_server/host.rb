@@ -460,6 +460,8 @@ module Solargraph
 
       # @return [void]
       def stop
+        # Libraries cache gems whether or not the host was started
+        all_libraries.each(&:stop)
         return if @stopped
         @stopped = true
         message_worker.stop
@@ -487,7 +489,8 @@ module Solargraph
       end
 
       def fully_stopped?
-        @stopped && diagnoser.fully_stopped? && message_worker.fully_stopped?
+        @stopped && diagnoser.fully_stopped? && message_worker.fully_stopped? &&
+          all_libraries.all?(&:fully_stopped?)
       end
 
       # Locate multiple pins that match a completion item. The first match is
@@ -725,6 +728,13 @@ module Solargraph
       end
 
       private
+
+      # The workspace libraries plus the generic library, if one was made
+      #
+      # @return [Array<Library>]
+      def all_libraries
+        libraries + [@generic_library].compact
+      end
 
       # @return [Array<Integer>]
       def cancelled
