@@ -1025,4 +1025,113 @@ describe Solargraph::Parser::FlowSensitiveTyping do
     clip = api_map.clip_at('test.rb', [13, 12])
     expect(clip.infer.to_s).to eq('ReproBase')
   end
+
+  it 'uses .nil? when the then clause returns after a nested early return' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @param line [Integer, nil]
+        # @param flag [Boolean]
+        # @return [Integer]
+        def bar line, flag
+          if line.nil?
+            if flag
+              return 1
+            end
+            return 0
+          end
+          line
+        end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [12, 10])
+    expect(clip.infer.to_s).to eq('Integer')
+  end
+
+  it 'uses .nil? when both branches of a nested if return' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @param line [Integer, nil]
+        # @param flag [Boolean]
+        # @return [Integer]
+        def bar line, flag
+          if line.nil?
+            if flag
+              return 1
+            else
+              return 0
+            end
+          end
+          line
+        end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [13, 10])
+    expect(clip.infer.to_s).to eq('Integer')
+  end
+
+  it 'does not use .nil? when a nested early return can fall through' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @param line [Integer, nil]
+        # @param flag [Boolean]
+        # @return [Integer, nil]
+        def bar line, flag
+          if line.nil?
+            if flag
+              return 1
+            end
+          end
+          line
+        end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [11, 10])
+    expect(clip.infer.to_s).to eq('Integer, nil')
+  end
+
+  it 'does not use .nil? when only one branch of a nested if returns' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @param line [Integer, nil]
+        # @param flag [Boolean]
+        # @return [Integer, nil]
+        def bar line, flag
+          if line.nil?
+            if flag
+              return 1
+            else
+              flag
+            end
+          end
+          line
+        end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [13, 10])
+    expect(clip.infer.to_s).to eq('Integer, nil')
+  end
+
+  it 'does not use .nil? when the then clause only breaks out of a loop' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @param line [Integer, nil]
+        # @return [Integer, nil]
+        def bar line
+          if line.nil?
+            loop do
+              break
+            end
+          end
+          line
+        end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [10, 10])
+    expect(clip.infer.to_s).to eq('Integer, nil')
+  end
 end
