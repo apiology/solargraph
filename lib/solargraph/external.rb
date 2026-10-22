@@ -75,9 +75,9 @@ module Solargraph
     # @return [String, nil]
     def rbs_collection_config_path
       # @todo Get rid of the '*' case
-      dir = directory
-      @rbs_collection_config_path ||= unless dir.nil? || dir.empty? || dir == '*'
-                                        yaml_file = File.join(dir, 'rbs_collection.yaml')
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1258
+      @rbs_collection_config_path ||= unless directory.nil? || directory.empty? || directory == '*'
+                                        yaml_file = File.join(directory, 'rbs_collection.yaml')
                                         yaml_file if File.file?(yaml_file)
                                       end
     end
@@ -121,9 +121,9 @@ module Solargraph
     end
 
     def rbs_collection_lockfile
-      dir = directory
-      return if dir.nil? || dir.empty? || dir == '*'
-      lockfile = File.join(dir, 'rbs_collection.lock.yaml')
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1258
+      return if directory.nil? || directory.empty? || directory == '*'
+      lockfile = File.join(directory, 'rbs_collection.lock.yaml')
       lockfile if File.file?(lockfile)
     end
 
