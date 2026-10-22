@@ -11,7 +11,6 @@ module Solargraph
             assignment = (rest in [::Parser::AST::Node => value, *]) ? value : nil
 
             loc = get_node_location(node)
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1416
             pins.push Solargraph::Pin::GlobalVariable.new(
               location: loc,
               closure: region.closure,

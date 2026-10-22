@@ -66,7 +66,6 @@ module Solargraph
         end
 
         # @return [Parser::AST::Node, nil]
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1416
         def body_node
           # s(:class, name, superclass, body)
           (node in [_, _, _, ::Parser::AST::Node | nil => body, *]) ? body : nil
@@ -78,7 +77,6 @@ module Solargraph
         attr_reader :node
 
         # @return [Parser::AST::Node, nil]
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1416
         def data_node
           (node in [_, _, ::Parser::AST::Node | nil => superclass, *]) ? superclass : nil
         end

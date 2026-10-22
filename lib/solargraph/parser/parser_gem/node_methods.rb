@@ -115,7 +115,6 @@ module Solargraph
         def simple_convert node
           return nil unless Parser.is_ast_node?(node)
 
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1396
           case node.type
           when :const
             unpack_name(node)
@@ -124,10 +123,8 @@ module Solargraph
             # str: String, int: Integer, float: Float, sym: Symbol, dstr: its first part node
             (node in [_, String | Integer | Float | Symbol | ::Parser::AST::Node => value, *]) ? value : nil
           when :array
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1396
             simple_convert_array(node)
           when :hash
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1396
             simple_convert_hash(node)
           else
             Solargraph::Parser.chain(node)
@@ -246,8 +243,10 @@ module Solargraph
             result.concat call_nodes_from(receiver)
             # @sg-ignore https://github.com/castwide/solargraph/pull/1416
             args.each { |child| result.concat call_nodes_from(child) }
+          # @sg-ignore Found after #1418 merged
           elsif %i[super zsuper].include?(node.type)
             result.push node
+            # @sg-ignore Found after #1418 merged
             node.children.each do |child|
               # children that are not nodes (names, literals, nil) hold no calls
               next unless child in ::Parser::AST::Node => child_node
@@ -255,6 +254,7 @@ module Solargraph
               result.concat call_nodes_from(child_node)
             end
           else
+            # @sg-ignore Found after #1418 merged
             node.children.each do |child|
               # children that are not nodes (names, literals, nil) hold no calls
               next unless child in ::Parser::AST::Node => child_node
@@ -603,7 +603,6 @@ module Solargraph
                   # unreachable and shouldn't be looked at
                   return result
                 else
-                  # @sg-ignore https://github.com/castwide/solargraph/pull/1416
                   result.concat explicit_return_values_from_compound_statement(node)
                 end
                 # handle last line of compound statements, which is in
@@ -643,7 +642,6 @@ module Solargraph
                   # unreachable
                   return result
                 else
-                  # @sg-ignore https://github.com/castwide/solargraph/pull/1416
                   result.concat explicit_return_values_from_compound_statement(node)
                 end
               end
@@ -663,15 +661,12 @@ module Solargraph
                 elsif CONDITIONAL_ALL_BUT_FIRST.include?(node.type)
                   node => [_, _, *branches]
                   result.concat reduce_to_value_nodes(branches)
-                # @sg-ignore flow sensitive typing needs to narrow down type with an if is_a? check
                 elsif node.type == :return
                   returned = (node in [_, ::Parser::AST::Node => value, *]) ? value : nil
                   result.concat reduce_to_value_nodes([returned])
-                # @sg-ignore flow sensitive typing needs to narrow down type with an if is_a? check
                 elsif node.type == :block
                   body = (node in [_, _, _, ::Parser::AST::Node | nil => block_body, *]) ? block_body : nil
                   result.concat explicit_return_values_from_compound_statement(body) unless body.nil?
-                # @sg-ignore flow sensitive typing needs to narrow down type with an if is_a? check
                 elsif node.type == :resbody
                   body = (node in [_, _, _, ::Parser::AST::Node | nil => resbody_body, *]) ? resbody_body : nil
                   result.concat reduce_to_value_nodes([body])

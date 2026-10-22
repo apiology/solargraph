@@ -20,6 +20,7 @@ module Solargraph
                 process_module_function
               elsif %i[attr_reader attr_writer attr_accessor].include?(method_name)
                 process_attribute
+              # @sg-ignore https://github.com/castwide/solargraph/pull/1416
               elsif method_name == :include
                 process_include
               # @sg-ignore https://github.com/castwide/solargraph/pull/1416
@@ -285,7 +286,6 @@ module Solargraph
             node => [:send, ::Parser::AST::Node => receiver, _, *args]
             target = unpack_name(receiver)
             return if target.nil? || target.empty?
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1396
             closure = Pin::Namespace.new(location: get_node_location(receiver), name: target, source: :parser)
             # @sg-ignore https://github.com/castwide/solargraph/pull/1416
             args.each do |child|

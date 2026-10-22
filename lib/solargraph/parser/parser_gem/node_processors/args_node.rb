@@ -30,7 +30,6 @@ module Solargraph
                     asgn_code: default ? region.code_for(default) : nil,
                     # @sg-ignore https://github.com/castwide/solargraph/pull/1399
                     presence: callable.location.range,
-                    # @sg-ignore https://github.com/castwide/solargraph/pull/1416
                     decl: get_decl(u),
                     source: :parser
                   )

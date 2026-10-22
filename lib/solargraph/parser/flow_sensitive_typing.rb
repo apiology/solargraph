@@ -150,7 +150,6 @@ module Solargraph
                                     get_node_end_position(else_clause))
         end
 
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1392
         process_expression(conditional_node, true_ranges, false_ranges)
       end
 
@@ -186,7 +185,6 @@ module Solargraph
                                    get_node_end_position(do_clause))
         end
 
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1392
         process_expression(conditional_node, true_ranges, false_ranges)
       end
 
@@ -394,7 +392,6 @@ module Solargraph
         return unless bang_node in [:send, ::Parser::AST::Node => receiver, :!, *]
 
         # swap the two presences
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1392
         process_expression(receiver, false_presences, true_presences)
       end
 

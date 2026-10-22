@@ -29,7 +29,6 @@ module Solargraph
 
             data_node = (value in [:block, ::Parser::AST::Node => call, *]) ? call : value
 
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1245
             data_definition_node?(data_node)
           end
         end

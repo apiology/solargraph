@@ -52,7 +52,6 @@ module Solargraph
           # @return [String, nil]
           def parameters_from_inline_rbs superclass
             source = region.source.code
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1416
             pos = get_node_end_position(superclass)
             offset = Position.line_char_to_offset(source, pos.line, pos.character)
             eol = source.index("\n", offset) || source.length

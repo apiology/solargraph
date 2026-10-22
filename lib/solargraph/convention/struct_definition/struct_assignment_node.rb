@@ -30,7 +30,6 @@ module Solargraph
 
             struct_node = (value in [:block, ::Parser::AST::Node => call, *]) ? call : value
 
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1245
             struct_definition_node?(struct_node)
           end
         end

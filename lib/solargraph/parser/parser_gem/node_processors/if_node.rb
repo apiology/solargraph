@@ -19,40 +19,31 @@ module Solargraph
                      ::Parser::AST::Node | nil => else_node]
 
             if condition_node
-              # @sg-ignore https://github.com/castwide/solargraph/pull/1416
               pins.push Solargraph::Pin::CompoundStatement.new(
-                # @sg-ignore https://github.com/castwide/solargraph/pull/1416
                 location: get_node_location(condition_node),
                 closure: region.closure,
                 node: condition_node,
                 source: :parser
               )
-              # @sg-ignore https://github.com/castwide/solargraph/pull/1416
               NodeProcessor.process(condition_node, region, pins, locals, ivars)
             end
             if then_node
-              # @sg-ignore https://github.com/castwide/solargraph/pull/1416
               pins.push Solargraph::Pin::CompoundStatement.new(
-                # @sg-ignore https://github.com/castwide/solargraph/pull/1416
                 location: get_node_location(then_node),
                 closure: region.closure,
                 node: then_node,
                 source: :parser
               )
-              # @sg-ignore https://github.com/castwide/solargraph/pull/1416
               NodeProcessor.process(then_node, region, pins, locals, ivars)
             end
 
             if else_node
-              # @sg-ignore https://github.com/castwide/solargraph/pull/1416
               pins.push Solargraph::Pin::CompoundStatement.new(
-                # @sg-ignore https://github.com/castwide/solargraph/pull/1416
                 location: get_node_location(else_node),
                 closure: region.closure,
                 node: else_node,
                 source: :parser
               )
-              # @sg-ignore https://github.com/castwide/solargraph/pull/1416
               NodeProcessor.process(else_node, region, pins, locals, ivars)
             end
 

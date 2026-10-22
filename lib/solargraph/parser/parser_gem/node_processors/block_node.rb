@@ -21,7 +21,6 @@ module Solargraph
               context = ComplexType.try_parse("Class<#{clazz_name}>")
               scope = :class
             end
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1416
             block_pin = Solargraph::Pin::Block.new(
               location: location,
               closure: region.closure,
