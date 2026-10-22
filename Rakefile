@@ -47,14 +47,25 @@ task :full_spec do
   # workers racing to generate the same ones is what takes
   # rbs_map/conversions_spec from 17s to over four minutes.
   #
-  # The trailing four are needed rather than merely slow. Run serially
-  # the suite caches them in passing before anything asserts on them,
-  # but a worker only runs its own share, so on a cold cache external,
-  # pin/base and strict all read pins nothing has built yet. Shell#gems
-  # only warns on a name it cannot find, so check for a Caching line per
-  # gem when editing this list.
-  sh 'bundle exec solargraph gems core stdlib ast parser ' \
-     'backport reverse_markdown yard kramdown-parser-gfm'
+  # The specs cache any gem they need themselves, so this only saves
+  # time. It only warns on a name it cannot find, so check for a
+  # Caching line per gem when editing this list.
+  #
+  # The specs map gems both with no workspace and with the repo-root
+  # one, so cache once after loading each.
+  require 'solargraph'
+  puts 'Caching core'
+  Solargraph::Collection::Core.load
+  ['', Dir.pwd].each do |directory|
+    repo = Solargraph::Repo.new(Solargraph::Workspace.new(directory).directory_or_nil)
+    metagems = %w[ast parser backport reverse_markdown yard kramdown-parser-gfm].filter_map do |name|
+      repo.find_by_name(name) || warn("Gem #{name} not found")
+    end
+    # @sg-ignore filter_map result type keeps the nil the block can return
+    metagems.each { |metagem| puts "Caching #{metagem.name} #{metagem.version}" }
+    # @sg-ignore filter_map result type keeps the nil the block can return
+    Solargraph::Collection::Gem.load_all metagems, out: $stdout
+  end
   # Five files the balancer must not split, each over state that is one
   # copy for the whole run. library, external and yardoc uncache the
   # backport gem from the pin cache every worker shares; external and
