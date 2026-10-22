@@ -803,4 +803,77 @@ describe Solargraph::Source::Chain::Call do
 
     expect(api_map.clip_at('test.rb', [5, 10]).infer.rooted_tags).to eq('::Array<::String, ::Integer>')
   end
+
+  it 'drops nil from reject results whose block checks nil?' do
+    source = Solargraph::Source.load_string(%(
+      # @param items [Array<String, nil>]
+      def foo items
+        a = items.reject { |i| i.nil? }
+        b = items.reject { |i| i.nil? || i.empty? }
+        a
+        b
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+
+    expect(api_map.clip_at('test.rb', [5, 8]).infer.rooted_tags).to eq('::Array<::String>')
+    expect(api_map.clip_at('test.rb', [6, 8]).infer.rooted_tags).to eq('::Array<::String>')
+  end
+
+  it 'drops nil from select results whose block checks non-nil' do
+    source = Solargraph::Source.load_string(%(
+      # @param items [Array<String, nil>]
+      def foo items
+        a = items.select { |i| !i.nil? }
+        b = items.filter { |i| i }
+        a
+        b
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+
+    expect(api_map.clip_at('test.rb', [5, 8]).infer.rooted_tags).to eq('::Array<::String>')
+    expect(api_map.clip_at('test.rb', [6, 8]).infer.rooted_tags).to eq('::Array<::String>')
+  end
+
+  it 'drops nil from Hash reject and select values their block checks' do
+    source = Solargraph::Source.load_string(%(
+      # @param params [Hash{Symbol => String, nil}]
+      def foo params
+        a = params.reject { |_, v| v.nil? }
+        b = params.reject { |_, v| v.nil? || Array(v).empty? }
+        c = params.select { |_, v| !v.nil? }
+        a
+        b
+        c
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+
+    expect(api_map.clip_at('test.rb', [6, 8]).infer.rooted_tags).to eq('::Hash{::Symbol => ::String}')
+    expect(api_map.clip_at('test.rb', [7, 8]).infer.rooted_tags).to eq('::Hash{::Symbol => ::String}')
+    expect(api_map.clip_at('test.rb', [8, 8]).infer.rooted_tags).to eq('::Hash{::Symbol => ::String}')
+  end
+
+  it 'keeps nil in reject results when the block may keep it' do
+    source = Solargraph::Source.load_string(%(
+      # @param items [Array<String, nil>]
+      # @param params [Hash{Symbol => String, nil}]
+      # @param other [Boolean]
+      def foo items, params, other
+        a = items.reject { |i| i.nil? && other }
+        b = params.reject { |k, _| k.nil? }
+        a
+        b
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+
+    expect(api_map.clip_at('test.rb', [7, 8]).infer.rooted_tags).to eq('::Array<::String, ::NilClass>')
+    expect(api_map.clip_at('test.rb', [8, 8]).infer.rooted_tags).to eq('::Hash{::Symbol => ::String, ::NilClass}')
+  end
 end
