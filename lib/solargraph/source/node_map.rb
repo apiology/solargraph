@@ -25,7 +25,6 @@ module Solargraph
       # @return [Array<Parser::AST::Node>]
       def flatten from
         return [] unless from.is_a?(::Parser::AST::Node)
-        # @sg-ignore is_a? with a top-level ::Constant does not narrow the type
         [from].concat(from.children.flat_map { |child| flatten child })
       end
     end

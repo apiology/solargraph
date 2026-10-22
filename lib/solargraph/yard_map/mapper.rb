@@ -46,13 +46,17 @@ module Solargraph
           nspin = namespace_with_bug_fix(code_object)
           @namespace_pins[code_object.path] = nspin
           result.push nspin
+          # @sg-ignore flow sensitive typing needs to narrow down type with an if is_a? check
           if code_object.is_a?(YARD::CodeObjects::ClassObject) && !code_object.superclass.nil?
             # This method of superclass detection is a bit of a hack. If
             # the superclass is a Proxy, it is assumed to be undefined in its
             # yardoc and converted to a fully qualified namespace.
+            # @sg-ignore flow sensitive typing needs to narrow down type with an if is_a? check
             superclass = if code_object.superclass.is_a?(YARD::CodeObjects::Proxy)
+                           # @sg-ignore flow sensitive typing needs to narrow down type with an if is_a? check
                            "::#{code_object.superclass}"
                          else
+                           # @sg-ignore flow sensitive typing needs to narrow down type with an if is_a? check
                            code_object.superclass.to_s
                          end
             # YARD fills in `Object` for every class whose definition it never
@@ -66,11 +70,9 @@ module Solargraph
                                                                      source: :yard_map)
             end
           end
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1259
           code_object.class_mixins.each do |m|
             result.push Solargraph::Pin::Reference::Extend.new(closure: nspin, name: m.path, source: :yard_map)
           end
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1259
           code_object.instance_mixins.each do |m|
             result.push Solargraph::Pin::Reference::Include.new(
               closure: nspin, # @todo Fix this
@@ -81,7 +83,6 @@ module Solargraph
         when YARD::CodeObjects::MethodObject
           closure = @namespace_pins[code_object.namespace.to_s]
           macros_for_method_object(code_object)
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1259
           if code_object.name == :initialize && code_object.scope == :instance
             # @todo Check the visibility of <Class>.new
             result.push ToMethod.make(code_object, 'new', :class, :public, closure, @spec)
