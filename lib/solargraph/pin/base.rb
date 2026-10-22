@@ -321,7 +321,6 @@ module Solargraph
         values1 = arr1.map(&)
         # @type [undefined]
         values2 = arr2.map(&)
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1259
         return arr1 if values1 == values2
         Solargraph.assert_or_log(:"combine_with_#{attr}",
                                  "Inconsistent #{attr.inspect} values between \nself =#{inspect} and \nother=#{other.inspect}:\n\n self values = #{values1}\nother values =#{attr} = #{values2}")

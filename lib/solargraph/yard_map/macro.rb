@@ -148,7 +148,6 @@ module Solargraph
         directives.each do |directive|
           next if VALUE_DIRECTIVES.include? directive.tag.tag_name
 
-          # @sg-ignore chain.node is assumed to exist
           comments = source_map.source.comments_for(node)
           if comments&.length&.positive?
             directive.tag.text += "\n#{comments}"
