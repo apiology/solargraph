@@ -24,7 +24,8 @@ module Solargraph
     #   and no RBS collection will be used.  Useful for specs.
     # @param config [Config, nil]
     # @param server [Hash]
-    def initialize directory = '', config = nil, server = {}
+    # @param metagem [Metagem, nil] the gem whose source the workspace is
+    def initialize directory = '', config = nil, server = {}, metagem: nil
       raise ArgumentError, 'directory must be a String' unless directory.is_a?(String)
 
       @directory = if ['*', ''].include?(directory)
@@ -36,7 +37,18 @@ module Solargraph
       @server = server
       load_sources
       @gemnames = []
+      @metagem = metagem
       require_plugins
+    end
+
+    # Names of the gems the workspace's code can use beyond those its bundle
+    # and requires provide: for a gem's source, the gem and its runtime
+    # dependencies
+    #
+    # @return [Array<String>]
+    def available_gem_names
+      return [] unless @metagem
+      [@metagem.name] + @metagem.dependencies
     end
 
     # The require paths associated with the workspace.

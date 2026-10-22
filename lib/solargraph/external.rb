@@ -13,13 +13,23 @@ module Solargraph
     # @return [Array<String>]
     attr_reader :requires
 
+    # @return [Array<String>]
+    attr_reader :extra_gem_names
+
     # @param directory [String, nil]
     # @param requires [Array<String>]
-    def initialize directory, requires
+    # @param extra_gem_names [Array<String>]
+    def initialize directory, requires, extra_gem_names = []
       @repo = Repo.new(directory)
       @directory = directory
       @requires = requires
+      @extra_gem_names = extra_gem_names
       update!
+    end
+
+    # @return [Array<String>]
+    def configured_gem_names
+      loaded_gems.map(&:name) + unloaded_gems.map(&:name) + extra_gem_names
     end
 
     # @return [Array<String>]
@@ -42,6 +52,11 @@ module Solargraph
       @unloaded_gems ||= Set.new
     end
 
+    # @return [Array<String>]
+    def unfound_gem_names
+      @unfound_gem_names ||= []
+    end
+
     # @return [Set<String>]
     def loaded_stdlibs
       @loaded_stdlibs ||= Set.new
@@ -58,11 +73,13 @@ module Solargraph
     end
 
     # @param new_requires [Array<String>]
+    # @param new_gem_names [Array<String>]
     # @return [Boolean]
-    def update new_requires
-      return false if requires == new_requires && !cache_changed?
+    def update new_requires, new_gem_names = []
+      return false if requires == new_requires && new_gem_names == extra_gem_names && !cache_changed?
 
       requires.replace new_requires
+      extra_gem_names.replace new_gem_names
       update!
       true
     end
@@ -74,6 +91,7 @@ module Solargraph
       @generation = generation + 1
       clear_all
       load_requires
+      load_gem_names
       # load_rbs_collection
     end
 
@@ -104,6 +122,15 @@ module Solargraph
       @repo.find_by_group(:default).each { |metagem| process_gem metagem }
     end
 
+    # @return [void]
+    def load_gem_names
+      extra_gem_names.uniq.each do |gem|
+        metagem = @repo.find_by_name(gem)
+        next unfound_gem_names.push(gem) unless metagem
+        process_gem metagem
+      end
+    end
+
     # @return [RbsCollection]
     def rbs_collection
       @rbs_collection ||= RbsCollection.new(rbs_collection_lockfile)
@@ -125,6 +152,7 @@ module Solargraph
       loaded_gems.clear
       unloaded_gems.clear
       loaded_stdlibs.clear
+      unfound_gem_names.clear
     end
 
     # @param metagem [Metagem]

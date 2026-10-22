@@ -12,6 +12,7 @@ module Solargraph
     autoload :Clip,          'solargraph/source_map/clip'
     autoload :Completion,    'solargraph/source_map/completion'
     autoload :Data,          'solargraph/source_map/data'
+    autoload :Call,          'solargraph/source_map/call'
 
     # @return [Source]
     attr_reader :source
@@ -82,6 +83,19 @@ module Solargraph
       pins_by_class(Pin::Reference::Require)
     end
 
+    # @param method_names [Array<Symbol, String>]
+    # @return [Array<Call>]
+    def calls *method_names
+      symbolized = method_names.map(&:to_sym)
+      node_map.find_by_type(:send).select { |node| node.children[0].nil? && symbolized.include?(node.children[1].to_sym) }
+              .map { |node| Call.new(self, Parser.chain(node), locate_namespace_pin(node.loc.line, node.loc.column)) }
+    end
+
+    # @return [Source::NodeMap]
+    def node_map
+      @node_map ||= Source::NodeMap.new(source.node)
+    end
+
     # @return [Environ]
     def conventions_environ
       @conventions_environ ||= Environ.new
@@ -128,6 +142,14 @@ module Solargraph
     # @sg-ignore Need better generic inference here
     def locate_named_path_pin line, character
       _locate_pin line, character, Pin::Namespace, Pin::Method
+    end
+
+    # @param line [Integer]
+    # @param character [Integer]
+    # @return [Pin::Namespace, Pin::Singleton, nil]
+    # @sg-ignore generic<T> from _locate_pin is not resolved from its class arguments
+    def locate_namespace_pin line, character
+      _locate_pin line, character, Pin::Namespace, Pin::Singleton
     end
 
     # @param line [Integer]

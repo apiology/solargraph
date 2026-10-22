@@ -105,7 +105,7 @@ module Solargraph
         source_maps = files.map { |file| Solargraph::SourceMap.load(file) }
 
         # Generating an ApiMap is necessary for processing macros
-        bench = Bench.new(source_maps: source_maps)
+        bench = Bench.new(source_maps: source_maps, workspace: Workspace.new(metagem: metagem))
         source_pins = ApiMap.new.catalog(bench).pins.select { |pin| files.include?(pin.filename) }
 
         # @sg-ignore https://github.com/castwide/solargraph/pull/1400

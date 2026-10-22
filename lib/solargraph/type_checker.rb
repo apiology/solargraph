@@ -535,7 +535,7 @@ module Solargraph
       # idx always came from the caller's own sig.parameters.each_with_index
       par = sig.parameters.fetch(idx)
 
-      # @type [Solargraph::Source::Chain]
+      # @type [Solargraph::Source::Chain, nil]
       argchain = kwargs[par.name.to_sym]
       if par.decl == :kwrestarg || (par.decl == :optarg && idx == pin.parameters.length - 1 && par.asgn_code == '{}')
         result.concat kwrestarg_problems_for(api_map, closure_pin, locals, location, pin, params, kwargs)
