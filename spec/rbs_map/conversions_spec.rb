@@ -124,6 +124,40 @@ describe Solargraph::RbsMap::Conversions do
         expect(method_pin.signatures[3].block.return_type.to_s).to eq('Integer, nil')
       end
     end
+
+    context 'with an explicit self.new declared in RBS' do
+      let(:rbs) do
+        <<~RBS
+          class Foo
+            def self.new: (?untyped formatters) -> Class
+          end
+        RBS
+      end
+
+      let(:rbs_new_pin) { conversions.pins.find { |pin| pin.path == 'Foo.new' } }
+
+      it 'keeps the declared return type when combined with a source pin' do
+        source_map = Solargraph::SourceMap.load_string(%(
+          class Foo
+            def self.new(formatters = nil)
+              Class.new
+            end
+          end
+        ), 'foo.rb')
+        source_pins = source_map.pins.select { |pin| pin.path == 'Foo.new' }
+        combined = Solargraph::RbsMap::Helpers.combine(source_pins, [rbs_new_pin])
+        expect(combined.find { |pin| pin.path == 'Foo.new' }.return_type.to_rbs).to eq('::Class')
+      end
+
+      it 'keeps the declared return type when combined with a YARD pin' do
+        namespace = YARD::CodeObjects::ClassObject.new(nil, 'Foo')
+        code_object = YARD::CodeObjects::MethodObject.new(namespace, 'new', :class)
+        code_object.parameters = [%w[formatters nil]]
+        yard_pin = Solargraph::YardMap::Mapper::ToMethod.make(code_object)
+        combined = Solargraph::RbsMap::Helpers.combine([yard_pin], [rbs_new_pin])
+        expect(combined.find { |pin| pin.path == 'Foo.new' }.return_type.to_rbs).to eq('::Class')
+      end
+    end
   end
 
   context 'with standard loads for solargraph project' do

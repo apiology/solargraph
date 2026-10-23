@@ -822,6 +822,22 @@ describe Solargraph::SourceMap::Clip do
     expect(clip.infer.tag).to eq('Class')
   end
 
+  it 'infers return types of undocumented <Class>.new methods from their bodies' do
+    source = Solargraph::Source.load_string(%(
+      class Value
+        def self.new(formatters = nil)
+          Class.new
+        end
+      end
+      value = Value.new([])
+      value
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+    clip = api_map.clip_at('test.rb', [7, 11])
+    expect(clip.infer.tag).to eq('Class')
+  end
+
   it 'infers undefined from Class#new' do
     source = Solargraph::Source.load_string(%(
       cls = Class.new

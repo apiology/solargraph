@@ -1294,5 +1294,30 @@ describe Solargraph::TypeChecker do
       ), ['forwardable'])
       expect(checker.problems).to be_empty
     end
+
+    it 'does not add self to the return type of an explicit self.new' do
+      checker = type_checker(%(
+        class MultiFormatter
+          # @param formatters [Array<Class>, nil]
+          def self.new(formatters = nil)
+            formatter_list = Array(formatters)
+            Class.new do
+              define_method :formatters do
+                formatter_list
+              end
+            end
+          end
+        end
+
+        class Configuration
+          # @param formatters [Array<Class>, Class, nil]
+          # @return [void]
+          def formatters=(formatters); end
+        end
+
+        Configuration.new.formatters = MultiFormatter.new([])
+      ))
+      expect(checker.problems.map(&:message)).to eq(['Missing @return tag for MultiFormatter.new'])
+    end
   end
 end

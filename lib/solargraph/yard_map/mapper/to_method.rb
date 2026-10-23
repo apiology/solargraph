@@ -22,8 +22,9 @@ module Solargraph
         def self.make code_object, name = nil, scope = nil, visibility = nil, closure = nil, spec = nil
           closure ||= create_closure_namespace_for(code_object, spec)
           location = object_location(code_object, spec)
-          name ||= code_object.name.to_s
+          # Only the constructor synthesized from #initialize returns self; an explicit self.new may not
           return_type = ComplexType::SELF if name == 'new'
+          name ||= code_object.name.to_s
           comments = code_object.docstring ? code_object.docstring.all.to_s : ''
           final_scope = scope || code_object.scope
           # @sg-ignore Need to add nil check here
