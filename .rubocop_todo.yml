@@ -21,7 +21,6 @@ Gemspec/RequireMFA:
 Layout/ElseAlignment:
   Exclude:
     - 'lib/solargraph/pin/method.rb'
-    - 'lib/solargraph/rbs_translator.rb'
 
 # This cop supports safe autocorrection (--autocorrect).
 # Configuration parameters: EnforcedStyleAlignWith.
@@ -38,7 +37,6 @@ Layout/EndAlignment:
 Layout/IndentationWidth:
   Exclude:
     - 'lib/solargraph/pin/method.rb'
-    - 'lib/solargraph/rbs_map/conversions.rb'
     - 'lib/solargraph/rbs_translator.rb'
     - 'lib/solargraph/shell.rb'
 
@@ -153,7 +151,7 @@ Metrics/MethodLength:
 
 # Configuration parameters: CountComments, CountAsOne.
 Metrics/ModuleLength:
-  Max: 139
+  Max: 140
 
 # Configuration parameters: Max, CountKeywordArgs, MaxOptionalParameters.
 Metrics/ParameterLists:
@@ -327,12 +325,6 @@ Style/FrozenStringLiteralComment:
   Enabled: false
 
 # This cop supports safe autocorrection (--autocorrect).
-# Configuration parameters: MinBodyLength, AllowConsecutiveConditionals.
-Style/GuardClause:
-  Exclude:
-    - 'lib/solargraph/rbs_map/conversions.rb'
-
-# This cop supports safe autocorrection (--autocorrect).
 Style/IfUnlessModifier:
   Enabled: false
 
@@ -351,14 +343,6 @@ Style/MethodDefParentheses:
 Style/MultilineBlockChain:
   Exclude:
     - 'lib/solargraph/pin/search.rb'
-
-# This cop supports unsafe autocorrection (--autocorrect-all).
-# Configuration parameters: EnforcedStyle, Recursive.
-# SupportedStyles: literals, strict
-Style/MutableConstant:
-  Exclude:
-    - 'lib/solargraph/rbs_map/conversions.rb'
-    - 'lib/solargraph/rbs_translator.rb'
 
 # This cop supports safe autocorrection (--autocorrect).
 # Configuration parameters: EnforcedStyle, MinBodyLength, AllowConsecutiveConditionals.
@@ -444,10 +428,12 @@ YARD/MismatchName:
 YARD/TagTypeSyntax:
   Exclude:
     - 'lib/solargraph/parser/comment_ripper.rb'
+    - 'lib/solargraph/parser/parser_gem/node_processors/case_match_node.rb'
+    - 'lib/solargraph/pin/base_variable.rb'
     - 'lib/solargraph/yard_map/mapper/to_method.rb'
 
 # This cop supports safe autocorrection (--autocorrect).
 # Configuration parameters: AllowHeredoc, AllowURI, AllowQualifiedName, URISchemes, AllowRBSInlineAnnotation, AllowCopDirectives, AllowedPatterns, SplitStrings.
 # URISchemes: http, https
 Layout/LineLength:
-  Max: 223
+  Max: 215

@@ -163,7 +163,6 @@ module Solargraph
           chain = Solargraph::Parser::ParserGem::NodeChainer.chain(node)
           # s(:send, nil, method_name, *args) - only receiverless calls expand macros
           next unless node in [_, nil, Symbol => method_name, *]
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1416
           next unless store.macro_method_name_pins.key?(method_name.to_s)
 
           # @sg-ignore Unresolved call to find on Array<Solargraph::Pin::Method>, nil
@@ -804,6 +803,22 @@ module Solargraph
       methods
     end
 
+    # Mixins that +self.included+ hooks of the modules included in fqns apply
+    # to it, e.g. +base.extend ClassMethods+
+    #
+    # @param fqns [String]
+    # @param keywords [Array<::Symbol>] which of :include, :prepend and :extend
+    # @return [Array<String>]
+    def included_hook_mixins fqns, keywords
+      store.get_includes(fqns).flat_map do |ref|
+        included = dereference(ref)
+        next [] if included.nil?
+        store.get_included_mixins(ComplexType.parse(included).namespace)
+             .select { |mixin| keywords.include?(mixin.keyword) }
+             .filter_map { |mixin| dereference(mixin) }
+      end
+    end
+
     # @param fq_sub_tag [String]
     # @return [String, nil]
     def qualify_superclass fq_sub_tag
@@ -877,6 +892,9 @@ module Solargraph
             result.concat inner_get_methods_from_reference(in_tag, namespace_pin, rooted_type, scope, visibility, deep,
                                                            skip, true)
           end
+          included_hook_mixins(fqns, %i[include prepend]).each do |mixin|
+            result.concat inner_get_methods(mixin, scope, visibility, deep, skip, true)
+          end
           rooted_sc_tag = qualify_superclass(rooted_tag)
           unless rooted_sc_tag.nil?
             result.concat inner_get_methods_from_reference(rooted_sc_tag, namespace_pin, rooted_type, scope,
@@ -889,6 +907,9 @@ module Solargraph
           store.get_extends(fqns).reverse.each do |em|
             fqem = dereference(em)
             result.concat inner_get_methods(fqem, :instance, visibility, deep, skip, true) unless fqem.nil?
+          end
+          included_hook_mixins(fqns, [:extend]).each do |mixin|
+            result.concat inner_get_methods(mixin, :instance, visibility, deep, skip, true)
           end
           rooted_sc_tag = qualify_superclass(rooted_tag)
           unless rooted_sc_tag.nil?

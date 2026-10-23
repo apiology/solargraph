@@ -23,7 +23,6 @@ module Solargraph
 
       Solargraph.logger.info "Caching yardoc for #{metagem.cache_name}"
       path = path_for(metagem)
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1281
       FileUtils.mkdir_p File.dirname(path)
       # Resolve the actual executable instead of relying on a bare `yardoc`
       # being on PATH - it may only exist inside the current bundle's own bin
@@ -47,7 +46,6 @@ module Solargraph
     # @param metagem [Metagem]
     # @return [void]
     def uncache metagem
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1281
       FileUtils.rm_rf path_for(metagem)
     end
 
