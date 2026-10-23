@@ -283,7 +283,6 @@ module Solargraph
               # @todo even at strong, no typechecking complaint
               #   happens when a [Pin::Base,nil] is passed into a method
               #   that accepts only [Pin::Namespace] as an argument
-              # @sg-ignore https://github.com/castwide/solargraph/pull/1393
               type = type.resolve_generics(pin.closure, name_pin.binder)
             end
             types << type

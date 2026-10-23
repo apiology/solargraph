@@ -207,7 +207,7 @@ module Solargraph
                 source: :parser
               )
               pins.push method_pin
-              method_pin.parameters.push Pin::Parameter.new(name: 'value', decl: :arg, closure: pins.last,
+              method_pin.parameters.push Pin::Parameter.new(name: 'value', decl: :arg, closure: method_pin,
                                                             source: :parser)
               if method_pin.return_type.defined?
                 method_pin.docstring.add_tag YARD::Tags::Tag.new(:param, '',
