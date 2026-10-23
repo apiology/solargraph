@@ -74,8 +74,7 @@ module Solargraph
             end
           end
           inner_node_references(name, source.node).filter_map do |n|
-            rng = Range.from_node(n)
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1394
+            rng = Range.from_node!(n)
             offset = Position.to_offset(source.code, rng.start)
             soff, eoff = extract_offset[source.code, offset]
             # Operator calls like foo[0] do not spell the method name
@@ -157,15 +156,19 @@ module Solargraph
           end
           # @sg-ignore https://github.com/castwide/solargraph/pull/1396
           if node.type == :dstr && node.children.last.nil?
+            # :nocov:
+            # Dead under the parser gem: it never emits a dstr whose last child is
+            # a literal nil, so last is only ever nil here and no range is pushed.
+            # The shape comes from RubyVM::AbstractSyntaxTree, whose DSTR nodes do
+            # carry a trailing nil child.
             # @sg-ignore https://github.com/castwide/solargraph/pull/1396
             last = node.children[-2]
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1394
             unless last.nil?
-              rng = Range.from_node(last)
-              # @sg-ignore https://github.com/castwide/solargraph/pull/1394
+              rng = Range.from_node!(last)
               pos = Position.new(rng.ending.line, rng.ending.column - 1)
               result.push Range.new(pos, pos)
             end
+            # :nocov:
           end
           result
         end
