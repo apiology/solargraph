@@ -24,11 +24,9 @@ module Solargraph
         super
       end
 
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1393
       # @return [String]
       def method_namespace
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1393
-        closure.namespace
+        closure!.namespace
       end
 
       # @param other [self]
@@ -171,12 +169,9 @@ module Solargraph
         end
       end
 
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1393
       # @return [String]
       def method_name
-        raise "closure was nil in #{inspect}" if closure.nil?
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1393
-        @method_name ||= closure.name
+        @method_name ||= closure!.name
       end
 
       # @param generics_to_resolve [::Array<String>]

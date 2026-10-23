@@ -61,9 +61,7 @@ task :full_spec do
     metagems = %w[ast parser backport reverse_markdown yard kramdown-parser-gfm].filter_map do |name|
       repo.find_by_name(name) || warn("Gem #{name} not found")
     end
-    # @sg-ignore filter_map result type keeps the nil the block can return
     metagems.each { |metagem| puts "Caching #{metagem.name} #{metagem.version}" }
-    # @sg-ignore filter_map result type keeps the nil the block can return
     Solargraph::Collection::Gem.load_all metagems, out: $stdout
   end
   # Five files the balancer must not split, each over state that is one
@@ -82,12 +80,10 @@ task :full_spec do
      '--single "spec/(library|external|yardoc|repo)_spec\.rb|spec/diagnostics/rubocop_helpers_spec\.rb" --isolate ' \
      '--verbose-command spec/' #  --profile'
   # clear now-outdated coverage
-  # @sg-ignore https://github.com/castwide/solargraph/issues/1255
   FileUtils.rm_rf('coverage/full')
   # move coverage/full-new to coverage/full on success so that we
   # always have the last successful run's coverage info
   unless ENV['SIMPLECOV_DISABLED']
-    # @sg-ignore https://github.com/castwide/solargraph/issues/1255
     FileUtils.mv('coverage/full-new', 'coverage/full')
   end
 end

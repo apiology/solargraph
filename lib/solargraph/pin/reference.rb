@@ -8,6 +8,7 @@ module Solargraph
       autoload :Include,    'solargraph/pin/reference/include'
       autoload :Prepend,    'solargraph/pin/reference/prepend'
       autoload :Extend,     'solargraph/pin/reference/extend'
+      autoload :IncludedMixin, 'solargraph/pin/reference/included_mixin'
       autoload :Override,   'solargraph/pin/reference/override'
       autoload :TypeAlias,  'solargraph/pin/reference/type_alias'
 
@@ -48,11 +49,9 @@ module Solargraph
         )
       end
 
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1393
       # @return [Array<String>]
       def reference_gates
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1393
-        closure.gates
+        closure!.gates
       end
     end
   end

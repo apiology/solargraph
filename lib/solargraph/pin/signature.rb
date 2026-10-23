@@ -3,6 +3,8 @@
 module Solargraph
   module Pin
     class Signature < Callable
+      include ClosureRequired
+
       # allow signature to be created before method pin, then set this
       # to the method pin
       attr_writer :closure
@@ -31,7 +33,6 @@ module Solargraph
 
       def typify api_map
         if return_type.defined?
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1393
           qualified = return_type.qualify(api_map, closure.namespace)
           logger.debug { "Signature#typify(self=#{self}) => #{qualified.rooted_tags.inspect}" }
           return qualified
@@ -47,7 +48,6 @@ module Solargraph
           sig = pin.signatures.find { |s| s.arity == arity }
           next unless sig
           next if sig.return_type.undefined?
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1393
           qualified = sig.return_type.qualify(api_map, closure.namespace)
           logger.debug { "Signature#typify(self=#{self}) => #{qualified.rooted_tags.inspect}" }
           return qualified
