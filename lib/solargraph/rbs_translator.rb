@@ -16,8 +16,7 @@ module Solargraph
     # @param type_alias_decls [Hash{String => RBS::AST::Declarations::TypeAlias}]
     # @return [ComplexType]
     def self.to_complex_type type, type_alias_decls: {}
-      tag = type_to_tag(type, type_alias_decls)
-      ComplexType.try_parse(tag).force_rooted
+      to_type(type, type_alias_decls).force_rooted
     end
 
     # @param param_type [RBS::Types::Function::Param]
@@ -123,6 +122,44 @@ module Solargraph
     class << self
       private
 
+      # Builds composite types as objects rather than tag strings, since
+      # an intersection has no tag syntax for ComplexType.parse to read.
+      #
+      # @param type [RBS::Types::t]
+      # @param type_alias_decls [Hash{String => RBS::AST::Declarations::TypeAlias}]
+      # @param expanding_aliases [Array<String>]
+      # @return [ComplexType]
+      def to_type type, type_alias_decls = {}, expanding_aliases = []
+        case type
+        when RBS::Types::Intersection
+          # @sg-ignore flow sensitive typing should support case/when
+          conjuncts = type.types.map { |member| to_type(member, type_alias_decls, expanding_aliases) }
+          ComplexType.new([ComplexType::UniqueType::Intersection.new(conjuncts)])
+        when RBS::Types::Union
+          # @sg-ignore flow sensitive typing should support case/when
+          ComplexType.new(type.types.map { |member| to_type(member, type_alias_decls, expanding_aliases) })
+        when RBS::Types::Optional
+          # @sg-ignore flow sensitive typing should support case/when
+          ComplexType.new([to_type(type.type, type_alias_decls, expanding_aliases), ComplexType::NIL])
+        when RBS::Types::Alias
+          # @sg-ignore flow sensitive typing should support case/when
+          alias_name = type.name.to_s
+          alias_decl = type_alias_decls[alias_name]
+          # @sg-ignore flow sensitive typing should support case/when
+          if alias_decl.nil? || expanding_aliases.include?(alias_name) || !type.args.empty?
+            # @sg-ignore flow sensitive typing should support case/when
+            ComplexType.new([build_type(type.name, type.args, type_alias_decls, expanding_aliases)])
+          else
+            to_type(alias_decl.type, type_alias_decls, expanding_aliases + [alias_name])
+          end
+        when RBS::Types::ClassInstance, RBS::Types::Interface
+          # @sg-ignore flow sensitive typing should support case/when
+          ComplexType.new([build_type(type.name, type.args, type_alias_decls, expanding_aliases)])
+        else
+          ComplexType.try_parse(type_to_tag(type, type_alias_decls, expanding_aliases))
+        end
+      end
+
       # @param type [RBS::Types::t]
       # @param type_alias_decls [Hash{String => RBS::AST::Declarations::TypeAlias}]
       # @param expanding_aliases [Array<String>] Names of aliases already
@@ -216,9 +253,7 @@ module Solargraph
       # @return [ComplexType::UniqueType]
       def build_type type_name, type_args = [], type_alias_decls = {}, expanding_aliases = []
         base = RBS_TO_YARD_TYPE[type_name.relative!.to_s] || type_name.relative!.to_s
-        params = type_args.map { |a| type_to_tag(a, type_alias_decls, expanding_aliases) }.map do |t|
-          ComplexType.try_parse(t)
-        end
+        params = type_args.map { |a| to_type(a, type_alias_decls, expanding_aliases) }
         if base == 'Hash' && params.length == 2
           ComplexType::UniqueType.new(base, [params.first], [params.last], rooted: true, parameters_type: :hash)
         else
