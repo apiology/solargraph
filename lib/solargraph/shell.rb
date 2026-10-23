@@ -126,11 +126,9 @@ module Solargraph
         if gem == 'core'
           Solargraph::Collection::Core.uncache
         elsif gem == 'stdlib'
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1281
           FileUtils.rm_rf CacheDir.stdlib_dir
         else
           metagem = repo.find_by_name(gem)
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1400
           Solargraph::Collection::Gem.uncache(metagem) if metagem
         end
       end
@@ -522,7 +520,6 @@ module Solargraph
           rel_dir = File.join('sig', options[:filename])
           puts "Writing #{rel_dir}..."
           target = File.join(work_dir, rel_dir)
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1281
           FileUtils.mkdir_p(File.join(work_dir, 'sig'))
           `sord #{target} --rbs --no-regenerate`
         end
