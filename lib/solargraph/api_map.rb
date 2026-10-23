@@ -163,7 +163,6 @@ module Solargraph
           chain = Solargraph::Parser::ParserGem::NodeChainer.chain(node)
           # s(:send, nil, method_name, *args) - only receiverless calls expand macros
           next unless node in [_, nil, Symbol => method_name, *]
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1416
           next unless store.macro_method_name_pins.key?(method_name.to_s)
 
           # @sg-ignore Unresolved call to find on Array<Solargraph::Pin::Method>, nil
