@@ -271,13 +271,11 @@ module Solargraph
         result = []
 
         store.get_prepends(fqns).each do |pre|
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1393
           pre_fqns = resolve(pre.name, pre.closure.gates - skip.to_a)
           result.concat inner_get_constants(pre_fqns, [:public], skip)
         end
         result.concat(store.get_constants(fqns, visibility).sort { |a, b| a.name <=> b.name })
         store.get_includes(fqns).each do |pin|
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1393
           inc_fqns = resolve(pin.name, pin.closure.gates - skip.to_a)
           result.concat inner_get_constants(inc_fqns, [:public], skip)
         end

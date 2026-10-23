@@ -3,17 +3,15 @@
 module Solargraph
   module Pin
     class InstanceVariable < BaseVariable
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1393
+      include ClosureRequired
+
       # @return [ComplexType, ComplexType::UniqueType]
       def binder
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1393
         closure.binder
       end
 
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1393
       # @return [::Symbol]
       def scope
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1393
         closure.binder.scope
       end
 
