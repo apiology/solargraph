@@ -18,8 +18,8 @@ module Solargraph
       # @todo @items here should not need an annotation
       # @type [Array<UniqueType>]
       items = types.flat_map(&:items).uniq(&:to_s)
-      if items.any? { |i| i.name == 'false' } && items.any? { |i| i.name == 'true' }
-        items.delete_if { |i| %w[false true].include?(i.name) }
+      if items.any? { |i| i.to_s == 'false' } && items.any? { |i| i.to_s == 'true' }
+        items.delete_if { |i| %w[false true].include?(i.to_s) }
         items.unshift(UniqueType::BOOLEAN)
       end
       # @type [Array<UniqueType>]
@@ -36,11 +36,18 @@ module Solargraph
     def qualify api_map, *gates
       red = reduce_object
       types = red.items.map do |t|
-        next t if %w[nil void undefined].include?(t.name)
-        next t if ['::Boolean'].include?(t.rooted_name)
-        api_map.unalias(t.name) || t.qualify(api_map, *gates)
+        next t if %w[nil void undefined].include?(t.rooted_tags)
+        next t if ['::Boolean'].include?(t.rooted_tags)
+        t.unalias_and_qualify(api_map, *gates)
       end
       ComplexType.new(types).reduce_object
+    end
+
+    # @param api_map [ApiMap]
+    # @param gates [Array<String>]
+    # @return [ComplexType]
+    def unalias_and_qualify api_map, *gates
+      ComplexType.new(items.map { |t| t.unalias_and_qualify(api_map, *gates) })
     end
 
     # @param generics_to_resolve [Enumerable<String>]]
@@ -171,12 +178,12 @@ module Solargraph
     end
 
     def to_s
-      map(&:tag).join(', ')
+      map(&:tags).join(', ')
     end
 
     # @return [String]
     def tags
-      map(&:tag).join(', ')
+      map(&:tags).join(', ')
     end
 
     # @return [String]
@@ -220,6 +227,7 @@ module Solargraph
     #     anything
     #
     # @param variance [:invariant, :covariant, :contravariant]
+    # @sg-ignore https://github.com/castwide/solargraph/pull/1397
     # @return [Boolean]
     def conforms_to? api_map, expected,
                      situation,
@@ -228,52 +236,76 @@ module Solargraph
       expected = expected.downcast_to_literal_if_possible
       inferred = downcast_to_literal_if_possible
 
-      return duck_types_match?(api_map, expected, inferred, rules) if expected.duck_type?
-
       if rules.include? :allow_any_match
-        inferred.any? do |inf|
+        inferred.items.any? do |inf|
           inf.conforms_to?(api_map, expected, situation, rules,
                            variance: variance)
         end
       else
-        inferred.all? do |inf|
+        inferred.items.all? do |inf|
           inf.conforms_to?(api_map, expected, situation, rules,
                            variance: variance)
         end
       end
     end
 
+    # What an inferred type must do to satisfy this union as expected:
+    # conform to any one of its members.
+    #
+    # @param inferred [ComplexType, ComplexType::UniqueType]
     # @param api_map [ApiMap]
-    # @param expected [ComplexType, UniqueType]
-    # @param inferred [ComplexType, UniqueType]
+    # @param situation [:method_call, :assignment, :return_type]
     # @param rules [Array<Symbol>]
+    # @param variance [:invariant, :covariant, :contravariant]
     # @return [Boolean]
-    def duck_types_match? api_map, expected, inferred, rules = []
-      raise ArgumentError, 'Expected type must be duck type' unless expected.duck_type?
-      allow_any_match = rules.include?(:allow_any_match)
-      expected.each do |exp|
-        next unless exp.duck_type?
-        quack = exp.to_s[1..] || ''
-        matched = allow_any_match ? inferred.any? { |inf| duck_type_provides?(api_map, inf, quack) } : inferred.all? { |inf| duck_type_provides?(api_map, inf, quack) }
-        return false unless matched
+    def satisfied_by? inferred, api_map, situation, rules = [],
+                      variance: inferred.erased_variance(situation)
+      items.any? do |item|
+        inferred.conforms_to?(api_map, item, situation, rules, variance: variance)
       end
-      true
     end
 
+    # @param expected [ComplexType::UniqueType]
     # @param api_map [ApiMap]
-    # @param inf [UniqueType]
+    # @param situation [:method_call, :assignment, :return_type]
+    # @param rules [Array<Symbol>]
+    # @param variance [:invariant, :covariant, :contravariant]
+    # @return [Boolean]
+    def conforms_to_unique? expected, api_map, situation, rules = [],
+                            variance: erased_variance(situation)
+      if rules.include? :allow_any_match
+        return items.any? do |item|
+          item.conforms_to_unique?(expected, api_map, situation, rules, variance: variance)
+        end
+      end
+
+      items.all? do |item|
+        item.conforms_to_unique?(expected, api_map, situation, rules, variance: variance)
+      end
+    end
+
+    # The methods reachable on a value of this type.
+    #
+    # @param api_map [ApiMap]
+    # @param context [String] Fully qualified namespace the type is referenced from
+    # @param internal [Boolean] True to include private methods
+    # @return [Array<Pin::Base>]
+    def candidate_methods_from api_map, context, internal
+      api_map.get_complex_type_methods(self, context, internal)
+    end
+
+    # Whether every member of this union provides +quack+.
+    #
+    # @param api_map [ApiMap]
     # @param quack [String]
     # @return [Boolean]
-    def duck_type_provides? api_map, inf, quack
-      return true if inf.duck_type? && inf.to_s[1..] == quack
-
-      !api_map.get_method_stack(inf.namespace, quack, scope: inf.scope).empty?
+    def provides_duck_method? api_map, quack
+      items.all? { |item| item.provides_duck_method?(api_map, quack) }
     end
-    private :duck_type_provides?
 
     # @return [String]
     def rooted_tags
-      map(&:rooted_tag).join(', ')
+      map(&:rooted_tags).join(', ')
     end
 
     # @yieldparam [UniqueType]
@@ -293,7 +325,12 @@ module Solargraph
     end
 
     def generic?
-      any?(&:generic?)
+      any?(&:any_generic?)
+    end
+
+    # @return [Boolean]
+    def any_generic?
+      items.any?(&:any_generic?)
     end
 
     # @return [self]
@@ -349,13 +386,7 @@ module Solargraph
 
     # @return [ComplexType]
     def reduce_class_type
-      new_items = items.flat_map do |type|
-        next type unless %w[Module Class].include?(type.name)
-        next type if type.all_params.empty?
-
-        type.all_params
-      end
-      ComplexType.new(new_items)
+      ComplexType.new(items.map(&:reduce_class_type))
     end
 
     # every type and subtype in this union have been resolved to be
@@ -413,19 +444,15 @@ module Solargraph
       ComplexType.new(types)
     end
 
+    # @return [ComplexType]
+    def reduce_object
+      ComplexType.new(items.map(&:reduce_object))
+    end
+
     protected
 
     def equality_fields
       [self.class, items]
-    end
-
-    # @return [ComplexType]
-    def reduce_object
-      new_items = items.flat_map do |ut|
-        next [ut] if ut.name != 'Object' || ut.subtypes.empty?
-        ut.subtypes
-      end
-      ComplexType.new(new_items)
     end
 
     def bottom?
