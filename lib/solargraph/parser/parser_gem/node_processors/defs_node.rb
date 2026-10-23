@@ -25,7 +25,6 @@ module Solargraph
             pins.push Solargraph::Pin::Method.new(
               location: loc,
               closure: closure,
-              # @sg-ignore https://github.com/castwide/solargraph/pull/1416
               name: method_name.to_s,
               comments: comments_for(node),
               scope: :class,
