@@ -13,7 +13,7 @@ module Solargraph
         @cursor = cursor
         closure_pin = closure
         if closure_pin.is_a?(Pin::Block) && closure_pin.receiver &&
-           !Solargraph::Range.from_node(closure_pin.receiver)&.contain?(cursor.range.start)
+           !Solargraph::Range.from_node!(closure_pin.receiver).contain?(cursor.range.start)
           closure_pin.rebind(api_map)
         end
       end
