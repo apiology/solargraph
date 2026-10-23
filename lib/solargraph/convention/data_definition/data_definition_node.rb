@@ -30,7 +30,6 @@ module Solargraph
           def match? node
             return false unless node in [:class, _, ::Parser::AST::Node | nil => superclass, *]
 
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1416
             data_definition_node?(superclass)
           end
 
@@ -38,7 +37,6 @@ module Solargraph
 
           # @param data_node [Parser::AST::Node, nil]
           # @return [Boolean]
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1416
           def data_definition_node? data_node
             # Data.define(*args) - s(:send, s(:const, scope, :Data), :define, *args)
             data_node in ::Parser::AST::Node[:send, [:const, _, :Data, *], :define, *]
@@ -60,7 +58,6 @@ module Solargraph
           data_attribute_nodes.map do |data_def_param|
             next unless data_def_param in [:sym, Symbol => name]
 
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1416
             [data_def_param, name.to_s]
           end.compact
         end
@@ -81,7 +78,6 @@ module Solargraph
           (node in [_, _, ::Parser::AST::Node | nil => superclass, *]) ? superclass : nil
         end
 
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1416
         # @return [Array<Parser::AST::Node>]
         def data_attribute_nodes
           data_node => [_, _, _, *args]
