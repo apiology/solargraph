@@ -62,9 +62,7 @@ module Solargraph
         time = Benchmark.measure do
           futures = metagems.map do |metagem|
             Concurrent::Promises.future_on(pool, metagem) do |mg|
-              # @sg-ignore https://github.com/castwide/solargraph/pull/1400
               uncache mg if rebuild
-              # @sg-ignore https://github.com/castwide/solargraph/pull/1400
               load mg
             end
           end
@@ -92,7 +90,6 @@ module Solargraph
       def with_yard
         code_objects = Yardoc.load!(metagem)
         yard_pins = YardMap::Mapper.new(code_objects, metagem).map
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1400
         rbs_pins = RbsMap::Gem.pins(metagem)
         RbsMap::Helpers.combine(yard_pins, rbs_pins)
       end
@@ -108,7 +105,6 @@ module Solargraph
         bench = Bench.new(source_maps: source_maps, workspace: Workspace.new(metagem: metagem))
         source_pins = ApiMap.new.catalog(bench).pins.select { |pin| files.include?(pin.filename) }
 
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1400
         rbs_pins = RbsMap::Gem.pins(metagem)
         RbsMap::Helpers.combine(source_pins, rbs_pins)
       end
