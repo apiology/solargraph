@@ -43,8 +43,7 @@ module Solargraph
           closure_name = if [Solargraph::Pin::ROOT_PIN, nil].include?(closure)
                            ''
                          else
-                           # @sg-ignore https://github.com/castwide/solargraph/pull/1393
-                           "#{closure.full_context.namespace}::"
+                           "#{closure!.full_context.namespace}::"
                          end
           closure_name += parts.join('::')
           @closure = Pin::Namespace.new(name: closure_name, gates: [parts.join('::')], source: :namespace)

@@ -3,17 +3,15 @@
 module Solargraph
   module Pin
     class InstanceVariable < BaseVariable
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1393
+      include ClosureRequired
+
       # @return [ComplexType, ComplexType::UniqueType]
       def binder
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1393
         closure.binder
       end
 
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1393
       # @return [::Symbol]
       def scope
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1393
         closure.binder.scope
       end
 
@@ -61,13 +59,10 @@ module Solargraph
         return false if closure.nil?
 
         # top-level ivars aren't visible from within a method
-        # @sg-ignore Need to add nil check here
         return false if viewing_closure.is_a?(Pin::Method) && closure.context.tags == 'Class<>'
 
-        # @sg-ignore Need to add nil check here
         return true if viewing_closure.binder.namespace == closure.binder.namespace
 
-        # @sg-ignore Need to add nil check here
         return true if viewing_closure.return_type == closure.context
 
         return true if viewing_closure.is_a?(Pin::Namespace)

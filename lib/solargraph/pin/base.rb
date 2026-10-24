@@ -513,6 +513,14 @@ module Solargraph
         location || raise("No location set on #{inner_desc}")
       end
 
+      # Only Namespace, FactoryParameter, DuckMethod, Reference::Require/Override and
+      # parentless RBS Constant pins lack a closure; no #closure! call site receives one unguarded.
+      #
+      # @return [Pin::Closure]
+      def closure!
+        closure || raise("No closure set on #{inner_desc}")
+      end
+
       # True if the specified pin is a near match to this one. A near match
       # indicates that the pins contain mostly the same data. Any differences
       # between them should not have an impact on the API surface.
@@ -769,6 +777,11 @@ module Solargraph
         return definitions unless own.path == definitions.path && !own.generics.empty?
 
         own
+      end
+
+      # @return [Pin::Closure, nil]
+      def raw_closure
+        @closure
       end
 
       # @return [void]

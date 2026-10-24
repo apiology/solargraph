@@ -335,15 +335,11 @@ module Solargraph
           # blocks in the AST include the method call as well, so the
           # node returned by #call_nodes_from needs to be backed out
           # one closure
-          # @todo Need to add nil check here
-          # @todo Should warn on nil deference here
-          closure_pin = closure_pin.closure
+          closure_pin = closure_pin.closure!
         end
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1393
         closure_pin.rebind(api_map)
         location = Location.new(filename, rng)
         locals = source_map.locals_at(location)
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1393
         type = chain.infer(api_map, closure_pin, locals)
         if type.undefined? && !rules.ignore_all_undefined?
           base = chain
@@ -353,7 +349,6 @@ module Solargraph
           # @type [Array<Solargraph::Pin::Base>]
           all_found = []
           until base.links.fetch(0).undefined?
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1393
             all_found = base.define(api_map, closure_pin, locals)
             found = all_found.first
             break if found
@@ -372,7 +367,6 @@ module Solargraph
             @marked_ranges.push rng
           end
         end
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1393
         result.concat argument_problems_for(chain, api_map, closure_pin, locals, location)
       end
       result
@@ -632,7 +626,6 @@ module Solargraph
         next if tag.types.nil?
         result[tag.name.to_s] = {
           tagged: tag.types.join(', '),
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1393
           qualified: Solargraph::ComplexType.try_parse(*tag.types).qualify(api_map, *pin.closure.gates)
         }
       end
