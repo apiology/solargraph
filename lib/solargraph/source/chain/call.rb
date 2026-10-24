@@ -19,6 +19,9 @@ module Solargraph
         SLICE_METHOD_PATHS = ['Array#[]', 'String#[]'].freeze
         private_constant :SLICE_METHOD_PATHS
 
+        # Methods that keep the elements their block is truthy for
+        SELECTING_METHODS = %w[Array#select Array#filter Enumerable#select Enumerable#filter].freeze
+
         # @return [String]
         attr_reader :word
 
@@ -249,6 +252,7 @@ module Solargraph
             # ranges starting at 0, and the signatures must return nil.
             # Narrow here when the argument is a 0-start Range literal.
             type = type.without_nil if type.nullable? && SLICE_METHOD_PATHS.include?(p.path) && zero_start_range_arg?
+            type = narrow_selected(type, p, api_map)
             p = p.with_single_signature(new_signature_pin) unless new_signature_pin.nil?
             next p.proxy(type) if type.defined?
             if !p.macros.empty?
@@ -442,6 +446,30 @@ module Solargraph
           return if node_location.nil?
           block_pins = api_map.get_block_pins
           block_pins.find { |pin| pin.location!.contain?(node_location) }
+        end
+
+        # Narrow the elements of `select` and `filter` results to the
+        # type their block's parameter has where the block is truthy,
+        # e.g. `children.select { |c| c.is_a?(Foo) }` is an `Array<Foo>`
+        #
+        # @param type [ComplexType]
+        # @param method_pin [Pin::Method]
+        # @param api_map [ApiMap]
+        # @return [ComplexType]
+        def narrow_selected type, method_pin, api_map
+          return type unless SELECTING_METHODS.include?(method_pin.path)
+          return type unless type.items.length == 1 && type.rooted_name == '::Array'
+
+          body = block&.node
+          return type unless body.is_a?(AST::Node)
+          return type if type.all_params.empty?
+
+          element_type = ComplexType.new(type.all_params.flat_map(&:items))
+          narrowed = Parser::FlowSensitiveTyping.narrowed_select_element_type(body, element_type, api_map)
+          return type if narrowed.undefined?
+
+          array_type = ComplexType::UniqueType.new('Array', [], [narrowed], rooted: true, parameters_type: :list)
+          ComplexType.new([array_type])
         end
 
         # @param api_map [ApiMap]
