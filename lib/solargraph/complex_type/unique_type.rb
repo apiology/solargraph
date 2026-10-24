@@ -184,17 +184,11 @@ module Solargraph
 
       def eql? other
         self.class == other.class &&
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1367
           @name == other.name &&
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1367
           @key_types == other.key_types &&
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1367
           @subtypes == other.subtypes &&
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1367
           @rooted == other.rooted? &&
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1367
           @all_params == other.all_params &&
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1367
           @parameters_type == other.parameters_type
       end
 
