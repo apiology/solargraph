@@ -316,25 +316,21 @@ module Solargraph
             args = node.children[2..] || []
             if %i[send public_send].include?(method_name)
               keyword = args.first
-              return unless Parser.is_ast_node?(keyword) && keyword.type == :sym
+              return unless keyword.is_a?(::Parser::AST::Node) && keyword.type == :sym
               method_name = keyword.children[0]
               args = args.drop(1)
             end
             return unless %i[include extend prepend].include?(method_name)
             hook = region.closure
             args.each do |arg|
-              next unless Parser.is_ast_node?(arg)
-              # @sg-ignore Found after #1450 merged
+              next unless arg.is_a?(::Parser::AST::Node)
               name = if arg.type == :self
                        hook.namespace
-                     # @sg-ignore Found after #1450 merged
                      elsif arg.type == :const
-                       # @sg-ignore Found after #1450 merged
                        unpack_name(arg)
                      end
               next if name.nil? || name.empty?
               pins.push Pin::Reference::IncludedMixin.new(
-                # @sg-ignore Found after #1450 merged
                 location: get_node_location(arg),
                 closure: hook.closure,
                 name: name,

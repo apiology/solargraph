@@ -130,7 +130,7 @@ module Solargraph
         # @param node [Parser::AST::Node]
         # @return [String, Integer, Float, Symbol, Parser::AST::Node, Array, Hash, Source::Chain, nil]
         def simple_convert node
-          return nil unless Parser.is_ast_node?(node)
+          return nil unless node.is_a?(::Parser::AST::Node)
 
           case node.type
           when :const
@@ -151,7 +151,7 @@ module Solargraph
         # @param node [Parser::AST::Node]
         # @return [Array]
         def simple_convert_array node
-          return [] unless Parser.is_ast_node?(node) && node.type == :array
+          return [] unless node.is_a?(::Parser::AST::Node) && node.type == :array
           # s(:array, *elements) - every element is a node
           node.children.compact.map do |child|
             # raises NoMatchingPatternError on a non-node child
@@ -163,7 +163,7 @@ module Solargraph
         # @param node [Parser::AST::Node]
         # @return [Hash]
         def simple_convert_hash node
-          return {} unless Parser.is_ast_node?(node) && node.type == :hash
+          return {} unless node.is_a?(::Parser::AST::Node) && node.type == :hash
           result = {}
           # @param pair [Parser::AST::Node]
           node.children.each do |pair|
@@ -179,17 +179,15 @@ module Solargraph
         # @param node [Parser::AST::Node, nil]
         # @return [Hash{Symbol => Source::Chain}]
         def convert_hash node
-          return {} unless Parser.is_ast_node?(node)
+          return {} unless node.is_a?(::Parser::AST::Node)
           if node in [:kwsplat, ::Parser::AST::Node => splatted, *]
             return convert_hash(splatted)
           end
           if node in [_, ::Parser::AST::Node[:kwsplat, *] => first_child, *]
             return convert_hash(first_child)
           end
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1396
           return {} unless node.type == :hash
           result = {}
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1396
           node.children.each do |pair|
             # s(:pair, s(:sym, key), value)
             pair => [_, ::Parser::AST::Node => key_node, *rest]
@@ -205,7 +203,7 @@ module Solargraph
         #
         # @return [Array<Parser::AST::Node>]
         def const_nodes_from node
-          return [] unless Parser.is_ast_node?(node)
+          return [] unless node.is_a?(::Parser::AST::Node)
           result = []
           if node.type == :const
             result.push node
@@ -264,10 +262,9 @@ module Solargraph
         # @param nodes [Enumerable<Parser::AST::Node>]
         def any_forwarded_args? nodes
           nodes.any? do |n|
-            next false unless Parser.is_ast_node?(n)
+            next false unless n.is_a?(::Parser::AST::Node)
             next true if %i[forwarded_args forwarded_restarg].include?(n.type)
-            # @sg-ignore Found after #1450 merged
-            n.type == :hash && n.children.any? { |c| Parser.is_ast_node?(c) && c.type == :forwarded_kwrestarg }
+            n.type == :hash && n.children.any? { |c| c.is_a?(::Parser::AST::Node) && c.type == :forwarded_kwrestarg }
           end
         end
 

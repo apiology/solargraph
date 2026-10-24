@@ -208,7 +208,6 @@ Naming/PredicatePrefix:
   Exclude:
     - 'spec/**/*'
     - 'lib/solargraph/api_map.rb'
-    - 'lib/solargraph/parser/parser_gem/class_methods.rb'
     - 'lib/solargraph/workspace.rb'
 
 RSpec/BeforeAfterAll:
