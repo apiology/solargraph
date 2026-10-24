@@ -118,14 +118,17 @@ Metrics/AbcSize:
     - 'lib/solargraph/parser/parser_gem/node_chainer.rb'
     - 'lib/solargraph/source_map/clip.rb'
 
-# Configuration parameters: CountComments, CountAsOne, AllowedMethods, AllowedPatterns, inherit_mode.
+# Configuration parameters: CountComments, Max, CountAsOne, AllowedMethods, AllowedPatterns, inherit_mode.
 # AllowedMethods: refine
 Metrics/BlockLength:
-  Max: 57
+  Enabled: false
 
-# Configuration parameters: CountBlocks, CountModifierForms.
+# Configuration parameters: CountBlocks, CountModifierForms, Max.
 Metrics/BlockNesting:
-  Max: 5
+  Exclude:
+    - 'lib/solargraph/source/source_chainer.rb'
+    - 'lib/solargraph/source_map/clip.rb'
+    - 'lib/solargraph/type_checker.rb'
 
 # Configuration parameters: CountComments, Max, CountAsOne.
 Metrics/ClassLength:
@@ -149,9 +152,11 @@ Metrics/MethodLength:
     - 'lib/solargraph/parser/parser_gem/node_chainer.rb'
     - 'lib/solargraph/shell.rb'
 
-# Configuration parameters: CountComments, CountAsOne.
+# Configuration parameters: CountComments, Max, CountAsOne.
 Metrics/ModuleLength:
-  Max: 140
+  Exclude:
+    - 'lib/solargraph/complex_type/type_methods.rb'
+    - 'lib/solargraph/rbs_translator.rb'
 
 # Configuration parameters: Max, CountKeywordArgs, MaxOptionalParameters.
 Metrics/ParameterLists:
