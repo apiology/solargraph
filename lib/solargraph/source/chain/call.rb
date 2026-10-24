@@ -35,17 +35,28 @@ module Solargraph
         # @param location [Location, nil]
         # @param arguments [::Array<Chain>]
         # @param block [Chain, nil]
-        def initialize word, location = nil, arguments = [], block = nil
+        # @param assignment [Boolean] True if the call is written as an
+        #   attribute or index assignment (`a.b = c`, `a[b] = c`)
+        def initialize word, location = nil, arguments = [], block = nil, assignment: false
           super(word)
 
           @location = location
           @arguments = arguments
           @block = block
+          @assignment = assignment
           fix_block_pass
         end
 
         def with_block?
           !!@block
+        end
+
+        # True if the call is written as an attribute or index
+        # assignment, so its value is its last argument
+        #
+        # @return [Boolean]
+        def assignment?
+          @assignment
         end
 
         # @param api_map [ApiMap]
@@ -461,7 +472,7 @@ module Solargraph
         protected
 
         def equality_fields
-          super + [arguments, block]
+          super + [arguments, block, assignment?]
         end
       end
     end
