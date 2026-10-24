@@ -103,7 +103,6 @@ module Solargraph
 
       # @param name [String]
       # @param gates [Array<String>]
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1425
       # @return [String, nil]
       def resolve_and_cache name, gates
         in_process.add [name, gates]

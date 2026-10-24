@@ -24,7 +24,7 @@ module Solargraph
         # @return [Source::Chain]
         def chain
           links = generate_links(@node)
-          Chain.new(links, @node, Parser.is_ast_node?(@node) && @node.type == :splat)
+          Chain.new(links, @node, @node.is_a?(::Parser::AST::Node) && @node.type == :splat)
         end
 
         class << self
@@ -68,7 +68,8 @@ module Solargraph
             result.concat NodeChainer.chain(call, @filename, n).links
           in [:send, ::Parser::AST::Node => receiver, Symbol => method_name, *]
             result.concat generate_links(receiver)
-            result.push Chain::Call.new(method_name.to_s, Location.from_node(n), node_args(n), passed_block(n))
+            result.push Chain::Call.new(method_name.to_s, Location.from_node(n), node_args(n), passed_block(n),
+                                        assignment: assignment_syntax?(n))
           in [:send, nil, Symbol => method_name, *args]
             args.map do |c|
               NodeChainer.chain(c, @filename, n)
@@ -78,7 +79,8 @@ module Solargraph
             raise "No idea what to do with #{n}"
           in [:csend, ::Parser::AST::Node => receiver, Symbol => method_name, *]
             result.concat generate_links(receiver)
-            result.push Chain::QCall.new(method_name.to_s, Location.from_node(n), node_args(n))
+            result.push Chain::QCall.new(method_name.to_s, Location.from_node(n), node_args(n),
+                                         assignment: assignment_syntax?(n))
           in [:csend, nil, Symbol => method_name, *]
             result.push Chain::QCall.new(method_name.to_s, Location.from_node(n), node_args(n))
           in [:csend, *]
@@ -219,6 +221,16 @@ module Solargraph
         def send_node
           # @sg-ignore https://github.com/castwide/solargraph/pull/1421
           @send_node ||= @tree&.find { |n| n.type == :send }
+        end
+
+        # True for `recv.attr = value` and `recv[key] = value`, which
+        # evaluate to `value` whatever the setter returns. An explicit
+        # call like `recv.[]=(key, value)` has no `=` operator and
+        # evaluates to the method's return value.
+        #
+        # @param node [Parser::AST::Node]
+        def assignment_syntax? node
+          node.loc.respond_to?(:operator) && !node.loc.operator.nil? && node.children.length > 2
         end
 
         # @param node [Parser::AST::Node]

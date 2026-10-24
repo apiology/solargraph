@@ -129,12 +129,6 @@ module Solargraph
           parser.version
         end
 
-        # @param node [BasicObject, nil]
-        # @return [Boolean]
-        def is_ast_node? node
-          node.is_a?(::Parser::AST::Node)
-        end
-
         # @param node [Parser::AST::Node]
         # @return [Range]
         def node_range node
@@ -146,25 +140,22 @@ module Solargraph
         # @param node [Parser::AST::Node, nil]
         # @return [Array<Range>]
         def string_ranges node
-          return [] unless is_ast_node?(node)
+          return [] unless node.is_a?(::Parser::AST::Node)
           result = []
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1396
           result.push Range.from_node(node) if node.type == :str
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1396
           node.children.each do |child|
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1416
             result.concat string_ranges(child)
           end
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1396
           if node.type == :dstr && node.children.last.nil?
             # :nocov:
             # Dead under the parser gem: it never emits a dstr whose last child is
             # a literal nil, so last is only ever nil here and no range is pushed.
             # The shape comes from RubyVM::AbstractSyntaxTree, whose DSTR nodes do
             # carry a trailing nil child.
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1396
             last = node.children[-2]
-            # @sg-ignore Unresolved call to nil?
             unless last.nil?
+              # @sg-ignore https://github.com/castwide/solargraph/pull/1416
               rng = Range.from_node!(last)
               pos = Position.new(rng.ending.line, rng.ending.column - 1)
               result.push Range.new(pos, pos)
