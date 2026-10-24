@@ -43,7 +43,6 @@ module Solargraph
 
           # @param send_node [Parser::AST::Node, nil]
           # @return [Boolean]
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1416
           def class_new_node? send_node
             # s(:send, s(:const, scope, :Class), :new, *args)
             send_node in [:send, ::Parser::AST::Node[:const, _, :Class], :new, *]
@@ -59,7 +58,6 @@ module Solargraph
         def class_name
           # s(:casgn, scope, name, value) - scope is nil for a bare name
           node => [:casgn, ::Parser::AST::Node | nil => scope, Symbol => name, *]
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1416
           return name.to_s if scope.nil?
 
           "#{Parser::NodeMethods.unpack_name(scope)}::#{name}"
