@@ -9,6 +9,7 @@ module Solargraph
         attr_reader :word
 
         # @return [::String, ::Symbol, ::Boolean]
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1240
         attr_reader :value
 
         # @return [Parser::AST::Node]

@@ -68,13 +68,11 @@ module Solargraph
 
         # The index of the literal in the method call chain.
         # @return [Integer, nil]
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1245
         def current_index
           return @current_index if @current_index
 
           # s(:send, receiver, method_name, *args)
           method_call_chain.node => [_, _, _, *args]
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1416
           @current_index = args.index(literal.node)
         end
 

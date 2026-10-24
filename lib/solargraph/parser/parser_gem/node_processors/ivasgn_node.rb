@@ -16,7 +16,6 @@ module Solargraph
             ivars.push Solargraph::Pin::InstanceVariable.new(
               location: loc,
               closure: region.closure,
-              # @sg-ignore https://github.com/castwide/solargraph/pull/1416
               name: name.to_s,
               comments: comments_for(node),
               assignment: assignment,
@@ -31,7 +30,6 @@ module Solargraph
                   location: loc,
                   closure: Pin::Namespace.new(type: :module, closure: region.closure.closure,
                                               name: region.closure.name, source: :parser),
-                  # @sg-ignore https://github.com/castwide/solargraph/pull/1416
                   name: name.to_s,
                   comments: comments_for(node),
                   assignment: assignment,
