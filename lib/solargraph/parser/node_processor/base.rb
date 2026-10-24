@@ -55,10 +55,10 @@ module Solargraph
           Position.new(node.loc.line, node.loc.column)
         end
 
-        # @sg-ignore downcast output of Enumerable#select
         # @return [Solargraph::Pin::Breakable, nil]
         def enclosing_breakable_pin
-          pins.select { |pin| pin.is_a?(Pin::Breakable) && pin.location&.range&.contain?(position) }.last
+          pins.reverse_each { |pin| return pin if pin.is_a?(Pin::Breakable) && pin.location&.range&.contain?(position) }
+          nil
         end
 
         # @todo downcast output of Enumerable#select
@@ -73,8 +73,8 @@ module Solargraph
           return if @processed_children
           @processed_children = true
           node.children.each do |child|
-            next unless Parser.is_ast_node?(child)
-            NodeProcessor.process(child, subregion, pins, locals, ivars)
+            next unless child in ::Parser::AST::Node => child_node
+            NodeProcessor.process(child_node, subregion, pins, locals, ivars)
           end
         end
 
@@ -95,8 +95,8 @@ module Solargraph
         # @return [Pin::Closure, nil]
         def named_path_pin position
           pins.select do |pin|
-            # @sg-ignore Need to add nil check here
-            pin.is_a?(Pin::Closure) && pin.path && !pin.path.empty? && pin.location.range.contain?(position)
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1240
+            pin.is_a?(Pin::Closure) && pin.path && !pin.path.empty? && pin.location!.range.contain?(position)
           end.last
         end
 
@@ -105,7 +105,7 @@ module Solargraph
         # @return [Pin::Closure, nil]
         def block_pin position
           # @todo determine if this can return a Pin::Block
-          # @sg-ignore Need to add nil check here
+          # @sg-ignore Unresolved call to range on Location, nil
           pins.select { |pin| pin.is_a?(Pin::Closure) && pin.location.range.contain?(position) }.last
         end
 
@@ -113,7 +113,7 @@ module Solargraph
         # @param position [Solargraph::Position]
         # @return [Pin::Closure, nil]
         def closure_pin position
-          # @sg-ignore Need to add nil check here
+          # @sg-ignore Unresolved call to range on Location, nil
           pins.select { |pin| pin.is_a?(Pin::Closure) && pin.location.range.contain?(position) }.last
         end
       end

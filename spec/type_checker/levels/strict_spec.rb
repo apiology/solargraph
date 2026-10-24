@@ -106,7 +106,9 @@ describe Solargraph::TypeChecker do
         Kramdown::Parser::GFM.undefined_call
       ), 'test.rb')
       api_map = Solargraph::ApiMap.load '.'
-      api_map.catalog Solargraph::Bench.new(source_maps: [source_map], external_requires: ['kramdown-parser-gfm'])
+      bench = Solargraph::Bench.new(source_maps: [source_map], external_requires: ['kramdown-parser-gfm'])
+      api_map.catalog bench
+      cache_unloaded_gems(api_map, bench)
       checker = described_class.new('test.rb', api_map: api_map, level: :strict)
       expect(checker.problems).to be_empty
     end
@@ -826,8 +828,6 @@ describe Solargraph::TypeChecker do
     end
 
     it 'uses nil? to refine type' do
-      pending 'nil? support in flow sensitive typing'
-
       checker = type_checker(%(
         # @sg-ignore
         # @type [String, nil]
@@ -838,7 +838,7 @@ describe Solargraph::TypeChecker do
           foo.downcase
         end
       ))
-      expect(checker.problems.map(&:message)).to eq(['Unresolved call to upcase'])
+      expect(checker.problems.map(&:message)).to eq(['Unresolved call to upcase on nil'])
     end
 
     it 'refines types on is_a? and && to downcast and avoid false positives' do
@@ -1108,6 +1108,48 @@ describe Solargraph::TypeChecker do
       ))
 
       expect(checker.problems.map(&:message)).to eq([])
+    end
+
+    it 'reports a pattern match capture passed to a wrongly-typed parameter' do
+      checker = type_checker(%(
+        # @param s [String]
+        # @return [void]
+        def takes_string(s); end
+
+        # @param x [Integer, String]
+        # @return [void]
+        def bar(x)
+          case x
+          in Integer => i
+            takes_string(i)
+          else
+            nil
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message))
+        .to eq(['Wrong argument type for #takes_string: s expected String, received Integer'])
+    end
+
+    it 'types a pattern match capture with a nil alternative' do
+      checker = type_checker(%(
+        # @param s [String]
+        # @return [void]
+        def takes_string(s); end
+
+        # @param x [Integer, String, nil]
+        # @return [void]
+        def bar(x)
+          case x
+          in Integer | nil => i
+            takes_string(i)
+          else
+            nil
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message))
+        .to eq(['Wrong argument type for #takes_string: s expected String, received Integer, nil'])
     end
   end
 end

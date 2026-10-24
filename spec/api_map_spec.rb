@@ -47,6 +47,19 @@ describe Solargraph::ApiMap do
     expect(pins.map(&:path)).to include('Mixin#mix_method')
   end
 
+  it 'skips includes that do not resolve' do
+    map = Solargraph::SourceMap.load_string(%(
+      class UnresolvedIncluder
+        include NoSuchMod
+        def bar
+        end
+      end
+    ))
+    @api_map.index map.pins
+    pins = @api_map.get_methods('UnresolvedIncluder')
+    expect(pins.map(&:path)).to include('UnresolvedIncluder#bar')
+  end
+
   it 'finds methods from superclasses' do
     map = Solargraph::SourceMap.load_string(%(
       class Sup
@@ -753,6 +766,28 @@ describe Solargraph::ApiMap do
     expect(pins.map(&:name).sort).to eq(%w[bar foo])
   end
 
+  it 'finds class methods in class << Scoped::Example' do
+    source = Solargraph::Source.load_string(%(
+      class << Container::Example = Class.new
+        def foo; end
+      end
+    ))
+    @api_map.map source
+    pins = @api_map.get_methods('Container::Example', scope: :class).select do |pin|
+      pin.namespace == 'Container::Example'
+    end
+    expect(pins.map(&:name)).to eq(['foo'])
+  end
+
+  it 'skips the body of class << on an arbitrary expression' do
+    source_map = Solargraph::SourceMap.load_string(%(
+      class << some_object
+        def foo; end
+      end
+    ))
+    expect(source_map.pins.map(&:name)).not_to include('foo')
+  end
+
   it 'can qualify "Boolean"' do
     api_map = described_class.new
     expect(api_map.qualify('Boolean')).to eq('Boolean')
@@ -770,10 +805,12 @@ describe Solargraph::ApiMap do
 
   it 'resolves aliases for YARD methods' do
     dir = File.absolute_path(File.join('spec', 'fixtures', 'yard_map'))
-    yard_pins = Dir.chdir dir do
-      YARD::Registry.load([File.join(dir, 'attr.rb')], true)
-      mapper = Solargraph::YardMap::Mapper.new(YARD::Registry.all)
-      mapper.map
+    yard_pins = Solargraph::CHDIR_MUTEX.synchronize do
+      Dir.chdir dir do
+        YARD::Registry.load([File.join(dir, 'attr.rb')], true)
+        mapper = Solargraph::YardMap::Mapper.new(YARD::Registry.all)
+        mapper.map
+      end
     end
     source_pins = Solargraph::SourceMap.load_string(%(
       class Foo
@@ -817,6 +854,39 @@ describe Solargraph::ApiMap do
 
     clip = api_map.clip_at('test.rb', [11, 10])
     expect(clip.infer.to_s).to eq('Symbol')
+  end
+
+  context 'with top-level aliases and assertions on' do
+    around do |example|
+      old_asserts = ENV.fetch('SOLARGRAPH_ASSERTS', nil)
+      ENV['SOLARGRAPH_ASSERTS'] = 'on'
+      example.run
+    ensure
+      ENV['SOLARGRAPH_ASSERTS'] = old_asserts
+    end
+
+    it 'resolves an alias of a top-level method' do
+      source = Solargraph::Source.load_string(%(
+        instance_eval do
+          alias rake_namespace namespace
+
+          # @return [Symbol]
+          def namespace; :ns; end
+        end
+      ), 'test.rb')
+      api_map = described_class.new.map(source)
+
+      expect(api_map.get_method_stack('', 'rake_namespace').map(&:return_type).map(&:to_s)).to eq(['Symbol'])
+    end
+
+    it 'resolves an alias of a Kernel method' do
+      source = Solargraph::Source.load_string(%(
+        alias my_puts puts
+      ), 'test.rb')
+      api_map = described_class.new.map(source)
+
+      expect(api_map.get_method_stack('', 'my_puts').map(&:name)).to eq(['my_puts'])
+    end
   end
 
   it 'resolves aliases in identically named deeply nested classes' do
@@ -1006,6 +1076,39 @@ describe Solargraph::ApiMap do
     expect(pins.map(&:return_type).map(&:tag)).to eq(%w[undefined])
   end
 
+  describe '.load_with_cache' do
+    let(:metagem) { instance_double(Solargraph::Metagem, name: 'example', cache_name: 'example-1.0.0') }
+
+    def api_map_awaiting metagems
+      external = instance_double(Solargraph::External, unloaded_gems: metagems)
+      instance_double(described_class, external: external)
+    end
+
+    it 'caches the gems a workspace is missing and reloads with them' do
+      incomplete = api_map_awaiting([metagem])
+      complete = api_map_awaiting([])
+      allow(described_class).to receive(:load).and_return(incomplete, complete)
+      allow(Solargraph::Collection::Gem).to receive(:load_all)
+      out = StringIO.new
+
+      # The reload is the point: the first map was built before the gems
+      # it needed existed, so it is not the one the caller should get.
+      expect(described_class.load_with_cache('.', out)).to be(complete)
+      expect(out.string).to eq("Caching gem example (example-1.0.0)\n")
+      expect(Solargraph::Collection::Gem).to have_received(:load_all).with([metagem], out: out)
+    end
+
+    it 'skips the second load when every gem is already cached' do
+      api_map = api_map_awaiting([])
+      allow(described_class).to receive(:load).and_return(api_map)
+      allow(Solargraph::Collection::Gem).to receive(:load_all)
+
+      expect(described_class.load_with_cache('.', nil)).to be(api_map)
+      expect(described_class).to have_received(:load).once
+      expect(Solargraph::Collection::Gem).not_to have_received(:load_all)
+    end
+  end
+
   # @!override on a constant used to abort cataloging with NoMethodError
   # because Pin::Constant does not respond to #signatures.
   # https://github.com/castwide/solargraph/issues/1302
@@ -1062,5 +1165,55 @@ describe Solargraph::ApiMap do
     api_map = described_class.new.map(source)
     expect(api_map.get_path_pins('Example.foo_one')).to be_one
     expect(api_map.get_path_pins('Example.foo_two')).to be_one
+  end
+
+  it 'resolves an alias to an attribute a macro defines with assertions on' do
+    old_asserts = ENV.fetch('SOLARGRAPH_ASSERTS', nil)
+    ENV['SOLARGRAPH_ASSERTS'] = 'on'
+    source = Solargraph::Source.load_string(%(
+      class Options
+        # @!macro [attach] default_attr
+        #   @!attribute $1
+        #     @return [String]
+        def self.default_attr(key, default)
+          attr_accessor(key)
+        end
+      end
+
+      class TemplateOptions < Options
+        default_attr :globals, nil
+        alias __globals globals
+      end
+    ), 'test.rb')
+    api_map = nil
+    expect { api_map = described_class.new.map(source) }.not_to raise_error
+    pins = api_map.get_method_stack('TemplateOptions', '__globals')
+    expect(pins.map(&:return_type).map(&:tag)).to eq(['String'])
+  ensure
+    ENV['SOLARGRAPH_ASSERTS'] = old_asserts
+  end
+
+  it 'rejects an alias to a method nothing defines with assertions on' do
+    old_asserts = ENV.fetch('SOLARGRAPH_ASSERTS', nil)
+    ENV['SOLARGRAPH_ASSERTS'] = 'on'
+    source = Solargraph::Source.load_string(%(
+      class Options
+        # @!macro [attach] default_attr
+        #   @!attribute $1
+        def self.default_attr(key, default)
+          attr_accessor(key)
+        end
+      end
+
+      class TemplateOptions < Options
+        default_attr :globals, nil
+        alias __missing missing
+      end
+    ), 'test.rb')
+    api_map = described_class.new.map(source)
+    expect { api_map.get_method_stack('TemplateOptions', '__missing') }
+      .to raise_error(RuntimeError, /Rejecting alias - target is missing/)
+  ensure
+    ENV['SOLARGRAPH_ASSERTS'] = old_asserts
   end
 end

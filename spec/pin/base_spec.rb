@@ -54,6 +54,7 @@ describe Solargraph::Pin::Base do
   it 'deals well with known closure combination issue' do
     bench = Solargraph::Bench.new(external_requires: ['yard'])
     api_map = Solargraph::ApiMap.new.catalog(bench)
+    cache_unloaded_gems(api_map, bench)
     pins = api_map.get_method_stack('YARD::Docstring', 'parser', scope: :class)
     # @todo Some environments get more than one pin
     expect(pins.length).to be_positive
@@ -77,16 +78,28 @@ describe Solargraph::Pin::Base do
   describe '#macro_names' do
     it 'returns names' do
       pin = described_class.new(name: 'Example', comments: "@macro addcomment\n@macro returnself")
-      expect(pin.macro_names).to eq(['addcomment', 'returnself'])
+      expect(pin.macro_names).to eq(%w[addcomment returnself])
     end
   end
 
   describe '#nearly?' do
     it 'avoids recursion when two pins have the same closure' do
-      pin1 = Solargraph::Pin::Base.new(name: 'foo')
+      pin1 = described_class.new(name: 'foo')
       pin1.closure = pin1
-      pin2 = Solargraph::Pin::Base.new(name: 'foo', closure: pin1)
+      pin2 = described_class.new(name: 'foo', closure: pin1)
       expect { pin1.nearly?(pin2) }.not_to raise_error
+    end
+  end
+
+  describe '#location!' do
+    it 'returns the location when one is set' do
+      pin = described_class.new(location: zero_location, name: 'Foo', source: :parser)
+      expect(pin.location!).to eq(zero_location)
+    end
+
+    it 'raises when the pin has no location' do
+      pin = described_class.new(name: 'Foo')
+      expect { pin.location! }.to raise_error(RuntimeError, /No location set/)
     end
   end
 end

@@ -803,7 +803,6 @@ describe Solargraph::TypeChecker do
     end
 
     it 'resolves a generic type variable against a union @param type' do
-      pending 'https://github.com/castwide/solargraph/issues/1276'
       checker = type_checker(%(
         # @generic A
         # @param arg [generic<A>, nil]
@@ -838,7 +837,6 @@ describe Solargraph::TypeChecker do
     end
 
     it 'resolves a generic type variable against a union @param type with more than two members' do
-      pending 'https://github.com/castwide/solargraph/issues/1276'
       checker = type_checker(%(
         # @generic A
         # @param arg [generic<A>, nil, Symbol]
@@ -857,7 +855,6 @@ describe Solargraph::TypeChecker do
     end
 
     it 'resolves a generic type variable against a union @param type through two layers of generic methods' do
-      pending 'https://github.com/castwide/solargraph/issues/1276'
       checker = type_checker(%(
         # @generic A
         # @param arg [generic<A>, nil]
@@ -1123,6 +1120,41 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message)).to eq([])
     end
 
+    # base.rb sorts first, so the combined @foo pin takes its location, and
+    # the subclass assignment sits past base.rb's last line
+    it 'infers an ivar assigned in both an ancestor and a subclass file' do
+      base = Solargraph::Source.load_string(%(
+        class Base
+          def initialize
+            @foo = 'x'.
+              freeze
+          end
+        end
+      ), 'base.rb')
+      sub = Solargraph::Source.load_string(%(
+        class Sub < Base
+          # @return [String]
+          def foo
+            @foo
+          end
+
+          # @param value [String]
+          # @return [void]
+          def foo= value
+            @foo = value
+          end
+        end
+      ), 'sub.rb')
+      api_map = Solargraph::ApiMap.new
+      api_map.catalog(Solargraph::Bench.new(source_maps: [
+                                              Solargraph::SourceMap.map(base),
+                                              Solargraph::SourceMap.map(sub)
+                                            ]))
+      checker = described_class.new('sub.rb', api_map: api_map, level: :strong)
+
+      expect(checker.problems.map(&:message)).to eq([])
+    end
+
     it 'supports !@x.nil && @x.y' do
       checker = type_checker(%(
         class Bar
@@ -1165,6 +1197,24 @@ describe Solargraph::TypeChecker do
       # expect 'sub' to be treated as 'Subclass' inside the block, and
       # an error when trying to declare sub as Subclass
       expect(checker.problems.map(&:message)).not_to include('Unresolved call to bar on Base')
+    end
+
+    it 'does not validate a non-delegating override against its ancestor return tag' do
+      checker = type_checker(%(
+        class Base
+          # @return [Boolean]
+          # @return [void]
+          def process
+            true
+          end
+        end
+
+        class Sub < Base
+          def process
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
     end
 
     it 'resolves the operators TrueClass and FalseClass share on Boolean' do

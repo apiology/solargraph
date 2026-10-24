@@ -111,6 +111,43 @@ describe Solargraph::Source::Chain::Call do
     expect(type.tag).to eq('String')
   end
 
+  it 'infers types from a reference to a named macro' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @!macro [new] returner
+        #   @return [$1]
+        def self.bar; end
+
+        # @!macro returner
+        def self.baz; end
+      end
+      Foo.baz(String)
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map(source)
+    chain = Solargraph::Source::SourceChainer.chain(source, Solargraph::Position.new(9, 10))
+    type = chain.infer(api_map, Solargraph::Pin::ROOT_PIN, [])
+    expect(type.tag).to eq('String')
+  end
+
+  it 'falls back to the method type for a macro without a return tag' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @!macro
+        #   Does something with $1
+        def self.bar
+          1
+        end
+      end
+      Foo.bar(String)
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map(source)
+    chain = Solargraph::Source::SourceChainer.chain(source, Solargraph::Position.new(8, 10))
+    type = chain.infer(api_map, Solargraph::Pin::ROOT_PIN, [])
+    expect(type.tag).to eq('Integer')
+  end
+
   it 'infers generic types from Array#reverse' do
     source = Solargraph::Source.load_string(%(
       # @type [Array<String>]
@@ -866,5 +903,85 @@ describe Solargraph::Source::Chain::Call do
 
     clip = api_map.clip_at('test.rb', [14, 14])
     expect(clip.infer.rooted_tags).to eq('::Set<::Foo::Bar::Symbol>')
+  end
+
+  it 'does not nil-taint Array#[] with a literal 0-start Range' do
+    source = Solargraph::Source.load_string(%(
+      # @type [Array<String>]
+      arr = []
+      arr[0..-2]
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+
+    clip = api_map.clip_at('test.rb', [3, 16])
+    expect(clip.infer.rooted_tags).to eq('::Array<::String>')
+  end
+
+  it 'does not nil-taint Array#[] with a beginless Range' do
+    source = Solargraph::Source.load_string(%(
+      # @type [Array<String>]
+      arr = []
+      arr[..5]
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+
+    clip = api_map.clip_at('test.rb', [3, 14])
+    expect(clip.infer.rooted_tags).to eq('::Array<::String>')
+  end
+
+  it 'does not nil-taint Array#[] with a literal 0-start, exclusive Range' do
+    source = Solargraph::Source.load_string(%(
+      # @type [Array<String>]
+      arr = []
+      arr[0...5]
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+
+    clip = api_map.clip_at('test.rb', [3, 16])
+    expect(clip.infer.rooted_tags).to eq('::Array<::String>')
+  end
+
+  it 'does not nil-taint String#[] with a literal 0-start Range' do
+    source = Solargraph::Source.load_string(%(
+      # @param s [String]
+      # @param offset [Integer]
+      def foo(s, offset)
+        s[0..(offset - 1)]
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+
+    clip = api_map.clip_at('test.rb', [4, 26])
+    expect(clip.infer.rooted_tags).to eq('::String')
+  end
+
+  it 'still treats Array#[] with a non-zero literal start Range as nilable' do
+    source = Solargraph::Source.load_string(%(
+      # @type [Array<String>]
+      arr = []
+      arr[1..]
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+
+    clip = api_map.clip_at('test.rb', [3, 14])
+    expect(clip.infer.rooted_tags).to eq('::Array<::String>, nil')
+  end
+
+  it 'still treats Array#[] with a negative literal start Range as nilable' do
+    source = Solargraph::Source.load_string(%(
+      # @type [Array<String>]
+      arr = []
+      arr[-1..]
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+
+    clip = api_map.clip_at('test.rb', [3, 15])
+    expect(clip.infer.rooted_tags).to eq('::Array<::String>, nil')
   end
 end

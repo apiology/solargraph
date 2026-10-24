@@ -6,11 +6,13 @@ module Solargraph
     # either a file in the workspace or a gem.
     #
     class RequireNotFound < Base
-      def diagnose source, api_map
+      # @param source [Solargraph::Source]
+      # @param api_map [Solargraph::ApiMap]
+      # @param workspace [Solargraph::Workspace, nil] unused; accepted for interface compatibility with Diagnostics::Base
+      def diagnose source, api_map, workspace: nil
         return [] unless source.parsed? && source.synchronized?
         result = []
         refs = {}
-        # @sg-ignore Need to add nil check here
         map = api_map.source_map(source.filename)
         map.requires.each { |ref| refs[ref.name] = ref }
         api_map.unresolved_requires.each do |r|

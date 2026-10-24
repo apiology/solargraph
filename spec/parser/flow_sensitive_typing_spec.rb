@@ -1,8 +1,13 @@
 # frozen_string_literal: true
 
+require 'tempfile'
+
 # @todo These tests depend on `Clip`, but we're putting the tests here to
 #   avoid overloading clip_spec.rb.
 describe Solargraph::Parser::FlowSensitiveTyping do
+  # random temporary filename ending in '.rb' using tmpfile
+  let(:filename) { Tempfile.new(['flow_sensitive_typing_spec', '.rb']).path }
+
   it 'uses is_a? in a simple if() to refine types' do
     source = Solargraph::Source.load_string(%(
       class ReproBase; end
@@ -15,12 +20,12 @@ describe Solargraph::Parser::FlowSensitiveTyping do
           repr
         end
       end
-  ), 'test.rb')
+  ), filename)
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [6, 10])
+    clip = api_map.clip_at(filename, [6, 10])
     expect(clip.infer.to_s).to eq('Repro')
 
-    clip = api_map.clip_at('test.rb', [8, 10])
+    clip = api_map.clip_at(filename, [8, 10])
     expect(clip.infer.to_s).to eq('ReproBase')
   end
 
@@ -37,12 +42,12 @@ describe Solargraph::Parser::FlowSensitiveTyping do
           repr
         end
       end
-  ), 'test.rb')
+  ), filename)
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [7, 10])
+    clip = api_map.clip_at(filename, [7, 10])
     expect(clip.infer.to_s).to eq('Repro1')
 
-    clip = api_map.clip_at('test.rb', [9, 10])
+    clip = api_map.clip_at(filename, [9, 10])
     expect(clip.infer.to_s).to eq('Repro2')
   end
 
@@ -60,12 +65,12 @@ describe Solargraph::Parser::FlowSensitiveTyping do
           repr
         end
       end
-  ), 'test.rb')
+  ), filename)
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [8, 10])
+    clip = api_map.clip_at(filename, [8, 10])
     expect(clip.infer.to_s).to eq('Foo::Repro')
 
-    clip = api_map.clip_at('test.rb', [10, 10])
+    clip = api_map.clip_at(filename, [10, 10])
     expect(clip.infer.to_s).to eq('ReproBase')
   end
 
@@ -85,13 +90,71 @@ describe Solargraph::Parser::FlowSensitiveTyping do
           repr
         end
       end
-  ), 'test.rb')
+  ), filename)
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [10, 10])
+    clip = api_map.clip_at(filename, [10, 10])
     expect(clip.infer.to_s).to eq('Foo::Bar::Repro')
 
-    clip = api_map.clip_at('test.rb', [12, 10])
+    clip = api_map.clip_at(filename, [12, 10])
     expect(clip.infer.to_s).to eq('ReproBase')
+  end
+
+  it 'uses is_a? in a simple if() to refine types on a root-scoped (::-prefixed) class' do
+    source = Solargraph::Source.load_string(%(
+      class ReproBase; end
+      module Foo
+        class Repro < ReproBase; end
+      end
+      # @param repr [ReproBase]
+      def verify_repro(repr)
+        if repr.is_a?(::Foo::Repro)
+          repr
+        else
+          repr
+        end
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [8, 10])
+    expect(clip.infer.to_s).to eq('Foo::Repro')
+
+    clip = api_map.clip_at('test.rb', [10, 10])
+    expect(clip.infer.to_s).to eq('ReproBase')
+  end
+
+  it 'uses is_a? with a ::-prefixed class combined via && in a guard clause to refine types' do
+    source = Solargraph::Source.load_string(%(
+      class ReproBase; end
+      class Repro < ReproBase; end
+      # @param repr [ReproBase]
+      # @return [void]
+      def verify_repro(repr)
+        return unless repr.is_a?(::Repro) && repr.respond_to?(:foo)
+        repr
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [7, 8])
+    expect(clip.infer.to_s).to eq('Repro')
+  end
+
+  it 'uses is_a? with a ::-prefixed class in an elsif to refine types in the branch body' do
+    source = Solargraph::Source.load_string(%(
+      class ReproBase; end
+      class Repro1 < ReproBase; end
+      class Repro2 < ReproBase; end
+      # @param repr [ReproBase]
+      def verify_repro(repr)
+        if repr.is_a?(Repro1)
+          repr
+        elsif repr.is_a?(::Repro2) && repr.respond_to?(:foo)
+          repr
+        end
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [9, 10])
+    expect(clip.infer.to_s).to eq('Repro2')
   end
 
   it 'uses is_a? in a simple unless statement to refine types' do
@@ -106,12 +169,12 @@ describe Solargraph::Parser::FlowSensitiveTyping do
           repr
         end
       end
-  ), 'test.rb')
+  ), filename)
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [6, 10])
+    clip = api_map.clip_at(filename, [6, 10])
     expect(clip.infer.to_s).to eq('ReproBase')
 
-    clip = api_map.clip_at('test.rb', [8, 10])
+    clip = api_map.clip_at(filename, [8, 10])
     expect(clip.infer.to_s).to eq('Repro')
   end
 
@@ -127,12 +190,12 @@ describe Solargraph::Parser::FlowSensitiveTyping do
           repr
         end
       end
-  ), 'test.rb')
+  ), filename)
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [6, 10])
+    clip = api_map.clip_at(filename, [6, 10])
     expect(clip.infer.to_s).to eq('Repro1')
 
-    clip = api_map.clip_at('test.rb', [8, 10])
+    clip = api_map.clip_at(filename, [8, 10])
     expect(clip.infer.to_s).to eq('ReproBase')
   end
 
@@ -151,15 +214,105 @@ describe Solargraph::Parser::FlowSensitiveTyping do
           repr
         end
       end
+  ), filename)
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at(filename, [7, 10])
+    expect(clip.infer.to_s).to eq('Repro1')
+
+    clip = api_map.clip_at(filename, [9, 10])
+    expect(clip.infer.to_s).to eq('Repro2')
+
+    clip = api_map.clip_at(filename, [11, 10])
+    expect(clip.infer.to_s).to eq('ReproBase')
+  end
+
+  it 'narrows a case/when subject to the matched class inside each branch' do
+    source = Solargraph::Source.load_string(%(
+      class ReproBase; end
+      class Repro1 < ReproBase; end
+      class Repro2 < ReproBase; end
+      # @param repr [ReproBase]
+      def verify_repro(repr)
+        case repr
+        when Repro1
+          repr
+        when Repro2
+          repr
+        else
+          repr
+        end
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [8, 10])
+    expect(clip.infer.to_s).to eq('Repro1')
+
+    clip = api_map.clip_at('test.rb', [10, 10])
+    expect(clip.infer.to_s).to eq('Repro2')
+
+    clip = api_map.clip_at('test.rb', [12, 10])
+    expect(clip.infer.to_s).to eq('ReproBase')
+  end
+
+  it 'narrows a case/when subject to a union when a when clause has multiple values' do
+    source = Solargraph::Source.load_string(%(
+      class ReproBase; end
+      class Repro1 < ReproBase; end
+      class Repro2 < ReproBase; end
+      class Repro3 < ReproBase; end
+      # @param repr [ReproBase]
+      def verify_repro(repr)
+        case repr
+        when Repro1, Repro2
+          repr
+        when Repro3
+          repr
+        end
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [9, 10])
+    expect(clip.infer.to_s).to eq('Repro1, Repro2')
+  end
+
+  it 'narrows a case/when subject to the matched class for an ivar subject' do
+    source = Solargraph::Source.load_string(%(
+      class ReproBase; end
+      class Repro1 < ReproBase; end
+      class Foo
+        # @param repr [ReproBase]
+        def initialize(repr)
+          @repr = repr
+        end
+
+        # @return [void]
+        def verify
+          case @repr
+          when Repro1
+            @repr
+          end
+        end
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [13, 12])
+    expect(clip.infer.to_s).to eq('Repro1')
+  end
+
+  it 'does not narrow a case/when subject when a when clause value is not a simple constant' do
+    source = Solargraph::Source.load_string(%(
+      class ReproBase; end
+      class Repro1 < ReproBase; end
+      # @param repr [ReproBase]
+      def verify_repro(repr)
+        case repr
+        when Repro1, some_dynamic_value
+          repr
+        end
+      end
   ), 'test.rb')
     api_map = Solargraph::ApiMap.new.map(source)
     clip = api_map.clip_at('test.rb', [7, 10])
-    expect(clip.infer.to_s).to eq('Repro1')
-
-    clip = api_map.clip_at('test.rb', [9, 10])
-    expect(clip.infer.to_s).to eq('Repro2')
-
-    clip = api_map.clip_at('test.rb', [11, 10])
     expect(clip.infer.to_s).to eq('ReproBase')
   end
 
@@ -173,9 +326,9 @@ describe Solargraph::Parser::FlowSensitiveTyping do
         break unless value.is_a? Repro
         value
       end
-  ), 'test.rb')
+  ), filename)
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [7, 8])
+    clip = api_map.clip_at(filename, [7, 8])
     expect(clip.infer.to_s).to eq('Repro')
   end
 
@@ -189,9 +342,9 @@ describe Solargraph::Parser::FlowSensitiveTyping do
         break unless value.is_a? Repro
         value
       end
-  ), 'test.rb')
+  ), filename)
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [7, 8])
+    clip = api_map.clip_at(filename, [7, 8])
     expect(clip.infer.to_s).to eq('Repro')
   end
 
@@ -205,9 +358,9 @@ describe Solargraph::Parser::FlowSensitiveTyping do
         break unless value.is_a? Repro
         value
       end
-  ), 'test.rb')
+  ), filename)
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [7, 8])
+    clip = api_map.clip_at(filename, [7, 8])
     expect(clip.infer.to_s).to eq('Repro')
   end
 
@@ -222,16 +375,16 @@ describe Solargraph::Parser::FlowSensitiveTyping do
 
         value
       end
-  ), 'test.rb')
+  ), filename)
 
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [3, 6])
+    clip = api_map.clip_at(filename, [3, 6])
     expect(clip.infer.to_s).to eq('Array<Numeric>')
 
-    clip = api_map.clip_at('test.rb', [5, 8])
+    clip = api_map.clip_at(filename, [5, 8])
     expect(clip.infer.to_s).to eq('Numeric')
 
-    clip = api_map.clip_at('test.rb', [7, 8])
+    clip = api_map.clip_at(filename, [7, 8])
     expect(clip.infer.to_s).to eq('Float')
   end
 
@@ -247,16 +400,16 @@ describe Solargraph::Parser::FlowSensitiveTyping do
           repr
         end
       end
-    ), 'test.rb')
+    ), filename)
 
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [4, 8])
+    clip = api_map.clip_at(filename, [4, 8])
     expect(clip.infer.rooted_tags).to eq('::Integer, nil')
 
-    clip = api_map.clip_at('test.rb', [6, 10])
+    clip = api_map.clip_at(filename, [6, 10])
     expect(clip.infer.rooted_tags).to eq('::Integer')
 
-    clip = api_map.clip_at('test.rb', [8, 10])
+    clip = api_map.clip_at(filename, [8, 10])
     expect(clip.infer.rooted_tags).to eq('nil')
   end
 
@@ -270,10 +423,10 @@ describe Solargraph::Parser::FlowSensitiveTyping do
         break unless value
         value
       end
-  ), 'test.rb')
+  ), filename)
 
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [7, 8])
+    clip = api_map.clip_at(filename, [7, 8])
     expect(clip.infer.to_s).to eq('ReproBase')
   end
 
@@ -287,10 +440,10 @@ describe Solargraph::Parser::FlowSensitiveTyping do
         break if value.nil?
         value
       end
-  ), 'test.rb')
+  ), filename)
 
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [7, 8])
+    clip = api_map.clip_at(filename, [7, 8])
     expect(clip.infer.to_s).to eq('ReproBase')
   end
 
@@ -304,13 +457,13 @@ describe Solargraph::Parser::FlowSensitiveTyping do
       bar
       bar = Foo.new
       bar
-  ), 'test.rb')
+  ), filename)
 
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [6, 6])
+    clip = api_map.clip_at(filename, [6, 6])
     expect(clip.infer.to_s).to eq('Foo')
 
-    clip = api_map.clip_at('test.rb', [8, 6])
+    clip = api_map.clip_at(filename, [8, 6])
     expect(clip.infer.to_s).to eq('Foo')
   end
 
@@ -319,9 +472,9 @@ describe Solargraph::Parser::FlowSensitiveTyping do
     if is_a? Object
       x
     end
-  ), 'test.rb')
+  ), filename)
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [2, 6])
+    clip = api_map.clip_at(filename, [2, 6])
     expect { clip.infer.to_s }.not_to raise_error
   end
 
@@ -331,9 +484,9 @@ describe Solargraph::Parser::FlowSensitiveTyping do
     if r.is_a?
       x
     end
-  ), 'test.rb')
+  ), filename)
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [3, 6])
+    clip = api_map.clip_at(filename, [3, 6])
     expect { clip.infer.to_s }.not_to raise_error
   end
 
@@ -349,15 +502,15 @@ describe Solargraph::Parser::FlowSensitiveTyping do
           repr
         end
       end
-  ), 'test.rb')
+  ), filename)
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [4, 8])
+    clip = api_map.clip_at(filename, [4, 8])
     expect(clip.infer.rooted_tags).to eq('::Integer, nil')
 
-    clip = api_map.clip_at('test.rb', [6, 10])
+    clip = api_map.clip_at(filename, [6, 10])
     expect(clip.infer.rooted_tags).to eq('nil')
 
-    clip = api_map.clip_at('test.rb', [8, 10])
+    clip = api_map.clip_at(filename, [8, 10])
     expect(clip.infer.rooted_tags).to eq('::Integer')
   end
 
@@ -373,15 +526,15 @@ describe Solargraph::Parser::FlowSensitiveTyping do
           repr
         end
       end
-  ), 'test.rb')
+  ), filename)
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [4, 8])
+    clip = api_map.clip_at(filename, [4, 8])
     expect(clip.infer.rooted_tags).to eq('::Integer, nil')
 
-    clip = api_map.clip_at('test.rb', [6, 10])
+    clip = api_map.clip_at(filename, [6, 10])
     expect(clip.infer.rooted_tags).to eq('nil')
 
-    clip = api_map.clip_at('test.rb', [8, 10])
+    clip = api_map.clip_at(filename, [8, 10])
     expect(clip.infer.rooted_tags).to eq('::Integer, nil')
   end
 
@@ -397,15 +550,15 @@ describe Solargraph::Parser::FlowSensitiveTyping do
           repr
         end
       end
-  ), 'test.rb')
+  ), filename)
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [4, 8])
+    clip = api_map.clip_at(filename, [4, 8])
     expect(clip.infer.rooted_tags).to eq('::Integer, nil')
 
-    clip = api_map.clip_at('test.rb', [6, 10])
+    clip = api_map.clip_at(filename, [6, 10])
     expect(clip.infer.rooted_tags).to eq('nil')
 
-    clip = api_map.clip_at('test.rb', [8, 10])
+    clip = api_map.clip_at(filename, [8, 10])
     expect(clip.infer.rooted_tags).to eq('::Integer, nil')
   end
 
@@ -421,15 +574,15 @@ describe Solargraph::Parser::FlowSensitiveTyping do
           repr
         end
       end
-  ), 'test.rb')
+  ), filename)
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [4, 8])
+    clip = api_map.clip_at(filename, [4, 8])
     expect(clip.infer.rooted_tags).to eq('::Integer, nil')
 
-    clip = api_map.clip_at('test.rb', [6, 10])
+    clip = api_map.clip_at(filename, [6, 10])
     expect(clip.infer.rooted_tags).to eq('::Integer, nil')
 
-    clip = api_map.clip_at('test.rb', [8, 10])
+    clip = api_map.clip_at(filename, [8, 10])
     expect(clip.infer.rooted_tags).to eq('::Integer')
   end
 
@@ -445,15 +598,15 @@ describe Solargraph::Parser::FlowSensitiveTyping do
           repr
         end
       end
-  ), 'test.rb')
+  ), filename)
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [4, 8])
+    clip = api_map.clip_at(filename, [4, 8])
     expect(clip.infer.rooted_tags).to eq('::Integer, nil')
 
-    clip = api_map.clip_at('test.rb', [6, 10])
+    clip = api_map.clip_at(filename, [6, 10])
     expect(clip.infer.rooted_tags).to eq('::Integer, nil')
 
-    clip = api_map.clip_at('test.rb', [8, 10])
+    clip = api_map.clip_at(filename, [8, 10])
     expect(clip.infer.rooted_tags).to eq('::Integer')
   end
 
@@ -469,15 +622,15 @@ describe Solargraph::Parser::FlowSensitiveTyping do
           repr
         end
       end
-  ), 'test.rb')
+  ), filename)
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [4, 8])
+    clip = api_map.clip_at(filename, [4, 8])
     expect(clip.infer.rooted_tags).to eq('::Integer, nil')
 
-    clip = api_map.clip_at('test.rb', [6, 10])
+    clip = api_map.clip_at(filename, [6, 10])
     expect(clip.infer.rooted_tags).to eq('::Integer, nil')
 
-    clip = api_map.clip_at('test.rb', [8, 10])
+    clip = api_map.clip_at(filename, [8, 10])
     expect(clip.infer.rooted_tags).to eq('nil')
   end
 
@@ -493,15 +646,15 @@ describe Solargraph::Parser::FlowSensitiveTyping do
           repr
         end
       end
-  ), 'test.rb')
+  ), filename)
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [4, 8])
+    clip = api_map.clip_at(filename, [4, 8])
     expect(clip.infer.rooted_tags).to eq('::Integer, nil')
 
-    clip = api_map.clip_at('test.rb', [6, 10])
+    clip = api_map.clip_at(filename, [6, 10])
     expect(clip.infer.rooted_tags).to eq('::Integer, nil')
 
-    clip = api_map.clip_at('test.rb', [8, 10])
+    clip = api_map.clip_at(filename, [8, 10])
     expect(clip.infer.rooted_tags).to eq('nil')
   end
 
@@ -513,15 +666,15 @@ describe Solargraph::Parser::FlowSensitiveTyping do
         repr unless repr.nil? || repr.downcase
         repr
       end
-  ), 'test.rb')
+  ), filename)
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [4, 33])
+    clip = api_map.clip_at(filename, [4, 33])
     expect(clip.infer.rooted_tags).to eq('::String')
 
-    clip = api_map.clip_at('test.rb', [4, 8])
+    clip = api_map.clip_at(filename, [4, 8])
     expect(clip.infer.rooted_tags).to eq('::String')
 
-    clip = api_map.clip_at('test.rb', [5, 8])
+    clip = api_map.clip_at(filename, [5, 8])
     expect(clip.infer.rooted_tags).to eq('::String, nil')
   end
 
@@ -537,15 +690,15 @@ describe Solargraph::Parser::FlowSensitiveTyping do
           repr
         end
       end
-  ), 'test.rb')
+  ), filename)
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [4, 8])
+    clip = api_map.clip_at(filename, [4, 8])
     expect(clip.infer.rooted_tags).to eq('::Integer, nil')
 
-    clip = api_map.clip_at('test.rb', [6, 10])
+    clip = api_map.clip_at(filename, [6, 10])
     expect(clip.infer.rooted_tags).to eq('::Integer')
 
-    clip = api_map.clip_at('test.rb', [8, 10])
+    clip = api_map.clip_at(filename, [8, 10])
     expect(clip.infer.rooted_tags).to eq('::Integer, nil')
   end
 
@@ -561,15 +714,15 @@ describe Solargraph::Parser::FlowSensitiveTyping do
           repr
         end
       end
-  ), 'test.rb')
+  ), filename)
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [4, 8])
+    clip = api_map.clip_at(filename, [4, 8])
     expect(clip.infer.rooted_tags).to eq('::Integer, nil')
 
-    clip = api_map.clip_at('test.rb', [6, 10])
+    clip = api_map.clip_at(filename, [6, 10])
     expect(clip.infer.rooted_tags).to eq('::Integer')
 
-    clip = api_map.clip_at('test.rb', [8, 10])
+    clip = api_map.clip_at(filename, [8, 10])
     expect(clip.infer.rooted_tags).to eq('::Integer, nil')
   end
 
@@ -585,15 +738,15 @@ describe Solargraph::Parser::FlowSensitiveTyping do
           repr
         end
       end
-    ), 'test.rb')
+    ), filename)
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [4, 8])
+    clip = api_map.clip_at(filename, [4, 8])
     expect(clip.infer.rooted_tags).to eq('::Integer, nil')
 
-    clip = api_map.clip_at('test.rb', [6, 10])
+    clip = api_map.clip_at(filename, [6, 10])
     expect(clip.infer.rooted_tags).to eq('::Integer')
 
-    clip = api_map.clip_at('test.rb', [8, 10])
+    clip = api_map.clip_at(filename, [8, 10])
     expect(clip.infer.rooted_tags).to eq('nil')
   end
 
@@ -608,15 +761,15 @@ describe Solargraph::Parser::FlowSensitiveTyping do
           repr
         end
       end
-    ), 'test.rb')
+    ), filename)
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [3, 8])
+    clip = api_map.clip_at(filename, [3, 8])
     expect(clip.infer.rooted_tags).to eq('nil, ::Integer')
 
-    clip = api_map.clip_at('test.rb', [5, 10])
+    clip = api_map.clip_at(filename, [5, 10])
     expect(clip.infer.rooted_tags).to eq('::Integer')
 
-    clip = api_map.clip_at('test.rb', [7, 10])
+    clip = api_map.clip_at(filename, [7, 10])
     # @todo `false` might be acceptable here
     expect(clip.infer.rooted_tags).to eq('nil, ::Boolean')
   end
@@ -634,10 +787,10 @@ describe Solargraph::Parser::FlowSensitiveTyping do
           baz
         end
       end
-    ), 'test.rb')
+    ), filename)
 
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [7, 12])
+    clip = api_map.clip_at(filename, [7, 12])
     expect(clip.infer.rooted_tags).to eq('::Boolean')
   end
 
@@ -653,11 +806,118 @@ describe Solargraph::Parser::FlowSensitiveTyping do
           baz
         end
       end
+    ), filename)
+
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at(filename, [6, 10])
+    expect(clip.infer.rooted_tags).to eq('::Boolean')
+  end
+
+  it 'uses .nil? in a raise if() in a method to refine types using nil checks' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @param baz [::Boolean, nil]
+        # @return [void]
+        def bar(baz: nil)
+          raise 'baz required' if baz.nil?
+          baz
+        end
+      end
     ), 'test.rb')
 
     api_map = Solargraph::ApiMap.new.map(source)
     clip = api_map.clip_at('test.rb', [6, 10])
     expect(clip.infer.rooted_tags).to eq('::Boolean')
+  end
+
+  it 'uses is_a? in a return unless() at the top level of a file (no enclosing method) to refine types' do
+    source = Solargraph::Source.load_string(%(
+      class ReproBase; end
+      class Repro < ReproBase; end
+      # @type [ReproBase, nil]
+      repr = Repro.new
+      return unless repr.is_a?(Repro)
+      repr
+  ), 'test.rb')
+
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [6, 6])
+    expect(clip.infer.to_s).to eq('Repro')
+  end
+
+  it 'uses is_a? in a raise unless() at the top level of a class body (no enclosing method) to refine types' do
+    source = Solargraph::Source.load_string(%(
+      class ReproBase; end
+      class Repro < ReproBase; end
+      class Container
+        # @type [ReproBase, nil]
+        repr = Repro.new
+        raise 'invalid' unless repr.is_a?(Repro)
+        repr
+      end
+  ), 'test.rb')
+
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [7, 8])
+    expect(clip.infer.to_s).to eq('Repro')
+  end
+
+  it 'uses .nil? in a raise if() to refine a type used as a call argument' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @param baz [::Boolean, nil]
+        # @return [void]
+        def bar(baz: nil)
+          raise 'baz required' if baz.nil?
+          accepts_boolean(baz)
+        end
+
+        # @param b [::Boolean]
+        # @return [void]
+        def accepts_boolean(b); end
+      end
+    ), 'test.rb')
+
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [6, 27])
+    expect(clip.infer.rooted_tags).to eq('::Boolean')
+  end
+
+  it 'uses .nil? in a raise if() to refine a type used as a call receiver' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @param baz [String, nil]
+        # @return [void]
+        def bar(baz: nil)
+          raise 'baz required' if baz.nil?
+          baz.length
+        end
+      end
+    ), 'test.rb')
+
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [6, 12])
+    expect(clip.infer.rooted_tags).to eq('::String')
+  end
+
+  it 'uses .nil? in a raise if() with a multi-statement branch to refine types' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @param baz [String, nil]
+        # @return [void]
+        def bar(baz: nil)
+          if baz.nil?
+            valid = %w[a b c]
+            raise "baz required. Valid: \#{valid.inspect}"
+          end
+          baz.length
+        end
+      end
+    ), 'test.rb')
+
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [9, 12])
+    expect(clip.infer.rooted_tags).to eq('::String')
   end
 
   it 'uses .nil? in a return if() in a block to refine types using nil checks' do
@@ -675,16 +935,16 @@ describe Solargraph::Parser::FlowSensitiveTyping do
           baz
         end
       end
-    ), 'test.rb')
+    ), filename)
 
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [6, 10])
+    clip = api_map.clip_at(filename, [6, 10])
     expect(clip.infer.rooted_tags).to eq('::Boolean, nil')
 
-    clip = api_map.clip_at('test.rb', [9, 12])
+    clip = api_map.clip_at(filename, [9, 12])
     expect(clip.infer.rooted_tags).to eq('::Boolean')
 
-    clip = api_map.clip_at('test.rb', [11, 10])
+    clip = api_map.clip_at(filename, [11, 10])
     expect(clip.infer.rooted_tags).to eq('::Boolean, nil')
   end
 
@@ -702,16 +962,16 @@ describe Solargraph::Parser::FlowSensitiveTyping do
           baz
         end
       end
-    ), 'test.rb')
+    ), filename)
 
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [5, 10])
+    clip = api_map.clip_at(filename, [5, 10])
     expect(clip.infer.rooted_tags).to eq('::Boolean, nil')
 
-    clip = api_map.clip_at('test.rb', [8, 12])
+    clip = api_map.clip_at(filename, [8, 12])
     expect(clip.infer.rooted_tags).to eq('::Boolean')
 
-    clip = api_map.clip_at('test.rb', [10, 10])
+    clip = api_map.clip_at(filename, [10, 10])
     expect(clip.infer.rooted_tags).to eq('::Boolean, nil')
   end
 
@@ -728,13 +988,13 @@ describe Solargraph::Parser::FlowSensitiveTyping do
           baz
         end
       end
-    ), 'test.rb')
+    ), filename)
 
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [7, 12])
+    clip = api_map.clip_at(filename, [7, 12])
     expect(clip.infer.rooted_tags).to eq('::Boolean')
 
-    clip = api_map.clip_at('test.rb', [9, 10])
+    clip = api_map.clip_at(filename, [9, 10])
     expect(clip.infer.rooted_tags).to eq('::Boolean, nil')
   end
 
@@ -753,16 +1013,16 @@ describe Solargraph::Parser::FlowSensitiveTyping do
           baz
         end
       end
-    ), 'test.rb')
+    ), filename)
 
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [6, 10])
+    clip = api_map.clip_at(filename, [6, 10])
     expect(clip.infer.rooted_tags).to eq('::Boolean, nil')
 
-    clip = api_map.clip_at('test.rb', [8, 12])
+    clip = api_map.clip_at(filename, [8, 12])
     expect(clip.infer.rooted_tags).to eq('::Boolean')
 
-    clip = api_map.clip_at('test.rb', [11, 10])
+    clip = api_map.clip_at(filename, [11, 10])
     expect(clip.infer.rooted_tags).to eq('::Boolean, nil')
   end
 
@@ -779,13 +1039,13 @@ describe Solargraph::Parser::FlowSensitiveTyping do
           baz
         end
       end
-    ), 'test.rb')
+    ), filename)
 
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [7, 12])
+    clip = api_map.clip_at(filename, [7, 12])
     expect(clip.infer.rooted_tags).to eq('::Boolean')
 
-    clip = api_map.clip_at('test.rb', [9, 10])
+    clip = api_map.clip_at(filename, [9, 10])
     expect(clip.infer.rooted_tags).to eq('::Boolean, nil')
   end
 
@@ -805,16 +1065,16 @@ describe Solargraph::Parser::FlowSensitiveTyping do
           baz
         end
       end
-    ), 'test.rb')
+    ), filename)
 
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [8, 12])
+    clip = api_map.clip_at(filename, [8, 12])
     expect(clip.infer.rooted_tags).to eq('::Boolean')
 
-    clip = api_map.clip_at('test.rb', [10, 12])
+    clip = api_map.clip_at(filename, [10, 12])
     expect(clip.infer.rooted_tags).to eq('::Boolean, nil')
 
-    clip = api_map.clip_at('test.rb', [12, 10])
+    clip = api_map.clip_at(filename, [12, 10])
     expect(clip.infer.rooted_tags).to eq('::Boolean, nil')
   end
 
@@ -829,19 +1089,19 @@ describe Solargraph::Parser::FlowSensitiveTyping do
           baz
         end
       end
-    ), 'test.rb')
+    ), filename)
 
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [5, 10])
+    clip = api_map.clip_at(filename, [5, 10])
     expect(clip.infer.rooted_tags).to eq('::Boolean, nil')
 
-    clip = api_map.clip_at('test.rb', [6, 44])
+    clip = api_map.clip_at(filename, [6, 44])
     expect(clip.infer.rooted_tags).to eq('::Boolean')
 
-    clip = api_map.clip_at('test.rb', [6, 51])
+    clip = api_map.clip_at(filename, [6, 51])
     expect(clip.infer.rooted_tags).to eq('::Boolean, nil')
 
-    clip = api_map.clip_at('test.rb', [7, 10])
+    clip = api_map.clip_at(filename, [7, 10])
     expect(clip.infer.rooted_tags).to eq('::Boolean, nil')
   end
 
@@ -859,16 +1119,16 @@ describe Solargraph::Parser::FlowSensitiveTyping do
           baz
         end
       end
-        ), 'test.rb')
+        ), filename)
     api_map = Solargraph::ApiMap.new.map(source)
 
-    clip = api_map.clip_at('test.rb', [5, 10])
+    clip = api_map.clip_at(filename, [5, 10])
     expect(clip.infer.rooted_tags).to eq('::Boolean, nil')
 
-    clip = api_map.clip_at('test.rb', [8, 12])
+    clip = api_map.clip_at(filename, [8, 12])
     expect(clip.infer.rooted_tags).to eq('::Boolean')
 
-    clip = api_map.clip_at('test.rb', [10, 10])
+    clip = api_map.clip_at(filename, [10, 10])
     expect(clip.infer.rooted_tags).to eq('::Boolean')
   end
 
@@ -886,16 +1146,54 @@ describe Solargraph::Parser::FlowSensitiveTyping do
           baz
         end
       end
-    ), 'test.rb')
+    ), filename)
+
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at(filename, [5, 10])
+    expect(clip.infer.rooted_tags).to eq('::Boolean, nil')
+
+    clip = api_map.clip_at(filename, [8, 12])
+    expect(clip.infer.rooted_tags).to eq('::Boolean')
+
+    clip = api_map.clip_at(filename, [10, 10])
+    expect(clip.infer.rooted_tags).to eq('::Boolean')
+  end
+
+  it 'narrows a plain ||= assignment on an lvar to eliminate nil' do
+    source = Solargraph::Source.load_string(%(
+      class ReproBase; end
+      class Repro < ReproBase; end
+      # @param repr [Repro, nil]
+      # @return [void]
+      def verify_repro(repr)
+        repr ||= Repro.new
+        repr
+      end
+  ), 'test.rb')
+
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [7, 8])
+    expect(clip.infer.to_s).to eq('Repro')
+  end
+
+  it 'narrows a ||= assignment on a keyword param to eliminate nil, with no nested nil check' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @param baz [::Boolean, nil]
+        # @return [void]
+        def bar(baz: nil)
+          baz
+          baz ||= true
+          baz
+        end
+      end
+  ), 'test.rb')
 
     api_map = Solargraph::ApiMap.new.map(source)
     clip = api_map.clip_at('test.rb', [5, 10])
     expect(clip.infer.rooted_tags).to eq('::Boolean, nil')
 
-    clip = api_map.clip_at('test.rb', [8, 12])
-    expect(clip.infer.rooted_tags).to eq('::Boolean')
-
-    clip = api_map.clip_at('test.rb', [10, 10])
+    clip = api_map.clip_at('test.rb', [7, 10])
     expect(clip.infer.rooted_tags).to eq('::Boolean')
   end
 
@@ -917,24 +1215,24 @@ describe Solargraph::Parser::FlowSensitiveTyping do
           baz
         end
       end
-    ), 'test.rb')
+    ), filename)
 
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [5, 10])
+    clip = api_map.clip_at(filename, [5, 10])
     expect(clip.infer.rooted_tags).to eq('::Boolean, nil')
 
-    clip = api_map.clip_at('test.rb', [8, 12])
+    clip = api_map.clip_at(filename, [8, 12])
     expect(clip.infer.rooted_tags).to eq('::Boolean')
 
-    clip = api_map.clip_at('test.rb', [10, 12])
+    clip = api_map.clip_at(filename, [10, 12])
     expect(clip.infer.rooted_tags).to eq('::Boolean')
 
     pending('better scoping of return if in begin/rescue/ensure')
 
-    clip = api_map.clip_at('test.rb', [12, 12])
+    clip = api_map.clip_at(filename, [12, 12])
     expect(clip.infer.rooted_tags).to eq('::Boolean, nil')
 
-    clip = api_map.clip_at('test.rb', [14, 10])
+    clip = api_map.clip_at(filename, [14, 10])
     expect(clip.infer.rooted_tags).to eq('::Boolean, nil')
   end
 
@@ -950,17 +1248,17 @@ describe Solargraph::Parser::FlowSensitiveTyping do
           c
         end
       end
-    ), 'test.rb')
+    ), filename)
 
     api_map = Solargraph::ApiMap.new.map(source)
 
-    clip = api_map.clip_at('test.rb', [6, 10])
+    clip = api_map.clip_at(filename, [6, 10])
     expect(clip.infer.to_s).to eq('String, nil')
 
-    clip = api_map.clip_at('test.rb', [7, 17])
+    clip = api_map.clip_at(filename, [7, 17])
     expect(clip.infer.to_s).to eq('nil')
 
-    clip = api_map.clip_at('test.rb', [8, 10])
+    clip = api_map.clip_at(filename, [8, 10])
     expect(clip.infer.to_s).to eq('String')
   end
 
@@ -974,9 +1272,9 @@ describe Solargraph::Parser::FlowSensitiveTyping do
           123
         end
       end
-  ), 'test.rb')
+  ), filename)
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [5, 17])
+    clip = api_map.clip_at(filename, [5, 17])
     expect(clip.infer.to_s).to eq('Integer')
   end
 
@@ -993,9 +1291,9 @@ describe Solargraph::Parser::FlowSensitiveTyping do
           out
         end
       end
-    ), 'test.rb')
+    ), filename)
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [9, 10])
+    clip = api_map.clip_at(filename, [9, 10])
     expect(clip.infer.to_s).to eq('Boolean')
   end
 
@@ -1017,12 +1315,417 @@ describe Solargraph::Parser::FlowSensitiveTyping do
           end
         end
       end
-    ), 'test.rb')
+    ), filename)
     api_map = Solargraph::ApiMap.new.map(source)
-    clip = api_map.clip_at('test.rb', [11, 12])
+    clip = api_map.clip_at(filename, [11, 12])
     expect(clip.infer.to_s).to eq('Repro')
 
-    clip = api_map.clip_at('test.rb', [13, 12])
+    clip = api_map.clip_at(filename, [13, 12])
     expect(clip.infer.to_s).to eq('ReproBase')
+  end
+
+  context 'with pattern matching' do
+    let(:source) do
+      Solargraph::Source.load_string(%(
+class Foo; def foo_only; end; end
+# @param x [Foo, Integer]
+# @param t [Array<String>]
+def m(x, t)
+  case x
+  in Foo => f
+    f
+    x
+  in Integer
+    x
+  end
+  t => [s, n]
+  s
+  n
+  f
+  x
+end
+      ), 'test.rb')
+    end
+
+    let(:api_map) { Solargraph::ApiMap.new.map(source) }
+
+    it 'types a const capture' do
+      expect(api_map.clip_at('test.rb', [7, 4]).infer.to_s).to eq('Foo')
+    end
+
+    it 'narrows the subject in the matching clause' do
+      expect(api_map.clip_at('test.rb', [8, 4]).infer.to_s).to eq('Foo')
+    end
+
+    it 'narrows the subject separately in the next clause' do
+      expect(api_map.clip_at('test.rb', [10, 4]).infer.to_s).to eq('Integer')
+    end
+
+    it 'types array-index captures from a one-line => match' do
+      expect(api_map.clip_at('test.rb', [13, 2]).infer.to_s).to eq('String')
+      expect(api_map.clip_at('test.rb', [14, 2]).infer.to_s).to eq('String')
+    end
+
+    it 'keeps a capture visible after the case ends' do
+      expect(api_map.clip_at('test.rb', [15, 2]).infer.to_s).to eq('Foo')
+    end
+
+    it 'leaves the subject unnarrowed after the case ends' do
+      expect(api_map.clip_at('test.rb', [16, 2]).infer.to_s).to eq('Foo, Integer')
+    end
+  end
+
+  it 'types an alternative capture as the union' do
+    source = Solargraph::Source.load_string(%(
+      # @param x [String, Integer, Symbol]
+      def m(x)
+        case x
+        in String | Integer => v
+          v
+          x
+        else
+          x
+        end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    expect(api_map.clip_at('test.rb', [5, 10]).infer.to_s).to eq('String, Integer')
+    expect(api_map.clip_at('test.rb', [6, 10]).infer.to_s).to eq('String, Integer')
+    expect(api_map.clip_at('test.rb', [8, 10]).infer.to_s).to eq('String, Integer, Symbol')
+  end
+
+  it 'types a bare capture as the subject' do
+    source = Solargraph::Source.load_string(%(
+      # @param x [String]
+      def m(x)
+        case x
+        in y
+          y
+        end
+        x => z
+        z
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    expect(api_map.clip_at('test.rb', [5, 10]).infer.to_s).to eq('String')
+    expect(api_map.clip_at('test.rb', [8, 8]).infer.to_s).to eq('String')
+  end
+
+  it 'types array-index captures in a case clause' do
+    source = Solargraph::Source.load_string(%(
+      # @param t [Array<String>]
+      def m(t)
+        case t
+        in [a, b]
+          a
+          b
+        end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    expect(api_map.clip_at('test.rb', [5, 10]).infer.to_s).to eq('String')
+    expect(api_map.clip_at('test.rb', [6, 10]).infer.to_s).to eq('String')
+  end
+
+  it 'types tuple-index captures by position' do
+    pending 'ComplexType::TypeMethods#tuple? returns false, so mass assignment reads every index as the first'
+
+    source = Solargraph::Source.load_string(%(
+      # @param t [Array(String, Integer)]
+      def m(t)
+        t => [s, n]
+        n
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    expect(api_map.clip_at('test.rb', [4, 8]).infer.to_s).to eq('Integer')
+  end
+
+  it 'types captures from a one-line in match' do
+    source = Solargraph::Source.load_string(%(
+      # @param t [Array<String>]
+      def m(t)
+        if t in [a, Integer => b]
+          a
+          b
+        end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    expect(api_map.clip_at('test.rb', [4, 10]).infer.to_s).to eq('String')
+    expect(api_map.clip_at('test.rb', [5, 10]).infer.to_s).to eq('Integer')
+  end
+
+  it 'types a capture read in a guard' do
+    source = Solargraph::Source.load_string(%(
+      # @param x [String, Integer]
+      def m(x)
+        case x
+        in String => s if s.empty?
+          s
+        end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    expect(api_map.clip_at('test.rb', [4, 26]).infer.to_s).to eq('String')
+  end
+
+  it 'narrows an instance variable subject with a const_pattern' do
+    source = Solargraph::Source.load_string(%(
+      class Point; end
+      class Example
+        # @param value [Point, Integer]
+        def initialize(value)
+          @value = value
+        end
+
+        def check
+          case @value
+          in Point(x:)
+            @value
+          in Integer
+            @value
+          end
+        end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    expect(api_map.clip_at('test.rb', [11, 12]).infer.to_s).to eq('Point')
+    expect(api_map.clip_at('test.rb', [13, 12]).infer.to_s).to eq('Integer')
+  end
+
+  it 'maps a capture beside a pinned value' do
+    source = Solargraph::Source.load_string(%(
+      # @param x [Integer]
+      def m(x)
+        v = 1
+        case x
+        in ^v => w
+          w
+        end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    expect(api_map.clip_at('test.rb', [6, 10]).locals.map(&:name)).to include('w')
+  end
+
+  it 'types rest captures in array and find patterns as Array' do
+    source = Solargraph::Source.load_string(%(
+      # @param x [Object]
+      def m(x)
+        case x
+        in [a, *rest]
+          rest
+        in [*, 1, *post]
+          post
+        end
+        x in [*tail]
+        tail
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    expect(api_map.clip_at('test.rb', [5, 10]).infer.to_s).to eq('Array')
+    expect(api_map.clip_at('test.rb', [7, 10]).infer.to_s).to eq('Array')
+    expect(api_map.clip_at('test.rb', [10, 8]).infer.to_s).to eq('Array')
+  end
+
+  it 'types rest captures as the core Array inside a namespace with its own Array' do
+    source = Solargraph::Source.load_string(%(
+      module Foo
+        class Array; end
+
+        # @param x [Object]
+        def self.m(x)
+          x in [*rest]
+          rest
+        end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    expect(api_map.clip_at('test.rb', [7, 10]).infer.to_s).to eq('Array')
+  end
+
+  it 'types rest captures with the element type of an Array subject' do
+    source = Solargraph::Source.load_string(%(
+      # @param t [Array<String>]
+      def m(t)
+        case t
+        in [*all]
+          all
+        in [a, *tail]
+          tail
+        in [a, *middle, b]
+          middle
+        end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    expect(api_map.clip_at('test.rb', [5, 10]).infer.to_s).to eq('Array<String>')
+    expect(api_map.clip_at('test.rb', [7, 10]).infer.to_s).to eq('Array<String>')
+    expect(api_map.clip_at('test.rb', [9, 10]).infer.to_s).to eq('Array<String>')
+  end
+
+  it 'types rest captures from a tuple subject as an Array of its element types' do
+    source = Solargraph::Source.load_string(%(
+      # @param t [Array(String, Integer)]
+      def m(t)
+        t => [s, *rest]
+        rest
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    expect(api_map.clip_at('test.rb', [4, 8]).infer.to_s).to eq('Array<String, Integer>')
+  end
+
+  it 'types rest captures from the return type of the subject deconstruct method' do
+    source = Solargraph::Source.load_string(%(
+      class Pair
+        # @return [Array<Symbol>]
+        def deconstruct; end
+      end
+
+      # @param pair [Pair]
+      def m(pair)
+        pair => [:left, *rest]
+        rest
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    expect(api_map.clip_at('test.rb', [9, 8]).infer.to_s).to eq('Array<Symbol>')
+  end
+
+  it 'narrows the other side of a self.class == other.class guard' do
+    source = Solargraph::Source.load_string(%(
+      class Repro
+        # @param other [Object]
+        def eql?(other)
+          self.class == other.class &&
+            name == other.name
+        end
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [5, 20])
+    expect(clip.infer.to_s).to eq('Repro')
+  end
+
+  it 'narrows the other side of a self.class == other.class guard past a return-unless' do
+    source = Solargraph::Source.load_string(%(
+      class Repro
+        # @param other [Object]
+        def ==(other)
+          return false unless self.class == other.class
+          name == other.name
+        end
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [5, 18])
+    expect(clip.infer.to_s).to eq('Repro')
+  end
+
+  it 'leaves the declared type in place without a self.class == other.class guard' do
+    source = Solargraph::Source.load_string(%(
+      class Repro
+        # @param other [Object]
+        def eql?(other)
+          name == other.name
+        end
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [4, 18])
+    expect(clip.infer.to_s).to eq('Object')
+  end
+
+  it 'does not narrow other via self.class == other.class in a class method' do
+    source = Solargraph::Source.load_string(%(
+      class Repro
+        # @param other [Object]
+        def self.same?(other)
+          self.class == other.class &&
+            name == other.name
+        end
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [5, 20])
+    expect(clip.infer.to_s).to eq('Object')
+  end
+
+  it 'narrows the other side when self is the right-hand side of the class guard' do
+    source = Solargraph::Source.load_string(%(
+      class Repro
+        # @param other [Object]
+        def eql?(other)
+          other.class == self.class &&
+            name == other.name
+        end
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [5, 20])
+    expect(clip.infer.to_s).to eq('Repro')
+  end
+
+  it 'narrows the argument of an instance_of?(other.class) guard' do
+    source = Solargraph::Source.load_string(%(
+      class Repro
+        # @param other [Object]
+        def eql?(other)
+          instance_of?(other.class) &&
+            name == other.name
+        end
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [5, 20])
+    expect(clip.infer.to_s).to eq('Repro')
+  end
+
+  it 'narrows the argument of a self.instance_of?(other.class) guard' do
+    source = Solargraph::Source.load_string(%(
+      class Repro
+        # @param other [Object]
+        def eql?(other)
+          self.instance_of?(other.class) &&
+            name == other.name
+        end
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [5, 20])
+    expect(clip.infer.to_s).to eq('Repro')
+  end
+
+  it 'does not narrow via other.instance_of?(foo.class)' do
+    source = Solargraph::Source.load_string(%(
+      class Repro
+        # @param other [Object]
+        # @param foo [Object]
+        def eql?(other, foo)
+          other.instance_of?(foo.class) &&
+            name == other.name
+        end
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [6, 20])
+    expect(clip.infer.to_s).to eq('Object')
+  end
+
+  it 'narrows the receiver of an other.instance_of?(self.class) guard' do
+    source = Solargraph::Source.load_string(%(
+      class Repro
+        # @param other [Object]
+        def eql?(other)
+          other.instance_of?(self.class) &&
+            name == other.name
+        end
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [5, 20])
+    expect(clip.infer.to_s).to eq('Repro')
   end
 end

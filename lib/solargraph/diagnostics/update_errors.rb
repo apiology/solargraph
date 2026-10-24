@@ -3,7 +3,10 @@
 module Solargraph
   module Diagnostics
     class UpdateErrors < Base
-      def diagnose source, api_map
+      # @param source [Solargraph::Source]
+      # @param api_map [Solargraph::ApiMap]
+      # @param workspace [Solargraph::Workspace, nil] unused; accepted for interface compatibility with Diagnostics::Base
+      def diagnose source, api_map, workspace: nil
         combine_ranges(source.code, source.error_ranges).map do |range|
           { range: range.to_hash,
             severity: Diagnostics::Severities::ERROR,
@@ -26,8 +29,8 @@ module Solargraph
           next if rng.nil? || lines.include?(rng.start.line)
           lines.push rng.start.line
           next if rng.start.line >= code.lines.length
-          scol = code.lines[rng.start.line].index(/[^\s]/) || 0
-          ecol = code.lines[rng.start.line].length
+          scol = code.lines.fetch(rng.start.line).index(/[^\s]/) || 0
+          ecol = code.lines.fetch(rng.start.line).length
           result.push Range.from_to(rng.start.line, scol, rng.start.line, ecol)
         end
         result

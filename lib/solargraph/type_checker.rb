@@ -11,7 +11,7 @@ module Solargraph
     #  include Solargraph::Parser::ParserGem::NodeMethods
     include Parser::NodeMethods
 
-    # @return [String]
+    # @return [String, nil]
     attr_reader :filename
 
     # @return [Rules]
@@ -118,7 +118,6 @@ module Solargraph
         rules = Rules.new(level, {})
         api_map ||= Solargraph::ApiMap.new(loose_unions:
                                              !rules.require_all_unique_types_support_call?)
-        # @sg-ignore flow sensitive typing needs better handling of ||= on lvars
         api_map.map(source)
         new(filename, api_map: api_map, level: level, rules: rules)
       end
@@ -146,7 +145,6 @@ module Solargraph
       result = []
       declared = pin.typify(api_map).self_to_type(pin.full_context).qualify(api_map, *pin.gates)
       if declared.undefined?
-        # @sg-ignore Need to add nil check here
         if pin.return_type.undefined? && rules.require_type_tags?
           if pin.attribute?
             inferred = pin.probe(api_map).self_to_type(pin.full_context)
@@ -157,13 +155,20 @@ module Solargraph
           else
             result.push Problem.new(pin.location, "Missing @return tag for #{pin.path}", pin: pin)
           end
-          # @sg-ignore Need to add nil check here
         elsif pin.return_type.defined? && !resolved_constant?(pin)
           result.push Problem.new(pin.location, "Unresolved return type #{pin.return_type} for #{pin.path}", pin: pin)
         elsif rules.must_tag_or_infer? && pin.probe(api_map).undefined?
           result.push Problem.new(pin.location, "Untyped method #{pin.path} could not be inferred")
         end
-      elsif rules.validate_tags?
+      elsif rules.validate_tags? && !(pin.return_type.undefined? && declared.any?(&:void?))
+        # An ancestor tag that includes void alongside other types is
+        # documenting an optional return, not a contract every override
+        # commits to. When this pin has no @return tag of its own,
+        # Pin::Method#typify_from_super borrows that tag only as a
+        # best-effort guess for hover/completion; there is nothing to
+        # cross-check an inferred body against in that case. A
+        # single-type ancestor tag (no void) still validates normally.
+        #
         # Attribute pins never have a node (attr_reader/attr_writer/attr_accessor are
         # synthesized, not parsed method bodies), but their inferred type is still
         # meaningful: #probe walks the backing ivar's assignments via infer_from_iv.
@@ -208,7 +213,7 @@ module Solargraph
 
     # @param pin [Pin::Base]
     def virtual_pin? pin
-      # @sg-ignore Need to add nil check here
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1258
       pin.location && source.comment_at?(pin.location.range.ending)
     end
 
@@ -235,11 +240,10 @@ module Solargraph
           end
         end
         # @param name [String]
-        # @param data [Hash{Symbol => BasicObject}]
+        # @param data [Hash{Symbol => String, ComplexType}]
         params.each_pair do |name, data|
-          # @type [ComplexType]
           type = data[:qualified]
-          if type.undefined?
+          if type.is_a?(ComplexType) && type.undefined?
             result.push Problem.new(pin.location, "Unresolved type #{data[:tagged]} for #{name} param on #{pin.path}",
                                     pin: pin)
           end
@@ -257,7 +261,6 @@ module Solargraph
     def variable_type_tag_problems
       result = []
       all_variables.each do |pin|
-        # @sg-ignore Need to add nil check here
         if pin.return_type.defined?
           declared = pin.typify(api_map)
           next if declared.duck_type?
@@ -302,12 +305,10 @@ module Solargraph
       return [] unless rules.validate_consts?
       result = []
       Solargraph::Parser::NodeMethods.const_nodes_from(source.node).each do |const|
-        rng = Solargraph::Range.from_node(const)
+        rng = Solargraph::Range.from_node!(const)
         chain = Solargraph::Parser.chain(const, filename)
-        # @sg-ignore Need to add nil check here
         closure_pin = source_map.locate_closure_pin(rng.start.line, rng.start.column)
         closure_pin.rebind(api_map)
-        # @sg-ignore Need to add nil check here
         location = Location.new(filename, rng)
         locals = source_map.locals_at(location)
         pins = chain.define(api_map, closure_pin, locals)
@@ -323,11 +324,9 @@ module Solargraph
     def call_problems
       result = []
       Solargraph::Parser::NodeMethods.call_nodes_from(source.node).each do |call|
-        rng = Solargraph::Range.from_node(call)
-        # @sg-ignore Need to add nil check here
+        rng = Solargraph::Range.from_node!(call)
         next if @marked_ranges.any? { |d| d.contain?(rng.start) }
         chain = Solargraph::Parser.chain(call, filename)
-        # @sg-ignore Need to add nil check here
         closure_pin = source_map.locate_closure_pin(rng.start.line, rng.start.column)
         if call.type == :block
           # blocks in the AST include the method call as well, so the
@@ -337,12 +336,11 @@ module Solargraph
           # @todo Should warn on nil deference here
           closure_pin = closure_pin.closure
         end
-        # @sg-ignore Need to add nil check here
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1393
         closure_pin.rebind(api_map)
-        # @sg-ignore Need to add nil check here
         location = Location.new(filename, rng)
         locals = source_map.locals_at(location)
-        # @sg-ignore Need to add nil check here
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1393
         type = chain.infer(api_map, closure_pin, locals)
         if type.undefined? && !rules.ignore_all_undefined?
           base = chain
@@ -351,8 +349,8 @@ module Solargraph
           found = nil
           # @type [Array<Solargraph::Pin::Base>]
           all_found = []
-          until base.links.first.undefined?
-            # @sg-ignore Need to add nil check here
+          until base.links.fetch(0).undefined?
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1393
             all_found = base.define(api_map, closure_pin, locals)
             found = all_found.first
             break if found
@@ -364,14 +362,14 @@ module Solargraph
           # @todo remove the internal_or_core? check at a higher-than-strict level
           if (!found || found.is_a?(Pin::BaseVariable) || (closest.defined? && internal_or_core?(found))) && !(closest.generic? || ignored_pins.include?(found))
             if closest.defined?
-              result.push Problem.new(location, "Unresolved call to #{missing.links.last.word} on #{closest}")
+              result.push Problem.new(location, "Unresolved call to #{missing.links.fetch(-1).word} on #{closest}")
             else
-              result.push Problem.new(location, "Unresolved call to #{missing.links.last.word}")
+              result.push Problem.new(location, "Unresolved call to #{missing.links.fetch(-1).word}")
             end
             @marked_ranges.push rng
           end
         end
-        # @sg-ignore Need to add nil check here
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1393
         result.concat argument_problems_for(chain, api_map, closure_pin, locals, location)
       end
       result
@@ -526,8 +524,10 @@ module Solargraph
     def kwarg_problems_for sig, argchain, api_map, closure_pin, locals, location, pin, params, idx
       result = []
       kwargs = convert_hash(argchain.node)
-      par = sig.parameters[idx]
-      # @type [Solargraph::Source::Chain]
+      # idx always came from the caller's own sig.parameters.each_with_index
+      par = sig.parameters.fetch(idx)
+
+      # @type [Solargraph::Source::Chain, nil]
       argchain = kwargs[par.name.to_sym]
       if par.decl == :kwrestarg || (par.decl == :optarg && idx == pin.parameters.length - 1 && par.asgn_code == '{}')
         result.concat kwrestarg_problems_for(api_map, closure_pin, locals, location, pin, params, kwargs)
@@ -560,19 +560,23 @@ module Solargraph
     # @param locals [Array<Pin::LocalVariable>]
     # @param location [Location]
     # @param pin [Pin::Method]
-    # @param params [Hash{String => nil, Hash}]
+    # @param params [Hash{String => Hash{Symbol => undefined}}]
     # @param kwargs [Hash{Symbol => Source::Chain}]
     # @return [Array<Problem>]
     def kwrestarg_problems_for api_map, closure_pin, locals, location, pin, params, kwargs
       result = []
       kwargs.each_pair do |pname, argchain|
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1223
         next unless params.key?(pname.to_s)
-        # @sg-ignore
+        # @sg-ignore https://github.com/apiology/solargraph/pull/198
         # @type [ComplexType]
         raw_ptype = params[pname.to_s][:qualified]
         ptype = raw_ptype.self_to_type(pin.context)
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1223
         argtype = argchain.infer(api_map, closure_pin, locals)
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1223
         argtype = argtype.self_to_type(closure_pin.context)
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1223
         if argtype.defined? && ptype && !arg_conforms_to?(argtype, ptype)
           result.push Problem.new(location,
                                   "Wrong argument type for #{pin.path}: #{pname} expected #{ptype}, received #{argtype}")
@@ -597,7 +601,7 @@ module Solargraph
           qualified: Solargraph::ComplexType.try_parse(*tag.types).qualify(api_map, pin.full_context.namespace)
         }
         # don't complain about a param that didn't come from the pin we're looking at anyway
-        if details[:qualified].defined? ||
+        if details.fetch(:qualified).defined? ||
            relevant_pin.parameter_names.include?(tag.name.to_s)
           param_details[tag.name.to_s] = details
         end
@@ -625,7 +629,7 @@ module Solargraph
         next if tag.types.nil?
         result[tag.name.to_s] = {
           tagged: tag.types.join(', '),
-          # @sg-ignore need to add a nil check here
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1393
           qualified: Solargraph::ComplexType.try_parse(*tag.types).qualify(api_map, *pin.closure.gates)
         }
       end
@@ -645,7 +649,11 @@ module Solargraph
         next unless param_names.include?(param_name)
 
         param_details[param_name] ||= {}
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1223
+        #   also needs https://github.com/castwide/solargraph/pull/1417
         param_details[param_name][:tagged] ||= details[:tagged]
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1223
+        #   also needs https://github.com/castwide/solargraph/pull/1417
         param_details[param_name][:qualified] ||= details[:qualified]
       end
     end
@@ -675,7 +683,7 @@ module Solargraph
     # @param pin [Pin::Base]
     def internal? pin
       return false if pin.nil?
-      # @sg-ignore flow sensitive typing needs to handle attrs
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1258
       pin.location && api_map.bundled?(pin.location.filename)
     end
 
@@ -697,11 +705,9 @@ module Solargraph
 
       chain = Solargraph::Parser.chain(pin.assignment, filename)
       # @sg-ignore flow sensitive typing needs to handle attrs
-      rng = Solargraph::Range.from_node(pin.assignment)
-      # @sg-ignore Need to add nil check here
+      rng = Solargraph::Range.from_node!(pin.assignment)
       closure_pin = source_map.locate_closure_pin(rng.start.line, rng.start.column)
-      # @sg-ignore flow sensitive typing needs to handle "if foo.nil?"
-      location = Location.new(filename, Range.from_node(pin.assignment))
+      location = Location.new(filename, rng)
       locals = source_map.locals_at(location)
       type = chain.infer(api_map, closure_pin, locals)
       if type.undefined? && !rules.ignore_all_undefined?
@@ -710,7 +716,7 @@ module Solargraph
         found = nil
         # @type [Array<Solargraph::Pin::Base>]
         all_found = []
-        until base.links.first.undefined?
+        until base.links.fetch(0).undefined?
           all_found = base.define(api_map, closure_pin, locals)
           found = all_found.first
           break if found
@@ -733,7 +739,7 @@ module Solargraph
         return [] if r.empty?
         r
       end
-      results.first
+      results.first || []
     end
 
     # @param pin [Pin::Method]
@@ -755,6 +761,8 @@ module Solargraph
         if any_splatted_call?(unchecked.map(&:node))
           settled_kwargs = parameters.count(&:keyword?)
         else
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1258
+          #   empty? guards need https://github.com/apiology/solargraph/tree/narrow-first-last-after-empty-guard on top
           kwargs = convert_hash(unchecked.last.node)
           if parameters.any? { |param| %i[kwarg kwoptarg].include?(param.decl) || param.kwrestarg? }
             if kwargs.empty?
@@ -767,7 +775,7 @@ module Solargraph
                   kwargs.delete param.name.to_sym
                   settled_kwargs += 1
                 elsif param.decl == :kwarg
-                  last_arg_last_link = arguments.last.links.last
+                  last_arg_last_link = arguments.fetch(-1).links.fetch(-1)
                   return [] if last_arg_last_link.is_a?(Solargraph::Source::Chain::Hash) && last_arg_last_link.splatted?
                   return [Problem.new(location, "Missing keyword argument #{param.name} to #{pin.path}")]
                 end
@@ -792,6 +800,8 @@ module Solargraph
         end
         return [] if arguments.length - req == parameters.select { |p| %i[optarg kwoptarg].include?(p.decl) }.length
         return [Problem.new(location, "Too many arguments to #{pin.path}")]
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1258
+      #   empty? guards need https://github.com/apiology/solargraph/tree/narrow-first-last-after-empty-guard on top
       elsif unchecked.length < req - settled_kwargs && (arguments.empty? || (!arguments.last.splat? && !arguments.last.links.last.is_a?(Solargraph::Source::Chain::Hash)))
         # HACK: Kernel#raise signature is incorrect in Ruby 2.7 core docs.
         # See https://github.com/castwide/solargraph/issues/418
@@ -831,13 +841,13 @@ module Solargraph
       with_block = false
       # @param pin [Pin::Parameter]
       pin.parameters.each do |pin|
-        # @sg-ignore flow sensitive typing should be able to handle redefinition
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1424
         if %i[kwarg kwoptarg kwrestarg].include?(pin.decl)
           with_opts = true
-        # @sg-ignore flow sensitive typing should be able to handle redefinition
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1424
         elsif pin.decl == :block
           with_block = true
-        # @sg-ignore flow sensitive typing should be able to handle redefinition
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1424
         elsif pin.decl == :restarg
           args.push Solargraph::Source::Chain.new([Solargraph::Source::Chain::Variable.new(pin.name)], nil, true)
         else
@@ -859,7 +869,6 @@ module Solargraph
     # @return [Set<Integer>]
     def all_sg_ignore_lines
       source.associated_comments.select do |_line, text|
-        # @sg-ignore Need to add nil check here
         text.any? { |t| t.include?('@sg-ignore') }
       end.keys.to_set
     end

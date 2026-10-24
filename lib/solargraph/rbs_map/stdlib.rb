@@ -7,16 +7,20 @@ module Solargraph
     # Ruby stdlib pins
     #
     class Stdlib < Base
+      # @param library [String]
       def initialize library
         super()
-        loader.add(library: library.gsub('/', '-')) if self.class.has?(library)
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1223
+        loader.add(library: library.gsub('/', '-'), version: nil) if self.class.has?(library)
       end
 
       def repository
         @repository ||= RBS::Repository.new(no_stdlib: false)
       end
 
+      # @param library [String]
       def self.has? library
+        # @sg-ignore https://github.com/apiology/solargraph/pull/225
         !!RBS::Collection::Sources::Stdlib.instance.has?(library.gsub('/', '-'), nil)
       end
     end

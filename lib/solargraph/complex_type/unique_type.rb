@@ -39,7 +39,6 @@ module Solargraph
         parameters_type = nil
         unless substring.empty?
           subs = ComplexType.parse(substring[1..-2], partial: true)
-          # @sg-ignore Need to add nil check here
           parameters_type = PARAMETERS_TYPE_BY_STARTING_TAG.fetch(substring[0])
           if parameters_type == :hash
             unless !subs.is_a?(ComplexType) && (subs.length == 2) && !subs[0].is_a?(UniqueType) && !subs[1].is_a?(UniqueType)
@@ -54,13 +53,15 @@ module Solargraph
               raise ComplexTypeError,
                     "Bad hash type: name=#{name}, substring=#{substring} - must have exactly two parameters"
             end
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1223
             key_types.concat(subs[0].map { |u| ComplexType.new([u]) })
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1223
             subtypes.concat(subs[1].map { |u| ComplexType.new([u]) })
           else
             subtypes.concat subs
           end
         end
-        # @sg-ignore Need to add nil check here
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1266
         new(name, key_types, subtypes, rooted: rooted, parameters_type: parameters_type)
       end
 
@@ -183,17 +184,11 @@ module Solargraph
 
       def eql? other
         self.class == other.class &&
-          # @sg-ignore flow sensitive typing should support .class == .class
           @name == other.name &&
-          # @sg-ignore flow sensitive typing should support .class == .class
           @key_types == other.key_types &&
-          # @sg-ignore flow sensitive typing should support .class == .class
           @subtypes == other.subtypes &&
-          # @sg-ignore flow sensitive typing should support .class == .class
           @rooted == other.rooted? &&
-          # @sg-ignore flow sensitive typing should support .class == .class
           @all_params == other.all_params &&
-          # @sg-ignore flow sensitive typing should support .class == .class
           @parameters_type == other.parameters_type
       end
 
@@ -302,7 +297,6 @@ module Solargraph
         rooted_tags
       end
 
-      # @sg-ignore Need better if/elseanalysis
       # @return [String]
       def to_rbs
         if duck_type?
@@ -312,7 +306,7 @@ module Solargraph
         elsif name.downcase == 'nil'
           'nil'
         elsif name == GENERIC_TAG_NAME
-          all_params.first&.name
+          all_params.first&.name || 'untyped'
         elsif %w[Class Module].include?(name)
           rbs_name
         elsif %w[Tuple Array].include?(name) && fixed_parameters?
@@ -342,7 +336,7 @@ module Solargraph
       # @return [String]
       def rbs_union types
         if types.length == 1
-          types.first.to_rbs
+          types.fetch(0).to_rbs
         else
           "(#{types.map(&:to_rbs).join(' | ')})"
         end
@@ -386,20 +380,18 @@ module Solargraph
       def resolve_generics_from_context generics_to_resolve, context_type, resolved_generic_values: {}
         if name == ComplexType::GENERIC_TAG_NAME
           type_param = subtypes.first&.name
-          return self unless generics_to_resolve.include? type_param
-          # @sg-ignore flow sensitive typing needs to eliminate literal from union with [:bar].include?(foo)
+          return self unless type_param && generics_to_resolve.include?(type_param)
           unless context_type.nil? || !resolved_generic_values[type_param].nil?
             new_binding = true
-            # @sg-ignore flow sensitive typing needs to eliminate literal from union with [:bar].include?(foo)
             resolved_generic_values[type_param] = context_type
           end
           if new_binding
             resolved_generic_values.transform_values! do |complex_type|
+              # @sg-ignore https://github.com/apiology/solargraph/pull/225
               complex_type.resolve_generics_from_context(generics_to_resolve, nil,
                                                          resolved_generic_values: resolved_generic_values)
             end
           end
-          # @sg-ignore flow sensitive typing needs to eliminate literal from union with [:bar].include?(foo)
           return resolved_generic_values[type_param] || self
         end
 
@@ -419,6 +411,7 @@ module Solargraph
       def resolve_param_generics_from_context generics_to_resolve, context_type, resolved_generic_values
         types = yield self
         types.each_with_index.flat_map do |ct, i|
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1223
           ct.items.flat_map do |ut|
             context_params = yield context_type if context_type
             if context_params && context_params[i]
@@ -439,7 +432,7 @@ module Solargraph
       # parameters used in this type, and return a new type if
       # possible.
       #
-      # @param definitions [Pin::Namespace, Pin::Method] The module/class/method which uses generic types
+      # @param definitions [Pin::Namespace, Pin::Method, nil] The module/class/method which uses generic types
       # @param context_type [ComplexType] The receiver type
       # @return [UniqueType, ComplexType]
       def resolve_generics definitions, context_type
@@ -503,7 +496,7 @@ module Solargraph
         new_key_types ||= @key_types
         new_subtypes ||= @subtypes
         make_rooted = @rooted if make_rooted.nil?
-        # @sg-ignore flow sensitive typing needs better handling of ||= on lvars
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1338
         UniqueType.new(new_name, new_key_types, new_subtypes, rooted: make_rooted, parameters_type: parameters_type)
       end
 
@@ -547,6 +540,8 @@ module Solargraph
         yield new_type
       end
 
+      # @param named_types [Hash{String => UniqueType}]
+      # @return [UniqueType]
       def expand named_types
         named_types[name] || self
       end

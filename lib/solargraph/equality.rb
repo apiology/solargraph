@@ -6,13 +6,12 @@ module Solargraph
   #     equality_fields()
   module Equality
     # @!method equality_fields
-    #   @return [Array]
+    #   @return [::Array]
 
     # @param other [Object]
     # @return [Boolean]
     def eql? other
       self.class.eql?(other.class) &&
-        # @sg-ignore flow sensitive typing should support .class == .class
         equality_fields.eql?(other.equality_fields)
     end
 

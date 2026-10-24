@@ -1,6 +1,18 @@
 # frozen_string_literal: true
 
 describe Solargraph::Source do
+  describe '#filename!' do
+    it 'returns the filename' do
+      source = described_class.load_string('x', 'foo.rb')
+      expect(source.filename!).to eq('foo.rb')
+    end
+
+    it 'raises without a filename' do
+      source = described_class.load_string('x')
+      expect { source.filename! }.to raise_error(ArgumentError)
+    end
+  end
+
   it 'parses code' do
     code = 'class Foo;def bar;end;end'
     source = described_class.new(code)
@@ -123,6 +135,30 @@ describe Solargraph::Source do
     assign_bars = source.references('bar=')
     assign_barbacks = assign_bars.map { |b| source.at(b.range) }
     expect(assign_barbacks).to eq(['bar=', 'bar ='])
+  end
+
+  it 'skips references to a method called without spelling its name' do
+    source = described_class.load_string(%(
+      class Foo
+        def [](index)
+        end
+      end
+      Foo.new[0]
+    ))
+    refs = source.references('[]')
+    expect(refs.map { |r| source.at(r.range) }).to eq(['[]'])
+  end
+
+  it 'skips references to a setter called without spelling its name' do
+    source = described_class.load_string(%(
+      class Foo
+        def []=(index, value)
+        end
+      end
+      Foo.new[0] = 1
+    ))
+    refs = source.references('[]=')
+    expect(refs.map { |r| source.at(r.range) }).to eq(['[]='])
   end
 
   it 'allows escape sequences incompatible with UTF-8' do
@@ -330,5 +366,28 @@ y = 1 #foo
     bar_comments = source.comments_for(bar_node)
     expect(bar_comments).not_to include('Exclude from Bar')
     expect(bar_comments).to include('Include with Bar')
+  end
+
+  # The language server's diagnoser thread and its request thread can both
+  # map a newly opened source, so the first parse may happen on either one.
+  it 'gives a thread the parsed node while another thread is parsing it' do
+    source = described_class.new('class Foo; end', 'file.rb')
+    parsing = Queue.new
+    proceed = Queue.new
+    parse = Solargraph::Parser.method(:parse_with_comments)
+    allow(Solargraph::Parser).to receive(:parse_with_comments) do |*args|
+      parsing << true
+      proceed.pop
+      parse.call(*args)
+    end
+
+    first = Thread.new { source.node }
+    parsing.pop
+    second = Thread.new { source.node }
+    # Wait until the second thread has finished or is waiting on the first
+    Thread.pass while second.status == 'run'
+    proceed << true
+
+    expect([first.value, second.value]).to all(be_a(Parser::AST::Node))
   end
 end

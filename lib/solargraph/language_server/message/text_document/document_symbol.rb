@@ -17,9 +17,9 @@ module Solargraph
                 containerName: pin.namespace,
                 kind: pin.symbol_kind,
                 location: {
-                  # @sg-ignore Need to add nil check here
+                  # @sg-ignore Unresolved call to filename on Solargraph::Location, nil
                   uri: file_to_uri(pin.best_location.filename),
-                  # @sg-ignore Need to add nil check here
+                  # @sg-ignore Unresolved call to range on Solargraph::Location, nil
                   range: pin.best_location.range.to_hash
                 },
                 deprecated: pin.deprecated?

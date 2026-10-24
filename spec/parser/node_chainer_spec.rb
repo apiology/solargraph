@@ -185,4 +185,57 @@ describe 'NodeChainer' do
       expect(block_variable_node.word).to be_nil
     end
   end
+
+  context 'with hand-built nodes the parser does not emit' do
+    it 'chains a receiverless safe-navigation call' do
+      node = Parser::AST::Node.new(:csend, [nil, :foo])
+      chain = Solargraph::Parser::ParserGem::NodeChainer.chain(node)
+      expect(chain.links.map(&:word)).to eq(['foo'])
+      expect(chain.links.first).to be_a(Solargraph::Source::Chain::QCall)
+    end
+
+    it 'rejects a send whose receiver is not a node' do
+      node = Parser::AST::Node.new(:send, [1, :foo])
+      expect { Solargraph::Parser::ParserGem::NodeChainer.chain(node) }.to raise_error(RuntimeError, /No idea/)
+    end
+
+    it 'rejects a safe-navigation call whose receiver is not a node' do
+      node = Parser::AST::Node.new(:csend, [1, :foo])
+      expect { Solargraph::Parser::ParserGem::NodeChainer.chain(node) }.to raise_error(RuntimeError, /No idea/)
+    end
+  end
+
+  it 'types a boolean pattern match as Boolean' do
+    source = Solargraph::Source.load_string(%(
+      # @param x [Object]
+      def m(x)
+        b = (x in [1, *])
+        b
+        c = !(x in [1, *])
+        c
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    expect(api_map.clip_at('test.rb', [4, 8]).infer.to_s).to eq('Boolean')
+    expect(api_map.clip_at('test.rb', [6, 8]).infer.to_s).to eq('Boolean')
+  end
+
+  it 'infers method return types from pattern matches' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @param x [Object]
+        def matches?(x)
+          x in [1, *]
+        end
+
+        # @param x [Object]
+        def destructure(x)
+          x => [a, *]
+        end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    expect(api_map.get_path_pins('Foo#matches?').first.probe(api_map).to_s).to eq('Boolean')
+    expect(api_map.get_path_pins('Foo#destructure').first.probe(api_map).to_s).to eq('nil')
+  end
 end

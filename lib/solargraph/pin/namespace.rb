@@ -14,8 +14,12 @@ module Solargraph
       # does not assert like super, as a namespace without a closure
       # may be the root level namespace, or it may not yet be
       # qualified
+      # @return [Solargraph::Pin::Closure, nil]
       attr_reader :closure
 
+      # node: (see CompoundStatement) carries this namespace body, which
+      # flow-sensitive typing scans to bound where a narrowed type holds.
+      #
       # @param type [::Symbol] :class or :module
       # @param visibility [::Symbol] :public or :private
       # @param gates [::Array<String>]
@@ -39,7 +43,7 @@ module Solargraph
           closure_name = if [Solargraph::Pin::ROOT_PIN, nil].include?(closure)
                            ''
                          else
-                           # @sg-ignore Need to add nil check here
+                           # @sg-ignore https://github.com/castwide/solargraph/pull/1393
                            "#{closure.full_context.namespace}::"
                          end
           closure_name += parts.join('::')
@@ -56,6 +60,7 @@ module Solargraph
       end
 
       def to_rbs
+        # @sg-ignore Unresolved call to to_rbs on ComplexType, nil
         "#{@type} #{return_type.all_params.first.to_rbs}#{rbs_generics}".strip
       end
 
@@ -99,11 +104,6 @@ module Solargraph
 
       def return_type
         @return_type ||= ComplexType.try_parse((type == :class ? '::Class' : '::Module') + "<::#{path}>")
-      end
-
-      # @return [Array<String>]
-      def domains
-        @domains ||= []
       end
 
       def typify api_map

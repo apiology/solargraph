@@ -29,6 +29,9 @@ describe Solargraph::LanguageServer::Message::TextDocument::Definition do
                          }
                        }
                      })
+      # keep this from syncing a bunch of bundle gems in background
+      library = host.library_for(file_uri)
+      allow(library).to receive(:cacheable_specs).and_return([])
       message.process
       expect(message.result.first[:uri]).to eq(other_uri)
     end
@@ -54,6 +57,9 @@ describe Solargraph::LanguageServer::Message::TextDocument::Definition do
                                       }
                                     }
                                   })
+    # keep this from syncing a bunch of bundle gems in background
+    library = host.library_for(file_uri)
+    allow(library).to receive(:cacheable_specs).and_return([])
     message.process
     expect(message.result.first[:uri]).to eq(other_uri)
   end
@@ -66,12 +72,11 @@ describe Solargraph::LanguageServer::Message::TextDocument::Definition do
       sleep 0.1 until host.libraries.all?(&:mapped?)
     end
     host.catalog
+    file_uri = Solargraph::LanguageServer::UriHelpers.file_to_uri(File.join(path, 'lib', 'other.rb'))
     message = described_class.new(host, {
                                     'params' => {
                                       'textDocument' => {
-                                        'uri' => Solargraph::LanguageServer::UriHelpers.file_to_uri(File.join(
-                                                                                                      path, 'lib', 'other.rb'
-                                                                                                    ))
+                                        'uri' => file_uri
                                       },
                                       'position' => {
                                         'line' => 0,
@@ -79,8 +84,19 @@ describe Solargraph::LanguageServer::Message::TextDocument::Definition do
                                       }
                                     }
                                   })
+    # keep this from syncing a bunch of bundle gems in background
+    library = host.library_for(file_uri)
+    allow(library).to receive(:cacheable_specs).and_return([])
     message.process
     expect(message.result.first[:uri]).to eq(Solargraph::LanguageServer::UriHelpers.file_to_uri(File.join(path, 'lib',
                                                                                                           'thing.rb')))
+  end
+
+  it 'returns no locations when the file is not mapped yet' do
+    library = instance_double(Solargraph::Library, locate_ref: nil)
+    host = instance_double(Solargraph::LanguageServer::Host, definitions_at: nil, library_for: library)
+    message = described_class.new(host, { 'params' => { 'textDocument' => { 'uri' => 'file:///unmapped.rb' }, 'position' => { 'line' => 0, 'character' => 0 } } })
+    message.process
+    expect(message.result).to eq([])
   end
 end

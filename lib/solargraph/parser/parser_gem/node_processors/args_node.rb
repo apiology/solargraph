@@ -11,17 +11,24 @@ module Solargraph
               if node.type == :forward_args
                 forward(callable)
               else
-                node.children.each do |u|
+                node.children.each do |child|
+                  # s(:args, *params) - every parameter is a node
+                  # raises NoMatchingPatternError on a non-node child
+                  child => ::Parser::AST::Node => u
+                  # s(:arg, name), s(:optarg, name, default), s(:restarg) for an anonymous splat,
+                  # or s(:mlhs, *args) for |(a, b)|
+                  name = (u in [_, Symbol | ::Parser::AST::Node | nil => first, *]) ? first : nil
+                  default = (u in [_, _, ::Parser::AST::Node => second, *]) ? second : nil
                   loc = get_node_location(u)
+                  # @sg-ignore https://github.com/apiology/solargraph/pull/225
                   locals.push Solargraph::Pin::Parameter.new(
                     location: loc,
                     closure: callable,
                     comments: comments_for(node),
-                    name: u.children[0].to_s,
-                    assignment: u.children[1],
-                    asgn_code: u.children[1] ? region.code_for(u.children[1]) : nil,
-                    # @sg-ignore Need to add nil check here
-                    presence: callable.location.range,
+                    name: name.to_s,
+                    assignment: default,
+                    asgn_code: default ? region.code_for(default) : nil,
+                    presence: callable.location!.range,
                     decl: get_decl(u),
                     source: :parser
                   )
@@ -41,8 +48,7 @@ module Solargraph
             locals.push Solargraph::Pin::Parameter.new(
               location: loc,
               closure: callable,
-              # @sg-ignore Need to add nil check here
-              presence: region.closure.location.range,
+              presence: region.closure.location!.range,
               decl: get_decl(node),
               source: :parser
             )

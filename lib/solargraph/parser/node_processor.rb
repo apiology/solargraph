@@ -18,8 +18,10 @@ module Solargraph
         # @param type [Symbol]
         # @param cls [Class<NodeProcessor::Base>]
         # @return [Array<Class<NodeProcessor::Base>>]
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1417
         def register type, cls
           @@processors[type] ||= []
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1417
           @@processors[type] << cls
         end
 
@@ -28,11 +30,11 @@ module Solargraph
         #
         # @return [void]
         def deregister type, cls
-          @@processors[type].delete(cls)
+          @@processors[type]&.delete(cls)
         end
       end
 
-      # @param node [Parser::AST::Node]
+      # @param node [Parser::AST::Node, nil]
       # @param region [Region]
       # @param pins [Array<Pin::Base>]
       # @param locals [Array<Pin::LocalVariable>]
@@ -43,13 +45,16 @@ module Solargraph
           pins.push Pin::Namespace.new(
             location: region.source.location,
             name: '',
+            node: node,
             source: :parser
           )
         end
         return [pins, locals, ivars] unless Parser.is_ast_node?(node)
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1396
         node_processor_classes = @@processors[node.type] || [NodeProcessor::Base]
 
         node_processor_classes.each do |klass|
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1396
           processor = klass.new(node, region, pins, locals, ivars)
           process_next = processor.process
 
