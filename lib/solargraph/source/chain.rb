@@ -68,7 +68,6 @@ module Solargraph
 
       # @return [Chain]
       def base
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1395
         @base ||= Chain.new(links[0..-2])
       end
 
@@ -111,7 +110,6 @@ module Solargraph
         #
         # @todo ProxyType uses 'type' for the binder, but '
         working_pin = name_pin
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1395
         links[0..-2].each do |link|
           pins = link.resolve(api_map, working_pin, locals)
           type = infer_from_definitions(pins, working_pin, api_map, locals)
