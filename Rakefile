@@ -88,7 +88,6 @@ task :full_spec do
   end
 end
 
-# @sg-ignore #undercover return type could not be inferred
 # @return [Process::Status]
 def undercover
   simplecov_collate
