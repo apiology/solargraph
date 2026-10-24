@@ -1192,6 +1192,15 @@ describe Solargraph::SourceMap::Clip do
     expect(clip.infer.to_s).to eq('String, nil')
   end
 
+  it 'infers the return type of an overload a gem adds to a core class' do
+    directory = File.join('spec', 'fixtures', 'gem-core-method')
+    # A kept cache entry would reflect whatever code built it
+    Solargraph::Shell.new.uncache('bigdecimal')
+    api_map = Solargraph::ApiMap.load_with_cache(directory, nil)
+    clip = api_map.clip_at(File.expand_path(File.join(directory, 'app.rb')), [3, 0])
+    expect(clip.infer.to_s).to eq('BigDecimal')
+  end
+
   it 'infers overloads with splats' do
     source = Solargraph::Source.load_string(%(
       class Foo
