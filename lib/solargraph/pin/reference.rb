@@ -53,6 +53,15 @@ module Solargraph
       def reference_gates
         closure!.gates
       end
+
+      private
+
+      # @return [void]
+      def preassign_ivars
+        super
+        @generic_values = nil
+        @type = nil
+      end
     end
   end
 end

@@ -43,6 +43,17 @@ module Solargraph
           # @sg-ignore https://github.com/apiology/solargraph/pull/225
           new(nil, name, Solargraph::Source.parse_docstring(comment).to_docstring.tags, **splat)
         end
+
+        private
+
+        # @return [void]
+        def preassign_ivars
+          super
+          # @type [::Array<::YARD::Tags::Tag>]
+          @tags = []
+          # @type [::Array<::Symbol>]
+          @delete = []
+        end
       end
     end
   end

@@ -11,6 +11,14 @@ module Solargraph
         def reference_gates
           @reference_gates ||= closure.gates - [closure.path]
         end
+
+        private
+
+        # @return [void]
+        def preassign_ivars
+          super
+          @reference_gates = nil
+        end
       end
     end
   end
