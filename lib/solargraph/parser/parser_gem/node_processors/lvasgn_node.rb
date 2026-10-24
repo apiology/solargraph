@@ -13,7 +13,7 @@ module Solargraph
             assignment = (rest in [::Parser::AST::Node => value, *]) ? value : nil
 
             here = get_node_start_position(node)
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1399
+            # @sg-ignore Unresolved call to range on Solargraph::Location, nil
             presence = Range.new(here, region.closure.location.range.ending)
             loc = get_node_location(node)
             locals.push Solargraph::Pin::LocalVariable.new(

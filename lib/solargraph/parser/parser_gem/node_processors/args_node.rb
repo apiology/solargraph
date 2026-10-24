@@ -28,8 +28,7 @@ module Solargraph
                     name: name.to_s,
                     assignment: default,
                     asgn_code: default ? region.code_for(default) : nil,
-                    # @sg-ignore https://github.com/castwide/solargraph/pull/1399
-                    presence: callable.location.range,
+                    presence: callable.location!.range,
                     decl: get_decl(u),
                     source: :parser
                   )
@@ -49,8 +48,7 @@ module Solargraph
             locals.push Solargraph::Pin::Parameter.new(
               location: loc,
               closure: callable,
-              # @sg-ignore https://github.com/castwide/solargraph/pull/1399
-              presence: region.closure.location.range,
+              presence: region.closure.location!.range,
               decl: get_decl(node),
               source: :parser
             )
