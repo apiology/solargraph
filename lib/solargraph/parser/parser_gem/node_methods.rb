@@ -18,20 +18,24 @@ module Solargraph
         end
 
         # @param node [Parser::AST::Node, nil]
-        # @return [Array<String>]
+        # @return [Array<String, Symbol, Numeric>]
         def pack_name node
-          # @type [Array<String>]
+          # @type [Array<String, Symbol, Numeric>]
           parts = []
           if node.is_a?(AST::Node)
             node.children.each do |n|
-              if n.is_a?(AST::Node)
-                if n.type == :cbase
-                  parts = [''] + pack_name(n)
-                elsif n.type == :const
-                  parts += pack_name(n)
-                end
-              else
-                parts.push n unless n.nil?
+              # s(:const, scope, :Name) packs to [*scope, :Name]; a leading
+              # s(:cbase) roots it with ''. Callers may pass other nodes, e.g. a
+              # constant's s(:str, "x") assignment, whose scalar children are kept.
+              case n
+              in ::AST::Node[:cbase, *]
+                parts = [''] + pack_name(n)
+              in ::AST::Node[:const, *]
+                parts += pack_name(n)
+              in ::AST::Node | nil
+                # other child nodes and an absent scope add nothing
+              in Symbol | String | Numeric => name
+                parts.push name
               end
             end
           end
@@ -574,8 +578,8 @@ module Solargraph
                 result.concat reduce_to_value_nodes([body, first_resbody])
               elsif ENSURE.include?(node.type)
                 # s(:ensure, body, ensure_body)
-                ensured = (node in [_, ::Parser::AST::Node => ensured_body, *]) ? ensured_body : nil
-                result.concat reduce_to_value_nodes([ensured])
+                node => [_, ::Parser::AST::Node | nil => ensured_body, *]
+                result.concat reduce_to_value_nodes([ensured_body])
                 if include_explicit_returns && (node in [_, _, ::Parser::AST::Node => ensure_body, *])
                   result.concat explicit_return_values_from_compound_statement(ensure_body)
                 end
@@ -719,9 +723,10 @@ module Solargraph
                 elsif CONDITIONAL_ALL_BUT_FIRST.include?(node.type)
                   node => [_, _, *branches]
                   result.concat reduce_to_value_nodes(branches)
-                elsif ONLY_ONE_CHILD.include?(node.type) || ENSURE.include?(node.type)
-                  returned = (node in [_, ::Parser::AST::Node => value, *]) ? value : nil
-                  result.concat reduce_to_value_nodes([returned])
+                elsif node.type == :return
+                  # s(:return, value, *more_values)
+                  first = (node in [_, ::Parser::AST::Node => value, *]) ? value : nil
+                  result.concat reduce_to_value_nodes([first])
                 elsif FIRST_TWO_CHILDREN.include?(node.type)
                   # a :rescue node's value is its body's value or the
                   # value of whichever resbody handled the exception
