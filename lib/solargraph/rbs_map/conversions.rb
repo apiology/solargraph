@@ -389,7 +389,6 @@ module Solargraph
         parts = fqns.split('::')
         if parts.length > 1
           fqns = parts.last
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1395
           closure = pins.select { |pin| pin && pin.path == parts[0..-2].join('::') }.first
         else
           fqns = parts.first

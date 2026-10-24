@@ -20,7 +20,6 @@ module Solargraph
             if variable in [_, Symbol | ::Parser::AST::Node | nil => variable_name, *]
               # @sg-ignore Wrong argument type for Solargraph::Parser::ParserGem::NodeMethods#get_node_start_position: node expected Parser::AST::Node, received Parser::AST::Node, nil
               here = get_node_start_position(variable)
-              # @sg-ignore https://github.com/castwide/solargraph/pull/1399
               presence = Range.new(here, region.closure.location.range.ending)
               # @sg-ignore Wrong argument type for Solargraph::Parser::NodeProcessor::Base#get_node_location: node expected Parser::AST::Node, received Parser::AST::Node, nil
               loc = get_node_location(variable)
