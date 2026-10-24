@@ -207,4 +207,20 @@ describe Solargraph::Workspace do
   it 'has no available gem names for a directory' do
     expect(described_class.new('spec/fixtures/workspace').available_gem_names).to be_empty
   end
+
+  describe '#command_path' do
+    it 'defaults to solargraph' do
+      expect(described_class.new(dir_path).command_path).to eq('solargraph')
+    end
+
+    it 'uses the configured commandPath' do
+      workspace = described_class.new(dir_path, nil, { 'commandPath' => '/usr/local/bin/solargraph' })
+      expect(workspace.command_path).to eq('/usr/local/bin/solargraph')
+    end
+
+    it 'rejects a commandPath that is not a string' do
+      workspace = described_class.new(dir_path, nil, { 'commandPath' => true })
+      expect { workspace.command_path }.to raise_error(Solargraph::InvalidConfigError, /commandPath/)
+    end
+  end
 end
