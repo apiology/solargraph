@@ -304,12 +304,13 @@ module Solargraph
         end
       end
 
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1366
+      # @raise [InvalidConfigError] if the client configured a non-string commandPath
       # @return [String]
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1366
       def command_path
-        # @type [String]
-        options['commandPath'] || 'solargraph'
+        value = options['commandPath']
+        return 'solargraph' if value.nil?
+        return value if value.is_a?(String)
+        raise InvalidConfigError, "Invalid commandPath: must be a string, but was #{value.inspect}"
       end
 
       # Prepare multiple folders.
@@ -319,8 +320,8 @@ module Solargraph
       def prepare_folders array
         return if array.nil?
         array.each do |folder|
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1398
-          prepare uri_to_file(folder['uri']), folder['name']
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1266
+          prepare uri_to_file(folder.fetch('uri')), folder.fetch('name')
         end
       end
 
