@@ -22,7 +22,6 @@ module Solargraph
                                       enclosing_compound_statement_pin).process_or_asgn(node, presence)
             end
 
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1416
             new_node = node.updated(target_type, target_children + [value])
             NodeProcessor.process(new_node, region, pins, locals, ivars)
           end
