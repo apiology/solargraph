@@ -33,7 +33,6 @@ module Solargraph
         # @return [void]
         def update_libraries uri
           src = sources.find(uri)
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1245
           using = libraries.select { |lib| lib.contain?(src.filename) }
           using.push library_for(uri) if using.empty?
           using.each { |lib| lib.merge src }
