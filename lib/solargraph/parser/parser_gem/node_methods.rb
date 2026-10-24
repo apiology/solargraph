@@ -80,7 +80,7 @@ module Solargraph
             return '::Symbol'
           elsif node.type == :regexp
             return '::Regexp'
-          elsif node.type == :irange
+          elsif %i[irange erange].include?(node.type)
             return '::Range'
           elsif %i[true false].include?(node.type)
             return '::Boolean'
@@ -342,10 +342,9 @@ module Solargraph
           position = cursor.position
           offset = cursor.offset
           tree = if source.synchronized?
-                   # @sg-ignore https://github.com/castwide/solargraph/pull/1395
                    match = source.code[0..(offset - 1)].match(/,\s*\z/)
                    if match
-                     # @sg-ignore https://github.com/castwide/solargraph/pull/1395
+                     # @sg-ignore Unresolved call to length on String, nil
                      source.tree_at(position.line, position.column - match[0].length)
                    else
                      source.tree_at(position.line, position.column)

@@ -166,23 +166,16 @@ module Solargraph
       # @return [Completion]
       def tag_complete
         result = []
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1395
         match = source_map.code[0..(cursor.offset - 1)].match(/[\[<, ]([a-z0-9_:]*)\z/i)
         if match
-          # @sg-ignore Need to add nil check here
           full = match[1].to_s
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1395
           if full.include?('::')
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1395
             if full.end_with?('::')
-              # @sg-ignore https://github.com/castwide/solargraph/pull/1395
               result.concat api_map.get_constants(full[0..-3], *gates)
             else
-              # @sg-ignore https://github.com/castwide/solargraph/pull/1395
               result.concat api_map.get_constants(full.split('::')[0..-2].join('::'), *gates)
             end
           else
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1395
             result.concat api_map.get_constants('', full.end_with?('::') ? '' : context_pin.full_context.namespace, *gates) # .select { |pin| pin.name.start_with?(full) }
           end
         end
@@ -198,7 +191,6 @@ module Solargraph
           type = if cursor.chain.undefined?
                    cursor.chain.base.infer(api_map, context_pin, locals)
                  elsif full.include?('::') && cursor.chain.links.length == 1
-                   # @sg-ignore Unresolved call to join on Array<String>, nil
                    ComplexType.try_parse(full.split('::')[0..-2].join('::'))
                  elsif cursor.chain.links.length > 1
                    ComplexType.try_parse(full)

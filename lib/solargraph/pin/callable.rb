@@ -87,7 +87,6 @@ module Solargraph
         end
       end
 
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1395
       # @return [Array<Pin::Parameter>]
       def blockless_parameters
         if parameters.last&.block?
