@@ -157,7 +157,7 @@ module Solargraph
                                                     gates: name_pin.gates,
                                                     source: :chain)
             atype = atypes[idx] ||= arg.infer(api_map, arg_name_pin, locals)
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1245
+            # @sg-ignore Wrong argument type for Solargraph::Pin::Parameter#compatible_arg?: atype expected Solargraph::ComplexType, received Array, Solargraph::ComplexType
             unless param.compatible_arg?(atype, api_map) || param.restarg?
               match = false
               break
@@ -289,7 +289,7 @@ module Solargraph
               next unless last_link.is_a?(Chain::Literal)
               argument_value = last_link.value
 
-              # @sg-ignore https://github.com/castwide/solargraph/pull/1245
+              # @sg-ignore Unresolved call to name
               param.name == factory_param.param_name && argument_value == factory_param.value
             end
           end

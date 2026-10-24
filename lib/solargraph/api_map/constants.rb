@@ -27,7 +27,7 @@ module Solargraph
       # @param name [String] Namespace which may relative and not be rooted.
       # @param gates [Array<Array<String>, String>] Namespaces to search while resolving the name
       #
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1245
+      # @sg-ignore Declared return type ::String, nil does not match inferred type ::String, nil, ::NilClass for Solargraph::ApiMap::Constants#resolve
       # @return [String, nil] fully qualified namespace (i.e., is
       #   absolute, but will not start with ::)
       def resolve(name, *gates)

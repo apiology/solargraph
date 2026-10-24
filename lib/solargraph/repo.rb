@@ -104,7 +104,7 @@ module Solargraph
           json = last_line ? JSON.parse(last_line, symbolize_names: true) : { metagems: [], groups: {} }
           # @sg-ignore double-splat argument is checked as a keyword named after the variable
           @metagems = bundle_array(json[:metagems]).map { |data| Metagem.new(**data) }
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1245
+          # @sg-ignore Unresolved call to map
           @bundled_group_map = json[:groups].transform_values { |names| names.map { |name| bundled_metagem_name_map[name] } }
         else
           Solargraph.logger.warn "Failed to load gems from bundle at #{directory}: #{e}"

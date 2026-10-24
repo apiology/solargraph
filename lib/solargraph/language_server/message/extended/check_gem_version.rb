@@ -59,7 +59,7 @@ module Solargraph
               # fetch_available sets an error whenever it finds no version
               message = error
               Solargraph::Logging.logger.warn message
-              # @sg-ignore https://github.com/castwide/solargraph/pull/1245
+              # @sg-ignore Wrong argument type for Solargraph::LanguageServer::Host#show_message: text expected String, received String, Hash
               host.show_message(message, MessageTypes::ERROR) if message && params['verbose']
             end
             set_result({
