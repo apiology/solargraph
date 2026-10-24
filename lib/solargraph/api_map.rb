@@ -43,7 +43,6 @@ module Solargraph
     # @param other [Object]
     def eql? other
       self.class == other.class &&
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1367
         equality_fields == other.equality_fields
     end
 
