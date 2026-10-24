@@ -591,7 +591,8 @@ module Solargraph
                                        type_location: type_location, closure: pin)
                   end
           # @sg-ignore https://github.com/castwide/solargraph/pull/1223
-          Pin::Signature.new(generics: generics, parameters: signature_parameters, return_type: signature_return_type, block: block, source: :rbs,
+          Pin::Signature.new(generics: generics, parameters: signature_parameters, return_type: signature_return_type, block: block,
+                             block_required: overload.method_type.block&.required || false, source: :rbs,
                              type_location: type_location, closure: pin)
         end
       end
