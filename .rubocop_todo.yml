@@ -123,12 +123,9 @@ Metrics/AbcSize:
 Metrics/BlockLength:
   Max: 57
 
-# Configuration parameters: CountBlocks, CountModifierForms, Max.
+# Configuration parameters: CountBlocks, CountModifierForms.
 Metrics/BlockNesting:
-  Exclude:
-    - 'lib/solargraph/source/source_chainer.rb'
-    - 'lib/solargraph/source_map/clip.rb'
-    - 'lib/solargraph/type_checker.rb'
+  Max: 5
 
 # Configuration parameters: CountComments, Max, CountAsOne.
 Metrics/ClassLength:
@@ -154,7 +151,7 @@ Metrics/MethodLength:
 
 # Configuration parameters: CountComments, CountAsOne.
 Metrics/ModuleLength:
-  Max: 139
+  Max: 145
 
 # Configuration parameters: Max, CountKeywordArgs, MaxOptionalParameters.
 Metrics/ParameterLists:
