@@ -208,11 +208,9 @@ module Solargraph
           # @return [Boolean]
           def boolean_option options, name, default
             value = options[name]
-            return default unless Parser.is_ast_node?(value)
+            return default unless value.is_a?(::Parser::AST::Node)
             # rubocop:disable Lint/BooleanSymbol -- these are AST node types
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1396
             return true if value.type == :true
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1396
             return false if value.type == :false
             # rubocop:enable Lint/BooleanSymbol
             default
@@ -332,14 +330,14 @@ module Solargraph
             args = node.children[2..] || []
             if %i[send public_send].include?(method_name)
               keyword = args.first
-              return unless Parser.is_ast_node?(keyword) && keyword.type == :sym
+              return unless keyword.is_a?(::Parser::AST::Node) && keyword.type == :sym
               method_name = keyword.children[0]
               args = args.drop(1)
             end
             return unless %i[include extend prepend].include?(method_name)
             hook = region.closure
             args.each do |arg|
-              next unless Parser.is_ast_node?(arg)
+              next unless arg.is_a?(::Parser::AST::Node)
               # @sg-ignore Found after #1450 merged
               name = if arg.type == :self
                        hook.namespace
