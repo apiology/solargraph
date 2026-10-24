@@ -286,8 +286,7 @@ module Solargraph
     # @param parent [Symbol, nil]
     # @return [void]
     def inner_folding_ranges top, result = [], parent = nil
-      return unless Parser.is_ast_node?(top)
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1396
+      return unless top.is_a?(::Parser::AST::Node)
       if FOLDING_NODE_TYPES.include?(top.type)
         range = Range.from_node(top)
         # @sg-ignore Unresolved call to ending
@@ -295,7 +294,6 @@ module Solargraph
           result.push range
         end
       end
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1396
       top.children.each do |child|
         inner_folding_ranges(child, result, top.type)
       end
@@ -372,12 +370,10 @@ module Solargraph
     # @return [Array<Parser::AST::Node>]
     def string_nodes_in n
       result = []
-      if Parser.is_ast_node?(n)
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1396
+      if n.is_a?(::Parser::AST::Node)
         if %i[str dstr STR DSTR].include?(n.type)
           result.push n
         else
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1396
           n.children.each { |c| result.concat string_nodes_in(c) }
         end
       end
@@ -396,7 +392,7 @@ module Solargraph
       stack.unshift node
       # @param c [Parser::AST::Node]
       node.children.each do |c|
-        next unless Parser.is_ast_node?(c)
+        next unless c.is_a?(::Parser::AST::Node)
         next if c.loc.expression.nil?
         inner_tree_at(c, position, stack)
       end

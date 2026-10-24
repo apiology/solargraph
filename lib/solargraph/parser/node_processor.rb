@@ -49,12 +49,10 @@ module Solargraph
             source: :parser
           )
         end
-        return [pins, locals, ivars] unless Parser.is_ast_node?(node)
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1396
+        return [pins, locals, ivars] unless node.is_a?(::Parser::AST::Node)
         node_processor_classes = @@processors[node.type] || [NodeProcessor::Base]
 
         node_processor_classes.each do |klass|
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1396
           processor = klass.new(node, region, pins, locals, ivars)
           process_next = processor.process
 

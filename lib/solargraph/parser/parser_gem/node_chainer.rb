@@ -24,7 +24,7 @@ module Solargraph
         # @return [Source::Chain]
         def chain
           links = generate_links(@node)
-          Chain.new(links, @node, Parser.is_ast_node?(@node) && @node.type == :splat)
+          Chain.new(links, @node, @node.is_a?(::Parser::AST::Node) && @node.type == :splat)
         end
 
         class << self
