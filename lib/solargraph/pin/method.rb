@@ -687,12 +687,10 @@ module Solargraph
           rng = Range.from_node(n)
           next unless rng
           clip = api_map.clip_at(
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1399
-            location.filename,
+            location!.filename,
             rng.ending
           )
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1399
-          chain = Solargraph::Parser.chain(n, location.filename)
+          chain = Solargraph::Parser.chain(n, location!.filename)
           type = chain.infer(api_map, self, clip.locals)
           result.push type unless type.undefined?
         end

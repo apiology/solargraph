@@ -59,8 +59,7 @@ module Solargraph
       # @return [::Array<ComplexType>]
       def typify_parameters api_map
         chain = Parser.chain(receiver, filename, node)
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1399
-        clip = api_map.clip_at(location.filename, location.range.start)
+        clip = api_map.clip_at(location!.filename, location!.range.start)
         locals = clip.locals - [self]
         # @sg-ignore https://github.com/castwide/solargraph/pull/1393
         meths = chain.define(api_map, closure, locals)
@@ -103,10 +102,8 @@ module Solargraph
       def maybe_rebind api_map
         return ComplexType::UNDEFINED unless receiver
 
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1399
-        chain = Parser.chain(receiver, location.filename, node)
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1399
-        locals = api_map.source_map(location.filename).locals_at(location)
+        chain = Parser.chain(receiver, location!.filename, node)
+        locals = api_map.source_map(location!.filename).locals_at(location!)
         # @sg-ignore Chain#define name_pin expected Pin::Base, received Pin::Closure, nil
         receiver_pin = chain.define(api_map, closure, locals).first
         return ComplexType::UNDEFINED unless receiver_pin
