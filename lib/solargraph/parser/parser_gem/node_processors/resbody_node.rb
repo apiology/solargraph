@@ -28,7 +28,6 @@ module Solargraph
                         ['Exception']
                       else
                         exceptions.children.map do |child|
-                          # @sg-ignore https://github.com/castwide/solargraph/pull/1418
                           unpack_name(child)
                         end
                       end
