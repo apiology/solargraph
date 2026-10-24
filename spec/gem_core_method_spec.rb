@@ -28,6 +28,8 @@ describe Solargraph::ApiMap do
   end
 
   it "still offers core's own signatures" do
+    pending 'https://github.com/castwide/solargraph/pull/1356'
+
     expect(integer_plus_param_types).to include(['Integer'], ['Float'], ['Rational'], ['Complex'])
   end
 

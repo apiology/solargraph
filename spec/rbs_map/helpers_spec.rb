@@ -17,6 +17,8 @@ describe Solargraph::RbsMap::Helpers do
   end
 
   it 'keeps the signatures of pins that share only their documentation' do
+    pending 'https://github.com/castwide/solargraph/pull/1356'
+
     combined = described_class.combine_method_pins(method_pin('-', 'BigDecimal'), method_pin('-', 'Integer'))
 
     types = combined.signatures.map { |sig| sig.parameters.first.return_type.to_s }

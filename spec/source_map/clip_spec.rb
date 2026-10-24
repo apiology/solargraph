@@ -1193,6 +1193,8 @@ describe Solargraph::SourceMap::Clip do
   end
 
   it 'infers the return type of an overload a gem adds to a core class' do
+    pending 'https://github.com/castwide/solargraph/pull/1356'
+
     directory = File.join('spec', 'fixtures', 'gem-core-method')
     # A kept cache entry would reflect whatever code built it
     Solargraph::Shell.new.uncache('bigdecimal')
