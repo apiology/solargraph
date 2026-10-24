@@ -19,7 +19,6 @@ module Solargraph
             base = word
             gates = name_pin.gates
           end
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1395
           fqns = api_map.resolve(base, gates)
           api_map.get_path_pins(fqns)
         end
