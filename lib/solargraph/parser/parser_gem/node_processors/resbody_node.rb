@@ -28,7 +28,7 @@ module Solargraph
                         ['Exception']
                       else
                         exceptions.children.map do |child|
-                          # @sg-ignore https://github.com/castwide/solargraph/pull/1418
+                          # @sg-ignore Wrong argument type for Solargraph::Parser::ParserGem::NodeMethods#unpack_name: node expected Parser::AST::Node, nil, received Parser::AST::Node, Integer, Float, Rational, Complex, String, Symbol, NilClass
                           unpack_name(child)
                         end
                       end
