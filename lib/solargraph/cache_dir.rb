@@ -54,6 +54,7 @@ module Solargraph
     def add_plugin name
       # @sg-ignore Unresolved call to name on Gem::BasicSpecification, Hash{String => Gem::BasicSpecification}
       spec = Gem.loaded_specs.each_value.find { |s| s.name == name || s.contains_requirable_file?(name) }
+      # @sg-ignore Unresolved call to name; Unresolved call to version
       plugins[spec&.name || name] = spec&.version&.to_s
       plugin_requires.push name unless plugin_requires.include?(name)
     end

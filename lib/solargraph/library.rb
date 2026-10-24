@@ -621,6 +621,7 @@ module Solargraph
           rescue SystemCallError => e
             # The command could not start, e.g. Errno::ENOENT - handled below
           end
+          # @sg-ignore Unresolved call to success?
           if s&.success?
             logger.info "Cached #{spec.name} #{spec.version}"
           else

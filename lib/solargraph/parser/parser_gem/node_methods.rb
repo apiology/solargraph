@@ -280,7 +280,7 @@ module Solargraph
               call_args.each { |child| result.concat call_nodes_from(child) }
             end
             block_rest.each { |child| result.concat call_nodes_from(child) }
-          elsif node in [:send, ::Parser::AST::Node | nil => receiver, _, *args]
+          elsif node in [:send | :csend, ::Parser::AST::Node | nil => receiver, _, *args]
             result.push node
             result.concat call_nodes_from(receiver)
             args.each { |child| result.concat call_nodes_from(child) }

@@ -494,6 +494,7 @@ module Solargraph
           # We use the block pin as the closure, as the parameters
           # here will only be defined inside the block itself and we
           # need to be able to see them
+          # @sg-ignore Wrong argument type for Solargraph::Source::Chain#infer: name_pin expected Solargraph::Pin::Base, received Solargraph::Pin::Block, nil
           block&.infer(api_map, block_pin, locals)
         end
 
