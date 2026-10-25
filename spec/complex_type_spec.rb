@@ -501,6 +501,23 @@ describe 'YARD type specifier list parsing' do
         expect(type.tag).to eq('Array<String>')
       end
 
+      it 'resolves each generic namespace parameter by position' do
+        return_type = Solargraph::ComplexType.parse('Array(generic<GenericTypeParam1>, generic<GenericTypeParam2>)')
+        generic_class = Solargraph::Pin::Namespace.new(name: 'Foo',
+                                                       comments: "@generic GenericTypeParam1\n@generic GenericTypeParam2")
+        context_type = Solargraph::ComplexType.parse('Foo<String, Integer>')
+        type = return_type.resolve_generics(generic_class, context_type)
+        expect(type.tag).to eq('Array(String, Integer)')
+      end
+
+      it 'resolves a generic namespace parameter to every element of a tuple context' do
+        return_type = Solargraph::ComplexType.parse('Array<generic<GenericTypeParam>>')
+        generic_class = Solargraph::Pin::Namespace.new(name: 'Foo', comments: '@generic GenericTypeParam')
+        context_type = Solargraph::ComplexType.parse('Foo(String, Integer)')
+        type = return_type.resolve_generics(generic_class, context_type)
+        expect(type.tag).to eq('Array<String, Integer>')
+      end
+
       UNIQUE_METHOD_GENERIC_TESTS = [
         # tag, context_type_tag, unfrozen_input_map, expected_tag, expected_output_map
         ['String', 'String', {}, 'String', {}],

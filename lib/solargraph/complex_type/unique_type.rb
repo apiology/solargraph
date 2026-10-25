@@ -461,12 +461,18 @@ module Solargraph
               else
                 next ComplexType::UNDEFINED
               end
-            # @todo Treating parameterized classes and tuples the same for now
-            # elsif context_type.all?(&:implicit_union?) || true
-            elsif idx.zero? && !context_type.all_params.empty?
-              ComplexType.new(context_type.all_params)
+            # Treat tuples the same as parameterized arrays: Array(A, B)
+            # and Array<A, B> both bind the first generic to A | B
+            elsif context_type.all?(&:implicit_union?) || context_type.all?(&:fixed_parameters?)
+              if idx.zero? && !context_type.all_params.empty?
+                ComplexType.new(context_type.all_params)
+              else
+                ComplexType::UNDEFINED
+              end
             else
-              ComplexType::UNDEFINED
+              # Other classes bind each declared generic by position,
+              # e.g. Enumerator<String, Array> to Enumerator[Elem, Return]
+              context_type.all_params[idx] || definitions.generic_defaults[generic_name] || ComplexType::UNDEFINED
             end
           else
             t
