@@ -61,6 +61,20 @@ describe Solargraph::ComplexType do
     expect(match).to be(false)
   end
 
+  it 'rejects a tuple with fewer elements than expected' do
+    exp = described_class.parse('Array(Integer, Integer)')
+    inf = described_class.parse('Array(Integer)')
+    match = inf.conforms_to?(api_map, exp, :method_call)
+    expect(match).to be(false)
+  end
+
+  it 'rejects a tuple whose elements are out of order' do
+    exp = described_class.parse('Array(String, Integer)')
+    inf = described_class.parse('Array(Integer, String)')
+    match = inf.conforms_to?(api_map, exp, :method_call)
+    expect(match).to be(false)
+  end
+
   it 'allows empty params when specified' do
     exp = described_class.parse('Array(Integer, Integer)')
     inf = described_class.parse('Array')
@@ -254,5 +268,11 @@ describe Solargraph::ComplexType do
       match = sup.conforms_to?(api_map, sub, :method_call, [:allow_reverse_match])
       expect(match).to be(false)
     end
+  end
+
+  it 'lets unresolved generic element types conform under allow_unresolved_generic' do
+    inf = described_class.parse('Array<generic<T>>')
+    exp = described_class.parse('Array<String>')
+    expect(inf.conforms_to?(api_map, exp, :method_call, [:allow_unresolved_generic])).to be(true)
   end
 end
