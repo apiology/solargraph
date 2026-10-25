@@ -111,10 +111,25 @@ module Solargraph
 
     # @return [void]
     def load_rbs_collection
-      local_pins = rbs_collection_paths.flat_map { |path| RbsMap::Path.pins(path) }
+      local_pins = rbs_collection_paths.flat_map { |path| local_signature_paths(path) }
+                                       .flat_map { |path| RbsMap::Path.pins(path) }
       return if local_pins.empty?
 
       pins.replace RbsMap::Helpers.combine(pins, local_pins)
+    end
+
+    # The signature files and directories in a local source, except the gem
+    # directories that RbsCollection loads per bundled gem.
+    #
+    # @param path [String]
+    # @return [Array<String>]
+    def local_signature_paths path
+      return [] unless File.directory?(path)
+
+      Dir.children(path)
+         .reject { |entry| rbs_collection.gem_names.include?(entry) }
+         .map { |entry| File.join(path, entry) }
+         .select { |entry| File.directory?(entry) || entry.end_with?('.rbs') }
     end
 
     def rbs_collection
