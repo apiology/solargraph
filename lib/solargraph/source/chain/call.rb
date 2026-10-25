@@ -106,8 +106,14 @@ module Solargraph
             return found.empty? ? nil : found.flatten
           end
 
-          ns_tag = context.namespace == '' ? '' : context.namespace_type.tag
-          pin = api_map.get_method_stack(ns_tag, word, scope: context.scope).first
+          if context.duck_type? && context.name[1..] == word
+            # explicit: false skips arity checking; the duck type
+            # only tells us the method exists, not its signature
+            pin = Pin::DuckMethod.new(name: word, source: :chain, explicit: false)
+          else
+            ns_tag = context.namespace == '' ? '' : context.namespace_type.tag
+            pin = api_map.get_method_stack(ns_tag, word, scope: context.scope).first
+          end
           return nil if pin.nil?
 
           # Bind name_pin to this type alone, so #inferred_pins (incl. Class#new) cannot see the others.

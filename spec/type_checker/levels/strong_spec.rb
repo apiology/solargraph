@@ -684,6 +684,38 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message)).to be_empty
     end
 
+    it 'ignores unresolved method-scoped generics returned from a bare yield' do
+      checker = type_checker(%(
+        class Repro
+          # @generic T
+          # @yieldreturn [generic<T>]
+          # @return [generic<T>]
+          def call
+            yield
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
+    it 'derives a method-scoped generic return type from a block result' do
+      checker = type_checker(%(
+        class Repro
+          # @generic T
+          # @yieldreturn [generic<T>]
+          # @return [generic<T>]
+          def call
+            yield
+          end
+        end
+        # @type [String]
+        x = Repro.new.call { 123 }
+        x
+      ))
+      expect(checker.problems.map(&:message))
+        .to eq(['Declared type String does not match inferred type Integer for variable x'])
+    end
+
     it 'ignores generic resolution failures with only one arg' do
       checker = type_checker(%(
         # @generic T
@@ -1165,6 +1197,21 @@ describe Solargraph::TypeChecker do
       # expect 'sub' to be treated as 'Subclass' inside the block, and
       # an error when trying to declare sub as Subclass
       expect(checker.problems.map(&:message)).not_to include('Unresolved call to bar on Base')
+    end
+
+    it 'resolves the operators TrueClass and FalseClass share on Boolean' do
+      checker = type_checker(%(
+        class Foo
+          # @return [Boolean]
+          def flag; true; end
+
+          # @return [Boolean]
+          def combined
+            flag & flag
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
     end
 
     it 'accepts anonymous splat forwarding to super' do
