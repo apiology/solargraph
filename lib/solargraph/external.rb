@@ -81,7 +81,7 @@ module Solargraph
       @generation = generation + 1
       clear_all
       load_requires
-      # load_rbs_collection
+      load_rbs_collection
     end
 
     def cache_changed?
@@ -107,6 +107,14 @@ module Solargraph
       return unless bundler_require
 
       @repo.find_by_group(:default).each { |metagem| process_gem metagem }
+    end
+
+    # @return [void]
+    def load_rbs_collection
+      local_pins = rbs_collection_paths.flat_map { |path| RbsMap::Path.pins(path) }
+      return if local_pins.empty?
+
+      pins.replace RbsMap::Helpers.combine(pins, local_pins)
     end
 
     def rbs_collection
@@ -159,6 +167,19 @@ module Solargraph
         next unresolved_dependencies.push(name) unless metagem
         process_gem metagem
       end
+    end
+
+    # The local sources declared in rbs_collection.yaml. Gem signatures in
+    # the collection path are selected per gem by RbsCollection instead.
+    #
+    # @return [Array<String>]
+    def read_rbs_collection_paths
+      return [] unless rbs_collection_config_path
+
+      # @type [Array<Hash{String => String}>]
+      sources = YAML.load_file(rbs_collection_config_path).fetch('sources', [])
+      sources.select { |source| source['type'] == 'local' && source['path'] }
+             .map { |source| File.expand_path(source['path'], directory) }
     end
   end
 end

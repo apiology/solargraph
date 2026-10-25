@@ -72,6 +72,16 @@ describe Solargraph::External do
       pin = external.pins.find { |pin| pin.path == 'Addressable::URI.parse' }
       expect(pin).to be_a(Solargraph::Pin::Method)
     end
+
+    it 'combines local source pins' do
+      pin = external.pins.find { |pin| pin.path == 'Foo#bar' }
+      expect(pin.return_type.to_s).to eq('String')
+    end
+
+    it 'appends local source pins' do
+      pin = external.pins.find { |pin| pin.path == 'Foo#baz' }
+      expect(pin.return_type.to_s).to eq('Integer')
+    end
   end
 
   it 'tracks unresolved requires' do

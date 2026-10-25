@@ -1063,4 +1063,26 @@ describe Solargraph::ApiMap do
     expect(api_map.get_path_pins('Example.foo_one')).to be_one
     expect(api_map.get_path_pins('Example.foo_two')).to be_one
   end
+
+  it 'infers types from RBS in a local rbs_collection.yaml source' do
+    Dir.mktmpdir do |dir|
+      File.write(File.join(dir, 'rbs_collection.yaml'), <<~YAML)
+        sources:
+          - type: local
+            name: sig
+            path: sig
+        path: .gem_rbs_collection
+      YAML
+      FileUtils.mkdir_p(File.join(dir, 'sig'))
+      File.write(File.join(dir, 'sig', 'foo.rbs'), <<~RBS)
+        class Foo
+          def bar: () -> String
+        end
+      RBS
+      filename = File.join(dir, 'test.rb')
+      File.write(filename, "x = Foo.new.bar\nx\n")
+      clip = described_class.load(dir).clip_at(filename, [1, 0])
+      expect(clip.infer.rooted_tags).to eq('::String')
+    end
+  end
 end
