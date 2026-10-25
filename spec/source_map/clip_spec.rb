@@ -2440,6 +2440,54 @@ describe Solargraph::SourceMap::Clip do
     expect(clip.infer.to_s).to eq('Foo')
   end
 
+  it 'reads the previous binding on the right side of a self-referencing reassignment' do
+    source = Solargraph::Source.load_string(%(
+      bar = 'a'
+      bar = bar.length
+      bar
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [2, 12])
+    expect(clip.infer.to_s).to eq('String')
+
+    clip = api_map.clip_at('test.rb', [3, 6])
+    expect(clip.infer.to_s).to eq('String, Integer')
+  end
+
+  it 'keeps a self-referencing reassignment in a loop sound' do
+    source = Solargraph::Source.load_string(%(
+      count = 0
+      while foo
+        count = count + 1
+      end
+      count
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [5, 6])
+    expect(clip.infer.to_s).to eq('Integer')
+  end
+
+  it 'does not resolve a first assignment that reads its own name' do
+    source = Solargraph::Source.load_string(%(
+      bar = bar.to_s
+      bar
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [2, 6])
+    expect(clip.infer.to_s).to eq('undefined')
+  end
+
+  it 'leaves ||= on a local unchanged' do
+    source = Solargraph::Source.load_string(%(
+      bar = nil
+      bar ||= 'a'
+      bar
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [3, 6])
+    expect(clip.infer.to_s).to eq('nil, String')
+  end
+
   it 'replaces nil with reassignments' do
     pending 'sequential assignment support'
 

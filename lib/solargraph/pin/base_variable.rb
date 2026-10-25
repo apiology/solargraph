@@ -211,6 +211,13 @@ module Solargraph
         assignment == other.assignment
       end
 
+      # A combined pin keeps its first assignment's location, so tell it
+      # apart from that assignment's own pin; otherwise probing one looks
+      # like recursion into the other.
+      def identity
+        @identity ||= "#{closure&.path}|#{name}|#{location}|#{assignments.map { |node| node.loc&.expression&.begin_pos }.join(',')}"
+      end
+
       def type_desc
         "#{super} = #{assignment&.type.inspect}"
       end
@@ -286,6 +293,7 @@ module Solargraph
         location.filename == other_loc.filename &&
           # @sg-ignore flow sensitive typing needs to handle attrs
           (!presence || presence.include?(other_loc.range.start)) &&
+          !inside_own_assignment?(other_loc) &&
           visible_in_closure?(other_closure)
       end
 
@@ -297,6 +305,20 @@ module Solargraph
       attr_writer :presence
 
       private
+
+      # Ruby binds the new value only after evaluating it, so in
+      # `x = x.length` the right-hand `x` is the previous binding.
+      #
+      # @param other_loc [Location]
+      def inside_own_assignment? other_loc
+        pos = other_loc.range.start
+        assignments.any? do |node|
+          rng = Range.from_node(node)
+          next false if rng.nil?
+
+          rng.contain?(pos) && rng.ending != pos
+        end
+      end
 
       # @param api_map [ApiMap]
       # @param raw_return_type [ComplexType, ComplexType::UniqueType]
