@@ -193,7 +193,7 @@ module Solargraph
       RBS::Collection::Config.from_path(Pathname(rbs_collection_config_path))
                              .sources
                              .grep(RBS::Collection::Sources::Local)
-                             # @sg-ignore https://github.com/apiology/solargraph/pull/358
+                             # @sg-ignore Unresolved call to full_path on RBS::Collection::Sources::Git, RBS::Collection::Sources::Stdlib, RBS::Collection::Sources::Rubygems, RBS::Collection::Sources::Local
                              .map { |source| source.full_path.to_s }
     end
   end
