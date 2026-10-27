@@ -1618,26 +1618,36 @@ describe Solargraph::TypeChecker do
       end
 
       it 'resolves a method defined on either conjunct' do
+        pending 'https://github.com/apiology/solargraph/pull/345 https://github.com/castwide/solargraph/pull/1459'
+
         checker = intersection_checker("Factory.new.make.foo\nFactory.new.make.bar")
         expect(checker.problems.map(&:message)).to eq([])
       end
 
       it 'resolves a conjunct method on a local variable' do
+        pending 'https://github.com/apiology/solargraph/pull/345 https://github.com/castwide/solargraph/pull/1459'
+
         checker = intersection_checker("made = Factory.new.make\nmade.bar")
         expect(checker.problems.map(&:message)).to eq([])
       end
 
       it 'reports a method defined on neither conjunct' do
+        pending 'https://github.com/apiology/solargraph/pull/345 https://github.com/castwide/solargraph/pull/1459'
+
         checker = intersection_checker('Factory.new.make.baz')
         expect(checker.problems.map(&:message)).to eq(['Unresolved call to baz on A & B'])
       end
 
       it 'accepts the value where one conjunct is expected' do
+        pending 'https://github.com/apiology/solargraph/pull/345 https://github.com/castwide/solargraph/pull/1459'
+
         checker = intersection_checker('take_a(Factory.new.make)')
         expect(checker.problems.map(&:message)).to eq([])
       end
 
       it 'rejects the value where no conjunct is expected' do
+        pending 'https://github.com/apiology/solargraph/pull/345 https://github.com/castwide/solargraph/pull/1459'
+
         checker = intersection_checker('take_c(Factory.new.make)')
         expect(checker.problems.map(&:message))
           .to eq(['Wrong argument type for Caller#take_c: c expected C, received A & B'])

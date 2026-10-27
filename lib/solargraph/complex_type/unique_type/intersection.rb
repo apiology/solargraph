@@ -26,7 +26,16 @@ module Solargraph
       # @see https://en.wikipedia.org/wiki/Intersection_type
       # @see https://github.com/ruby/rbs/blob/master/docs/syntax.md#intersection-type
       # @see https://github.com/lsegal/yard/issues/1644
-      class Intersection
+      #
+      # Its place in the type hierarchy is Solargraph::Type, which
+      # https://github.com/castwide/solargraph/pull/1459 adds; until then
+      # it stands alone. It implements the type interface
+      # https://github.com/apiology/solargraph/pull/345 reduces that
+      # contract to, so the conjunct-wise methods that delegate to that
+      # interface (#method_stack_pins, #qualify_parts, #order_nil_last,
+      # #combine_via) answer only once that PR is in.
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1459
+      class Intersection < (defined?(Solargraph::Type) ? Solargraph::Type : Object)
         include Equality
 
         # @return [Array<ComplexType>]
@@ -34,6 +43,7 @@ module Solargraph
 
         # @param conjuncts [Array<ComplexType>]
         def initialize conjuncts
+          super()
           @conjuncts = conjuncts
         end
 
@@ -210,39 +220,69 @@ module Solargraph
         end
 
         # @return [Array<Intersection>]
-        def to_a
+        def unioned_items
           [self]
         end
 
-        # @yieldparam t [Intersection]
-        # @return [Enumerable<Intersection>]
-        def each(&)
-          [self].each(&)
+        # Every pin implementing +word+ on this type, or nil when none
+        # does.  The value is every conjunct at once, so an intersection
+        # can supply more than one, where a single named type supplies at
+        # most one.
+        #
+        # @param word [String]
+        # @param api_map [ApiMap]
+        # @return [::Array<Pin::Base>, nil]
+        def method_stack_pins word, api_map
+          resolved = conjuncts.filter_map do |conjunct|
+            # @sg-ignore https://github.com/apiology/solargraph/pull/345
+            pins = conjunct.method_stack_pins(word, api_map)
+            pins if pins&.any?
+          end
+          return nil if resolved.empty?
+
+          # @param p [Pin::Base]
+          resolved.flatten.uniq { |p| [p.path, p.return_type.rooted_tags] }
         end
 
-        # @yieldparam [Intersection]
-        # @return [void]
-        # @overload each_unique_type()
-        #   @return [Enumerator<Intersection>]
-        def each_unique_type(&)
-          return enum_for(__method__) unless block_given?
-          yield self
+        # An intersection has no single namespace, so each conjunct is
+        # qualified on its own; a conjunct the block cannot resolve
+        # leaves the whole type unresolvable.
+        #
+        # @yieldparam named_type [ComplexType::UniqueType]
+        # @yieldreturn [ComplexType::UniqueType, nil]
+        # @return [Intersection, nil]
+        def qualify_parts &block
+          # @sg-ignore https://github.com/apiology/solargraph/pull/345
+          parts = conjuncts.map { |conjunct| conjunct.qualify_parts(&block) }
+          Intersection.new(parts) unless parts.any?(&:nil?)
         end
 
-        # @yieldparam t [Intersection]
-        # @return [Array]
-        def map
-          [yield(self)]
+        # A nil conjunct renders last, as a nil union member does.
+        #
+        # @return [Intersection]
+        def order_nil_last
+          nils, rest = conjuncts.map(&:order_nil_last).partition(&:nil_type?)
+          Intersection.new(rest + nils)
         end
 
-        # @yieldreturn [Boolean]
-        def all? &block
-          block.yield self
-        end
+        # Pairs conjunct by conjunct with another intersection and
+        # rebuilds one from the results. Any other type has no
+        # conjuncts to line up with, so it pairs with the whole.
+        #
+        # @param other [ComplexType, ComplexType::UniqueType, Intersection]
+        # @yieldparam mine [ComplexType, ComplexType::UniqueType, Intersection]
+        # @yieldparam theirs [ComplexType, ComplexType::UniqueType, Intersection]
+        # @yieldreturn [ComplexType, ComplexType::UniqueType, Intersection]
+        # @return [ComplexType, ComplexType::UniqueType, Intersection]
+        def combine_via other, &block
+          return block.call(self, other) unless other.is_a?(Intersection)
 
-        # @yieldreturn [Boolean]
-        def any? &block
-          block.yield self
+          # @param members [Array<ComplexType>]
+          gather = ->(members) { members.length == 1 ? members.fetch(0) : Intersection.new(members) }
+          # @sg-ignore https://github.com/apiology/solargraph/pull/345
+          results = TypeMethods.combine_members(conjuncts, other.conjuncts, gather, &block)
+          # @sg-ignore https://github.com/apiology/solargraph/pull/345
+          Intersection.new(results.map { |type| ComplexType.new([type]) })
         end
 
         # @return [Boolean]
@@ -410,11 +450,6 @@ module Solargraph
         # @return [Intersection]
         def unalias_and_qualify api_map, *gates
           Intersection.new(conjuncts.map { |conjunct| conjunct.unalias_and_qualify(api_map, *gates) })
-        end
-
-        # @return [self]
-        def erase_parameters
-          self
         end
 
         # Reduction distributes over conjuncts: Class<A> & Class<B>

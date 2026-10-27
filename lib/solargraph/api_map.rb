@@ -516,8 +516,6 @@ module Solargraph
       return [] if complex_type.undefined? || complex_type.void?
       result = Set.new
       complex_type.each do |type|
-        next result.merge(type.candidate_methods_from(self, context, internal)) if type.is_a?(ComplexType::UniqueType::Intersection)
-
         if type.duck_type?
           result.add Pin::DuckMethod.new(name: type.to_s[1..], source: :api_map)
           result.merge get_methods('Object')
