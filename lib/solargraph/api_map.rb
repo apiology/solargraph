@@ -844,7 +844,7 @@ module Solargraph
       # class' responsibility
       # Sort by name, keeping same-name pins in store order; Array#sort is unstable
       methods = store.get_methods(fqns, scope: scope, visibility: visibility)
-                     # @sg-ignore https://github.com/apiology/solargraph/pull/354
+                     # @sg-ignore https://github.com/castwide/solargraph/pull/1415
                      .sort_by.with_index { |pin, idx| [pin.name, idx] }
       logger.info do
         "ApiMap#inner_get_methods(rooted_tag=#{rooted_tag.inspect}, scope=#{scope.inspect}, visibility=#{visibility.inspect}, deep=#{deep.inspect}, skip=#{skip.inspect}, fqns=#{fqns}) - added from store: #{methods}"
