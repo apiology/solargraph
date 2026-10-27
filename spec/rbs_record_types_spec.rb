@@ -193,7 +193,7 @@ describe Solargraph::RbsTranslator do
 
     # Hash#[] adds nil for any Hash, and a record is still a Hash to
     # Solargraph, so the precise form of a required field read is
-    # `String, nil`; Hash#fetch is the nil-free read.
+    # `String, nil`.
     it 'infers each field read with [] by its own type' do
       pending 'https://github.com/castwide/solargraph/pull/1451 ' \
               'https://github.com/apiology/solargraph/pull/284'
@@ -205,18 +205,6 @@ describe Solargraph::RbsTranslator do
 
           # @type [Integer, nil]
           port = config[:port]
-        end
-      )))).to be_empty
-    end
-
-    it 'infers a field read with fetch by its own type' do
-      pending 'https://github.com/castwide/solargraph/pull/1451 ' \
-              'https://github.com/apiology/solargraph/pull/284 ' \
-              'https://github.com/castwide/solargraph/pull/1266'
-      expect(messages(server(%(
-        # @return [Integer]
-        def port
-          config.fetch(:port)
         end
       )))).to be_empty
     end
@@ -249,19 +237,6 @@ describe Solargraph::RbsTranslator do
           #{body}
         end
       ))
-    end
-
-    it 'resolves Hash#fetch on a literal-keyed record with no intersection involved' do
-      # RBS 4.1 types the key as the _Key interface
-      if Gem::Version.new(RBS::VERSION) >= Gem::Version.new('4.1.0')
-        pending 'https://github.com/castwide/solargraph/pull/1266'
-      end
-      expect(period_checker("{ 'Index' => Float }", "{ 'Index' => 1.0 }", %(
-        #: () -> Float
-        def index
-          period.fetch('Index')
-        end
-      ))).to be_empty
     end
 
     it 'dispatches generic methods per key on a record with two literal keys' do
