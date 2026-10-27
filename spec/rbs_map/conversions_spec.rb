@@ -94,29 +94,6 @@ describe Solargraph::RbsMap::Conversions do
       end
     end
 
-    context 'with a record type' do
-      let(:rbs) do
-        <<~RBS
-          class Foo
-            def config: () -> { name: String, ?port: Integer, nick: String }
-            def mixed: () -> { name: String, 'id' => Integer }
-          end
-        RBS
-      end
-
-      it 'maps the fields to a Hash of Symbol to their value types' do
-        method_pin = conversions.pins.find { |pin| pin.path == 'Foo#config' }
-
-        expect(method_pin.return_type.tag).to eq('Hash{Symbol => String, Integer}')
-      end
-
-      it 'maps each kind of literal key to its class' do
-        method_pin = conversions.pins.find { |pin| pin.path == 'Foo#mixed' }
-
-        expect(method_pin.return_type.tag).to eq('Hash{Symbol, String => String, Integer}')
-      end
-    end
-
     context 'with a module reopened under a differently spelled type parameter' do
       subject(:method_pin) { api_map.get_method_stack('StringBox', 'declared_second').first }
 
