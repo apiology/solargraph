@@ -132,7 +132,7 @@ module Solargraph
       # @return [ComplexType]
       def to_type type, type_alias_decls = {}, expanding_aliases = []
         case type
-        # Uncomment once https://github.com/apiology/solargraph/pull/345 and
+        # Uncomment once https://github.com/castwide/solargraph/pull/1460 and
         # https://github.com/castwide/solargraph/pull/1459 are in, to read
         # RBS `A & B` as an Intersection; until then it falls through to
         # type_to_tag, which reads it as the union `A, B`.

@@ -18,23 +18,10 @@ module Solargraph
       # (`(A | B) & C`) - and so a conjunct may itself be an
       # Intersection.
       #
-      # `A & B` parses the same from plain YARD type tags as from
-      # inline RBS signatures, since both funnel through
-      # ComplexType.parse. YARD has no official intersection syntax
-      # yet; `&` is Solargraph's extension pending upstream guidance.
-      #
       # @see https://en.wikipedia.org/wiki/Intersection_type
       # @see https://github.com/ruby/rbs/blob/master/docs/syntax.md#intersection-type
-      # @see https://github.com/lsegal/yard/issues/1644
-      #
-      # Its place in the type hierarchy is Solargraph::Type, which
-      # https://github.com/castwide/solargraph/pull/1459 adds; until then
-      # it stands alone. The conjunct-wise methods that delegate to
-      # helpers https://github.com/apiology/solargraph/pull/345 adds
-      # (#method_stack_pins, #qualify_parts, #order_nil_last,
-      # #combine_via) answer only once that PR is in.
       # @sg-ignore https://github.com/castwide/solargraph/pull/1459
-      class Intersection < (defined?(Solargraph::Type) ? Solargraph::Type : Object)
+      class Intersection < Solargraph::Type
         include Equality
 
         # @return [Array<ComplexType>]
@@ -42,6 +29,7 @@ module Solargraph
 
         # @param conjuncts [Array<ComplexType>]
         def initialize conjuncts
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1459
           super()
           @conjuncts = conjuncts
         end
@@ -125,7 +113,7 @@ module Solargraph
         # @return [::Array<Pin::Base>, nil]
         def method_stack_pins word, api_map
           resolved = conjuncts.filter_map do |conjunct|
-            # @sg-ignore https://github.com/apiology/solargraph/pull/345
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1460
             pins = conjunct.method_stack_pins(word, api_map)
             pins if pins&.any?
           end
@@ -143,7 +131,7 @@ module Solargraph
         # @yieldreturn [ComplexType::UniqueType, nil]
         # @return [Intersection, nil]
         def qualify_parts &block
-          # @sg-ignore https://github.com/apiology/solargraph/pull/345
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1460
           parts = conjuncts.map { |conjunct| conjunct.qualify_parts(&block) }
           Intersection.new(parts) unless parts.any?(&:nil?)
         end
@@ -170,9 +158,9 @@ module Solargraph
 
           # @param members [Array<ComplexType>]
           gather = ->(members) { members.length == 1 ? members.fetch(0) : Intersection.new(members) }
-          # @sg-ignore https://github.com/apiology/solargraph/pull/345
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1460
           results = TypeMethods.combine_members(conjuncts, other.conjuncts, gather, &block)
-          # @sg-ignore https://github.com/apiology/solargraph/pull/345
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1460
           Intersection.new(results.map { |type| ComplexType.new([type]) })
         end
 

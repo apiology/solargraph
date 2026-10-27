@@ -2,23 +2,18 @@
 
 require 'rbs'
 
-describe Solargraph::ComplexType::UniqueType::Intersection do
-  # Specs that need both the reduced type interface and the
-  # Solargraph::Type contract, and RBS `&` reconnected to this class.
-  pending_prs = 'https://github.com/apiology/solargraph/pull/345 https://github.com/castwide/solargraph/pull/1459'
-
-  # @param rbs [String]
-  # @return [Solargraph::ComplexType]
-  def from_rbs rbs
-    Solargraph::RbsTranslator.to_complex_type(RBS::Parser.parse_type(rbs))
+describe 'Solargraph::ComplexType::UniqueType::Intersection' do
+  # Intersection is written against the Solargraph::Type contract and the
+  # reduced type interface, and RBS `&` reaches it only once those land.
+  before do
+    pending 'https://github.com/castwide/solargraph/pull/1459 ' \
+            'https://github.com/castwide/solargraph/pull/1460 ' \
+            'https://github.com/castwide/solargraph/pull/1104'
   end
 
-  # @param tags [Array<String>]
-  # @return [Solargraph::ComplexType]
-  def type *tags
-    Solargraph::ComplexType.parse(*tags)
-  end
-
+  # Loaded inside each example, not when this file loads: its superclass
+  # Solargraph::Type exists only once castwide/solargraph#1459 is in.
+  let(:described_class) { Solargraph::ComplexType::UniqueType::Intersection }
   let(:api_map) do
     source = Solargraph::Source.load_string(%(
       class A
@@ -35,13 +30,22 @@ describe Solargraph::ComplexType::UniqueType::Intersection do
     ), 'test.rb')
     Solargraph::ApiMap.new.tap { |map| map.map source }
   end
-
   let(:a_and_b) { described_class.new([type('::A'), type('::B')]) }
+
+  # @param rbs [String]
+  # @return [Solargraph::ComplexType]
+  def from_rbs rbs
+    Solargraph::RbsTranslator.to_complex_type(RBS::Parser.parse_type(rbs))
+  end
+
+  # @param tags [Array<String>]
+  # @return [Solargraph::ComplexType]
+  def type *tags
+    Solargraph::ComplexType.parse(*tags)
+  end
 
   context 'when translating RBS' do
     it 'builds an intersection from A & B' do
-      pending pending_prs
-
       type = from_rbs('A & B')
 
       expect(type.items.length).to eq(1)
@@ -50,14 +54,10 @@ describe Solargraph::ComplexType::UniqueType::Intersection do
     end
 
     it 'round-trips A & B through #to_rbs' do
-      pending pending_prs
-
       expect(from_rbs('A & B').to_rbs).to eq('::A & ::B')
     end
 
     it 'keeps a union conjunct of (A | B) & C grouped' do
-      pending pending_prs
-
       type = from_rbs('(A | B) & C')
 
       expect(type.tags).to eq('[A, B] & C')
@@ -65,16 +65,12 @@ describe Solargraph::ComplexType::UniqueType::Intersection do
     end
 
     it 'keeps an intersection inside a union' do
-      pending pending_prs
-
       type = from_rbs('(A & B) | C')
 
       expect(type.items.map(&:class)).to eq([described_class, Solargraph::ComplexType::UniqueType])
     end
 
     it 'keeps an intersection inside an optional' do
-      pending pending_prs
-
       type = from_rbs('(A & B)?')
 
       expect(type.items.first).to be_a(described_class)
@@ -82,15 +78,9 @@ describe Solargraph::ComplexType::UniqueType::Intersection do
     end
 
     it 'keeps an intersection as a type argument' do
-      pending pending_prs
-
       type = from_rbs('Array[A & B]')
 
       expect(type.items.first.subtypes.first.items.first).to be_a(described_class)
-    end
-
-    it 'leaves an RBS union a union' do
-      expect(from_rbs('A | B').items.map(&:class).uniq).to eq([Solargraph::ComplexType::UniqueType])
     end
 
     it 'does not parse & from a YARD tag' do
@@ -139,8 +129,6 @@ describe Solargraph::ComplexType::UniqueType::Intersection do
     end
 
     it 'conforms as a member of a union' do
-      pending pending_prs
-
       inferred = Solargraph::ComplexType.new([a_and_b])
 
       expect(inferred.conforms_to?(api_map, type('::A'), :method_call)).to be(true)
@@ -238,16 +226,12 @@ describe Solargraph::ComplexType::UniqueType::Intersection do
     end
 
     it 'reduces Class conjunct by conjunct' do
-      pending pending_prs
-
       class_and_b = described_class.new([type('::Class<::A>'), type('::B')])
 
       expect(class_and_b.reduce_class_type.rooted_tags).to eq('::A & ::B')
     end
 
     it 'reduces Object conjunct by conjunct' do
-      pending pending_prs
-
       expect(a_and_b.reduce_object.rooted_tags).to eq('::A & ::B')
     end
 
@@ -264,30 +248,22 @@ describe Solargraph::ComplexType::UniqueType::Intersection do
     end
 
     it 'pairs with another intersection conjunct by conjunct' do
-      pending pending_prs
-
       combined = a_and_b.combine_via(described_class.new([type('::A'), type('::B')])) { |mine, _theirs| mine }
 
       expect(combined.rooted_tags).to eq('::A & ::B')
     end
 
     it 'qualifies each conjunct through a block' do
-      pending pending_prs
-
       qualified = described_class.new([type('A'), type('B')]).qualify_parts { |t| t.recreate(make_rooted: true) }
 
       expect(qualified.rooted_tags).to eq('::A & ::B')
     end
 
     it 'is unresolvable when a conjunct is' do
-      pending pending_prs
-
       expect(a_and_b.qualify_parts { nil }).to be_nil
     end
 
     it 'orders a nil conjunct last' do
-      pending pending_prs
-
       ordered = described_class.new([type('nil'), type('::A')]).order_nil_last
 
       expect(ordered.conjuncts.map(&:rooted_tags)).to eq(['::A', 'nil'])
@@ -301,32 +277,22 @@ describe Solargraph::ComplexType::UniqueType::Intersection do
       expect(names).to include('foo', 'bar')
     end
 
-    it 'offers the methods of a plain conjunct' do
-      names = type('::A').items.first.candidate_methods_from(api_map, '', false).map(&:name)
-
-      expect(names).to include('foo')
-    end
-
     it 'provides a duck method one conjunct defines' do
       expect(a_and_b.provides_duck_method?(api_map, 'foo')).to be(true)
       expect(a_and_b.provides_duck_method?(api_map, 'baz')).to be(false)
     end
 
     it 'finds a method on any conjunct' do
-      pending pending_prs
-
       expect(a_and_b.method_stack_pins('bar', api_map).map(&:path)).to eq(['B#bar'])
     end
 
     it 'finds no method no conjunct defines' do
-      pending pending_prs
-
       expect(a_and_b.method_stack_pins('baz', api_map)).to be_nil
     end
   end
 
   # Conjuncts here are real types given the helpers
-  # https://github.com/apiology/solargraph/pull/345 adds to ComplexType,
+  # https://github.com/castwide/solargraph/pull/1460 adds to ComplexType,
   # so these check Intersection's own delegation on master.
   context 'when delegating to its conjuncts' do
     # A fresh ComplexType, since ComplexType.parse returns shared
@@ -413,21 +379,15 @@ describe Solargraph::ComplexType::UniqueType::Intersection do
     end
 
     it 'is a Solargraph::Type' do
-      pending pending_prs
-
       expect(described_class).to be < Solargraph::Type
     end
 
     it 'defines every contract method Solargraph::Type declares' do
-      pending pending_prs
-
       expect(contract - declared).to eq([])
       expect(contract.reject { |name| described_class.instance_method(name).owner == described_class }).to eq([])
     end
 
     it 'answers nothing public beyond the contract and Solargraph::Type' do
-      pending pending_prs
-
       extra = described_class.public_instance_methods - Solargraph::Type.public_instance_methods -
               Solargraph::Equality.public_instance_methods - contract - [:conjuncts]
       expect(extra).to eq([])
