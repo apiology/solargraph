@@ -94,7 +94,7 @@ module Solargraph
           resolved
         end
 
-        # @param context [ComplexType::UniqueType]
+        # @param context [ComplexType::UniqueType, ComplexType::UniqueType::Intersection]
         # @param api_map [ApiMap]
         # @param name_pin [Pin::Base]
         # @param locals [::Array<Pin::LocalVariable>]
@@ -106,17 +106,21 @@ module Solargraph
             return found.empty? ? nil : found.flatten
           end
 
+          # @sg-ignore flow sensitive typing needs to narrow down type with an if is_a? check
           if context.duck_type? && context.name[1..] == word
             # explicit: false skips arity checking; the duck type
             # only tells us the method exists, not its signature
             pin = Pin::DuckMethod.new(name: word, source: :chain, explicit: false)
           else
+            # @sg-ignore flow sensitive typing needs to narrow down type with an if is_a? check
             ns_tag = context.namespace == '' ? '' : context.namespace_type.tag
+            # @sg-ignore flow sensitive typing needs to narrow down type with an if is_a? check
             pin = api_map.get_method_stack(ns_tag, word, scope: context.scope).first
           end
           return nil if pin.nil?
 
           # Bind name_pin to this type alone, so #inferred_pins (incl. Class#new) cannot see the others.
+          # @sg-ignore flow sensitive typing needs to narrow down type with an if is_a? check
           type_name_pin = Pin::ProxyType.anonymous(name_pin.context,
                                                    closure: name_pin.closure,
                                                    gates: name_pin.gates,

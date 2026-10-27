@@ -252,7 +252,7 @@ module Solargraph
     # What an inferred type must do to satisfy this union as expected:
     # conform to any one of its members.
     #
-    # @param inferred [ComplexType, ComplexType::UniqueType]
+    # @param inferred [ComplexType, ComplexType::UniqueType, ComplexType::UniqueType::Intersection]
     # @param api_map [ApiMap]
     # @param situation [:method_call, :assignment, :return_type]
     # @param rules [Array<Symbol>]

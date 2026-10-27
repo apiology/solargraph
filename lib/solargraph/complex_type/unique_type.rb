@@ -262,7 +262,7 @@ module Solargraph
 
       # What an inferred type must do to satisfy this one as expected.
       #
-      # @param inferred [ComplexType, ComplexType::UniqueType]
+      # @param inferred [ComplexType, ComplexType::UniqueType, Intersection]
       # @param api_map [ApiMap]
       # @param situation [:method_call, :assignment, :return_type]
       # @param rules [Array<Symbol>]
