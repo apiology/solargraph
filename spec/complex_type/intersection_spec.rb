@@ -112,6 +112,10 @@ describe Solargraph::ComplexType::UniqueType::Intersection do
       expect(a_and_b.conforms_to?(api_map, Solargraph::ComplexType.parse('#bar'), :method_call)).to be(true)
     end
 
+    it 'conforms when any conjunct does under allow_any_match' do
+      expect(a_and_b.conforms_to?(api_map, from_rbs('A'), :method_call, [:allow_any_match])).to be(true)
+    end
+
     it 'does not satisfy a duck type no conjunct provides' do
       expect(a_and_b.conforms_to?(api_map, Solargraph::ComplexType.parse('#baz'), :method_call)).to be(false)
     end
@@ -247,6 +251,17 @@ describe Solargraph::ComplexType::UniqueType::Intersection do
       expect(resolved.rooted_tags).to eq('::B & ::A')
     end
 
+    it 'resolves receiver generics in each conjunct' do
+      resolved = a_and_b.resolve_generics(api_map.get_path_pins('A').first, from_rbs('A'))
+
+      expect(resolved).to eq(a_and_b)
+    end
+
+    it 'freezes without freezing its conjuncts' do
+      expect(a_and_b.freeze).to be_frozen
+      expect(a_and_b.conjuncts.first).not_to be_frozen
+    end
+
     it 'has no parameters of its own to erase' do
       expect(a_and_b.erase_parameters).to equal(a_and_b)
     end
@@ -272,6 +287,12 @@ describe Solargraph::ComplexType::UniqueType::Intersection do
       names = a_and_b.candidate_methods_from(api_map, '', false).map(&:name)
 
       expect(names).to include('foo', 'bar')
+    end
+
+    it 'offers the methods of a plain conjunct' do
+      names = from_rbs('A').items.first.candidate_methods_from(api_map, '', false).map(&:name)
+
+      expect(names).to include('foo')
     end
 
     it 'provides a duck method one conjunct defines' do
