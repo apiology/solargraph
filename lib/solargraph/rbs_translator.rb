@@ -146,8 +146,8 @@ module Solargraph
           # @sg-ignore flow sensitive typing should support case/when
           type.types.map { |t| type_to_tag(t, type_alias_decls, expanding_aliases) }.join(', ')
         when RBS::Types::Record
-          # @todo Better record support
-          'Hash'
+          # @sg-ignore flow sensitive typing should support case/when
+          record_tag(type, type_alias_decls, expanding_aliases)
         when RBS::Types::Bases::Nil
           'nil'
         when RBS::Types::Bases::Void
@@ -208,6 +208,23 @@ module Solargraph
       # @return [String]
       def type_tag type_name, type_args = [], type_alias_decls = {}, expanding_aliases = []
         build_type(type_name, type_args, type_alias_decls, expanding_aliases).tags
+      end
+
+      # A record becomes a Hash of its key classes to the union of its
+      # field types, e.g. `{ name: String, ?port: Integer }` becomes
+      # `Hash{Symbol => String, Integer}`. Optional fields join the
+      # union without nil, as with any key missing from a Hash.
+      #
+      # @param record [RBS::Types::Record]
+      # @param type_alias_decls [Hash{String => RBS::AST::Declarations::TypeAlias}]
+      # @param expanding_aliases [Array<String>]
+      # @return [String]
+      def record_tag record, type_alias_decls, expanding_aliases
+        fields = record.fields.merge(record.optional_fields)
+        # @sg-ignore https://github.com/castwide/solargraph/issues/1222
+        key_tags = fields.keys.map { |key| key.class.name }.uniq
+        value_tags = fields.values.map { |t| type_to_tag(t, type_alias_decls, expanding_aliases) }.uniq
+        "Hash{#{key_tags.join(', ')} => #{value_tags.join(', ')}}"
       end
 
       # @param type_name [RBS::TypeName]

@@ -1571,5 +1571,60 @@ describe Solargraph::TypeChecker do
       ), ['forwardable'])
       expect(checker.problems).to be_empty
     end
+
+    context 'with an inline RBS record return type' do
+      def record_checker body
+        type_checker(%(
+          class Server
+            #: () -> { name: String, port: Integer }
+            def config
+              { name: 'web', port: 80 }
+            end
+
+            #{body}
+          end
+        ))
+      end
+
+      it 'infers a value read from the record' do
+        checker = record_checker(%(
+          # @return [String, Integer, nil]
+          def name
+            config[:name]
+          end
+        ))
+        expect(checker.problems.map(&:message)).to be_empty
+      end
+
+      it 'accepts the record where a matching Hash is expected' do
+        checker = record_checker(%(
+          # @param settings [Hash{Symbol => String, Integer}]
+          # @return [void]
+          def apply(settings); end
+
+          # @return [void]
+          def run
+            apply(config)
+          end
+        ))
+        expect(checker.problems.map(&:message)).to be_empty
+      end
+
+      it 'rejects the record where a Hash with other key types is expected' do
+        checker = record_checker(%(
+          # @param settings [Hash{String => String}]
+          # @return [void]
+          def apply(settings); end
+
+          # @return [void]
+          def run
+            apply(config)
+          end
+        ))
+        expect(checker.problems.map(&:message))
+          .to eq(['Wrong argument type for Server#apply: settings expected Hash{String => String}, ' \
+                  'received Hash{Symbol => String, Integer}'])
+      end
+    end
   end
 end
