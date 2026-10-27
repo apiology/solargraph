@@ -124,11 +124,10 @@ describe Solargraph::RbsTranslator do
         .to include(a_string_starting_with('Wrong argument type for Server#apply: settings expected'))
     end
 
-    it 'rejects a string-keyed record where a Hash with another literal key is expected' do
+    it 'rejects a string-keyed record where a record with another key is expected' do
       pending 'https://github.com/castwide/solargraph/pull/1451'
       expect(messages(server(%(
-        # @param settings [Hash{'name' => Integer}]
-        # @return [void]
+        #: ({ 'name' => Integer }) -> void
         def apply(settings); end
 
         # @return [void]
@@ -235,8 +234,9 @@ describe Solargraph::RbsTranslator do
     end
   end
 
-  # Ported from castwide/solargraph#1231's intersection specs, with
-  # each intersection of literal-keyed Hashes written as an RBS record.
+  # Ported from castwide/solargraph#1231's intersection specs, with each
+  # YARD intersection of literal-keyed Hashes written as an RBS record and
+  # each expected type as an inline RBS return type.
   context 'when dispatching Hash methods per key' do
     def period_checker record, value, body
       messages(%(
@@ -246,10 +246,7 @@ describe Solargraph::RbsTranslator do
             #{value}
           end
 
-          # @return [void]
-          def process
-            #{body}
-          end
+          #{body}
         end
       ))
     end
@@ -257,8 +254,10 @@ describe Solargraph::RbsTranslator do
     it 'resolves Hash#fetch on a literal-keyed record with no intersection involved' do
       pending 'https://github.com/castwide/solargraph/pull/1266'
       expect(period_checker("{ 'Index' => Float }", "{ 'Index' => 1.0 }", %(
-        # @type [Float]
-        index = period.fetch('Index')
+        #: () -> Float
+        def index
+          period.fetch('Index')
+        end
       ))).to be_empty
     end
 
@@ -268,11 +267,15 @@ describe Solargraph::RbsTranslator do
               'https://github.com/castwide/solargraph/pull/1266'
       expect(period_checker("{ 'Index' => Float, 'Triggers' => Array[{ 'Name' => String }] }",
                             "{ 'Index' => 1.0, 'Triggers' => [{ 'Name' => 'x' }] }", %(
-        # @type [Float]
-        index = period.fetch('Index')
+        #: () -> Float
+        def index
+          period.fetch('Index')
+        end
 
-        # @type [Array<Hash{'Name' => String}>]
-        triggers = period.fetch('Triggers')
+        #: () -> Array[{ 'Name' => String }]
+        def triggers
+          period.fetch('Triggers')
+        end
       ))).to be_empty
     end
 
@@ -282,11 +285,15 @@ describe Solargraph::RbsTranslator do
               'https://github.com/castwide/solargraph/pull/1266'
       expect(period_checker("{ 'Triggers' => Array[{ 'Name' => String }], 'Index' => Float }",
                             "{ 'Triggers' => [{ 'Name' => 'x' }], 'Index' => 1.0 }", %(
-        # @type [Array<Hash{'Name' => String}>]
-        triggers = period.fetch('Triggers')
+        #: () -> Array[{ 'Name' => String }]
+        def triggers
+          period.fetch('Triggers')
+        end
 
-        # @type [Float]
-        index = period.fetch('Index')
+        #: () -> Float
+        def index
+          period.fetch('Index')
+        end
       ))).to be_empty
     end
 
@@ -296,19 +303,25 @@ describe Solargraph::RbsTranslator do
               'https://github.com/castwide/solargraph/pull/1266'
       expect(period_checker('{ Index: Float, Triggers: Array[{ Name: String }] }',
                             "{ Index: 1.0, Triggers: [{ Name: 'x' }] }", %(
-        # @type [Float]
-        index = period.fetch(:Index)
+        #: () -> Float
+        def index
+          period.fetch(:Index)
+        end
 
-        # @type [Array<Hash{:Name => String}>]
-        triggers = period.fetch(:Triggers)
+        #: () -> Array[{ Name: String }]
+        def triggers
+          period.fetch(:Triggers)
+        end
       ))).to be_empty
     end
 
     it 'resolves a non-generic method on a record with two literal keys' do
       expect(period_checker("{ 'Index' => Float, 'Triggers' => Array[{ 'Name' => String }] }",
                             "{ 'Index' => 1.0, 'Triggers' => [{ 'Name' => 'x' }] }", %(
-        # @type [Integer]
-        n = period.size
+        #: () -> Integer
+        def count
+          period.size
+        end
       ))).to be_empty
     end
   end
