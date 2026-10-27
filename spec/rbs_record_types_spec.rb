@@ -252,7 +252,10 @@ describe Solargraph::RbsTranslator do
     end
 
     it 'resolves Hash#fetch on a literal-keyed record with no intersection involved' do
-      pending 'https://github.com/castwide/solargraph/pull/1266'
+      # RBS 4.1 types the key as the _Key interface
+      if Gem::Version.new(RBS::VERSION) >= Gem::Version.new('4.1.0')
+        pending 'https://github.com/castwide/solargraph/pull/1266'
+      end
       expect(period_checker("{ 'Index' => Float }", "{ 'Index' => 1.0 }", %(
         #: () -> Float
         def index
