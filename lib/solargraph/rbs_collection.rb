@@ -22,6 +22,13 @@ module Solargraph
       gem_path_map.keys
     end
 
+    # The names of the gems the lockfile declares.
+    #
+    # @return [Array<String>]
+    def gem_names
+      versions_by_name.keys
+    end
+
     # The names of the stdlib signature sets declared by the collection.
     #
     # +rbs collection install+ resolves these to the signatures which ship

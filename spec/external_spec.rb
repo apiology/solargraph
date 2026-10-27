@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'tmpdir'
+
 describe Solargraph::External do
   let(:directory) { File.join('spec', 'fixtures', 'external_bundled_gem') }
   let(:requires) { ['backport', 'gem/with/yard/macros', 'reverse_markdown', 'addressable'] }
@@ -71,6 +73,43 @@ describe Solargraph::External do
       external.update(requires)
       pin = external.pins.find { |pin| pin.path == 'Addressable::URI.parse' }
       expect(pin).to be_a(Solargraph::Pin::Method)
+    end
+
+    it 'combines local source pins' do
+      pin = external.pins.find { |pin| pin.path == 'Foo#bar' }
+      expect(pin.return_type.to_s).to eq('String')
+    end
+
+    it 'appends local source pins' do
+      pin = external.pins.find { |pin| pin.path == 'Foo#baz' }
+      expect(pin.return_type.to_s).to eq('Integer')
+    end
+
+    it 'leaves gem directories in a local source to per-gem selection' do
+      Dir.mktmpdir do |dir|
+        File.write(File.join(dir, 'rbs_collection.yaml'), <<~YAML)
+          sources:
+            - type: local
+              name: sig
+              path: sig
+          path: .gem_rbs_collection
+        YAML
+        File.write(File.join(dir, 'rbs_collection.lock.yaml'), <<~YAML)
+          path: .gem_rbs_collection
+          gems:
+          - name: widget
+            version: '1.0'
+            source:
+              type: local
+              path: sig
+        YAML
+        FileUtils.mkdir_p(File.join(dir, 'sig', 'widget', '1.0'))
+        File.write(File.join(dir, 'sig', 'widget', '1.0', 'widget.rbs'), "class Widget\n  def size: () -> Integer\nend\n")
+        File.write(File.join(dir, 'sig', 'foo.rbs'), "class Foo\n  def bar: () -> String\nend\n")
+        paths = described_class.new(dir, []).pins.map(&:path)
+        expect(paths).to include('Foo#bar')
+        expect(paths).not_to include('Widget#size')
+      end
     end
   end
 

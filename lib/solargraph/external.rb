@@ -81,7 +81,7 @@ module Solargraph
       @generation = generation + 1
       clear_all
       load_requires
-      # load_rbs_collection
+      load_rbs_collection
     end
 
     def cache_changed?
@@ -107,6 +107,28 @@ module Solargraph
       return unless bundler_require
 
       @repo.find_by_group(:default).each { |metagem| process_gem metagem }
+    end
+
+    # @return [void]
+    def load_rbs_collection
+      local_pins = rbs_collection_paths.flat_map { |path| local_signature_paths(path) }
+                                       .flat_map { |path| RbsMap::Path.pins(path) }
+      return if local_pins.empty?
+
+      pins.replace RbsMap::Helpers.combine(pins, local_pins)
+    end
+
+    # The signature files and directories in a local source, except the gem
+    # directories that RbsCollection loads per bundled gem.
+    #
+    # @sg-ignore https://github.com/castwide/solargraph/pull/1292
+    # @param path [String]
+    # @return [Array<String>]
+    def local_signature_paths path
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1292
+      Dir.glob(['*.rbs', '*/'], base: path)
+         .reject { |entry| rbs_collection.gem_names.include?(entry.chomp('/')) }
+         .map { |entry| File.join(path, entry) }
     end
 
     def rbs_collection
@@ -159,6 +181,20 @@ module Solargraph
         next unresolved_dependencies.push(name) unless metagem
         process_gem metagem
       end
+    end
+
+    # The local sources declared in rbs_collection.yaml. Gem signatures in
+    # the collection path are selected per gem by RbsCollection instead.
+    #
+    # @return [Array<String>]
+    def read_rbs_collection_paths
+      return [] unless rbs_collection_config_path
+
+      RBS::Collection::Config.from_path(Pathname(rbs_collection_config_path))
+                             .sources
+                             .grep(RBS::Collection::Sources::Local)
+                             # @sg-ignore Unresolved call to full_path on RBS::Collection::Sources::Git, RBS::Collection::Sources::Stdlib, RBS::Collection::Sources::Rubygems, RBS::Collection::Sources::Local
+                             .map { |source| source.full_path.to_s }
     end
   end
 end
