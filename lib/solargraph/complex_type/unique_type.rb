@@ -9,6 +9,8 @@ module Solargraph
       include TypeMethods
       include Equality
 
+      autoload :Record, 'solargraph/complex_type/unique_type/record'
+
       attr_reader :all_params, :subtypes, :key_types
 
       # Create a UniqueType with the specified name and an optional substring.
