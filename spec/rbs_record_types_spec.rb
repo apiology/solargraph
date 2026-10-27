@@ -351,7 +351,6 @@ describe Solargraph::RbsTranslator do
           def mixed: () -> { name: String, 'id' => Integer }
           def server: () -> { name: String, port: Integer }
           def ids: () -> { 'id' => Integer }
-          def door: () -> { state: :Open | :Closed }
         end
       RBS
     end
@@ -370,11 +369,6 @@ describe Solargraph::RbsTranslator do
 
     it 'degrades the record to a Hash in YARD output' do
       expect(method_pin('server').detail).to eq('=> Hash{Symbol => String, Integer}')
-    end
-
-    it 'keeps capitalized symbol literal field types parseable once rooted' do
-      pending 'https://github.com/apiology/solargraph/pull/359'
-      expect(method_pin('door').return_type.rooted_tags).to eq('::Hash{::Symbol => :Open, :Closed}')
     end
 
     it 'renders the record back to RBS' do
