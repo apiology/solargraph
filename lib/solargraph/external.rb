@@ -121,15 +121,14 @@ module Solargraph
     # The signature files and directories in a local source, except the gem
     # directories that RbsCollection loads per bundled gem.
     #
+    # @sg-ignore https://github.com/castwide/solargraph/pull/1292
     # @param path [String]
     # @return [Array<String>]
     def local_signature_paths path
-      return [] unless File.directory?(path)
-
-      Dir.children(path)
-         .reject { |entry| rbs_collection.gem_names.include?(entry) }
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1292
+      Dir.glob(['*.rbs', '*/'], base: path)
+         .reject { |entry| rbs_collection.gem_names.include?(entry.chomp('/')) }
          .map { |entry| File.join(path, entry) }
-         .select { |entry| File.directory?(entry) || entry.end_with?('.rbs') }
     end
 
     def rbs_collection
@@ -191,10 +190,11 @@ module Solargraph
     def read_rbs_collection_paths
       return [] unless rbs_collection_config_path
 
-      # @type [Array<Hash{String => String}>]
-      sources = YAML.load_file(rbs_collection_config_path).fetch('sources', [])
-      sources.select { |source| source['type'] == 'local' && source['path'] }
-             .map { |source| File.expand_path(source['path'], directory) }
+      RBS::Collection::Config.from_path(Pathname(rbs_collection_config_path))
+                             .sources
+                             .grep(RBS::Collection::Sources::Local)
+                             # @sg-ignore https://github.com/apiology/solargraph/pull/358
+                             .map { |source| source.full_path.to_s }
     end
   end
 end
