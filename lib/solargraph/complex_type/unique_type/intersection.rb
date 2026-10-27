@@ -29,10 +29,9 @@ module Solargraph
       #
       # Its place in the type hierarchy is Solargraph::Type, which
       # https://github.com/castwide/solargraph/pull/1459 adds; until then
-      # it stands alone. It implements the type interface
-      # https://github.com/apiology/solargraph/pull/345 reduces that
-      # contract to, so the conjunct-wise methods that delegate to that
-      # interface (#method_stack_pins, #qualify_parts, #order_nil_last,
+      # it stands alone. The conjunct-wise methods that delegate to
+      # helpers https://github.com/apiology/solargraph/pull/345 adds
+      # (#method_stack_pins, #qualify_parts, #order_nil_last,
       # #combine_via) answer only once that PR is in.
       # @sg-ignore https://github.com/castwide/solargraph/pull/1459
       class Intersection < (defined?(Solargraph::Type) ? Solargraph::Type : Object)
@@ -65,102 +64,6 @@ module Solargraph
         # @return [String]
         def to_rbs
           conjuncts.map(&:to_rbs).join(' & ')
-        end
-
-        # The whole intersection, as #tags renders it: there is no
-        # single named member to report.
-        #
-        # @return [String]
-        def tag
-          tags
-        end
-
-        # @return [String]
-        def rooted_tag
-          rooted_tags
-        end
-
-        # @return [String]
-        def desc
-          rooted_tags
-        end
-
-        # An intersection is never itself a duck type; a duck-typed
-        # conjunct is checked through #provides_duck_method?.
-        #
-        # @return [Boolean]
-        def duck_type?
-          false
-        end
-
-        # Whether any conjunct mentions a type variable.
-        #
-        # @return [Boolean]
-        def generic?
-          conjuncts.any?(&:generic?)
-        end
-
-        # @return [Boolean]
-        def rooted?
-          conjuncts.all?(&:rooted?)
-        end
-
-        # One literal conjunct bounds the value to that literal.
-        #
-        # @return [Boolean]
-        def literal?
-          conjuncts.any?(&:literal?)
-        end
-
-        # @return [Intersection]
-        def downcast_to_literal_if_possible
-          Intersection.new(conjuncts.map(&:downcast_to_literal_if_possible))
-        end
-
-        # @return [Intersection]
-        def simplify_literals
-          # @sg-ignore Symbol#to_proc over a [self] return type infers Array<Array<ComplexType>>
-          Intersection.new(conjuncts.map(&:simplify_literals))
-        end
-
-        # @return [Intersection]
-        def force_rooted
-          # @sg-ignore Symbol#to_proc over a [self] return type infers Array<Array<ComplexType>>
-          Intersection.new(conjuncts.map(&:force_rooted))
-        end
-
-        # @param named_types [Hash{String => ComplexType, UniqueType}]
-        # @return [Intersection]
-        def expand named_types
-          Intersection.new(conjuncts.map { |conjunct| conjunct.expand(named_types) })
-        end
-
-        # @param dst [ComplexType]
-        # @return [Intersection]
-        def self_to_type dst
-          Intersection.new(conjuncts.map { |conjunct| conjunct.self_to_type(dst) })
-        end
-
-        # A conjunct that is only nil leaves nothing once nil is
-        # dropped; otherwise nil drops out of each conjunct, so
-        # (A | nil) & B without nil is A & B.
-        #
-        # @return [Intersection, UniqueType]
-        def without_nil
-          return UniqueType::UNDEFINED if conjuncts.any? { |conjunct| conjunct.items.all?(&:nil_type?) }
-
-          Intersection.new(conjuncts.map(&:without_nil))
-        end
-
-        # @param exclude_types [ComplexType, nil]
-        # @param api_map [ApiMap]
-        # @return [ComplexType, self]
-        def exclude exclude_types, api_map
-          return self if exclude_types.nil?
-
-          types = items - exclude_types.items
-          types = [UniqueType::UNDEFINED] if types.empty?
-          ComplexType.new(types)
         end
 
         # @return [Boolean]
@@ -210,18 +113,6 @@ module Solargraph
         # @return [Boolean]
         def selfy?
           conjuncts.any?(&:selfy?)
-        end
-
-        # An intersection is one member of a union, as a UniqueType is.
-        #
-        # @return [Array<Intersection>]
-        def items
-          [self]
-        end
-
-        # @return [Array<Intersection>]
-        def unioned_items
-          [self]
         end
 
         # Every pin implementing +word+ on this type, or nil when none
@@ -283,18 +174,6 @@ module Solargraph
           results = TypeMethods.combine_members(conjuncts, other.conjuncts, gather, &block)
           # @sg-ignore https://github.com/apiology/solargraph/pull/345
           Intersection.new(results.map { |type| ComplexType.new([type]) })
-        end
-
-        # @return [Boolean]
-        def defined?
-          !undefined?
-        end
-
-        # @param api_map [ApiMap]
-        # @param gates [Array<String>]
-        # @return [Intersection]
-        def qualify api_map, *gates
-          Intersection.new(conjuncts.map { |conjunct| conjunct.qualify(api_map, *gates) })
         end
 
         # @param other [Object]
@@ -450,6 +329,11 @@ module Solargraph
         # @return [Intersection]
         def unalias_and_qualify api_map, *gates
           Intersection.new(conjuncts.map { |conjunct| conjunct.unalias_and_qualify(api_map, *gates) })
+        end
+
+        # @return [self]
+        def erase_parameters
+          self
         end
 
         # Reduction distributes over conjuncts: Class<A> & Class<B>
