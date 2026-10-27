@@ -226,15 +226,17 @@ describe Solargraph::RbsTranslator do
   # YARD intersection of literal-keyed Hashes written as an RBS record and
   # each expected type as an inline RBS return type.
   context 'when dispatching Hash methods per key' do
-    def period_checker record, value, body
+    # Typecheck problems from `readers`, methods reading the record that
+    # a `record` method returns, typed `record_type` and built by `returning`.
+    def problems_reading_record record_type:, returning:, readers:
       messages(%(
         class Repro
-          #: () -> #{record}
-          def period
-            #{value}
+          #: () -> #{record_type}
+          def record
+            #{returning}
           end
 
-          #{body}
+          #{readers}
         end
       ))
     end
@@ -243,64 +245,80 @@ describe Solargraph::RbsTranslator do
       pending 'https://github.com/castwide/solargraph/pull/1451 ' \
               'https://github.com/apiology/solargraph/pull/284 ' \
               'https://github.com/castwide/solargraph/pull/1266'
-      expect(period_checker("{ 'Index' => Float, 'Triggers' => Array[{ 'Name' => String }] }",
-                            "{ 'Index' => 1.0, 'Triggers' => [{ 'Name' => 'x' }] }", %(
-        #: () -> Float
-        def index
-          period.fetch('Index')
-        end
+      problems = problems_reading_record(
+        record_type: "{ 'Index' => Float, 'Triggers' => Array[{ 'Name' => String }] }",
+        returning: "{ 'Index' => 1.0, 'Triggers' => [{ 'Name' => 'x' }] }",
+        readers: %(
+          #: () -> Float
+          def index
+            record.fetch('Index')
+          end
 
-        #: () -> Array[{ 'Name' => String }]
-        def triggers
-          period.fetch('Triggers')
-        end
-      ))).to be_empty
+          #: () -> Array[{ 'Name' => String }]
+          def triggers
+            record.fetch('Triggers')
+          end
+        )
+      )
+      expect(problems).to be_empty
     end
 
     it 'dispatches generic methods per key regardless of field order' do
       pending 'https://github.com/castwide/solargraph/pull/1451 ' \
               'https://github.com/apiology/solargraph/pull/284 ' \
               'https://github.com/castwide/solargraph/pull/1266'
-      expect(period_checker("{ 'Triggers' => Array[{ 'Name' => String }], 'Index' => Float }",
-                            "{ 'Triggers' => [{ 'Name' => 'x' }], 'Index' => 1.0 }", %(
-        #: () -> Array[{ 'Name' => String }]
-        def triggers
-          period.fetch('Triggers')
-        end
+      problems = problems_reading_record(
+        record_type: "{ 'Triggers' => Array[{ 'Name' => String }], 'Index' => Float }",
+        returning: "{ 'Triggers' => [{ 'Name' => 'x' }], 'Index' => 1.0 }",
+        readers: %(
+          #: () -> Array[{ 'Name' => String }]
+          def triggers
+            record.fetch('Triggers')
+          end
 
-        #: () -> Float
-        def index
-          period.fetch('Index')
-        end
-      ))).to be_empty
+          #: () -> Float
+          def index
+            record.fetch('Index')
+          end
+        )
+      )
+      expect(problems).to be_empty
     end
 
     it 'dispatches generic methods per key for symbol keys' do
       pending 'https://github.com/castwide/solargraph/pull/1451 ' \
               'https://github.com/apiology/solargraph/pull/284 ' \
               'https://github.com/castwide/solargraph/pull/1266'
-      expect(period_checker('{ Index: Float, Triggers: Array[{ Name: String }] }',
-                            "{ Index: 1.0, Triggers: [{ Name: 'x' }] }", %(
-        #: () -> Float
-        def index
-          period.fetch(:Index)
-        end
+      problems = problems_reading_record(
+        record_type: '{ Index: Float, Triggers: Array[{ Name: String }] }',
+        returning: "{ Index: 1.0, Triggers: [{ Name: 'x' }] }",
+        readers: %(
+          #: () -> Float
+          def index
+            record.fetch(:Index)
+          end
 
-        #: () -> Array[{ Name: String }]
-        def triggers
-          period.fetch(:Triggers)
-        end
-      ))).to be_empty
+          #: () -> Array[{ Name: String }]
+          def triggers
+            record.fetch(:Triggers)
+          end
+        )
+      )
+      expect(problems).to be_empty
     end
 
     it 'resolves a non-generic method on a record with two literal keys' do
-      expect(period_checker("{ 'Index' => Float, 'Triggers' => Array[{ 'Name' => String }] }",
-                            "{ 'Index' => 1.0, 'Triggers' => [{ 'Name' => 'x' }] }", %(
-        #: () -> Integer
-        def count
-          period.size
-        end
-      ))).to be_empty
+      problems = problems_reading_record(
+        record_type: "{ 'Index' => Float, 'Triggers' => Array[{ 'Name' => String }] }",
+        returning: "{ 'Index' => 1.0, 'Triggers' => [{ 'Name' => 'x' }] }",
+        readers: %(
+          #: () -> Integer
+          def count
+            record.size
+          end
+        )
+      )
+      expect(problems).to be_empty
     end
   end
 
