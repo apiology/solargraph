@@ -63,11 +63,14 @@ module Solargraph
           return if id.nil?
 
           accept_or_cancel
+          # @type [Hash{Symbol => String, Integer, Hash, Array, nil}]
           response = {
             jsonrpc: '2.0',
             id: id
           }
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1223
           response[:result] = result unless result.nil?
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1223
           response[:error] = error unless error.nil?
           response[:result] = nil if result.nil? && error.nil?
           json = response.to_json
