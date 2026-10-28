@@ -146,9 +146,8 @@ module Solargraph
           # @sg-ignore flow sensitive typing should support case/when
           type.types.map { |t| type_to_tag(t, type_alias_decls, expanding_aliases) }.join(', ')
         when RBS::Types::Record
-          # Uncomment once https://github.com/castwide/solargraph/pull/1104,
-          # https://github.com/castwide/solargraph/pull/1459 and
-          # https://github.com/castwide/solargraph/pull/1460 are in, to read
+          # Uncomment once https://github.com/castwide/solargraph/pull/1104 and
+          # https://github.com/castwide/solargraph/pull/1244 are in, to read
           # a record as a Record, in 1104's object-building translation:
           # fields = type.all_fields.transform_values { |(field, _)| to_type(field, type_alias_decls, expanding_aliases) }
           # ComplexType::UniqueType::Record.new(fields, type.optional_fields.keys)

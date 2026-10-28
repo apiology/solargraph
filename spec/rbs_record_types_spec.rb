@@ -205,8 +205,7 @@ describe Solargraph::RbsTranslator do
 
     it 'types each required field by its own type' do
       pending 'https://github.com/castwide/solargraph/pull/1104 ' \
-              'https://github.com/castwide/solargraph/pull/1459 ' \
-              'https://github.com/castwide/solargraph/pull/1460 ' \
+              'https://github.com/castwide/solargraph/pull/1244 ' \
               'https://github.com/castwide/solargraph/pull/1451 ' \
               'https://github.com/castwide/solargraph/pull/1385'
       expect(messages(%(
@@ -231,8 +230,7 @@ describe Solargraph::RbsTranslator do
 
     it 'types an optional field by its own type or nil' do
       pending 'https://github.com/castwide/solargraph/pull/1104 ' \
-              'https://github.com/castwide/solargraph/pull/1459 ' \
-              'https://github.com/castwide/solargraph/pull/1460 ' \
+              'https://github.com/castwide/solargraph/pull/1244 ' \
               'https://github.com/castwide/solargraph/pull/1451 ' \
               'https://github.com/castwide/solargraph/pull/1385'
       expect(messages(%(
@@ -252,8 +250,7 @@ describe Solargraph::RbsTranslator do
 
     it 'types each field by its own type when fields are declared in any order' do
       pending 'https://github.com/castwide/solargraph/pull/1104 ' \
-              'https://github.com/castwide/solargraph/pull/1459 ' \
-              'https://github.com/castwide/solargraph/pull/1460 ' \
+              'https://github.com/castwide/solargraph/pull/1244 ' \
               'https://github.com/castwide/solargraph/pull/1451 ' \
               'https://github.com/castwide/solargraph/pull/1385'
       expect(messages(%(
@@ -278,8 +275,7 @@ describe Solargraph::RbsTranslator do
 
     it 'types each field by its own type for string keys' do
       pending 'https://github.com/castwide/solargraph/pull/1104 ' \
-              'https://github.com/castwide/solargraph/pull/1459 ' \
-              'https://github.com/castwide/solargraph/pull/1460 ' \
+              'https://github.com/castwide/solargraph/pull/1244 ' \
               'https://github.com/castwide/solargraph/pull/1451 ' \
               'https://github.com/castwide/solargraph/pull/1385'
       expect(messages(%(
@@ -362,8 +358,7 @@ describe Solargraph::RbsTranslator do
 
     it 'prints the return type back as the same record' do
       pending 'https://github.com/castwide/solargraph/pull/1104 ' \
-              'https://github.com/castwide/solargraph/pull/1459 ' \
-              'https://github.com/castwide/solargraph/pull/1460'
+              'https://github.com/castwide/solargraph/pull/1244'
       pin = pin_from_rbs(<<~RBS, 'Server#config')
         class Server
           def config: () -> { name: String, port: Integer }
@@ -375,8 +370,7 @@ describe Solargraph::RbsTranslator do
 
     it 'prints optional fields back as optional' do
       pending 'https://github.com/castwide/solargraph/pull/1104 ' \
-              'https://github.com/castwide/solargraph/pull/1459 ' \
-              'https://github.com/castwide/solargraph/pull/1460'
+              'https://github.com/castwide/solargraph/pull/1244'
       pin = pin_from_rbs(<<~RBS, 'Server#config')
         class Server
           def config: () -> { name: String, ?port: Integer, nick: String }
@@ -388,8 +382,7 @@ describe Solargraph::RbsTranslator do
 
     it 'prints string keys back as string keys' do
       pending 'https://github.com/castwide/solargraph/pull/1104 ' \
-              'https://github.com/castwide/solargraph/pull/1459 ' \
-              'https://github.com/castwide/solargraph/pull/1460'
+              'https://github.com/castwide/solargraph/pull/1244'
       pin = pin_from_rbs(<<~RBS, 'Server#ids')
         class Server
           def ids: () -> { 'id' => Integer }
@@ -401,8 +394,7 @@ describe Solargraph::RbsTranslator do
 
     it 'prints the record in the method signature' do
       pending 'https://github.com/castwide/solargraph/pull/1104 ' \
-              'https://github.com/castwide/solargraph/pull/1459 ' \
-              'https://github.com/castwide/solargraph/pull/1460'
+              'https://github.com/castwide/solargraph/pull/1244'
       pin = pin_from_rbs(<<~RBS, 'Server#config')
         class Server
           def config: () -> { name: String, port: Integer }
@@ -429,8 +421,7 @@ describe Solargraph::RbsTranslator do
     it 'infers a field of the parameter by its own type' do
       pending 'https://github.com/castwide/solargraph/pull/1441 ' \
               'https://github.com/castwide/solargraph/pull/1104 ' \
-              'https://github.com/castwide/solargraph/pull/1459 ' \
-              'https://github.com/castwide/solargraph/pull/1460 ' \
+              'https://github.com/castwide/solargraph/pull/1244 ' \
               'https://github.com/castwide/solargraph/pull/1451 ' \
               'https://github.com/castwide/solargraph/pull/1385'
       expect(messages(%(
@@ -499,8 +490,7 @@ describe Solargraph::RbsTranslator do
     it 'infers a field of the asserted variable by its own type' do
       pending 'https://github.com/castwide/solargraph/pull/1444 ' \
               'https://github.com/castwide/solargraph/pull/1104 ' \
-              'https://github.com/castwide/solargraph/pull/1459 ' \
-              'https://github.com/castwide/solargraph/pull/1460 ' \
+              'https://github.com/castwide/solargraph/pull/1244 ' \
               'https://github.com/castwide/solargraph/pull/1451 ' \
               'https://github.com/castwide/solargraph/pull/1385'
       expect(messages(%(

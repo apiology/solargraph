@@ -4,8 +4,7 @@ describe 'Solargraph::ComplexType::UniqueType::Record' do
   # Record is written against the Solargraph::Type contract and the
   # reduced type interface, and RBS records reach it only once those land.
   before do
-    pending 'https://github.com/castwide/solargraph/pull/1459 ' \
-            'https://github.com/castwide/solargraph/pull/1460 ' \
+    pending 'https://github.com/castwide/solargraph/pull/1244 ' \
             'https://github.com/castwide/solargraph/pull/1104'
   end
 

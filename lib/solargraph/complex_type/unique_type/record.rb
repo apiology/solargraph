@@ -15,7 +15,7 @@ module Solargraph
       # record back as written.
       #
       # @see https://github.com/ruby/rbs/blob/master/docs/syntax.md#record-type
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1459
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1244
       class Record < Solargraph::Type
         include Equality
 
@@ -29,7 +29,7 @@ module Solargraph
         # @param optional_keys [Array<::Symbol, ::String>] the keys a record may leave out
         # @return [void]
         def initialize fields, optional_keys = []
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1459
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1244
           super()
           @fields = fields
           @optional_keys = optional_keys
@@ -180,10 +180,10 @@ module Solargraph
         # @param rules [Array<Symbol>]
         # @param variance [:invariant, :covariant, :contravariant]
         # @return [Boolean]
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1460
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1244
         def conforms_to? api_map, expected, situation, rules = [],
                          variance: erased_variance(situation)
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1460
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1244
           expected.satisfied_by?(self, api_map, situation, rules, variance: variance)
         end
 
@@ -195,10 +195,10 @@ module Solargraph
         # @param rules [Array<Symbol>]
         # @param variance [:invariant, :covariant, :contravariant]
         # @return [Boolean]
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1460
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1244
         def conforms_to_unique? expected, api_map, situation, rules = [],
                                 variance: erased_variance(situation)
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1460
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1244
           hash_type.conforms_to_unique?(expected, api_map, situation, rules, variance: variance)
         end
 
@@ -235,7 +235,7 @@ module Solargraph
         # @param api_map [ApiMap]
         # @return [::Array<Pin::Base>, nil]
         def method_stack_pins word, api_map
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1460
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1244
           return hash_type.method_stack_pins(word, api_map) unless word == '[]'
 
           [field_reader]
@@ -245,18 +245,18 @@ module Solargraph
         # @param context [String] Fully qualified namespace the type is referenced from
         # @param internal [Boolean] True to include private methods
         # @return [Array<Pin::Base>]
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1460
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1244
         def candidate_methods_from api_map, context, internal
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1460
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1244
           hash_type.candidate_methods_from(api_map, context, internal)
         end
 
         # @param api_map [ApiMap]
         # @param quack [String]
         # @return [Boolean]
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1460
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1244
         def provides_duck_method? api_map, quack
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1460
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1244
           hash_type.provides_duck_method?(api_map, quack)
         end
 
