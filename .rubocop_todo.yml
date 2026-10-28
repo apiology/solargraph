@@ -78,7 +78,6 @@ Lint/InterpolationCheck:
 # This cop supports safe autocorrection (--autocorrect).
 Lint/SafeNavigationWithEmpty:
   Exclude:
-    - 'lib/solargraph/language_server/message/text_document/formatting.rb'
     - 'lib/solargraph/location.rb'
 
 # Configuration parameters: AllowKeywordBlockArguments.

@@ -657,12 +657,10 @@ module Solargraph
         @cache_progress = LanguageServer::Progress.new('Caching gem')
         # If we don't send both a begin and a report, the progress notification
         # might get stuck in the status bar forever
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1338
         @cache_progress.begin(message, pct)
         changed
         notify_observers @cache_progress
       end
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1338
       @cache_progress.report(message, pct)
       changed
       notify_observers @cache_progress
