@@ -20,7 +20,7 @@ module Solargraph
       #
       # @see https://en.wikipedia.org/wiki/Intersection_type
       # @see https://github.com/ruby/rbs/blob/master/docs/syntax.md#intersection-type
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1459
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1244
       class Intersection < Solargraph::Type
         include Equality
 
@@ -29,7 +29,7 @@ module Solargraph
 
         # @param conjuncts [Array<ComplexType>]
         def initialize conjuncts
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1459
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1244
           super()
           @conjuncts = conjuncts
         end
@@ -113,7 +113,7 @@ module Solargraph
         # @return [::Array<Pin::Base>, nil]
         def method_stack_pins word, api_map
           resolved = conjuncts.filter_map do |conjunct|
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1460
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1244
             pins = conjunct.method_stack_pins(word, api_map)
             pins if pins&.any?
           end
@@ -131,7 +131,7 @@ module Solargraph
         # @yieldreturn [ComplexType::UniqueType, nil]
         # @return [Intersection, nil]
         def qualify_parts &block
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1460
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1244
           parts = conjuncts.map { |conjunct| conjunct.qualify_parts(&block) }
           Intersection.new(parts) unless parts.any?(&:nil?)
         end
@@ -158,9 +158,9 @@ module Solargraph
 
           # @param members [Array<ComplexType>]
           gather = ->(members) { members.length == 1 ? members.fetch(0) : Intersection.new(members) }
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1460
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1244
           results = TypeMethods.combine_members(conjuncts, other.conjuncts, gather, &block)
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1460
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1244
           Intersection.new(results.map { |type| ComplexType.new([type]) })
         end
 

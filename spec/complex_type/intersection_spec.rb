@@ -6,13 +6,12 @@ describe 'Solargraph::ComplexType::UniqueType::Intersection' do
   # Intersection is written against the Solargraph::Type contract and the
   # reduced type interface, and RBS `&` reaches it only once those land.
   before do
-    pending 'https://github.com/castwide/solargraph/pull/1459 ' \
-            'https://github.com/castwide/solargraph/pull/1460 ' \
+    pending 'https://github.com/castwide/solargraph/pull/1244 ' \
             'https://github.com/castwide/solargraph/pull/1104'
   end
 
   # Loaded inside each example, not when this file loads: its superclass
-  # Solargraph::Type exists only once castwide/solargraph#1459 is in.
+  # Solargraph::Type exists only once castwide/solargraph#1244 is in.
   let(:described_class) { Solargraph::ComplexType::UniqueType::Intersection }
   let(:api_map) do
     source = Solargraph::Source.load_string(%(
@@ -292,7 +291,7 @@ describe 'Solargraph::ComplexType::UniqueType::Intersection' do
   end
 
   # Conjuncts here are real types given the helpers
-  # https://github.com/castwide/solargraph/pull/1460 adds to ComplexType,
+  # https://github.com/castwide/solargraph/pull/1244 adds to ComplexType,
   # so these check Intersection's own delegation on master.
   context 'when delegating to its conjuncts' do
     # A fresh ComplexType, since ComplexType.parse returns shared
