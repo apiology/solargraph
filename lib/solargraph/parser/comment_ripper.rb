@@ -24,7 +24,6 @@ module Solargraph
       end
 
       def on_comment *args
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1364
         # @type [Array(Symbol, String, Array(Integer, Integer))]
         result = super
         # @sg-ignore Need to add nil check here
@@ -62,7 +61,6 @@ module Solargraph
       # @sg-ignore https://github.com/castwide/solargraph/pull/1104
       def on_embdoc_beg *args
         result = super
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1364
         create_snippet(result)
         result
       end
@@ -70,7 +68,6 @@ module Solargraph
       # @sg-ignore https://github.com/castwide/solargraph/pull/1104
       def on_embdoc *args
         result = super
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1364
         create_snippet(result)
         result
       end
@@ -78,7 +75,6 @@ module Solargraph
       # @sg-ignore https://github.com/castwide/solargraph/pull/1104
       def on_embdoc_end *args
         result = super
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1364
         create_snippet(result)
         result
       end

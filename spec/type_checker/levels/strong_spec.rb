@@ -1402,6 +1402,32 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message)).to eq([])
     end
 
+    it 'resolves super to the nearest override, not every ancestor' do
+      checker = type_checker(%(
+        class GrandParent
+          # @return [String]
+          def foo
+            'hello'
+          end
+        end
+
+        class Parent < GrandParent
+          # @return [Integer]
+          def foo
+            42
+          end
+        end
+
+        class Child < Parent
+          # @return [Integer]
+          def foo
+            super
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
     it 'resolves the operators TrueClass and FalseClass share on Boolean' do
       checker = type_checker(%(
         class Foo
