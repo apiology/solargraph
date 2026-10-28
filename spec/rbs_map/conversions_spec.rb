@@ -352,6 +352,28 @@ describe Solargraph::RbsMap::Conversions do
         expect(prepend_pin.name).to eq('Bar')
       end
     end
+
+    context 'with a mixin taking a literal type argument' do
+      subject(:method_pin) { api_map.get_method_stack('Comparer', 'operator').first }
+
+      let(:rbs) do
+        <<~RBS
+          module Operating[T]
+            def operator: () -> T
+          end
+
+          class Comparer
+            include Operating["<"]
+          end
+        RBS
+      end
+
+      it 'binds the literal' do
+        pending 'https://github.com/castwide/solargraph/pull/1104'
+
+        expect(method_pin.return_type.rooted_tags).to eq('"<"')
+      end
+    end
   end
 
   context 'with standard loads for solargraph project' do
