@@ -71,7 +71,6 @@ module Solargraph
             subtypes.concat subs
           end
         end
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1266
         new(name, key_types, subtypes, rooted: rooted, parameters_type: parameters_type)
       end
 
@@ -393,7 +392,6 @@ module Solargraph
         block.yield self
       end
 
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1266
       # @return [UniqueType]
       def downcast_to_literal_if_possible
         SINGLE_SUBTYPE.fetch(rooted_tag, self)

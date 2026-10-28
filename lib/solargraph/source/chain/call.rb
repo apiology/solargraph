@@ -170,6 +170,7 @@ module Solargraph
                                                     closure: name_pin.closure,
                                                     gates: name_pin.gates,
                                                     source: :chain)
+            # @sg-ignore Array#[] chooses wrong signature when Array has no parameters
             atype = atypes[idx] ||= arg.infer(api_map, arg_name_pin, locals)
             # @sg-ignore Wrong argument type for Solargraph::Pin::Parameter#compatible_arg?: atype expected Solargraph::ComplexType, received Array, Solargraph::ComplexType
             unless param.compatible_arg?(atype, api_map) || param.restarg?

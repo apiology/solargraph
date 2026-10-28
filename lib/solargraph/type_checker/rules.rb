@@ -129,6 +129,7 @@ module Solargraph
       # @todo 1: Need to handle duck-typed method calls on union types
       # @todo 1: flow sensitive typing needs to remove literal with
       # @todo 1: Array#flatten returns a bare Array
+      # @todo 1: Union argument rejected when no single signature accepts every member
       def require_all_unique_types_match_expected?
         report?(:require_all_unique_types_match_expected, :strong)
       end
