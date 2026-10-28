@@ -470,7 +470,6 @@ describe Solargraph::RbsTranslator do
 
   context 'with an inline RBS record assertion on an assignment' do
     it 'infers a field of the asserted variable' do
-      pending 'https://github.com/castwide/solargraph/pull/1444'
       expect(messages(%(
         class Server
           # @return [Hash]
@@ -488,8 +487,7 @@ describe Solargraph::RbsTranslator do
     end
 
     it 'infers a field of the asserted variable by its own type' do
-      pending 'https://github.com/castwide/solargraph/pull/1444 ' \
-              'https://github.com/castwide/solargraph/pull/1104 ' \
+      pending 'https://github.com/castwide/solargraph/pull/1104 ' \
               'https://github.com/castwide/solargraph/pull/1244 ' \
               'https://github.com/castwide/solargraph/pull/1451 ' \
               'https://github.com/castwide/solargraph/pull/1385'
@@ -510,7 +508,6 @@ describe Solargraph::RbsTranslator do
     end
 
     it 'reports a mismatched value assigned to the asserted variable' do
-      pending 'https://github.com/castwide/solargraph/pull/1444'
       expect(messages(%(
         class Server
           # @return [void]
