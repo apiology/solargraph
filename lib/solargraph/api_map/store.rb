@@ -93,7 +93,6 @@ module Solargraph
         return nil if fqns.nil? || fqns.empty?
         return BOOLEAN_SUPERCLASS_PIN if %w[TrueClass FalseClass].include?(fqns)
 
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1422
         superclass_references[fqns].first || try_special_superclasses(fqns)
       end
 
@@ -343,39 +342,38 @@ module Solargraph
         index.pins_by_class(Pin::Symbol)
       end
 
-      # @return [Hash{String => Array<Pin::Reference::Superclass>}]
+      # @return [Index::ArrayHash{String => Array<Pin::Reference::Superclass>}]
       def superclass_references
         index.superclass_references
       end
 
-      # @return [Hash{String => Array<Pin::Reference::Include>}]
+      # @return [Index::ArrayHash{String => Array<Pin::Reference::Include>}]
       def include_references
         index.include_references
       end
 
-      # @return [Hash{String => Array<Solargraph::Pin::Reference::Include>}]
+      # @return [Index::ArrayHash{String => Array<Solargraph::Pin::Reference::Include>}]
       def include_reference_pins
         index.include_reference_pins
       end
 
-      # @return [Hash{String => Array<Pin::Reference::Prepend>}]
+      # @return [Index::ArrayHash{String => Array<Pin::Reference::Prepend>}]
       def prepend_references
         index.prepend_references
       end
 
-      # @return [Hash{String => Array<Pin::Reference::Extend>}]
+      # @return [Index::ArrayHash{String => Array<Pin::Reference::Extend>}]
       def extend_references
         index.extend_references
       end
 
-      # @return [Hash{String => Array<Pin::FactoryParameter>}]
+      # @return [Index::ArrayHash{String => Array<Pin::FactoryParameter>}]
       def factory_parameter_hash
         index.factory_parameter_hash
       end
 
       # @param name [String]
       # @return [Enumerable<Solargraph::Pin::Base>]
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1422
       def namespace_children name
         return [] unless index.namespace_hash.key?(name)
         index.namespace_hash[name]

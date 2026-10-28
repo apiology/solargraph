@@ -5,6 +5,21 @@ module Solargraph
     class Index
       include Logging
 
+      # A Hash whose missing keys get a new empty Array, so #[] never
+      # returns nil.
+      #
+      # @generic K
+      # @generic V
+      # @!method [](key)
+      #   @return [generic<V>]
+      class ArrayHash < Hash
+        def initialize
+          # @param hash [Hash]
+          # @param key [Object]
+          super { |hash, key| hash[key] = [] }
+        end
+      end
+
       # @return [Set<String>]
       attr_reader :macro_method_names
 
@@ -21,25 +36,19 @@ module Solargraph
         @pins ||= []
       end
 
-      # @return [Hash{String => Array<Pin::Namespace>}]
+      # @return [ArrayHash{String => Array<Pin::Namespace>}]
       def namespace_hash
-        # @param h [Hash{String => Array<Pin::Namespace>}]
-        # @param k [String]
-        @namespace_hash ||= Hash.new { |h, k| h[k] = [] }
+        @namespace_hash ||= ArrayHash.new
       end
 
-      # @return [Hash{Class<Pin::Base> => Array<Pin::Base>}]
+      # @return [ArrayHash{Class<Pin::Base> => Array<Pin::Base>}]
       def pin_class_hash
-        # @param h [Hash{Class<Pin::Base> => Array<Pin::Base>}]
-        # @param k [Class<Pin::Base>]
-        @pin_class_hash ||= Hash.new { |h, k| h[k] = [] }
+        @pin_class_hash ||= ArrayHash.new
       end
 
-      # @return [Hash{String => Array<Pin::Base>}]
+      # @return [ArrayHash{String => Array<Pin::Base>}]
       def path_pin_hash
-        # @param h [Hash{String => Array<Pin::Base>}]
-        # @param k [String]
-        @path_pin_hash ||= Hash.new { |h, k| h[k] = [] }
+        @path_pin_hash ||= ArrayHash.new
       end
 
       # @return [Hash{String => ComplexType}]
@@ -57,51 +66,39 @@ module Solargraph
         @pin_select_cache[klass] ||= pin_class_hash.each_with_object(s) { |(key, o), n| n.merge(o) if key <= klass }
       end
 
-      # @return [Hash{String => Array<Pin::Reference::Include>}]
+      # @return [ArrayHash{String => Array<Pin::Reference::Include>}]
       def include_references
-        # @param h [String]
-        # @param k [Array<String>]
-        @include_references ||= Hash.new { |h, k| h[k] = [] }
+        @include_references ||= ArrayHash.new
       end
 
-      # @return [Hash{String => Array<Pin::Reference::Include>}]
+      # @return [ArrayHash{String => Array<Pin::Reference::Include>}]
       def include_reference_pins
-        # @param h [String]
-        # @param k [Array<Pin::Reference::Include>]
-        @include_reference_pins ||= Hash.new { |h, k| h[k] = [] }
+        @include_reference_pins ||= ArrayHash.new
       end
 
-      # @return [Hash{String => Array<Pin::Reference::Extend>}]
+      # @return [ArrayHash{String => Array<Pin::Reference::Extend>}]
       def extend_references
-        # @param h [String]
-        # @param k [Array<String>]
-        @extend_references ||= Hash.new { |h, k| h[k] = [] }
+        @extend_references ||= ArrayHash.new
       end
 
-      # @return [Hash{String => Array<Pin::Reference::Prepend>}]
+      # @return [ArrayHash{String => Array<Pin::Reference::Prepend>}]
       def prepend_references
-        # @param h [String]
-        # @param k [Array<String>]
-        @prepend_references ||= Hash.new { |h, k| h[k] = [] }
+        @prepend_references ||= ArrayHash.new
       end
 
-      # @return [Hash{String => Array<Pin::Reference::IncludedMixin>}]
+      # @return [ArrayHash{String => Array<Pin::Reference::IncludedMixin>}]
       def included_mixin_references
-        # @param h [String]
-        # @param k [Array<Pin::Reference::IncludedMixin>]
-        @included_mixin_references ||= Hash.new { |h, k| h[k] = [] }
+        @included_mixin_references ||= ArrayHash.new
       end
 
-      # @return [Hash{String => Array<Pin::Reference::Superclass>}]
+      # @return [ArrayHash{String => Array<Pin::Reference::Superclass>}]
       def superclass_references
-        # @param h [String]
-        # @param k [Array<String>]
-        @superclass_references ||= Hash.new { |h, k| h[k] = [] }
+        @superclass_references ||= ArrayHash.new
       end
 
-      # @return [Hash{String => Array<Pin::FactoryParameter>}]
+      # @return [ArrayHash{String => Array<Pin::FactoryParameter>}]
       def factory_parameter_hash
-        @factory_parameter_hash ||= Hash.new { |h, k| h[k] = [] }
+        @factory_parameter_hash ||= ArrayHash.new
       end
 
       # @param pins [Enumerable<Pin::Base>]
@@ -144,17 +141,14 @@ module Solargraph
         # @param k [Class<Pin::Base>]
         # @param v [Set<Pin::Base>]
         set.classify(&:class)
-           # @sg-ignore https://github.com/castwide/solargraph/pull/1422
            .map { |k, v| pin_class_hash[k].concat v.to_a }
         # @param k [String]
         # @param v [Set<Pin::Namespace>]
         set.classify(&:namespace)
-           # @sg-ignore https://github.com/castwide/solargraph/pull/1422
            .map { |k, v| namespace_hash[k].concat v.to_a }
         # @param k [String]
         # @param v [Set<Pin::Base>]
         set.classify(&:path)
-           # @sg-ignore https://github.com/castwide/solargraph/pull/1422
            .map { |k, v| path_pin_hash[k].concat v.to_a }
         @namespaces = path_pin_hash.keys.compact.to_set
         map_references Pin::Reference::Include, include_references
@@ -173,7 +167,7 @@ module Solargraph
 
       # @generic T
       # @param klass [Class<generic<T>>]
-      # @param hash [Hash{String => Array<generic<T>>}]
+      # @param hash [ArrayHash{String => Array<generic<T>>}]
       #
       # @return [void]
       def map_references klass, hash
@@ -191,10 +185,9 @@ module Solargraph
           logger.debug { "ApiMap::Index#map_overrides: Looking at override #{ovr} for #{ovr.name}" }
           pins = path_pin_hash[ovr.name]
           logger.debug { "ApiMap::Index#map_overrides: pins for path=#{ovr.name}: #{pins}" }
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1422
           pins.each do |pin|
-            new_pin = (path_pin_hash[pin.path.sub('#initialize', '.new')].first if pin.path.end_with?('#initialize'))
-            (ovr.tags.map(&:tag_name) + ovr.delete).uniq.each do |tag|
+            new_pin = (path_pin_hash[ovr.name.sub('#initialize', '.new')].first if ovr.name.end_with?('#initialize'))
+            (ovr.tags.map(&:tag_name) + ovr.delete.map(&:to_s)).uniq.each do |tag|
               pin.docstring.delete_tags tag
               new_pin&.docstring&.delete_tags tag
             end
@@ -232,7 +225,6 @@ module Solargraph
       # @return [void]
       def map_factory_parameters
         pins_by_class(Pin::FactoryParameter).each do |fp|
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1422
           factory_parameter_hash[fp.method_path] << fp
         end
       end
