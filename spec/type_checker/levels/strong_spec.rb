@@ -1,9 +1,37 @@
 # frozen_string_literal: true
 
+require 'rbs'
+
 describe Solargraph::TypeChecker do
   context 'with level set to strong' do
     def type_checker code
       Solargraph::TypeChecker.load_string(code, 'test.rb', :strong)
+    end
+
+    it 'accepts a nil argument for a parameter declared nilable' do
+      checker = type_checker(%(
+        # @param source [String, nil]
+        # @return [void]
+        def attach(source); end
+
+        attach nil
+      ))
+      expect(checker.problems.map(&:message)).to eq([])
+    end
+
+    it 'removes nil from a nilable hash value after a nil guard' do
+      checker = type_checker(%(
+        class Foo
+          # @param map [Hash{String => String, nil}]
+          # @return [String]
+          def bar map
+            v = map['a']
+            return '' unless v
+            v
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq([])
     end
 
     it 'requires strict return tags for attributes when nil is involved' do
@@ -95,6 +123,35 @@ describe Solargraph::TypeChecker do
           def a b
             c = b["123"]
             return if c.nil?
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
+    it 'does not leak an unbound generic from an unmatched Hash#fetch overload' do
+      # Hash#fetch only takes its key as the _Key interface (rather than
+      # the generic K) as of RBS 4.1.0 - see ruby/rbs core/hash.rbs.
+      pending 'https://github.com/castwide/solargraph/pull/1266' if Gem::Version.new(RBS::VERSION) >= Gem::Version.new('4.1.0')
+      checker = type_checker(%(
+        class A
+          # @param b [Hash{String => Integer}]
+          # @return [Integer]
+          def a b
+            b.fetch('x')
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
+    it 'infers nil as part of Hash#[] on a plainly-typed Hash' do
+      checker = type_checker(%(
+        class A
+          # @param b [Hash{String => Integer}]
+          # @return [Integer, nil]
+          def a b
+            b['x']
           end
         end
       ))
@@ -1768,6 +1825,66 @@ describe Solargraph::TypeChecker do
         end
       ), ['forwardable'])
       expect(checker.problems).to be_empty
+    end
+
+    it 'resolves calls on variables typed by inline rbs assertions' do
+      checker = type_checker(%(
+        class Foo
+          # @return [String, nil]
+          def bar
+            names = [] #: Array[String]
+            names.first&.upcase
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
+    it 'accepts tuple and hash variables typed by inline rbs assertions' do
+      checker = type_checker(%(
+        class Foo
+          # @return [String, Integer, nil]
+          def first
+            pair = ['a', 1] #: [String, Integer]
+            pair.first
+          end
+
+          # @return [Integer, nil]
+          def count
+            opts = { 'a' => 1 } #: Hash[String, Integer]
+            opts['a']
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
+    it 'complains on an inline rbs assertion that does not match' do
+      checker = type_checker(%(
+        x = 'x'.size #: String
+      ))
+      expect(checker.problems.map(&:message))
+        .to eq ['Declared type String does not match inferred type Integer for variable x']
+    end
+
+    it 'complains on an inline rbs assertion that removes nil' do
+      checker = type_checker(%(
+        x = ENV['A'] #: String
+      ))
+      expect(checker.problems.map(&:message))
+        .to eq ['Declared type String does not match inferred type String, nil for variable x']
+    end
+
+    it 'types method parameters from inline rbs signatures' do
+      checker = type_checker(%(
+        class Foo
+          #: (String) -> Integer
+          def bar(baz)
+            baz.size
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
     end
   end
 end

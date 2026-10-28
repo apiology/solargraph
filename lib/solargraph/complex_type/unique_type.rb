@@ -11,6 +11,13 @@ module Solargraph
 
       attr_reader :all_params, :subtypes, :key_types
 
+      # @type [Hash{String => String}]
+      ANONYMOUS_NAME_BY_STARTING_TAG = {
+        '{' => 'Hash',
+        '(' => 'Array',
+        '<' => 'Array'
+      }.freeze
+
       # Create a UniqueType with the specified name and an optional substring.
       # The substring is the parameter section of a parametrized type, e.g.,
       # for the type `Array<String>`, the name is `Array` and the substring is
@@ -22,6 +29,9 @@ module Solargraph
       # @return [UniqueType]
       def self.parse name, substring = '', make_rooted: nil
         raise ComplexTypeError, "Illegal prefix: #{name}" if name.start_with?(':::')
+        # Anonymous shorthand (`<A>`, `(A)`, `{A=>B}`) defaults the
+        # omitted type name to Array or Hash, before the rooted check below.
+        name = ANONYMOUS_NAME_BY_STARTING_TAG.fetch(substring.chars.fetch(0)) if name.empty? && !substring.empty?
         if name.start_with?('::')
           name = name[2..]
           rooted = true
@@ -104,7 +114,7 @@ module Solargraph
       # @return [self]
       def simplify_literals
         transform do |t|
-          next t unless t.literal?
+          next t unless t.simplifyable_literal?
           t.recreate(new_name: t.non_literal_name)
         end
       end
@@ -155,13 +165,17 @@ module Solargraph
       end
 
       def literal?
-        return false
         non_literal_name != name
       end
 
       # @return [String]
       def non_literal_name
         @non_literal_name ||= determine_non_literal_name
+      end
+
+      # @return [self]
+      def non_literal_type
+        recreate(new_name: non_literal_name)
       end
 
       # @return [self]
@@ -379,9 +393,9 @@ module Solargraph
         block.yield self
       end
 
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1266
       # @return [UniqueType]
       def downcast_to_literal_if_possible
-        return self
         SINGLE_SUBTYPE.fetch(rooted_tag, self)
       end
 
