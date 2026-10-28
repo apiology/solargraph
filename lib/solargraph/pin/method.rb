@@ -717,13 +717,11 @@ module Solargraph
           end
           rng = Range.from_node(n)
           next unless rng
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1240
-          clip = api_map.clip_at(
-            location!.filename,
-            rng.ending
-          )
+          # Pass the full local set: chain resolution re-checks each
+          # presence per sub-node, and a downcast can end early.
+          all_locals = api_map.source_map(location!.filename).locals
           chain = Solargraph::Parser.chain(n, location!.filename)
-          type = chain.infer(api_map, self, clip.locals)
+          type = chain.infer(api_map, self, all_locals)
           result.push type unless type.undefined?
         end
         result.push ComplexType::NIL if has_nil

@@ -29,6 +29,9 @@ module Solargraph
                     asgn_code: default ? region.code_for(default) : nil,
                     presence: callable.location!.range,
                     decl: get_decl(u),
+                    # a default value is assigned only when the caller
+                    # omits the arg, so it cannot override @param
+                    definite: false,
                     source: :parser
                   )
                   locals.push param

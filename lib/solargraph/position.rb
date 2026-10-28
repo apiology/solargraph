@@ -58,7 +58,6 @@ module Solargraph
       line = -1
       last_line_index = 0
 
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1338
       while (newline_index = text.index("\n", newline_index + 1)) && line <= position.line
         line += 1
         break if line == position.line
@@ -67,7 +66,6 @@ module Solargraph
       end
 
       last_line_index += 1 if position.line.positive?
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1338
       last_line_index + position.character
     end
 
@@ -97,15 +95,12 @@ module Solargraph
       character = offset
       newline_index = -1
 
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1338
       while (newline_index = text.index("\n", newline_index + 1)) && newline_index < offset
         line += 1
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1338
         character = offset - newline_index - 1
       end
       character = 0 if character.nil? && (cursor - offset).between?(0, 1)
       raise InvalidOffsetError if character.nil?
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1338
       Position.new(line, character)
     end
 

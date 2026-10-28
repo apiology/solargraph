@@ -389,7 +389,6 @@ module Solargraph
       result.concat store.get_instance_variables(namespace, scope)
       sc_fqns = namespace
       while (sc = store.get_superclass(sc_fqns))
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1338
         sc_fqns = store.constants.dereference(sc)
         result.concat store.get_instance_variables(sc_fqns, scope)
       end
@@ -414,11 +413,14 @@ module Solargraph
       with_correct_name = candidates.select { |pin| pin.name == name }
       vars_at_location = with_correct_name.reject do |pin|
         # visible_at? excludes the starting position, but we want to
-        # include it for this purpose
-        !pin.visible_at?(closure, location) && !pin.starts_at?(location)
+        # include it for this purpose - unless the position is inside
+        # the pin's own value, like the `x` that `x += 1` reads
+        !pin.visible_at?(closure, location) &&
+          !(pin.starts_at?(location) && !pin.within_own_assignment?(location))
       end
 
-      vars_at_location.inject(&:combine_with)
+      definite_vars = vars_at_location.map { |pin| pin.definite_at(location) }
+      definite_vars.inject { |acc, pin| acc.combine_with(pin) }
     end
 
     # Get an array of class variable pins for a namespace.
@@ -715,16 +717,12 @@ module Solargraph
       # @todo If two literals are different values of the same type, it would
       #   make more sense for super_and_sub? to return true, but there are a
       #   few callers that currently expect this to be false.
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1338
       return false if sup.literal? && sub.literal? && sup.to_s != sub.to_s
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1338
       sup = sup.simplify_literals.to_s
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1338
       sub = sub.simplify_literals.to_s
       return true if sup == sub
       sc_fqns = sub
       while (sc = store.get_superclass(sc_fqns))
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1338
         sc_new = store.constants.dereference(sc)
         # Cyclical inheritance is invalid
         return false if sc_new == sc_fqns
