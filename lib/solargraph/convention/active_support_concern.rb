@@ -74,8 +74,10 @@ module Solargraph
         #
         # @return [void]
         def process_include include_tag
-          rooted_include_tag = api_map.dereference(include_tag)
-          return if rooted_include_tag.nil?
+          rooted_include_type = api_map.dereference_type(include_tag)
+          return if rooted_include_type.nil?
+
+          rooted_include_tag = rooted_include_type.tag
           logger.debug do
             "ActiveSupportConcern#object(#{fqns}, #{scope}, #{visibility}, #{deep}) - " \
               "Handling class include include_tag=#{include_tag}"
@@ -86,7 +88,7 @@ module Solargraph
               "found module extends of #{rooted_include_tag}: #{module_extends}"
           end
           return unless module_extends.include? 'ActiveSupport::Concern'
-          included_class_pins = api_map.inner_get_methods_from_reference(rooted_include_tag, namespace_pin, rooted_type,
+          included_class_pins = api_map.inner_get_methods_from_reference(rooted_include_type, namespace_pin, rooted_type,
                                                                          :class, visibility, deep, skip, true)
           logger.debug do
             "ActiveSupportConcern#object(#{fqns}, #{scope}, #{visibility}, #{deep}) - " \
@@ -94,9 +96,11 @@ module Solargraph
           end
           environ.pins.concat included_class_pins
           # another pattern is to put class methods inside a submodule
-          classmethods_include_tag = "#{rooted_include_tag}::ClassMethods"
+          classmethods_include_tag = "#{rooted_include_type.namespace}::ClassMethods"
+          classmethods_unique_type = ComplexType::UniqueType.new(classmethods_include_tag, rooted: true)
+          classmethods_include_type = ComplexType.new([classmethods_unique_type])
           included_classmethods_pins =
-            api_map.inner_get_methods_from_reference(classmethods_include_tag, namespace_pin, rooted_type,
+            api_map.inner_get_methods_from_reference(classmethods_include_type, namespace_pin, rooted_type,
                                                      :instance, visibility, deep, skip, true)
           logger.debug do
             "ActiveSupportConcern#object(#{fqns}, #{scope}, #{visibility}, #{deep}) - " \
