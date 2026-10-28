@@ -1,9 +1,53 @@
 # frozen_string_literal: true
 
 describe Solargraph::Source::Chain::Array do
+  # @param code [String]
+  # @return [String]
+  def infer_last_line code
+    source = Solargraph::Source.load_string(code, 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [code.lines.length - 1, 0])
+    clip.infer.to_s
+  end
+
   it 'resolves an instance of an array' do
     literal = described_class.new([], nil)
     pin = literal.resolve(nil, nil, nil).first
     expect(pin.return_type.tag).to eq('Array')
+  end
+
+  it 'infers the element type of a homogeneous literal' do
+    expect(infer_last_line("a = [1, 2, 3]\na")).to eq('Array<Integer>')
+  end
+
+  it 'infers a union element type, not a tuple, for a heterogeneous literal' do
+    expect(infer_last_line("a = [1, 'a', 2]\na")).to eq('Array<Integer, String>')
+  end
+
+  it 'includes nil in the element type, as a declared Array<Integer, nil> does' do
+    declared = infer_last_line("# @return [Array<Integer, nil>]\ndef m; end\na = m\na")
+    expect(infer_last_line("a = [1, nil]\na")).to eq(declared)
+  end
+
+  it 'infers element types of nested literals' do
+    expect(infer_last_line("a = [[1], ['a']]\na")).to eq('Array<Array<Integer>, Array<String>>')
+  end
+
+  it 'leaves an empty literal as a bare Array' do
+    expect(infer_last_line("a = []\na")).to eq('Array')
+  end
+
+  it 'leaves a literal with a splat as a bare Array' do
+    expect(infer_last_line("a = [1, *[2]]\na")).to eq('Array')
+  end
+
+  it 'leaves a literal with an element of unknown type as a bare Array' do
+    expect(infer_last_line("a = [1, unknown_method]\na")).to eq('Array')
+  end
+
+  it 'does not track mutation after assignment' do
+    # castwide/solargraph#1223 review example: the literal's type is
+    # inferred from its elements; the later push does not widen it.
+    expect(infer_last_line("y = [1]\ny.push 'two'\ny")).to eq('Array<Integer>')
   end
 end
