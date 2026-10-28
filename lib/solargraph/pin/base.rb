@@ -133,7 +133,6 @@ module Solargraph
 
       # @param other [self]
       # @param attr [::Symbol]
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1420
       # @return [undefined]
       def choose_longer other, attr
         # @type [undefined]
@@ -260,7 +259,6 @@ module Solargraph
       # @param other [Pin::Base]
       # @param attr [::Symbol]
       #
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1420
       # @return [undefined, nil]
       def choose other, attr
         results = [self, other].map(&attr).compact
@@ -276,7 +274,6 @@ module Solargraph
 
       # @param other [self]
       # @param attr [::Symbol]
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1420
       # @return [undefined]
       def choose_node other, attr
         if other.object_id < attr.object_id
@@ -288,7 +285,6 @@ module Solargraph
 
       # @param other [self]
       # @param attr [::Symbol]
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1420
       # @return [undefined]
       def prefer_rbs_location other, attr
         if rbs_location? && !other.rbs_location?
@@ -356,7 +352,6 @@ module Solargraph
       # @param other [self]
       # @param attr [::Symbol]
       #
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1420
       # @return [undefined]
       def assert_same other, attr
         if other.nil?
