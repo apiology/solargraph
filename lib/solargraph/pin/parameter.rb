@@ -183,6 +183,7 @@ module Solargraph
           @return_type = ComplexType::UNDEFINED
           found = param_tag
           @return_type = ComplexType.try_parse(*found.types) unless found.nil? || found.types.nil?
+          @return_type = inline_rbs_type || @return_type
           # @sg-ignore https://github.com/castwide/solargraph/pull/1338
           if @return_type.undefined?
             case decl
@@ -279,6 +280,16 @@ module Solargraph
         idx = index
         return block_pin.typify_parameters(api_map).fetch(idx) if block_pin.is_a?(Pin::Block) && block_pin.receiver && idx
         ComplexType::UNDEFINED
+      end
+
+      # The parameter's type from its method's inline RBS signature,
+      # which takes precedence over @param tags as the signature does.
+      #
+      # @return [ComplexType, nil]
+      def inline_rbs_type
+        method_pin = closure
+        return nil unless method_pin.is_a?(Pin::Method)
+        method_pin.inline_rbs_parameter_type(name)
       end
 
       # @param api_map [ApiMap]

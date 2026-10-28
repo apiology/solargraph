@@ -18,6 +18,7 @@ module Solargraph
               closure: region.closure,
               name: name.to_s,
               comments: comments_for(node),
+              type_assertion: type_assertion_for(node),
               assignment: assignment,
               source: :parser
             )
@@ -32,6 +33,7 @@ module Solargraph
                                               name: region.closure.name, source: :parser),
                   name: name.to_s,
                   comments: comments_for(node),
+                  type_assertion: type_assertion_for(node),
                   assignment: assignment,
                   source: :parser
                 )
