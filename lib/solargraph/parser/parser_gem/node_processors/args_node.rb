@@ -20,7 +20,6 @@ module Solargraph
                   name = (u in [_, Symbol | ::Parser::AST::Node | nil => first, *]) ? first : nil
                   default = (u in [_, _, ::Parser::AST::Node => second, *]) ? second : nil
                   loc = get_node_location(u)
-                  # @sg-ignore https://github.com/castwide/solargraph/pull/1451
                   param = Solargraph::Pin::Parameter.new(
                     location: loc,
                     closure: callable,
