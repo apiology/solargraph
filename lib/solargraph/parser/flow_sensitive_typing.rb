@@ -228,7 +228,9 @@ module Solargraph
         #
         facts_by_pin.each_pair do |pin, facts|
           facts.each do |fact|
+            # @sg-ignore Hash#each_pair does not type a two-parameter block's value
             downcast_type = fact.fetch(:type, nil)
+            # @sg-ignore Hash#each_pair does not type a two-parameter block's value
             downcast_not_type = fact.fetch(:not_type, nil)
             presences.each do |presence|
               add_downcast_var(pin,

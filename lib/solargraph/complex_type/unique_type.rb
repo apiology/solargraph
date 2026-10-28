@@ -433,11 +433,13 @@ module Solargraph
             context_params = yield context_type if context_type
             if context_params && context_params[i]
               type_arg = context_params[i]
+              # @sg-ignore Block parameters of each_with_index.flat_map are untyped
               type_arg.map do |new_unique_context_type|
                 ut.resolve_generics_from_context generics_to_resolve, new_unique_context_type,
                                                  resolved_generic_values: resolved_generic_values
               end
             else
+              # @sg-ignore Block parameters of each_with_index.flat_map are untyped
               ut.resolve_generics_from_context generics_to_resolve, nil,
                                                resolved_generic_values: resolved_generic_values
             end
