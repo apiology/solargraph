@@ -34,7 +34,7 @@ module Solargraph
     # Get a hash of the position. This representation is suitable for use in
     # the language server protocol.
     #
-    # @return [Hash]
+    # @return [Hash{Symbol => Integer}]
     def to_hash
       {
         line: line,

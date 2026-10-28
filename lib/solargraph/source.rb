@@ -210,6 +210,21 @@ module Solargraph
       end
     end
 
+    # The RBS type in an rbs-inline type assertion, i.e., a `#: TYPE`
+    # comment that trails the node on its last line.
+    #
+    # @example
+    #   x = [] #: Array[String]
+    #
+    # @param node [AST::Node]
+    # @return [String, nil]
+    def type_assertion_for node
+      rng = Range.from_node(node)
+      return nil if rng.nil?
+      rest = code_lines[rng.ending.line]&.[](rng.ending.column..)
+      rest&.[](/\A\s*#:(.*)$/, 1)&.strip
+    end
+
     # A location representing the file in its entirety.
     #
     # @return [Location]
@@ -462,6 +477,7 @@ module Solargraph
     # @return [String]
     def code= val
       @code_lines = nil
+      @node_map = nil
       @finalized = false
       @code = val
     end
