@@ -238,4 +238,24 @@ describe 'NodeChainer' do
     expect(api_map.get_path_pins('Foo#matches?').first.probe(api_map).to_s).to eq('Boolean')
     expect(api_map.get_path_pins('Foo#destructure').first.probe(api_map).to_s).to eq('nil')
   end
+
+  it 'tracks a block passed to a safe-navigated call' do
+    source = Solargraph::Source.load_string(%(
+      foo&.each { |bar| bar }
+    ))
+    chain = Solargraph::Parser.chain(source.node)
+    each_link = chain.links.last
+    expect(each_link).to be_a(Solargraph::Source::Chain::QCall)
+    expect(each_link.block).to be_a(Solargraph::Source::Chain)
+  end
+
+  it 'tracks a block on a safe-navigated call with no receiver node' do
+    csend = Parser::AST::Node.new(:csend, [nil, :each])
+    args = Parser::AST::Node.new(:args, [Parser::AST::Node.new(:arg, [:bar])])
+    block = Parser::AST::Node.new(:block, [csend, args, Parser::AST::Node.new(:lvar, [:bar])])
+    chain = Solargraph::Parser.chain(block, 'file.rb')
+    each_link = chain.links.last
+    expect(each_link).to be_a(Solargraph::Source::Chain::QCall)
+    expect(each_link.block).to be_a(Solargraph::Source::Chain)
+  end
 end

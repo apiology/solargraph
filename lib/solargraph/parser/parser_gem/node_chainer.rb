@@ -79,10 +79,10 @@ module Solargraph
             raise "No idea what to do with #{n}"
           in [:csend, ::Parser::AST::Node => receiver, Symbol => method_name, *]
             result.concat generate_links(receiver)
-            result.push Chain::QCall.new(method_name.to_s, Location.from_node(n), node_args(n),
+            result.push Chain::QCall.new(method_name.to_s, Location.from_node(n), node_args(n), passed_block(n),
                                          assignment: assignment_syntax?(n))
           in [:csend, nil, Symbol => method_name, *]
-            result.push Chain::QCall.new(method_name.to_s, Location.from_node(n), node_args(n))
+            result.push Chain::QCall.new(method_name.to_s, Location.from_node(n), node_args(n), passed_block(n))
           in [:csend, *]
             raise "No idea what to do with #{n}"
           in [:self, *]
@@ -217,9 +217,7 @@ module Solargraph
         end
 
         # @return [Parser::AST::Node, nil]
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1421
         def send_node
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1421
           @send_node ||= @tree&.find { |n| n.type == :send }
         end
 
