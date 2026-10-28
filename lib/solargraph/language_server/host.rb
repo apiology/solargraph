@@ -727,6 +727,15 @@ module Solargraph
         client_capabilities['window'] && client_capabilities['window']['workDoneProgress']
       end
 
+      # The Library observer callback that sends a library's progress to
+      # the client.
+      #
+      # @param progress [Solargraph::LanguageServer::Progress, nil]
+      # @return [void]
+      def update progress
+        progress&.send(self)
+      end
+
       private
 
       # The workspace libraries plus the generic library, if one was made
@@ -764,7 +773,6 @@ module Solargraph
       # @return [String]
       def normalize_separators path
         return path if File::ALT_SEPARATOR.nil?
-        # @sg-ignore flow sensitive typing needs to handle constants
         path.gsub(File::ALT_SEPARATOR, File::SEPARATOR)
       end
 
