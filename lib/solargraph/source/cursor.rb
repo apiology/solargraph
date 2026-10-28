@@ -112,7 +112,6 @@ module Solargraph
       # as an argument.
       #
       # @return [Cursor, nil]
-      # @sg-ignore https://github.com/apiology/solargraph/pull/225
       def recipient
         @recipient ||= begin
           node = recipient_node

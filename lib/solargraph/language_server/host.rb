@@ -773,7 +773,6 @@ module Solargraph
         changes = []
         params['contentChanges'].each do |recvd|
           chng = check_diff(params['textDocument']['uri'], recvd)
-          # @sg-ignore https://github.com/apiology/solargraph/pull/225
           changes.push Solargraph::Source::Change.new(
             (if chng['range'].nil?
                nil

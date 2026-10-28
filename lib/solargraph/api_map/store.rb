@@ -102,7 +102,7 @@ module Solargraph
       def qualify_superclass fq_sub_tag
         cached_qualify_superclass[fq_sub_tag] || qualify_and_cache_superclass(fq_sub_tag)
         type = ComplexType.try_parse(fq_sub_tag)
-        return type.simplify_literals.to_s if type.literal?
+        return type.non_literal_type.to_s if type.literal?
         ref = get_superclass(fq_sub_tag)
         return unless ref
         res = constants.dereference(ref)
@@ -393,7 +393,7 @@ module Solargraph
         return OBJECT_SUPERCLASS_PIN if !%w[BasicObject Object].include?(fqns) && namespace_exists?(fqns)
 
         sub = ComplexType.try_parse(fqns)
-        return get_superclass(sub.simplify_literals.name) if sub.literal?
+        return get_superclass(sub.non_literal_type.name) if sub.literal?
 
         get_superclass(sub.namespace) if sub.namespace != fqns
       end
@@ -401,7 +401,6 @@ module Solargraph
       # @param fq_sub_tag [String]
       # @return [String, nil]
       def qualify_and_cache_superclass fq_sub_tag
-        # @sg-ignore https://github.com/apiology/solargraph/pull/225
         cached_qualify_superclass[fq_sub_tag] = uncached_qualify_superclass(fq_sub_tag)
       end
 
@@ -414,7 +413,7 @@ module Solargraph
       # @return [String, nil]
       def uncached_qualify_superclass fq_sub_tag
         type = ComplexType.try_parse(fq_sub_tag)
-        return type.simplify_literals.to_s if type.literal?
+        return type.non_literal_type.to_s if type.literal?
         ref = get_superclass(fq_sub_tag)
         return unless ref
         res = constants.dereference(ref)

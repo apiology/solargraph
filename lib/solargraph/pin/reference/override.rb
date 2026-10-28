@@ -31,7 +31,6 @@ module Solargraph
         # @param splat [Hash]
         # @return [Solargraph::Pin::Reference::Override]
         def self.method_return name, *tags, delete: [], **splat
-          # @sg-ignore https://github.com/apiology/solargraph/pull/225
           new(nil, name, [YARD::Tags::Tag.new('return', '', tags)], delete, **splat)
         end
 
@@ -40,7 +39,6 @@ module Solargraph
         # @param splat [Hash]
         # @return [Solargraph::Pin::Reference::Override]
         def self.from_comment name, comment, **splat
-          # @sg-ignore https://github.com/apiology/solargraph/pull/225
           new(nil, name, Solargraph::Source.parse_docstring(comment).to_docstring.tags, **splat)
         end
 

@@ -86,7 +86,6 @@ module Solargraph
     # @return [self]
     def map source, live: false
       map = Solargraph::SourceMap.map(source)
-      # @sg-ignore https://github.com/apiology/solargraph/pull/225
       catalog Bench.new(source_maps: [map], live_map: live ? map : nil)
       self
     end

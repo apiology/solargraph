@@ -10,8 +10,6 @@ module Solargraph
       # @param library [String]
       def initialize library
         super()
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1451
-        #   also needs https://github.com/castwide/solargraph/pull/1240
         loader.add(library: library.gsub('/', '-'), version: nil) if self.class.has?(library)
       end
 
@@ -21,7 +19,6 @@ module Solargraph
 
       # @param library [String]
       def self.has? library
-        # @sg-ignore https://github.com/apiology/solargraph/pull/225
         !!RBS::Collection::Sources::Stdlib.instance.has?(library.gsub('/', '-'), nil)
       end
     end

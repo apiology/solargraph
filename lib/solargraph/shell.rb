@@ -502,7 +502,6 @@ module Solargraph
           next unless pin.return_type.undefined?
           type = pin.typify(api_map)
           type = pin.probe(api_map) if type.undefined?
-          # @sg-ignore https://github.com/apiology/solargraph/pull/225
           pin.docstring.add_tag YARD::Tags::Tag.new('return', nil, type.items.map(&:to_s))
           pin.instance_variable_set(:@return_type, type)
         end

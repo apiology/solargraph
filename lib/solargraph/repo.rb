@@ -23,7 +23,6 @@ module Solargraph
     #
     # @param path [String]
     # @return [Metagem, nil]
-    # @sg-ignore https://github.com/apiology/solargraph/pull/225
     def find_by_path path
       return system_find_by_path(path) unless bundled?
 
