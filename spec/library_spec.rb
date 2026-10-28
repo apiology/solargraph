@@ -737,7 +737,7 @@ describe Solargraph::Library, order: :defined do
     it 'does not deadlock when the next cacheable gem is already being processed elsewhere' do
       library = described_class.new
       api_map = library.send(:api_map)
-      metagems = (1..3).map { |i| instance_double(Solargraph::Metagem, name: "gem_#{i}", version: '1.0.0') }
+      metagems = (1..3).to_set { |i| instance_double(Solargraph::Metagem, name: "gem_#{i}", version: '1.0.0') }
       allow(api_map).to receive(:catalog)
       allow(api_map).to receive_messages(unloaded_gems: metagems, source_maps: [], pins: [])
       allow(Solargraph::Yardoc).to receive(:processing?).and_return(true)

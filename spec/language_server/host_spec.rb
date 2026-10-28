@@ -172,7 +172,7 @@ describe Solargraph::LanguageServer::Host do
       library = host.libraries.first
       # A gem that never becomes cached keeps the chain going forever
       gem = instance_double(Solargraph::Metagem, name: 'uncacheable', version: '1.0')
-      allow(library.send(:api_map)).to receive(:unloaded_gems).and_return([gem])
+      allow(library.send(:api_map)).to receive(:unloaded_gems).and_return(Set[gem])
       allow(Solargraph::Yardoc).to receive(:processing?).and_return(false)
       caches = 0
       status = instance_double(Process::Status, success?: true)
