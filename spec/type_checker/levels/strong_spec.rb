@@ -1652,6 +1652,19 @@ describe Solargraph::TypeChecker do
         expect(checker.problems.map(&:message))
           .to eq(['Wrong argument type for Caller#take_c: c expected C, received A & B'])
       end
+
+      it 'reports an intersection of unresolved constants' do
+        pending 'https://github.com/castwide/solargraph/pull/1244'
+
+        checker = type_checker(%(
+          class Factory
+            #: () -> (Missing & Other)
+            def make; end
+          end
+        ))
+        expect(checker.problems.map(&:message))
+          .to include('Unresolved return type Missing & Other for Factory#make')
+      end
     end
   end
 end

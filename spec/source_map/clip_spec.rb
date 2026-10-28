@@ -3187,4 +3187,23 @@ describe Solargraph::SourceMap::Clip do
     clip = api_map.clip_at('test.rb', [9, 13])
     expect(clip.complete.pins.map(&:path)).to eq(['Top::Foo::Bar'])
   end
+
+  it 'completes nothing after a constant holding an intersection' do
+    pending 'https://github.com/castwide/solargraph/pull/1244'
+
+    orig = Solargraph::Source.load_string(<<~RUBY, 'test.rb')
+      #: () -> (Comparable & String)
+      def make; end
+      FOO = make
+      FOO
+    RUBY
+    updater = Solargraph::Source::Updater.new('test.rb', 1, [
+                                                Solargraph::Source::Change.new(Solargraph::Range.from_to(3, 3, 3, 3), '::')
+                                              ])
+    source = orig.synchronize(updater)
+    api_map.map source
+    expect(api_map.get_path_pins('FOO').first.probe(api_map).to_s).to eq('Comparable & String')
+    clip = described_class.new(api_map, source.cursor_at(Solargraph::Position.new(3, 5)))
+    expect(clip.complete.pins).to be_empty
+  end
 end
