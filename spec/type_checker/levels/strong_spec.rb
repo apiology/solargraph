@@ -24,6 +24,19 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.first.message).to include('does not match inferred type')
     end
 
+    it 'ignores calls on block parameters of unknown type from external methods' do
+      checker = type_checker(%(
+        class Foo
+          # @param list [Array]
+          # @return [void]
+          def check list
+            list.each { |item| item.is_a?(String) }
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
     it 'does not flag attributes whose declared type already allows nil' do
       checker = type_checker(%(
         class Foo

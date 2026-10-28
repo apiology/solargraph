@@ -287,6 +287,8 @@ module Solargraph
         elsif pin.assignment
           inferred = pin.probe(api_map)
           ignored_pins.push pin if inferred.undefined? && declared_externally?(pin)
+        elsif pin.is_a?(Pin::Parameter) && yielded_externally?(pin) && pin.probe(api_map).undefined?
+          ignored_pins.push pin
         end
       end
       result
@@ -721,6 +723,27 @@ module Solargraph
         return false if !found || closest.defined? || internal?(found)
       end
       true
+    end
+
+    # True if a block parameter comes from a method declared outside
+    # the workspace, e.g. `item` in `list.each { |item| }` on an Array
+    # of unknown elements
+    #
+    # @param pin [Pin::Parameter]
+    # @return [Boolean]
+    def yielded_externally? pin
+      block = pin.closure
+      return false unless block.is_a?(Pin::Block) && block.receiver
+
+      receiver = block.receiver
+      range = Range.from_node(receiver)
+      closure = block.closure
+      return false if range.nil? || closure.nil?
+
+      chain = Solargraph::Parser.chain(receiver, filename)
+      locals = source_map.locals_at(Location.new(filename, range))
+      method_pin = chain.define(api_map, closure, locals).first
+      !method_pin.nil? && external?(method_pin)
     end
 
     # @param pin [Pin::Method]
