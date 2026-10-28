@@ -27,7 +27,6 @@ module Solargraph
         File.join CacheDir.gem_dir, "#{metagem.cache_name}.ser"
       end
 
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1364
       def load
         return super if metagem.cacheable?
         @@path_source_cache[metagem.full_path] ||= pins
