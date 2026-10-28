@@ -36,6 +36,8 @@ describe Solargraph::LanguageServer::Message::Extended::CheckGemVersion do
   end
 
   it 'responds to update actions' do
+    # Running the real command would install a gem
+    allow(Open3).to receive(:capture2).and_return(['', 0])
     host = Solargraph::LanguageServer::Host.new
     message = described_class.new(host, {}, current: Gem::Version.new('0.0.1'))
     message.process
@@ -52,9 +54,12 @@ describe Solargraph::LanguageServer::Message::Extended::CheckGemVersion do
       }
       host.receive action
     end.not_to raise_error
+    expect(Open3).to have_received(:capture2).with('gem update solargraph')
   end
 
   it 'uses bundler' do
+    # Running the real command would rewrite this repo's Gemfile.lock
+    allow(Open3).to receive(:capture2).and_return(['', 0])
     host = Solargraph::LanguageServer::Host.new
     host.configure({ 'useBundler' => true })
     message = described_class.new(host, {}, current: Gem::Version.new('0.0.1'))
@@ -72,5 +77,6 @@ describe Solargraph::LanguageServer::Message::Extended::CheckGemVersion do
       }
       host.receive action
     end.not_to raise_error
+    expect(Open3).to have_received(:capture2).with('bundle update solargraph')
   end
 end
