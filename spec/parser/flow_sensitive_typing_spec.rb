@@ -1427,8 +1427,6 @@ end
   end
 
   it 'types tuple-index captures by position' do
-    pending 'ComplexType::TypeMethods#tuple? returns false, so mass assignment reads every index as the first'
-
     source = Solargraph::Source.load_string(%(
       # @param t [Array(String, Integer)]
       def m(t)

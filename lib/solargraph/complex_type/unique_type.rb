@@ -434,11 +434,11 @@ module Solargraph
       def resolve_param_generics_from_context generics_to_resolve, context_type, resolved_generic_values
         types = yield self
         types.each_with_index.flat_map do |ct, i|
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1223
           ct.items.flat_map do |ut|
             context_params = yield context_type if context_type
             if context_params && context_params[i]
               type_arg = context_params[i]
+              # @sg-ignore https://github.com/castwide/solargraph/pull/1258
               type_arg.map do |new_unique_context_type|
                 ut.resolve_generics_from_context generics_to_resolve, new_unique_context_type,
                                                  resolved_generic_values: resolved_generic_values

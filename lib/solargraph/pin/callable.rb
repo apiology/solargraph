@@ -142,7 +142,6 @@ module Solargraph
         callable.parameters = callable.parameters.each_with_index.map do |param, i|
           # nil defers to any binding resolved_generic_values already has.
           arg_type_for_param = arg_types&.[](i)
-          # @sg-ignore Unresolved call to resolve_generics_from_context
           param.resolve_generics_from_context(generics_to_resolve,
                                               arg_type_for_param,
                                               resolved_generic_values: resolved_generic_values)

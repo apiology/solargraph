@@ -501,7 +501,6 @@ module Solargraph
     attr_writer :parsed
 
     # @return [Hash{Integer => Solargraph::Parser::Snippet}]
-    # @sg-ignore https://github.com/castwide/solargraph/pull/1223
     attr_writer :comments
 
     # @return [Boolean]

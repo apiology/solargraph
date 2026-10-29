@@ -77,7 +77,6 @@ module Solargraph
                'return unless Gem::Specification === spec; ' \
                'puts({name: spec.name, paths: spec.require_paths}.to_json)']
         o, e, s = Open3.capture3(*cmd)
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1223
         if s.success?
           begin
             last_line = o.split("\n").last

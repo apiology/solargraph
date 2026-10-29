@@ -98,7 +98,6 @@ module Solargraph
       Solargraph.with_clean_env do
         cmd = ['ruby', '-e', bundle_script]
         o, e, s = Open3.capture3(*cmd, chdir: directory)
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1223
         if s.success?
           last_line = o.strip.split("\n").last
           json = last_line ? JSON.parse(last_line, symbolize_names: true) : { metagems: [], groups: {} }

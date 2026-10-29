@@ -449,7 +449,6 @@ module Solargraph
         end
       end
       repargs.each_pair do |reporter, args|
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1223
         result.concat reporter.new(*args.uniq).diagnose(source, api_map, workspace: workspace)
       end
       result
@@ -625,7 +624,6 @@ module Solargraph
         rescue SystemCallError => e
           # The command could not start, e.g. Errno::ENOENT - handled below
         end
-        # @sg-ignore Unresolved call to success?
         if s&.success?
           logger.info "Cached #{spec.name} #{spec.version}"
         else

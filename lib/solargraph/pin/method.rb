@@ -428,7 +428,6 @@ module Solargraph
             # @param src [Array(String, String)]
             parameters: tag.parameters.map do |src|
               name, decl = parse_overload_param(src.fetch(0))
-              # @sg-ignore https://github.com/castwide/solargraph/pull/1223
               Pin::Parameter.new(
                 location: location,
                 closure: self,

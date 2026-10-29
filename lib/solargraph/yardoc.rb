@@ -32,7 +32,6 @@ module Solargraph
              '--plugin', 'solargraph', '--plugin', 'activesupport-concern']
       Solargraph.logger.debug "Running: #{cmd.inspect}"
       output, status = Open3.capture2e(*cmd, chdir: metagem.full_path)
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1223
       return if status.success?
 
       Solargraph.logger.warn { "YARD failed running #{cmd.inspect} in #{metagem.full_path}" }

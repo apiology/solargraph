@@ -101,12 +101,10 @@ module Solargraph
       def rebound_alias? environment
         decls = environment.type_alias_decls
         decls.any? do |name, entry|
-          # @sg-ignore Unresolved call to decl on generic<D>
           type = entry.decl.type
           # @sg-ignore Unresolved call to is_a? on generic<D>
           next false unless type.is_a?(RBS::Types::Alias)
 
-          # @sg-ignore Unresolved call to to_s on generic<D>
           type.name.to_s == name.to_s || !decls.key?(type.name)
         end
       end
@@ -584,11 +582,9 @@ module Solargraph
                     # the annotation describes the method's return value, not the block's
                     # @sg-ignore https://github.com/castwide/solargraph/pull/1258
                     block_parameters, block_return_type = parts_of_function(overload.method_type.block, pin, false)
-                    # @sg-ignore https://github.com/castwide/solargraph/pull/1223
                     Pin::Signature.new(generics: generics, parameters: block_parameters, return_type: block_return_type, source: :rbs,
                                        type_location: type_location, closure: pin)
                   end
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1223
           Pin::Signature.new(generics: generics, parameters: signature_parameters, return_type: signature_return_type, block: block,
                              block_required: overload.method_type.block&.required || false, source: :rbs,
                              type_location: type_location, closure: pin)

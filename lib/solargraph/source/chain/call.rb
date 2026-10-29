@@ -305,7 +305,6 @@ module Solargraph
               next unless last_link.is_a?(Chain::Literal)
               argument_value = last_link.value
 
-              # @sg-ignore Unresolved call to name
               param.name == factory_param.param_name && argument_value == factory_param.value
             end
           end
