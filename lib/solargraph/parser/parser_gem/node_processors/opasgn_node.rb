@@ -12,7 +12,7 @@ module Solargraph
             target = node.children[0]
             operator = node.children[1]
             argument = node.children[2]
-            return if target.nil? || !operator.is_a?(Symbol) || argument.nil?
+            return report_malformed_node if target.nil? || !operator.is_a?(Symbol) || argument.nil?
 
             if target.type == :send
               process_send_target(target, operator, argument)
@@ -22,6 +22,14 @@ module Solargraph
               Solargraph.assert_or_log(:opasgn_unknown_target,
                                        "Unexpected op_asgn target type: #{target.type}")
             end
+          end
+
+          # Returns nil so NodeProcessor.process stops, as a bare return would
+          #
+          # @return [nil]
+          def report_malformed_node
+            Solargraph.assert_or_log(:opasgn_malformed_node, "Malformed op_asgn node: #{node}")
+            nil
           end
 
           # @param call [Parser::AST::Node] the target of the assignment
