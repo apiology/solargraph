@@ -12,11 +12,11 @@ module Solargraph
             target = node.children[0]
             operator = node.children[1]
             argument = node.children[2]
+            return if target.nil? || !operator.is_a?(Symbol) || argument.nil?
+
             if target.type == :send
-              # @sg-ignore Need a downcast here
               process_send_target(target, operator, argument)
             elsif target.type.to_s.end_with?('vasgn')
-              # @sg-ignore Need a downcast here
               process_vasgn_target(target, operator, argument)
             else
               Solargraph.assert_or_log(:opasgn_unknown_target,
