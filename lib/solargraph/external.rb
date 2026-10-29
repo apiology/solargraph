@@ -38,10 +38,12 @@ module Solargraph
       @unresolved_dependencies ||= []
     end
 
+    # @return [Set<Metagem>] gems whose pins are loaded
     def loaded_gems
       @loaded_gems ||= Set.new
     end
 
+    # @return [Set<Metagem>] gems required but not yet cached
     def unloaded_gems
       @unloaded_gems ||= Set.new
     end
