@@ -44,7 +44,7 @@ module Solargraph
           bare = ComplexType::UniqueType.new('Array', rooted: true)
           return bare if @children.empty? || @children.any?(&:splat?)
           element_types = @children.map { |child| child.infer(api_map, name_pin, locals) }
-          return bare if element_types.any?(&:undefined?)
+          return bare if element_types.any? { |type| type.undefined? || type.void? }
           subtypes = element_types.flat_map { |type| type.simplify_literals.items }.uniq
           ComplexType::UniqueType.new('Array', [], subtypes, rooted: true, parameters_type: :list)
         end

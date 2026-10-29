@@ -45,6 +45,10 @@ describe Solargraph::Source::Chain::Array do
     expect(infer_last_line("a = [1, unknown_method]\na")).to eq('Array')
   end
 
+  it 'leaves a literal with a void element as a bare Array' do
+    expect(infer_last_line("# @return [void]\ndef m; end\na = [m]\na")).to eq('Array')
+  end
+
   it 'distinguishes literals with different elements when inferring a chain base' do
     source = Solargraph::Source.load_string("[1].first\n['a'].first\n", 'test.rb')
     api_map = Solargraph::ApiMap.new.map(source)
