@@ -187,8 +187,8 @@ module Solargraph
           # subtype of a consumer of it
           type_tag(type.name, type.args, type_alias_decls, expanding_aliases)
         when RBS::Types::ClassSingleton
-          # e.g., singleton(String)
-          type_tag(type.name, [], type_alias_decls, expanding_aliases)
+          # e.g., singleton(String) is the class object, Class<String>
+          "::Class<#{type_tag(type.name, [], type_alias_decls, expanding_aliases)}>"
         when RBS::Types::Bases::Any
           'undefined'
         when RBS::Types::Bases::Bottom
