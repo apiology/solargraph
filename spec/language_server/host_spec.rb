@@ -156,6 +156,8 @@ describe Solargraph::LanguageServer::Host do
     app2_map = host.document_symbols(file2_uri).map(&:path)
     expect(app2_map).to include('Folder2App')
     expect(app2_map).not_to include('Folder1App')
+  ensure
+    host.stop
   end
 
   it "sends a library's progress to the client" do
@@ -170,6 +172,8 @@ describe Solargraph::LanguageServer::Host do
       library.notify_observers progress
     end
     expect(host.flush).to include(%("method":"$/progress","params":{"token":"#{progress.uuid}"))
+  ensure
+    host.stop
   end
 
   it 'stops' do
@@ -223,6 +227,8 @@ describe Solargraph::LanguageServer::Host do
     expect do
       host.document_symbols(file_uri)
     end.not_to raise_error
+  ensure
+    host.stop
   end
 
   it 'responds with empty diagnostics for unopened files' do
@@ -232,6 +238,8 @@ describe Solargraph::LanguageServer::Host do
     json = JSON.parse(response.lines.last)
     expect(json['method']).to eq('textDocument/publishDiagnostics')
     expect(json['params']['diagnostics']).to be_empty
+  ensure
+    host.stop
   end
 
   it 'rescues runtime errors from messages' do
@@ -281,6 +289,8 @@ describe Solargraph::LanguageServer::Host do
     source = host.sources.find(uri)
     # @todo Smelly private method access
     expect(source.send(:repaired)).to eq('Foo::Bar ')
+  ensure
+    host.stop
   end
 
   describe '#locate_pins' do
@@ -323,6 +333,8 @@ describe Solargraph::LanguageServer::Host do
                                   }
                                 })
       expect(result.map(&:path)).to include('Example.new')
+    ensure
+      host.stop
     end
   end
 
@@ -347,6 +359,8 @@ describe Solargraph::LanguageServer::Host do
       # keep this from syncing a bunch of bundle gems in background
       allow(library).to receive(:cacheable_specs).and_return([])
       expect { host.references_from('file:///file.rb', 0, 100) }.not_to raise_error
+    ensure
+      host.stop
     end
 
     it 'logs InvalidOffset errors' do
@@ -359,6 +373,8 @@ describe Solargraph::LanguageServer::Host do
       allow(library).to receive(:cacheable_specs).and_return([])
       host.references_from(uri, 0, 100)
       expect(Solargraph.logger).to have_received(:warn).with(/InvalidOffsetError/)
+    ensure
+      host.stop
     end
   end
 
