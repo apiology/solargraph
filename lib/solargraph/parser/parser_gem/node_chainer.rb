@@ -157,7 +157,7 @@ module Solargraph
           in [:block_pass, *]
             result.push block_pass_link(n)
           in [:hash, *]
-            result.push Chain::Hash.new('::Hash', n, hash_is_splatted?(n))
+            result.push Chain::Hash.new('::Hash', n, hash_is_splatted?(n), hash_pairs(n))
           in [:array, *]
             # s(:array, *elements) - every element is a node
             chained_children = n.children.map do |child|
@@ -237,6 +237,23 @@ module Solargraph
           return false unless node in ::Parser::AST::Node[:hash, *, ::Parser::AST::Node[:kwsplat, ::Parser::AST::Node => splatted, *]]
 
           !(splatted in ::Parser::AST::Node[:hash, *])
+        end
+
+        # Chains each key/value pair so Chain::Hash can infer
+        # Hash{K => V}, mirroring how Chain::Array infers Array<T>.
+        # Returns nil for a `**splat` entry, which has no node to chain.
+        #
+        # @param node [Parser::AST::Node]
+        # @return [::Array<::Array(Chain, Chain)>, nil]
+        def hash_pairs node
+          return nil unless node.is_a?(::Parser::AST::Node) && node.type == :hash
+
+          node.children.map do |pair|
+            return nil unless pair.is_a?(::Parser::AST::Node) && pair.type == :pair
+
+            key_node, value_node = pair.children
+            [NodeChainer.chain(key_node, @filename, pair), NodeChainer.chain(value_node, @filename, pair)]
+          end
         end
 
         # @param node [Parser::AST::Node]
