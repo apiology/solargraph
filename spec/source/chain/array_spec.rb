@@ -29,6 +29,11 @@ describe Solargraph::Source::Chain::Array do
     expect(infer_last_line("a = [1, nil]\na")).to eq(declared)
   end
 
+  it 'merges repeated element types that hold undefined' do
+    expect(infer_last_line("# @return [Hash{Symbol => undefined}]\ndef m; end\nx = m\na = [x, x]\na"))
+      .to eq('Array<Hash{Symbol => undefined}>')
+  end
+
   it 'infers element types of nested literals' do
     expect(infer_last_line("a = [[1], ['a']]\na")).to eq('Array<Array<Integer>, Array<String>>')
   end
