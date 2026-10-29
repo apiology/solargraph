@@ -482,6 +482,8 @@ module Solargraph
           end
           logger.info 'Waiting for host to fully stop...'
           sleep 0.1
+          # A thread still winding down may have made a library since #stop
+          all_libraries.each(&:stop)
         end
       end
 

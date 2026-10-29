@@ -203,6 +203,29 @@ describe Solargraph::LanguageServer::Host do
     end
   end
 
+  it 'stops a library made while it is stopping' do
+    host = described_class.new
+    host.configure({ 'diagnostics' => true })
+    # Hold the diagnoser inside Library.new so the generic library it makes
+    # appears only after fully_stop has stopped the existing libraries
+    building = Thread::Queue.new
+    release = Thread::Queue.new
+    allow(Solargraph::Library).to receive(:new).and_wrap_original do |original, *args|
+      building.push(true)
+      release.pop
+      original.call(*args)
+    end
+    host.start
+    host.open('file:///test.rb', 'class Foo; end', 1)
+    Timeout.timeout(10) { building.pop }
+    Thread.new do
+      sleep 0.3
+      release.push(true)
+    end
+
+    expect { host.fully_stop(timeout: 3) }.not_to raise_error
+  end
+
   it 'retains orphaned sources' do
     dir = File.absolute_path('spec/fixtures/workspace')
     file = File.join(dir, 'lib', 'thing.rb')
