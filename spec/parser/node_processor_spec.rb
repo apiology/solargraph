@@ -44,6 +44,15 @@ describe Solargraph::Parser::NodeProcessor do
     expect(reassignment.assignment).not_to be_nil
   end
 
+  it 'skips an op_asgn node with missing children' do
+    # Hand-built: the parser always fills an op_asgn's target, operator and
+    # argument, so only a malformed node reaches OpasgnNode's early return
+    node = Parser::AST::Node.new(:op_asgn, [nil, :+, nil])
+    _, vars = described_class.process(node)
+
+    expect(vars).to be_empty
+  end
+
   it 'allows multiple processors for the same node type' do
     dummy_processor1 = Class.new(Solargraph::Parser::NodeProcessor::Base) do
       def process
