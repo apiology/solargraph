@@ -90,10 +90,6 @@ Lint/UnmodifiedReduceAccumulator:
   Exclude:
     - 'lib/solargraph/rbs_map/helpers.rb'
 
-Lint/UnreachableCode:
-  Exclude:
-    - 'lib/solargraph/complex_type/type_methods.rb'
-
 # This cop supports safe autocorrection (--autocorrect).
 # Configuration parameters: AllowUnusedKeywordArguments, IgnoreEmptyMethods, IgnoreNotImplementedMethods, NotImplementedExceptions.
 # NotImplementedExceptions: NotImplementedError
