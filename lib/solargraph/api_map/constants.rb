@@ -119,7 +119,6 @@ module Solargraph
         parts = name.split('::')
         first = nil
         parts.each.with_index do |nam, idx|
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1223
           resolved, remainder = complex_resolve(nam, base, idx != parts.length - 1)
           first ||= remainder
           if resolved
@@ -143,7 +142,6 @@ module Solargraph
         resolved = nil
         gates.each.with_index do |gate, idx|
           resolved = simple_resolve(name, gate, internal)
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1223
           return [resolved, gates[(idx + 1)..]] if resolved
           store.get_ancestor_references(gate).each do |ref|
             return ref.name.sub(/^::/, '') if ref.name.end_with?("::#{name}") && ref.name.start_with?('::')
@@ -152,7 +150,6 @@ module Solargraph
             next unless mixin
 
             resolved = resolve(name, mixin)
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1223
             return [resolved, gates[(idx + 1)..]] if resolved
           end
         end
