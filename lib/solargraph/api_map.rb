@@ -852,7 +852,10 @@ module Solargraph
       # Store#get_methods doesn't know about full tags, just
       # namespaces; resolving the generics in the method pins is this
       # class' responsibility
-      methods = store.get_methods(fqns, scope: scope, visibility: visibility).sort { |a, b| a.name <=> b.name }
+      # Sort by name, keeping same-name pins in store order; Array#sort is unstable
+      methods = store.get_methods(fqns, scope: scope, visibility: visibility)
+                     # @sg-ignore https://github.com/castwide/solargraph/pull/1415
+                     .sort_by.with_index { |pin, idx| [pin.name, idx] }
       logger.info do
         "ApiMap#inner_get_methods(rooted_tag=#{rooted_tag.inspect}, scope=#{scope.inspect}, visibility=#{visibility.inspect}, deep=#{deep.inspect}, skip=#{skip.inspect}, fqns=#{fqns}) - added from store: #{methods}"
       end
