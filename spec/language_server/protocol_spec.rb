@@ -10,14 +10,17 @@ class Protocol
     @host = host
     @host.start
     @data_reader = Solargraph::LanguageServer::Transport::DataReader.new
+    # A flush can also carry notifications and server requests (e.g., from the
+    # diagnoser thread), so keep only the response to the current request
     @data_reader.set_message_handler do |message|
-      @response = message
+      @response = message if message['id'] == @request_id && !message.key?('method')
     end
     @message_id = 0
   end
 
   def request method, params
     @response = nil
+    @request_id = @message_id
     msg = {
       'id' => @message_id,
       'method' => method,
@@ -395,6 +398,21 @@ describe Protocol do
   end
 
   it 'handles $/solargraph/document' do
+    @protocol.request '$/solargraph/document', {
+      'query' => 'String'
+    }
+    response = @protocol.response
+    expect(response['error']).to be_nil
+    expect(response['result']['content']).not_to be_empty
+  end
+
+  it 'reads the response when a notification follows it in the same flush' do
+    # The diagnoser thread can queue a notification after the response but
+    # before Protocol#request flushes the buffer
+    allow(@protocol.host).to receive(:clear).and_wrap_original do |original, id|
+      @protocol.host.send_notification 'textDocument/publishDiagnostics', { uri: 'file:///file.rb', diagnostics: [] }
+      original.call(id)
+    end
     @protocol.request '$/solargraph/document', {
       'query' => 'String'
     }
