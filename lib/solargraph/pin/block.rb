@@ -59,7 +59,6 @@ module Solargraph
       # @return [::Array<ComplexType>]
       def typify_parameters api_map
         chain = Parser.chain(receiver, filename, node)
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1240
         clip = api_map.clip_at(location!.filename, location!.range.start)
         locals = clip.locals - [self]
         meths = chain.define(api_map, closure!, locals)

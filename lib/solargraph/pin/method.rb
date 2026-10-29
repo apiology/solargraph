@@ -717,7 +717,6 @@ module Solargraph
           end
           rng = Range.from_node(n)
           next unless rng
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1240
           clip = api_map.clip_at(
             location!.filename,
             rng.ending
