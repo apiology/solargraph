@@ -470,14 +470,15 @@ module Solargraph
         notify_observers
       end
 
+      # @param timeout [Numeric] seconds to wait before raising
       # @return [void]
-      def fully_stop
+      def fully_stop timeout: 240
         stop
         # try for two minutes, raise if not fully stopped by then
         start_time = Time.now
         until fully_stopped?
-          if Time.now - start_time > 240
-            raise "Host did not fully stop within 240 seconds: #{still_running.join(', ')} still running."
+          if Time.now - start_time > timeout
+            raise "Host did not fully stop within #{timeout} seconds: #{still_running.join(', ')} still running."
           end
           logger.info 'Waiting for host to fully stop...'
           sleep 0.1

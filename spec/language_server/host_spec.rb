@@ -93,14 +93,7 @@ describe Solargraph::LanguageServer::Host do
   it 'gives up on a host whose threads never wind down', time_limit_seconds: 10 do
     host = described_class.new
     allow(host).to receive(:fully_stopped?).and_return(false)
-    # Stop first so fully_stop's own call to it returns early and the
-    # clock below is read for the first time by fully_stop itself.
-    host.stop
-    # fully_stop polls real wall-clock, so the deadline is only reachable
-    # here by moving the clock past it rather than waiting it out.
-    start = Time.now
-    allow(Time).to receive(:now).and_return(start, start + 241)
-    expect { host.fully_stop }.to raise_error(/did not fully stop within 240 seconds/)
+    expect { host.fully_stop(timeout: 0) }.to raise_error(/did not fully stop within 0 seconds/)
   end
 
   it 'names a library still caching gems when it gives up', time_limit_seconds: 10 do
@@ -109,10 +102,7 @@ describe Solargraph::LanguageServer::Host do
       host.prepare dir
       library = host.libraries.first
       allow(library).to receive(:fully_stopped?).and_return(false)
-      host.stop
-      start = Time.now
-      allow(Time).to receive(:now).and_return(start, start + 241)
-      expect { host.fully_stop }.to raise_error(/: library #{Regexp.escape(dir.inspect)} still running/)
+      expect { host.fully_stop(timeout: 0) }.to raise_error(/: library #{Regexp.escape(dir.inspect)} still running/)
     end
   end
 
