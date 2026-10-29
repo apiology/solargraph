@@ -50,6 +50,11 @@ describe Solargraph::Source::Chain::Array do
     expect(infer_last_line("a = [1, unknown_method]\na")).to eq('Array')
   end
 
+  it 'leaves a literal with a self element as a bare Array, not the defining class' do
+    code = "class Foo\n  def all\n    [self]\n  end\nend\nclass Sub < Foo; end\na = Sub.new.all\na"
+    expect(infer_last_line(code)).to eq('Array')
+  end
+
   it 'leaves a literal with a void element as a bare Array' do
     expect(infer_last_line("# @return [void]\ndef m; end\na = [m]\na")).to eq('Array')
   end
@@ -64,8 +69,8 @@ describe Solargraph::Source::Chain::Array do
   end
 
   it 'does not track mutation after assignment' do
-    # castwide/solargraph#1223 review example: the literal's type is
-    # inferred from its elements; the later push does not widen it.
+    # The literal's type is inferred from its elements; the later push
+    # does not widen it.
     expect(infer_last_line("y = [1]\ny.push 'two'\ny")).to eq('Array<Integer>')
   end
 end

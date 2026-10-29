@@ -82,14 +82,14 @@ module Solargraph
                                                                                                 '  '))).lines.each do |l|
             if l.start_with?('  ')
               # Code block
-              # @sg-ignore Need to add nil check here
+              # @sg-ignore Array#last and #max return Elem? even on a non-empty array
               sections.push DocSection.new(true) unless sections.last.code?
-            # @sg-ignore Need to add nil check here
+            # @sg-ignore Array#last and #max return Elem? even on a non-empty array
             elsif sections.last.code?
               # Regular documentation
               sections.push DocSection.new(false)
             end
-            # @sg-ignore Need to add nil check here
+            # @sg-ignore Array#last and #max return Elem? even on a non-empty array
             sections.last.concat l
           end
           sections.map(&:to_s).join.strip

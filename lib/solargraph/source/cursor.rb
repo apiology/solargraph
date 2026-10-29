@@ -122,7 +122,7 @@ module Solargraph
             if rng
               Cursor.new(source, rng.ending)
             else
-              # @sg-ignore Array#max on a non-empty literal should not include nil
+              # @sg-ignore Array#last and #max return Elem? even on a non-empty array
               pos = Position.new(position.line, [position.column - 1, 0].max)
               Cursor.new(source, pos)
             end
