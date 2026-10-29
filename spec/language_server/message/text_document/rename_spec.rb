@@ -45,7 +45,7 @@ describe Solargraph::LanguageServer::Message::TextDocument::Rename do
                                  })
     # keep this from syncing a bunch of bundle gems in background
     library = host.library_for(temp_file_url)
-    allow(library).to receive(:cacheable_specs).and_return([])
+    library.stop
     changes = process_until_changes(rename, temp_file_url)
     expect(changes.length).to eq(2)
   ensure
@@ -80,7 +80,7 @@ describe Solargraph::LanguageServer::Message::TextDocument::Rename do
                                  })
     # keep this from syncing a bunch of bundle gems in background
     library = host.library_for(temp_file_url)
-    allow(library).to receive(:cacheable_specs).and_return([])
+    library.stop
     changes = process_until_changes(rename, temp_file_url)
     expect(changes.length).to eq(3)
   ensure
@@ -112,7 +112,7 @@ describe Solargraph::LanguageServer::Message::TextDocument::Rename do
                                  })
     # keep this from syncing a bunch of bundle gems in background
     library = host.library_for(temp_file_url)
-    allow(library).to receive(:cacheable_specs).and_return([])
+    library.stop
     changes = process_until_changes(rename, temp_file_url)
     expect(changes.length).to eq(3)
     expect(changes.first[:range][:start][:character]).to eq(13)

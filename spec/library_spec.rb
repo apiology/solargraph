@@ -25,7 +25,7 @@ describe Solargraph::Library, order: :defined do
   it 'returns a Completion' do
     library = described_class.new
     # keep this from syncing a bunch of bundle gems in background
-    allow(library).to receive(:cacheable_specs).and_return([])
+    library.stop
     library.attach Solargraph::Source.load_string(%(
       x = 1
       x
@@ -128,7 +128,7 @@ describe Solargraph::Library, order: :defined do
       end
     ), filename, 0
     # keep this from syncing a bunch of bundle gems in background
-    allow(library).to receive(:cacheable_specs).and_return([])
+    library.stop
     library.attach src
     paths = library.definitions_at(filename, 2, 13).map(&:path)
     expect(paths).to include('Foo#bar')
@@ -147,7 +147,7 @@ describe Solargraph::Library, order: :defined do
     ), filename, 0
     library.attach src
     # keep this from syncing a bunch of bundle gems in background
-    allow(library).to receive(:cacheable_specs).and_return([])
+    library.stop
     paths = library.type_definitions_at(filename, 7, 13).map(&:path)
     expect(paths).to include('Bar')
   end
@@ -162,7 +162,7 @@ describe Solargraph::Library, order: :defined do
       Foo.new.bar()
     ), filename, 0
     # keep this from syncing a bunch of bundle gems in background
-    allow(library).to receive(:cacheable_specs).and_return([])
+    library.stop
     library.attach src
     pins = library.signatures_at(filename, 5, 18)
     expect(pins.length).to eq(1)
@@ -204,7 +204,7 @@ describe Solargraph::Library, order: :defined do
       puts 'hello'
     ), filename, 0)
     # keep this from syncing a bunch of bundle gems in background
-    allow(library).to receive(:cacheable_specs).and_return([])
+    library.stop
     library.attach src
     result = library.diagnose filename
     expect(result).to be_a(Array)
@@ -218,7 +218,7 @@ describe Solargraph::Library, order: :defined do
     workspace = Solargraph::Workspace.new directory, config
     library = described_class.new workspace
     # keep this from syncing a bunch of bundle gems in background
-    allow(library).to receive(:cacheable_specs).and_return([])
+    library.stop
     src = Solargraph::Source.load_string(%(
       puts 'hello'
     ), filename, 0)
@@ -246,7 +246,7 @@ describe Solargraph::Library, order: :defined do
       end
     ), filename, 0)
     # keep this from syncing a bunch of bundle gems in background
-    allow(library).to receive(:cacheable_specs).and_return([])
+    library.stop
     library.attach src
     pins = library.document_symbols filename
     expect(pins.length).to eq(2)
@@ -263,7 +263,7 @@ describe Solargraph::Library, order: :defined do
       workspace = Solargraph::Workspace.new('*')
       library = described_class.new(workspace)
       # keep this from syncing a bunch of bundle gems in background
-      allow(library).to receive(:cacheable_specs).and_return([])
+      library.stop
       src1 = Solargraph::Source.load_string(%(
         Foo.new
       ), 'file1.rb', 0)
@@ -282,7 +282,7 @@ describe Solargraph::Library, order: :defined do
       workspace = Solargraph::Workspace.new('*')
       library = described_class.new(workspace)
       # keep this from syncing a bunch of bundle gems in background
-      allow(library).to receive(:cacheable_specs).and_return([])
+      library.stop
       src1 = Solargraph::Source.load_string(%(
         Foo.new
       ), 'file1.rb', 0)
@@ -303,7 +303,7 @@ describe Solargraph::Library, order: :defined do
       workspace = Solargraph::Workspace.new('*')
       library = described_class.new(workspace)
       # keep this from syncing a bunch of bundle gems in background
-      allow(library).to receive(:cacheable_specs).and_return([])
+      library.stop
       src1 = Solargraph::Source.load_string(%(
       class Foo
         def bar
@@ -332,7 +332,7 @@ describe Solargraph::Library, order: :defined do
       workspace = Solargraph::Workspace.new('*')
       library = described_class.new(workspace)
       # keep this from syncing a bunch of bundle gems in background
-      allow(library).to receive(:cacheable_specs).and_return([])
+      library.stop
       src1 = Solargraph::Source.load_string(%(
       class Foo
         def self.bar
@@ -369,7 +369,7 @@ describe Solargraph::Library, order: :defined do
       workspace = Solargraph::Workspace.new('*')
       library = described_class.new(workspace)
       # keep this from syncing a bunch of bundle gems in background
-      allow(library).to receive(:cacheable_specs).and_return([])
+      library.stop
       src1 = Solargraph::Source.load_string(%(
       class Foo
         def bar
@@ -400,7 +400,7 @@ describe Solargraph::Library, order: :defined do
       workspace = Solargraph::Workspace.new('*')
       library = described_class.new(workspace)
       # keep this from syncing a bunch of bundle gems in background
-      allow(library).to receive(:cacheable_specs).and_return([])
+      library.stop
       source = Solargraph::Source.load_string(%(
       class Foo
         def bar
@@ -447,7 +447,7 @@ describe Solargraph::Library, order: :defined do
     it 'returns YARD documentation from sources' do
       library = described_class.new
       # keep this from syncing a bunch of bundle gems in background
-      allow(library).to receive(:cacheable_specs).and_return([])
+      library.stop
       src = Solargraph::Source.load_string(%(
       class Foo
         # My bar method
@@ -484,7 +484,7 @@ describe Solargraph::Library, order: :defined do
     it 'finds unique references' do
       library = described_class.new(Solargraph::Workspace.new('*'))
       # keep this from syncing a bunch of bundle gems in background
-      allow(library).to receive(:cacheable_specs).and_return([])
+      library.stop
       src1 = Solargraph::Source.load_string(%(
       class Foo
       end
@@ -502,7 +502,7 @@ describe Solargraph::Library, order: :defined do
     it 'includes method parameters in references' do
       library = described_class.new(Solargraph::Workspace.new('*'))
       # keep this from syncing a bunch of bundle gems in background
-      allow(library).to receive(:cacheable_specs).and_return([])
+      library.stop
       source = Solargraph::Source.load_string(%(
       class Foo
         def bar(baz)
@@ -520,7 +520,7 @@ describe Solargraph::Library, order: :defined do
     it "lies about names when client can't handle the truth" do
       library = described_class.new(Solargraph::Workspace.new('*'))
       # keep this from syncing a bunch of bundle gems in background
-      allow(library).to receive(:cacheable_specs).and_return([])
+      library.stop
       source = Solargraph::Source.load_string(%(
       class Foo
         def 🤦🏻foo♀️; 123; end
@@ -534,7 +534,7 @@ describe Solargraph::Library, order: :defined do
     it 'tells the truth about names when client can handle the truth' do
       library = described_class.new(Solargraph::Workspace.new('*'))
       # keep this from syncing a bunch of bundle gems in background
-      allow(library).to receive(:cacheable_specs).and_return([])
+      library.stop
       source = Solargraph::Source.load_string(%(
       class Foo
         def 🤦🏻foo♀️; 123; end
@@ -548,7 +548,7 @@ describe Solargraph::Library, order: :defined do
     it 'includes block parameters in references' do
       library = described_class.new(Solargraph::Workspace.new('*'))
       # keep this from syncing a bunch of bundle gems in background
-      allow(library).to receive(:cacheable_specs).and_return([])
+      library.stop
       source = Solargraph::Source.load_string(%(
       100.times do |foo|
         puts foo
@@ -573,7 +573,7 @@ describe Solargraph::Library, order: :defined do
       end
     ), 'test.rb')
     # keep this from syncing a bunch of bundle gems in background
-    allow(library).to receive(:cacheable_specs).and_return([])
+    library.stop
     library.attach source
     # Start of tag
     pins = library.definitions_at('test.rb', 4, 19)
@@ -599,7 +599,7 @@ describe Solargraph::Library, order: :defined do
     ), 'test.rb')
     library.attach source
     # keep this from syncing a bunch of bundle gems in background
-    allow(library).to receive(:cacheable_specs).and_return([])
+    library.stop
     pins = library.definitions_at('test.rb', 5, 19)
     expect(pins.map(&:path)).to include('Tagged')
     pins = library.definitions_at('test.rb', 5, 26)
@@ -619,7 +619,7 @@ describe Solargraph::Library, order: :defined do
     ), 'test.rb')
     library.attach source
     # keep this from syncing a bunch of bundle gems in background
-    allow(library).to receive(:cacheable_specs).and_return([])
+    library.stop
     pins = library.definitions_at('test.rb', 3, 31)
     expect(pins.map(&:path)).to include('TaggedExample')
   end
@@ -635,7 +635,7 @@ describe Solargraph::Library, order: :defined do
     ), 'test.rb')
     library.attach source
     # keep this from syncing a bunch of bundle gems in background
-    allow(library).to receive(:cacheable_specs).and_return([])
+    library.stop
     pins = library.definitions_at('test.rb', 3, 31)
     expect(pins.map(&:path)).to include('TaggedExample')
   end
@@ -643,7 +643,7 @@ describe Solargraph::Library, order: :defined do
   it 'skips comment text outside of tags' do
     library = described_class.new
     # keep this from syncing a bunch of bundle gems in background
-    allow(library).to receive(:cacheable_specs).and_return([])
+    library.stop
     source = Solargraph::Source.load_string(%(
       # String
       def foo; end
@@ -656,7 +656,7 @@ describe Solargraph::Library, order: :defined do
   it 'marks aliases as methods or attributes in completion items' do
     library = described_class.new
     # keep this from syncing a bunch of bundle gems in background
-    allow(library).to receive(:cacheable_specs).and_return([])
+    library.stop
     source = Solargraph::Source.load_string(%(
       class Example
         attr_reader :foo
@@ -681,7 +681,7 @@ describe Solargraph::Library, order: :defined do
   it 'marks aliases as methods or attributes in definitions' do
     library = described_class.new
     # keep this from syncing a bunch of bundle gems in background
-    allow(library).to receive(:cacheable_specs).and_return([])
+    library.stop
     source = Solargraph::Source.load_string(%(
       class Example
         attr_reader :foo
@@ -731,7 +731,7 @@ describe Solargraph::Library, order: :defined do
       workspace = File.absolute_path(File.join('spec', 'fixtures', 'workspace'))
       library = described_class.load(workspace)
       # keep this from syncing a bunch of bundle gems in background
-      allow(library).to receive(:cacheable_specs).and_return([])
+      library.stop
       library.map!
       library.catalog
       other_file = File.absolute_path(File.join('spec', 'fixtures', 'workspace', 'lib', 'other.rb'))

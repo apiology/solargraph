@@ -74,6 +74,8 @@ module Solargraph
         # @return [void]
         def tick
           message = @mutex.synchronize do
+            # A stop that landed before this lock was taken already
+            # signalled, so waiting now would never wake up
             @resource.wait(@mutex) while messages.empty? && !stopped?
             next_message
           end

@@ -72,6 +72,9 @@ describe Solargraph::LanguageServer::Host do
   it 'runs diagnostics on opened files' do
     Dir.mktmpdir do |dir|
       host = described_class.new
+      # The host notifies its observers each time it queues a message
+      queued = Thread::Queue.new
+      host.add_observer(-> { queued.push(true) }, :call)
       host.configure({ 'diagnostics' => true })
       file = File.join(dir, 'test.rb')
       File.write(file, "foo = 'foo'")
@@ -81,16 +84,13 @@ describe Solargraph::LanguageServer::Host do
       host.open(file, File.read(file), 1)
       # keep this from syncing a bunch of bundle gems in background
       library = host.library_for(file_uri)
-      allow(library).to receive(:cacheable_specs).and_return([])
+      library.stop
       buffer = host.flush
-      times = 0
+      # Wake on each queued message until the diagnoser's arrives
       Timeout.timeout 60 do
-        # @todo Weak timeout for waiting until the diagnostics thread
-        #   sends a notification
-        while buffer.empty? && times < 10
-          sleep 1
-          times += 1
-          buffer = host.flush
+        until buffer.include?('textDocument/publishDiagnostics')
+          queued.pop
+          buffer += host.flush
         end
       end
       expect(buffer).to include('textDocument/publishDiagnostics')
@@ -102,14 +102,17 @@ describe Solargraph::LanguageServer::Host do
   it 'gives up on a host whose threads never wind down', time_limit_seconds: 10 do
     host = described_class.new
     allow(host).to receive(:fully_stopped?).and_return(false)
-    # Stop first so fully_stop's own call to it returns early and the
-    # clock below is read for the first time by fully_stop itself.
-    host.stop
-    # fully_stop polls real wall-clock, so the deadline is only reachable
-    # here by moving the clock past it rather than waiting it out.
-    start = Time.now
-    allow(Time).to receive(:now).and_return(start, start + 241)
-    expect { host.fully_stop }.to raise_error(/did not fully stop within 240 seconds/)
+    expect { host.fully_stop(timeout: 0) }.to raise_error(/did not fully stop within 0 seconds/)
+  end
+
+  it 'names a library still caching gems when it gives up', time_limit_seconds: 10 do
+    Dir.mktmpdir do |dir|
+      host = described_class.new
+      host.prepare dir
+      library = host.libraries.first
+      allow(library).to receive(:fully_stopped?).and_return(false)
+      expect { host.fully_stop(timeout: 0) }.to raise_error(/: library #{Regexp.escape(dir.inspect)} still running/)
+    end
   end
 
   it 'handles DiagnosticsErrors' do
@@ -141,17 +144,19 @@ describe Solargraph::LanguageServer::Host do
     host.open_from_disk file1_uri
     library = host.library_for(file1_uri)
     # keep this from syncing a bunch of bundle gems in background
-    allow(library).to receive(:cacheable_specs).and_return([])
+    library.stop
     host.open_from_disk file2_uri
     library = host.library_for(file2_uri)
     # keep this from syncing a bunch of bundle gems in background
-    allow(library).to receive(:cacheable_specs).and_return([])
+    library.stop
     app1_map = host.document_symbols(file1_uri).map(&:path)
     expect(app1_map).to include('Folder1App')
     expect(app1_map).not_to include('Folder2App')
     app2_map = host.document_symbols(file2_uri).map(&:path)
     expect(app2_map).to include('Folder2App')
     expect(app2_map).not_to include('Folder1App')
+  ensure
+    host.stop
   end
 
   it "sends a library's progress to the client" do
@@ -166,6 +171,8 @@ describe Solargraph::LanguageServer::Host do
       library.notify_observers progress
     end
     expect(host.flush).to include(%("method":"$/progress","params":{"token":"#{progress.uuid}"))
+  ensure
+    host.stop
   end
 
   it 'stops' do
@@ -185,7 +192,10 @@ describe Solargraph::LanguageServer::Host do
       allow(Solargraph::Yardoc).to receive(:processing?).and_return(false)
       caches = 0
       status = instance_double(Process::Status, success?: true)
-      allow(Open3).to receive(:capture3) do
+      # Count only this library's cache runs: earlier examples leave
+      # libraries caching their own gems in the background
+      allow(Open3).to receive(:capture3).and_call_original
+      allow(Open3).to receive(:capture3).with(anything, 'cache', 'uncacheable', any_args) do
         caches += 1
         sleep 0.1
         ['', '', status]
@@ -202,6 +212,29 @@ describe Solargraph::LanguageServer::Host do
     end
   end
 
+  it 'stops a library made while it is stopping' do
+    host = described_class.new
+    host.configure({ 'diagnostics' => true })
+    # Hold the diagnoser inside Library.new so the generic library it makes
+    # appears only after fully_stop has stopped the existing libraries
+    building = Thread::Queue.new
+    release = Thread::Queue.new
+    allow(Solargraph::Library).to receive(:new).and_wrap_original do |original, *args|
+      building.push(true)
+      release.pop
+      original.call(*args)
+    end
+    host.start
+    host.open('file:///test.rb', 'class Foo; end', 1)
+    Timeout.timeout(10) { building.pop }
+    Thread.new do
+      sleep 0.3
+      release.push(true)
+    end
+
+    expect { host.fully_stop(timeout: 3) }.not_to raise_error
+  end
+
   it 'retains orphaned sources' do
     dir = File.absolute_path('spec/fixtures/workspace')
     file = File.join(dir, 'lib', 'thing.rb')
@@ -212,10 +245,12 @@ describe Solargraph::LanguageServer::Host do
     host.remove(dir)
     # keep this from syncing a bunch of bundle gems in background
     library = host.library_for(file_uri)
-    allow(library).to receive(:cacheable_specs).and_return([])
+    library.stop
     expect do
       host.document_symbols(file_uri)
     end.not_to raise_error
+  ensure
+    host.stop
   end
 
   it 'responds with empty diagnostics for unopened files' do
@@ -225,6 +260,8 @@ describe Solargraph::LanguageServer::Host do
     json = JSON.parse(response.lines.last)
     expect(json['method']).to eq('textDocument/publishDiagnostics')
     expect(json['params']['diagnostics']).to be_empty
+  ensure
+    host.stop
   end
 
   it 'rescues runtime errors from messages' do
@@ -274,6 +311,8 @@ describe Solargraph::LanguageServer::Host do
     source = host.sources.find(uri)
     # @todo Smelly private method access
     expect(source.send(:repaired)).to eq('Foo::Bar ')
+  ensure
+    host.stop
   end
 
   describe '#command_path' do
@@ -332,7 +371,7 @@ describe Solargraph::LanguageServer::Host do
       host.open uri, code, 1
       library = host.library_for(uri)
       # keep this from syncing a bunch of bundle gems in background
-      allow(library).to receive(:cacheable_specs).and_return([])
+      library.stop
       Timeout.timeout 60 do
         sleep 0.1 until host.libraries.all?(&:mapped?)
       end
@@ -355,6 +394,8 @@ describe Solargraph::LanguageServer::Host do
                                   }
                                 })
       expect(result.map(&:path)).to include('Example.new')
+    ensure
+      host.stop
     end
   end
 
@@ -377,8 +418,10 @@ describe Solargraph::LanguageServer::Host do
       host.open(uri, 'class Foo; end', 1)
       library = host.library_for(uri)
       # keep this from syncing a bunch of bundle gems in background
-      allow(library).to receive(:cacheable_specs).and_return([])
+      library.stop
       expect { host.references_from('file:///file.rb', 0, 100) }.not_to raise_error
+    ensure
+      host.stop
     end
 
     it 'logs InvalidOffset errors' do
@@ -388,9 +431,11 @@ describe Solargraph::LanguageServer::Host do
       host.open(uri, 'class Foo; end', 1)
       library = host.library_for(uri)
       # keep this from syncing a bunch of bundle gems in background
-      allow(library).to receive(:cacheable_specs).and_return([])
+      library.stop
       host.references_from(uri, 0, 100)
       expect(Solargraph.logger).to have_received(:warn).with(/InvalidOffsetError/)
+    ensure
+      host.stop
     end
   end
 
@@ -408,7 +453,7 @@ describe Solargraph::LanguageServer::Host do
       @host.open(uri, 'class Foo; end', 1)
       library = @host.library_for(uri)
       # keep this from syncing a bunch of bundle gems in background
-      allow(library).to receive(:cacheable_specs).and_return([])
+      library.stop
       symbols = @host.document_symbols(uri)
       expect(symbols).not_to be_empty
     end
@@ -419,7 +464,7 @@ describe Solargraph::LanguageServer::Host do
       @host.open(uri, 'class Foo; end', 1)
       library = @host.library_for(uri)
       # keep this from syncing a bunch of bundle gems in background
-      allow(library).to receive(:cacheable_specs).and_return([])
+      library.stop
       symbols = @host.document_symbols(uri)
       expect(symbols).not_to be_empty
     end

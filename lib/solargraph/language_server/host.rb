@@ -474,17 +474,20 @@ module Solargraph
         notify_observers
       end
 
+      # @param timeout [Numeric] seconds to wait before raising
       # @return [void]
-      def fully_stop
+      def fully_stop timeout: 240
         stop
         # try for two minutes, raise if not fully stopped by then
         start_time = Time.now
         until fully_stopped?
-          if Time.now - start_time > 240
-            raise 'Host did not fully stop within 240 seconds.'
+          if Time.now - start_time > timeout
+            raise "Host did not fully stop within #{timeout} seconds: #{still_running.join(', ')} still running."
           end
           logger.info 'Waiting for host to fully stop...'
           sleep 0.1
+          # A thread still winding down may have made a library since #stop
+          all_libraries.each(&:stop)
         end
       end
 
@@ -752,6 +755,20 @@ module Solargraph
       # @return [Array<Library>]
       def all_libraries
         libraries + [@generic_library].compact
+      end
+
+      # Name the parts that keep #fully_stopped? false, since CI logs at warn
+      # and the raise in #fully_stop is all a hang leaves behind
+      #
+      # @return [Array<String>]
+      def still_running
+        parts = []
+        parts.push 'diagnoser' unless diagnoser.fully_stopped?
+        parts.push 'message worker' unless message_worker.fully_stopped?
+        all_libraries.reject(&:fully_stopped?).each do |lib|
+          parts.push "library #{lib.name || lib.workspace.directory.inspect}"
+        end
+        parts
       end
 
       # @return [Array<Integer>]
