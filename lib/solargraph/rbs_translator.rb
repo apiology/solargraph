@@ -47,7 +47,8 @@ module Solargraph
     # @param type_alias_decls [Hash{String => RBS::AST::Declarations::TypeAlias}]
     # @return [Array<Pin::Parameter>]
     def self.to_parameter_pins method_type, closure, parameter_names = [], type_alias_decls: {}
-      if defined?(RBS::Types::UntypedFunction) && method_type.type.is_a?(RBS::Types::UntypedFunction)
+      function = method_type.type
+      if function.is_a?(RBS::Types::UntypedFunction)
         return [
           Solargraph::Pin::Parameter.new(decl: :restarg, name: 'arg', closure: closure, source: :rbs)
         ]
@@ -55,37 +56,34 @@ module Solargraph
 
       arg_num = 0
       params = []
-      method_type.type.required_positionals.each do |param|
-        # @sg-ignore Unresolved call to name on RBS::Types::Function::Param
+      function.required_positionals.each do |param|
         params.push RbsTranslator.to_parameter_pin(param, param.name&.to_s || parameter_names[arg_num] || "arg_#{arg_num}", :arg, closure, type_alias_decls: type_alias_decls)
         arg_num += 1
       end
-      method_type.type.optional_positionals.each do |param|
-        # @sg-ignore Unresolved call to name on RBS::Types::Function::Param
+      function.optional_positionals.each do |param|
         params.push RbsTranslator.to_parameter_pin(param, param.name&.to_s || parameter_names[arg_num] || "arg_#{arg_num}", :optarg, closure, type_alias_decls: type_alias_decls)
         arg_num += 1
       end
-      if method_type.type.rest_positionals
-        rest_positionals = method_type.type.rest_positionals
-        # @sg-ignore Unresolved call to name on RBS::Types::Function::Param
+      rest_positionals = function.rest_positionals
+      if rest_positionals
         rest_name = rest_positionals.name&.to_s || parameter_names[arg_num] || "arg_#{arg_num}"
         params.push RbsTranslator.to_parameter_pin(rest_positionals, rest_name, :restarg, closure, type_alias_decls: type_alias_decls)
         arg_num += 1
       end
-      method_type.type.required_keywords.each do |param|
+      function.required_keywords.each do |param|
         # @sg-ignore Unresolved calls to last, first on generic<D>
         params.push RbsTranslator.to_parameter_pin(param.last, param.first.to_s, :kwarg, closure, type_alias_decls: type_alias_decls)
         arg_num += 1
       end
-      method_type.type.optional_keywords.each do |param|
+      function.optional_keywords.each do |param|
         # @sg-ignore Unresolved calls to last, first on generic<D>
         params.push RbsTranslator.to_parameter_pin(param.last, param.first.to_s, :kwoptarg, closure, type_alias_decls: type_alias_decls)
         arg_num += 1
       end
-      if method_type.type.rest_keywords
-        rest_keywords = method_type.type.rest_keywords
-        # @sg-ignore Unresolved call to name on RBS::Types::Function::Param
+      rest_keywords = function.rest_keywords
+      if rest_keywords
         rest_keywords_name = rest_keywords.name&.to_s || parameter_names[arg_num] || "arg_#{arg_num}"
+        # @sg-ignore arg_num += 1 in a branch infers Integer, BigDecimal when bigdecimal RBS is loaded
         params.push RbsTranslator.to_parameter_pin(rest_keywords, rest_keywords_name, :kwrestarg, closure, type_alias_decls: type_alias_decls)
       end
       params
