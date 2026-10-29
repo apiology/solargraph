@@ -189,7 +189,10 @@ describe Solargraph::LanguageServer::Host do
       allow(Solargraph::Yardoc).to receive(:processing?).and_return(false)
       caches = 0
       status = instance_double(Process::Status, success?: true)
-      allow(Open3).to receive(:capture3) do
+      # Count only this library's cache runs: earlier examples leave
+      # libraries caching their own gems in the background
+      allow(Open3).to receive(:capture3).and_call_original
+      allow(Open3).to receive(:capture3).with(anything, 'cache', 'uncacheable', any_args) do
         caches += 1
         sleep 0.1
         ['', '', status]
