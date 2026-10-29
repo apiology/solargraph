@@ -12,10 +12,6 @@ module Solargraph
             set_result(
               content: content
             )
-          rescue StandardError => e
-            Solargraph.logger.warn "Error processing document: [#{e.class}] #{e.message}"
-            # @sg-ignore Need to add nil check here
-            Solargraph.logger.debug e.backtrace.join("\n")
           end
         end
       end
