@@ -174,6 +174,34 @@ describe Solargraph::LanguageServer::Host do
     expect(host.fully_stopped?).to be(true)
   end
 
+  it 'stops caching gems in the background when stopped' do
+    Dir.mktmpdir do |dir|
+      host = described_class.new
+      host.prepare dir
+      library = host.libraries.first
+      # A gem that never becomes cached keeps the chain going forever
+      gem = instance_double(Solargraph::Metagem, name: 'uncacheable', version: '1.0')
+      allow(library.send(:api_map)).to receive(:unloaded_gems).and_return(Set[gem])
+      allow(Solargraph::Yardoc).to receive(:processing?).and_return(false)
+      caches = 0
+      status = instance_double(Process::Status, success?: true)
+      allow(Open3).to receive(:capture3) do
+        caches += 1
+        sleep 0.1
+        ['', '', status]
+      end
+
+      library.catalog
+      library.diagnose File.join(dir, 'foo.rb')
+      Timeout.timeout(10) { sleep 0.01 until caches.positive? }
+      Timeout.timeout(10) { host.fully_stop }
+      started = caches
+      sleep 0.5
+
+      expect(caches).to eq(started)
+    end
+  end
+
   it 'retains orphaned sources' do
     dir = File.absolute_path('spec/fixtures/workspace')
     file = File.join(dir, 'lib', 'thing.rb')

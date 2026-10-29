@@ -30,11 +30,10 @@ describe Solargraph::LanguageServer::Message::TextDocument::TypeDefinition do
                                       }
                                     }
                                   })
-    library = host.library_for(file_uri)
-    # keep this from syncing a bunch of bundle gems in background
-    allow(library).to receive(:cacheable_specs).and_return([])
     message.process
     expect(message.result.first[:uri]).to eq(something_uri)
+  ensure
+    host&.fully_stop
   end
 
   it 'returns no locations when the file is not mapped yet' do
