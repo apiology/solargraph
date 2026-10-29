@@ -1437,6 +1437,27 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message)).to eq([])
     end
 
+    it "picks Hash#fetch's Hash::_Key-typed overload for a Symbol key instead of merging in the block form's generic" do
+      checker = type_checker(%(
+        class Foo; end
+
+        class Holder
+          # @return [Hash{Symbol => Class<Foo>}]
+          def registry
+            { x: Foo }
+          end
+
+          # @return [Foo]
+          def use_it
+            # @type [Class<Foo>]
+            clazz = registry.fetch(:x)
+            clazz.new
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq([])
+    end
+
     it 'resolves super to the nearest override, not every ancestor' do
       checker = type_checker(%(
         class GrandParent

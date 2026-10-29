@@ -320,7 +320,6 @@ module Solargraph
       def prepare_folders array
         return if array.nil?
         array.each do |folder|
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1266
           prepare uri_to_file(folder.fetch('uri')), folder.fetch('name')
         end
       end

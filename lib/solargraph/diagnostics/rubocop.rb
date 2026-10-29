@@ -63,7 +63,6 @@ module Solargraph
       def make_array resp
         diagnostics = []
         resp.fetch('files').each do |file|
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1266
           file.fetch('offenses').each do |off|
             diagnostics.push offense_to_diagnostic(off)
           end
@@ -103,7 +102,6 @@ module Solargraph
       def offense_ending_position off
         if off.fetch('location').fetch('start_line') == off.fetch('location').fetch('last_line')
           start_line = off.fetch('location').fetch('start_line') - 1
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1266
           # @type [Integer]
           last_column = off.fetch('location').fetch('last_column')
           line = @source.code.lines[start_line]
