@@ -1627,6 +1627,53 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message)).to eq([])
     end
 
+    it 'reports an incompatible assignment to a global declared in core RBS and keeps the declared type' do
+      checker = type_checker(%(
+        # @return [void]
+        def swap
+          $stderr = 42
+        end
+
+        # @return [void]
+        def log
+          $stderr.puts 'x'
+        end
+      ))
+      expect(checker.problems.map(&:message))
+        .to eq(['Declared type IO does not match inferred type Integer for variable $stderr'])
+      expect(checker.problems.first.location.range.start.line).to eq(3)
+    end
+
+    it 'ignores an untyped assignment to a global declared in core RBS and keeps the declared type' do
+      checker = type_checker(%(
+        # @return [void]
+        def swap
+          $stderr = unknown_thing
+        end
+
+        # @return [void]
+        def log
+          $stderr.puts 'x'
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq(['Unresolved call to unknown_thing'])
+    end
+
+    it 'keeps inferring undeclared globals from their assignments' do
+      checker = type_checker(%(
+        # @return [void]
+        def swap
+          $my_global = 'x'
+        end
+
+        # @return [void]
+        def log
+          $my_global.upcase
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
     it 'accepts anonymous *, ** and & forwarding to a call' do
       checker = type_checker(%(
         class Foo

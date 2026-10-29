@@ -99,7 +99,6 @@ def undercover
     Open3.capture2e(cmd)
   end
   puts output
-  # @sg-ignore https://github.com/apiology/solargraph/pull/229
   $stdout.flush
   status
 rescue StandardError => e
@@ -108,7 +107,6 @@ rescue StandardError => e
   warn "Backtrace:\n#{e.backtrace.join("\n")}"
   warn "output: #{output}"
   puts 'Flushing'
-  # @sg-ignore https://github.com/apiology/solargraph/pull/229
   $stdout.flush
   raise
 end
@@ -167,7 +165,6 @@ def simplecov_collate
 rescue StandardError => e
   puts "Simplecov collate failed: #{e.message}"
 ensure
-  # @sg-ignore https://github.com/apiology/solargraph/pull/229
   $stdout.flush
 end
 
