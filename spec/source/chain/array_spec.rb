@@ -45,6 +45,15 @@ describe Solargraph::Source::Chain::Array do
     expect(infer_last_line("a = [1, unknown_method]\na")).to eq('Array')
   end
 
+  it 'distinguishes literals with different elements when inferring a chain base' do
+    source = Solargraph::Source.load_string("[1].first\n['a'].first\n", 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    ints = Solargraph::Source::SourceChainer.chain(source, Solargraph::Position.new(0, 6))
+    strings = Solargraph::Source::SourceChainer.chain(source, Solargraph::Position.new(1, 8))
+    ints.base.infer(api_map, Solargraph::Pin::ROOT_PIN, [])
+    expect(strings.base.infer(api_map, Solargraph::Pin::ROOT_PIN, []).to_s).to eq('Array<String>')
+  end
+
   it 'does not track mutation after assignment' do
     # castwide/solargraph#1223 review example: the literal's type is
     # inferred from its elements; the later push does not widen it.

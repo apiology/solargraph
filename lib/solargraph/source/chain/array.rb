@@ -22,6 +22,14 @@ module Solargraph
           [Pin::ProxyType.anonymous(infer_type(api_map, name_pin, locals), source: :chain)]
         end
 
+        protected
+
+        # @sg-ignore Fix "Not enough arguments to Module#protected"
+        def equality_fields
+          # @sg-ignore literal arrays in this module turn into ::Solargraph::Source::Chain::Array
+          super + [@children]
+        end
+
         private
 
         # Infer Array<T>, with T the union of the elements' non-literal
