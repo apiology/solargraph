@@ -3354,7 +3354,7 @@ describe Solargraph::SourceMap::Clip do
       expect(infer_at(%(
         cfg = { name: 'app' } #: { name: String }
         cfg
-      ), 2, 8)).to eq('Hash')
+      ), 2, 8)).to eq('Hash{Symbol => String}')
     end
 
     it 'types values of record types' do
