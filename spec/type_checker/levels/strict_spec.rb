@@ -977,6 +977,46 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message)).to eq([])
     end
 
+    it 'accepts a kwsplat after a literal keyword argument' do
+      checker = type_checker(%(
+        # @param name [String]
+        # @param closure [Object, nil]
+        def foo(name: '', closure: nil); end
+
+        # @param name [String]
+        # @param opts [Hash{Symbol => Object}]
+        def bar(name, **opts)
+          foo(name: name, **opts)
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq([])
+    end
+
+    it 'checks literal keyword argument types alongside a kwsplat' do
+      checker = type_checker(%(
+        # @param name [String]
+        def foo(name: ''); end
+
+        # @param opts [Hash{Symbol => Object}]
+        def bar(opts)
+          foo(name: 1, **opts)
+          foo(**opts, name: 1)
+        end
+      ))
+      expect(checker.problems.map(&:message))
+        .to eq(['Wrong argument type for #foo: name expected String, received Integer'] * 2)
+    end
+
+    it 'reports an unknown keyword argument without a kwsplat' do
+      checker = type_checker(%(
+        # @param name [String]
+        def foo(name: ''); end
+
+        foo(nam: 'x')
+      ))
+      expect(checker.problems.map(&:message)).to eq(['Unrecognized keyword argument nam to #foo'])
+    end
+
     it 'understands Array#+ overloads' do
       checker = type_checker(%(
         c = ['a'] + ['a']
