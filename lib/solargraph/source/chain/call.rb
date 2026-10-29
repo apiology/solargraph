@@ -477,6 +477,13 @@ module Solargraph
           block_symbol_call_path = "#{block_parameter_types.first}##{block_symbol_name}"
           callee = api_map.get_path_pins(block_symbol_call_path).first
           return_type = callee&.return_type
+          receiver_type = block_parameter_types.first
+          if receiver_type && callee && return_type&.undefined?
+            # Infer through a chain, which guards against the callee's
+            # own inference reaching this block again
+            receiver = Pin::ProxyType.anonymous(receiver_type, source: :chain)
+            return_type = Chain.new([Call.new(block_symbol_name)]).infer(api_map, receiver, [])
+          end
           # @todo: Figure out why we get unresolved generics at
           #   this point and need to assume method return types
           #   based on the generic type
