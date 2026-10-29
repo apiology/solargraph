@@ -492,7 +492,7 @@ module Solargraph
             if ptype.nil?
               # @todo Some level (strong, I guess) should require the param here
             else
-              argtype = argchain.infer(api_map, closure_pin, locals)
+              argtype = argchain.argument_type(argchain.infer(api_map, closure_pin, locals), ptype)
               argtype = argtype.self_to_type(closure_pin.context)
               if argtype.defined? && ptype.defined? && !arg_conforms_to?(argtype, ptype)
                 errors.push Problem.new(location,
@@ -541,7 +541,8 @@ module Solargraph
           ptype = ptype.self_to_type(pin.context)
           unless ptype.undefined?
             # @type [ComplexType]
-            argtype = argchain.infer(api_map, closure_pin, locals).self_to_type(closure_pin.context)
+            argtype = argchain.argument_type(argchain.infer(api_map, closure_pin, locals), ptype)
+                              .self_to_type(closure_pin.context)
             # @todo Unresolved call to defined?
             if argtype.defined? && ptype && !arg_conforms_to?(argtype, ptype)
               result.push Problem.new(location,
