@@ -82,15 +82,15 @@ module Solargraph
                                                                                                 '  '))).lines.each do |l|
             if l.start_with?('  ')
               # Code block
-              # @sg-ignore Array#last and #max return Elem? even on a non-empty array
-              sections.push DocSection.new(true) unless sections.last.code?
-            # @sg-ignore Array#last and #max return Elem? even on a non-empty array
-            elsif sections.last.code?
+              # @sg-ignore flow sensitive typing needs to narrow Array#last after an empty? guard
+              sections.push DocSection.new(true) unless sections.empty? || sections.last.code?
+            # @sg-ignore flow sensitive typing needs to narrow Array#last after an empty? guard
+            elsif !sections.empty? && sections.last.code?
               # Regular documentation
               sections.push DocSection.new(false)
             end
-            # @sg-ignore Array#last and #max return Elem? even on a non-empty array
-            sections.last.concat l
+            # @sg-ignore flow sensitive typing needs to narrow Array#last after an empty? guard
+            sections.last.concat l unless sections.empty?
           end
           sections.map(&:to_s).join.strip
         end

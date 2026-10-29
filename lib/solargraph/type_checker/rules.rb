@@ -75,11 +75,11 @@ module Solargraph
       # @todo 22: Translate to something flow sensitive typing understands
       # @todo 3: Need a downcast here
       #
-      # RBS signature limits (4):
+      # overload resolution (1):
       #
-      # @todo 4: Array#last and #max return Elem? even on a non-empty array
+      # @todo 1: Integer#- resolves to its BigDecimal overload
       #
-      # flow sensitive typing could handle (99):
+      # flow sensitive typing could handle (102):
       #
       # @todo 36: flow sensitive typing needs to handle attrs
       # @todo 29: flow sensitive typing should be able to handle redefinition
@@ -92,6 +92,7 @@ module Solargraph
       # @todo 5: flow sensitive typing needs to handle 'raise if'
       # @todo 4: flow sensitive typing needs to eliminate literal from union with [:bar].include?(foo)
       # @todo 4: nil? support in flow sensitive typing
+      # @todo 3: flow sensitive typing needs to narrow Array#last after an empty? guard
       # @todo 3: flow sensitive typing ought to be able to handle 'when ClassName'
       # @todo 2: downcast output of Enumerable#select
       # @todo 2: flow sensitive typing should handle return nil if location&.name.nil?
