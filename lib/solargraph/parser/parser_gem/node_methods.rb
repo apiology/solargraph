@@ -186,25 +186,29 @@ module Solargraph
           Parser.is_ast_node?(node.children[0]) && node.children[0].type == :kwsplat
         end
 
-        # @param node [Parser::AST::Node]
+        # @param node [Parser::AST::Node, nil]
         def splatted_call? node
           return false unless Parser.is_ast_node?(node)
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1396
           Parser.is_ast_node?(node.children[0]) && node.children[0].type == :kwsplat && node.children[0].children[0].type != :hash
         end
 
-        # @param nodes [Enumerable<Parser::AST::Node>]
+        # @param nodes [Enumerable<Parser::AST::Node, nil>]
         def any_splatted_call? nodes
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1451
           nodes.any? { |n| splatted_call?(n) }
         end
 
         # Anonymous `*`, `**` and `...` arguments pass on whatever the
         # enclosing method received, so neither count nor types are known.
         #
-        # @param nodes [Enumerable<Parser::AST::Node>]
+        # @param nodes [Enumerable<Parser::AST::Node, nil>]
         def any_forwarded_args? nodes
           nodes.any? do |n|
             next false unless Parser.is_ast_node?(n)
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1396
             next true if %i[forwarded_args forwarded_restarg].include?(n.type)
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1396
             n.type == :hash && n.children.any? { |c| Parser.is_ast_node?(c) && c.type == :forwarded_kwrestarg }
           end
         end
