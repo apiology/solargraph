@@ -103,6 +103,19 @@ describe Solargraph::LanguageServer::Host do
     expect { host.fully_stop }.to raise_error(/did not fully stop within 240 seconds/)
   end
 
+  it 'names a library still caching gems when it gives up', time_limit_seconds: 10 do
+    Dir.mktmpdir do |dir|
+      host = described_class.new
+      host.prepare dir
+      library = host.libraries.first
+      allow(library).to receive(:fully_stopped?).and_return(false)
+      host.stop
+      start = Time.now
+      allow(Time).to receive(:now).and_return(start, start + 241)
+      expect { host.fully_stop }.to raise_error(/: library #{Regexp.escape(dir.inspect)} still running/)
+    end
+  end
+
   it 'handles DiagnosticsErrors' do
     host = described_class.new
     library = instance_double(Solargraph::Library)
