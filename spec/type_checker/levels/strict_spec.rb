@@ -825,6 +825,22 @@ describe Solargraph::TypeChecker do
       expect(checker.problems).to be_one
     end
 
+    it 'ignores block parameters in zsuper arity' do
+      checker = type_checker(%(
+        class Foo
+          def meth(param_foo)
+          end
+        end
+
+        class Bar < Foo
+          def meth(param_bar, &blk)
+            super
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq([])
+    end
+
     it 'uses nil? to refine type' do
       pending 'nil? support in flow sensitive typing'
 

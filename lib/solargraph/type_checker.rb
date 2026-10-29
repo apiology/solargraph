@@ -828,15 +828,13 @@ module Solargraph
     def fake_args_for pin
       args = []
       with_opts = false
-      with_block = false
       # @param pin [Pin::Parameter]
       pin.parameters.each do |pin|
         # @sg-ignore flow sensitive typing should be able to handle redefinition
         if %i[kwarg kwoptarg kwrestarg].include?(pin.decl)
           with_opts = true
-        # @sg-ignore flow sensitive typing should be able to handle redefinition
-        elsif pin.decl == :block
-          with_block = true
+        elsif pin.block?
+          next
         # @sg-ignore flow sensitive typing should be able to handle redefinition
         elsif pin.decl == :restarg
           args.push Solargraph::Source::Chain.new([Solargraph::Source::Chain::Variable.new(pin.name)], nil, true)
@@ -847,7 +845,6 @@ module Solargraph
       pin_location = pin.location
       starting_line = pin_location ? pin_location.range.start.line : 0
       args.push Solargraph::Parser.chain_string('{}', filename, starting_line) if with_opts
-      args.push Solargraph::Parser.chain_string('&', filename, starting_line) if with_block
       args
     end
 
