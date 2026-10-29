@@ -409,6 +409,19 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message)).to include('Call to #foo is missing keyword argument b')
     end
 
+    it 'reports unrecognized keywords when a keyword parameter defaults to a hash' do
+      checker = type_checker(%(
+        class Foo
+          # @param a [Integer]
+          # @param opts [Hash]
+          def initialize a:, opts: {}
+          end
+        end
+        Foo.new(a: 1, bogus: 2)
+      ))
+      expect(checker.problems.map(&:message)).to include('Unrecognized keyword argument bogus to Foo.new')
+    end
+
     it 'understands complex use of self' do
       checker = type_checker(%(
         class A
