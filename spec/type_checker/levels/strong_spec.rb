@@ -1619,5 +1619,19 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message))
         .to eq ['Declared type String does not match inferred type String, nil for variable x']
     end
+
+    it 'resolves calls on a local reassigned from itself' do
+      checker = type_checker(%(
+        class Foo
+          # @return [String]
+          def run
+            s = 'a'
+            s = s.upcase
+            s.downcase
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
   end
 end

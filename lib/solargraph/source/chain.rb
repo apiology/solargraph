@@ -40,6 +40,8 @@ module Solargraph
       @@inference_depth = 0
       @@inference_invalidation_key = nil
       @@inference_cache = {}
+      # Counts pins skipped by the recursion guards in infer_from_definitions
+      @@inference_guard_skips = 0
 
       UNDEFINED_CALL = Chain::Call.new('<undefined>', nil)
       UNDEFINED_CONSTANT = Chain::Constant.new('<undefined>')
@@ -149,7 +151,13 @@ module Solargraph
           @@inference_invalidation_key = api_map.hash
           @@inference_cache = {}
         end
+        guard_skips_before = @@inference_guard_skips
         out = infer_uncached(api_map, name_pin, locals).downcast_to_literal_if_possible
+        # A result computed while a recursion guard skipped a pin is
+        # partial (e.g. `s = s.upcase` inferring `s` while already
+        # inferring `s`); caching it would hand it to unguarded lookups
+        return out if @@inference_guard_skips != guard_skips_before
+
         logger.debug do
           "Chain#infer() - caching result - cache_key_hash=#{cache_key.hash}, links.map(&:hash)=#{links.map(&:hash)}, links=#{links}, cache_key.map(&:hash) = #{cache_key.map(&:hash)}, cache_key=#{cache_key}"
         end
@@ -270,7 +278,10 @@ module Solargraph
         # @param pin [Pin::Base]
         pins.each do |pin|
           # Avoid infinite recursion
-          next if @@inference_stack.include?(pin)
+          if @@inference_stack.include?(pin)
+            @@inference_guard_skips += 1
+            next
+          end
 
           @@inference_stack.push pin
           type = pin.typify(api_map)
@@ -296,7 +307,10 @@ module Solargraph
         # @param pin [Pin::Base]
         unresolved_pins.each do |pin|
           # Avoid infinite recursion
-          next if @@inference_stack.include?(pin.identity)
+          if @@inference_stack.include?(pin.identity)
+            @@inference_guard_skips += 1
+            next
+          end
 
           @@inference_stack.push(pin.identity)
           type = pin.probe(api_map)
