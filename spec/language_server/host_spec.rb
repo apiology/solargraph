@@ -75,7 +75,7 @@ describe Solargraph::LanguageServer::Host do
       host.open(file, File.read(file), 1)
       # keep this from syncing a bunch of bundle gems in background
       library = host.library_for(file_uri)
-      allow(library).to receive(:cacheable_specs).and_return([])
+      library.stop
       buffer = host.flush
       # Wake on each queued message until the diagnoser's arrives
       Timeout.timeout 60 do
@@ -135,11 +135,11 @@ describe Solargraph::LanguageServer::Host do
     host.open_from_disk file1_uri
     library = host.library_for(file1_uri)
     # keep this from syncing a bunch of bundle gems in background
-    allow(library).to receive(:cacheable_specs).and_return([])
+    library.stop
     host.open_from_disk file2_uri
     library = host.library_for(file2_uri)
     # keep this from syncing a bunch of bundle gems in background
-    allow(library).to receive(:cacheable_specs).and_return([])
+    library.stop
     app1_map = host.document_symbols(file1_uri).map(&:path)
     expect(app1_map).to include('Folder1App')
     expect(app1_map).not_to include('Folder2App')
@@ -236,7 +236,7 @@ describe Solargraph::LanguageServer::Host do
     host.remove(dir)
     # keep this from syncing a bunch of bundle gems in background
     library = host.library_for(file_uri)
-    allow(library).to receive(:cacheable_specs).and_return([])
+    library.stop
     expect do
       host.document_symbols(file_uri)
     end.not_to raise_error
@@ -323,7 +323,7 @@ describe Solargraph::LanguageServer::Host do
       host.open uri, code, 1
       library = host.library_for(uri)
       # keep this from syncing a bunch of bundle gems in background
-      allow(library).to receive(:cacheable_specs).and_return([])
+      library.stop
       Timeout.timeout 60 do
         sleep 0.1 until host.libraries.all?(&:mapped?)
       end
@@ -370,7 +370,7 @@ describe Solargraph::LanguageServer::Host do
       host.open(uri, 'class Foo; end', 1)
       library = host.library_for(uri)
       # keep this from syncing a bunch of bundle gems in background
-      allow(library).to receive(:cacheable_specs).and_return([])
+      library.stop
       expect { host.references_from('file:///file.rb', 0, 100) }.not_to raise_error
     ensure
       host.stop
@@ -383,7 +383,7 @@ describe Solargraph::LanguageServer::Host do
       host.open(uri, 'class Foo; end', 1)
       library = host.library_for(uri)
       # keep this from syncing a bunch of bundle gems in background
-      allow(library).to receive(:cacheable_specs).and_return([])
+      library.stop
       host.references_from(uri, 0, 100)
       expect(Solargraph.logger).to have_received(:warn).with(/InvalidOffsetError/)
     ensure
@@ -405,7 +405,7 @@ describe Solargraph::LanguageServer::Host do
       @host.open(uri, 'class Foo; end', 1)
       library = @host.library_for(uri)
       # keep this from syncing a bunch of bundle gems in background
-      allow(library).to receive(:cacheable_specs).and_return([])
+      library.stop
       symbols = @host.document_symbols(uri)
       expect(symbols).not_to be_empty
     end
@@ -416,7 +416,7 @@ describe Solargraph::LanguageServer::Host do
       @host.open(uri, 'class Foo; end', 1)
       library = @host.library_for(uri)
       # keep this from syncing a bunch of bundle gems in background
-      allow(library).to receive(:cacheable_specs).and_return([])
+      library.stop
       symbols = @host.document_symbols(uri)
       expect(symbols).not_to be_empty
     end

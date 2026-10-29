@@ -31,7 +31,7 @@ describe Solargraph::LanguageServer::Message::TextDocument::Definition do
                      })
       # keep this from syncing a bunch of bundle gems in background
       library = host.library_for(file_uri)
-      allow(library).to receive(:cacheable_specs).and_return([])
+      library.stop
       message.process
       expect(message.result.first[:uri]).to eq(other_uri)
     end
@@ -59,7 +59,7 @@ describe Solargraph::LanguageServer::Message::TextDocument::Definition do
                                   })
     # keep this from syncing a bunch of bundle gems in background
     library = host.library_for(file_uri)
-    allow(library).to receive(:cacheable_specs).and_return([])
+    library.stop
     message.process
     expect(message.result.first[:uri]).to eq(other_uri)
   end
@@ -86,7 +86,7 @@ describe Solargraph::LanguageServer::Message::TextDocument::Definition do
                                   })
     # keep this from syncing a bunch of bundle gems in background
     library = host.library_for(file_uri)
-    allow(library).to receive(:cacheable_specs).and_return([])
+    library.stop
     message.process
     expect(message.result.first[:uri]).to eq(Solargraph::LanguageServer::UriHelpers.file_to_uri(File.join(path, 'lib',
                                                                                                           'thing.rb')))
