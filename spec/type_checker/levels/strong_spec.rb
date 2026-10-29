@@ -1572,6 +1572,101 @@ describe Solargraph::TypeChecker do
       expect(checker.problems).to be_empty
     end
 
+    context 'with an RBS intersection type' do
+      # @param body [String]
+      # @return [Solargraph::TypeChecker]
+      def intersection_checker body
+        type_checker(%(
+          class A
+            # @return [void]
+            def foo; end
+          end
+
+          module B
+            # @return [void]
+            def bar; end
+          end
+
+          class Both < A
+            include B
+          end
+
+          class C; end
+
+          class Factory
+            #: () -> (A & B)
+            def make
+              Both.new
+            end
+          end
+
+          class Caller
+            # @param a [A]
+            # @return [void]
+            def take_a(a); end
+
+            # @param c [C]
+            # @return [void]
+            def take_c(c); end
+
+            # @return [void]
+            def go
+              #{body}
+            end
+          end
+        ))
+      end
+
+      it 'resolves a method defined on either conjunct' do
+        pending 'https://github.com/castwide/solargraph/pull/1244 https://github.com/castwide/solargraph/pull/1104'
+
+        checker = intersection_checker("Factory.new.make.foo\nFactory.new.make.bar")
+        expect(checker.problems.map(&:message)).to eq([])
+      end
+
+      it 'resolves a conjunct method on a local variable' do
+        pending 'https://github.com/castwide/solargraph/pull/1244 https://github.com/castwide/solargraph/pull/1104'
+
+        checker = intersection_checker("made = Factory.new.make\nmade.bar")
+        expect(checker.problems.map(&:message)).to eq([])
+      end
+
+      it 'reports a method defined on neither conjunct' do
+        pending 'https://github.com/castwide/solargraph/pull/1244 https://github.com/castwide/solargraph/pull/1104'
+
+        checker = intersection_checker('Factory.new.make.baz')
+        expect(checker.problems.map(&:message)).to eq(['Unresolved call to baz on A & B'])
+      end
+
+      it 'accepts the value where one conjunct is expected' do
+        pending 'https://github.com/castwide/solargraph/pull/1244 https://github.com/castwide/solargraph/pull/1104'
+
+        checker = intersection_checker('take_a(Factory.new.make)')
+        expect(checker.problems.map(&:message)).to eq([])
+      end
+
+      it 'rejects the value where no conjunct is expected' do
+        pending 'https://github.com/castwide/solargraph/pull/1244 https://github.com/castwide/solargraph/pull/1104'
+
+        checker = intersection_checker('take_c(Factory.new.make)')
+        expect(checker.problems.map(&:message))
+          .to eq(['Wrong argument type for Caller#take_c: c expected C, received A & B'])
+      end
+
+      it 'reports an intersection of unresolved constants' do
+        pending 'https://github.com/castwide/solargraph/pull/1244'
+
+        checker = type_checker(%(
+          class Factory
+            #: () -> (Missing & Other)
+            def make; end
+          end
+        ))
+        expect(checker.problems.map(&:message))
+          .to include('Unresolved return type Missing & Other for Factory#make')
+      end
+    end
+
     it 'resolves calls on variables typed by inline rbs assertions' do
       checker = type_checker(%(
         class Foo
