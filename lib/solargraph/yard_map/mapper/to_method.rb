@@ -104,7 +104,6 @@ module Solargraph
 
           # @param a [Array(String, String | nil)]
           # @return [String]
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1231
           def arg_name a
             # @sg-ignore https://github.com/castwide/solargraph/pull/1231
             a[0].gsub(/[^a-z0-9_]/i, '')
