@@ -83,7 +83,6 @@ module Solargraph
       rest_keywords = function.rest_keywords
       if rest_keywords
         rest_keywords_name = rest_keywords.name&.to_s || parameter_names[arg_num] || "arg_#{arg_num}"
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1467
         params.push RbsTranslator.to_parameter_pin(rest_keywords, rest_keywords_name, :kwrestarg, closure, type_alias_decls: type_alias_decls)
       end
       params
