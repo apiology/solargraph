@@ -75,10 +75,6 @@ module Solargraph
       # @todo 22: Translate to something flow sensitive typing understands
       # @todo 3: Need a downcast here
       #
-      # overload resolution (1):
-      #
-      # @todo 1: Integer#- resolves to its BigDecimal overload
-      #
       # flow sensitive typing could handle (102):
       #
       # @todo 36: flow sensitive typing needs to handle attrs

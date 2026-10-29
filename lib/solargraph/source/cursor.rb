@@ -122,7 +122,7 @@ module Solargraph
             if rng
               Cursor.new(source, rng.ending)
             else
-              # @sg-ignore Integer#- resolves to its BigDecimal overload
+              # @sg-ignore https://github.com/castwide/solargraph/pull/1467
               pos = Position.new(position.line, position.column.positive? ? position.column - 1 : 0)
               Cursor.new(source, pos)
             end
