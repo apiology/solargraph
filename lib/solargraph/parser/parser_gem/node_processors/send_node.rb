@@ -240,7 +240,9 @@ module Solargraph
 
             cp = region.closure
             # @sg-ignore Need to add nil check here
-            args.each do |i|
+            args.each do |arg|
+              # raises NoMatchingPatternError on a non-node argument
+              arg => ::Parser::AST::Node => i
               type = region.scope == :class ? Pin::Reference::Extend : Pin::Reference::Include
               pins.push type.new(
                 location: get_node_location(i),
@@ -258,7 +260,9 @@ module Solargraph
 
             cp = region.closure
             # @sg-ignore Need to add nil check here
-            args.each do |i|
+            args.each do |arg|
+              # raises NoMatchingPatternError on a non-node argument
+              arg => ::Parser::AST::Node => i
               pins.push Pin::Reference::Prepend.new(
                 location: get_node_location(i),
                 closure: cp,
@@ -311,7 +315,9 @@ module Solargraph
             node => [:send, _, _, *args]
 
             # @sg-ignore Need to add nil check here
-            args.each do |i|
+            args.each do |arg|
+              # raises NoMatchingPatternError on a non-node argument
+              arg => ::Parser::AST::Node => i
               loc = get_node_location(node)
               if i.type == :self
                 pins.push Pin::Reference::Extend.new(
