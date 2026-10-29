@@ -63,6 +63,9 @@ describe Solargraph::LanguageServer::Host do
   it 'runs diagnostics on opened files' do
     Dir.mktmpdir do |dir|
       host = described_class.new
+      # The host notifies its observers each time it queues a message
+      queued = Thread::Queue.new
+      host.add_observer(-> { queued.push(true) }, :call)
       host.configure({ 'diagnostics' => true })
       file = File.join(dir, 'test.rb')
       File.write(file, "foo = 'foo'")
@@ -74,14 +77,11 @@ describe Solargraph::LanguageServer::Host do
       library = host.library_for(file_uri)
       allow(library).to receive(:cacheable_specs).and_return([])
       buffer = host.flush
-      times = 0
+      # Wake on each queued message until the diagnoser's arrives
       Timeout.timeout 60 do
-        # @todo Weak timeout for waiting until the diagnostics thread
-        #   sends a notification
-        while buffer.empty? && times < 10
-          sleep 1
-          times += 1
-          buffer = host.flush
+        until buffer.include?('textDocument/publishDiagnostics')
+          queued.pop
+          buffer += host.flush
         end
       end
       expect(buffer).to include('textDocument/publishDiagnostics')
