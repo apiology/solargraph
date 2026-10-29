@@ -611,52 +611,34 @@ module Solargraph
 
       pending = api_map.unloaded_gems.length - cache_errors.length - 1
 
-      if Yardoc.processing?(spec)
-        logger.info "Enqueuing cache of #{spec.name} #{spec.version} (already being processed)"
-        queued_gemspec_cache.push(spec)
-        return if pending - queued_gemspec_cache.length < 1
+      logger.info "Caching #{spec.name} #{spec.version}"
+      @cache_thread = Thread.new do
+        report_cache_progress spec.name, pending
 
-        # Try the next cacheable gemspec. This method is always called
-        # from inside sync_catalog's mutex (either directly or via this
-        # same recursive call), so recursing through sync_catalog here
-        # would try to re-lock a mutex this thread already holds and
-        # deadlock (https://github.com/castwide/solargraph/issues/1111).
-        cache_next_gemspec
-      else
-        logger.info "Caching #{spec.name} #{spec.version}"
-        @cache_thread = Thread.new do
-          report_cache_progress spec.name, pending
-
-          cmd = [workspace.command_path, 'cache', spec.name]
-          # Load the plugins this process has, not the workspace's
-          # configured ones, so the cache lands in the gem_dir read here.
-          cmd.push("--plugins=#{CacheDir.plugin_requires.join(File::PATH_SEPARATOR)}")
-          cmd.push('--directory', workspace.directory) if workspace.directory
-          begin
-            _o, e, s = Open3.capture3(*cmd)
-          rescue SystemCallError => e
-            # The command could not start, e.g. Errno::ENOENT - handled below
-          end
-          # @sg-ignore Unresolved call to success?
-          if s&.success?
-            logger.info "Cached #{spec.name} #{spec.version}"
-          else
-            cache_errors.add spec
-            logger.warn "Error caching gemspec #{spec.name} #{spec.version}"
-            logger.warn e
-          end
-          end_cache_progress
-          next if @stopped
-
-          catalog
-          sync_catalog
+        cmd = [workspace.command_path, 'cache', spec.name]
+        # Load the plugins this process has, not the workspace's
+        # configured ones, so the cache lands in the gem_dir read here.
+        cmd.push("--plugins=#{CacheDir.plugin_requires.join(File::PATH_SEPARATOR)}")
+        cmd.push('--directory', workspace.directory) if workspace.directory
+        begin
+          _o, e, s = Open3.capture3(*cmd)
+        rescue SystemCallError => e
+          # The command could not start, e.g. Errno::ENOENT - handled below
         end
-      end
-    end
+        # @sg-ignore Unresolved call to success?
+        if s&.success?
+          logger.info "Cached #{spec.name} #{spec.version}"
+        else
+          cache_errors.add spec
+          logger.warn "Error caching gemspec #{spec.name} #{spec.version}"
+          logger.warn e
+        end
+        end_cache_progress
+        next if @stopped
 
-    # @return [Array<Metagem>]
-    def queued_gemspec_cache
-      @queued_gemspec_cache ||= []
+        catalog
+        sync_catalog
+      end
     end
 
     # @param gem_name [String]
