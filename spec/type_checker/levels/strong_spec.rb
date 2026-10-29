@@ -1621,6 +1621,16 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message)).to eq([])
     end
 
+    it 'resolves calls on class variables in a namespace body' do
+      checker = type_checker(%(
+        module Foo
+          @@bar = 'bar'
+          @@bar.upcase
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
     it 'accepts ... forwarding from a class method to new' do
       checker = type_checker(%(
         class Base
