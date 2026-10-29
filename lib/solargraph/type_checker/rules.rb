@@ -69,13 +69,13 @@ module Solargraph
       #
       # @todo 4: Missed nil violation
       #
-      # pending code fixes (277):
+      # pending code fixes (280):
       #
-      # @todo 281: Need to add nil check here
+      # @todo 284: Need to add nil check here
       # @todo 22: Translate to something flow sensitive typing understands
       # @todo 3: Need a downcast here
       #
-      # flow sensitive typing could handle (99):
+      # flow sensitive typing could handle (100):
       #
       # @todo 36: flow sensitive typing needs to handle attrs
       # @todo 29: flow sensitive typing should be able to handle redefinition
@@ -114,6 +114,7 @@ module Solargraph
       # @todo 1: flow sensitive typing needs to handle constants
       # @todo 1: flow sensitive typing needs to eliminate literal from union with return if foo == :bar
       # @todo 1: Array#flatten returns a bare Array
+      # @todo 1: Array#max on a non-empty literal should not include nil
       def require_all_unique_types_match_expected?
         report?(:require_all_unique_types_match_expected, :strong)
       end
