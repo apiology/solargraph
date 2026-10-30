@@ -416,8 +416,6 @@ YARD/MismatchName:
 YARD/TagTypeSyntax:
   Exclude:
     - 'lib/solargraph/parser/comment_ripper.rb'
-    - 'lib/solargraph/parser/parser_gem/node_processors/case_match_node.rb'
-    - 'lib/solargraph/pin/base_variable.rb'
     - 'lib/solargraph/yard_map/mapper/to_method.rb'
 
 # This cop supports safe autocorrection (--autocorrect).
