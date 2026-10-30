@@ -197,13 +197,18 @@ module Solargraph
     # @return [Boolean]
     def resolved_constant? pin
       return true if pin.typify(api_map).defined?
-      constant_pins = api_map.get_constants('', *pin.closure.gates)
-                             .select { |p| p.name == pin.return_type.namespace }
-      return true if constant_pins.find { |p| p.typify(api_map).defined? }
-      # will need to probe when a constant name is assigned to a
-      # class/module (alias)
-      return true if constant_pins.find { |p| p.probe(api_map).defined? }
-      false
+      gates = pin.closure&.gates || ['']
+      constants = api_map.get_constants('', *gates)
+      # each named part must qualify on its own or name a constant
+      # whose value resolves (probe covers a constant assigned a
+      # class/module, i.e. an alias)
+      resolved = pin.return_type.qualify_parts do |part|
+        next part if part.qualify(api_map, *gates).defined?
+
+        constant_pins = constants.select { |p| p.name == part.namespace }
+        part if constant_pins.any? { |p| p.typify(api_map).defined? || p.probe(api_map).defined? }
+      end
+      !resolved.nil?
     end
 
     # @param pin [Pin::Base]
@@ -404,12 +409,12 @@ module Solargraph
         ap = if base.links.last.is_a?(Solargraph::Source::Chain::ZSuper)
                arity_problems_for(pin, fake_args_for(closure_pin), location)
              elsif pin.path == 'Class#new'
-               fqns = if base.links.one?
-                        closure_pin.namespace
+               init = if base.links.one?
+                        api_map.get_method_stack(closure_pin.namespace, 'initialize').first
                       else
-                        base.base.infer(api_map, closure_pin, locals).namespace
+                        base.base.infer(api_map, closure_pin, locals).reduce_class_type
+                            .reachable_method_stack(api_map, 'initialize').first
                       end
-               init = api_map.get_method_stack(fqns, 'initialize').first
 
                # @type [::Array<Solargraph::TypeChecker::Problem>]
                init ? arity_problems_for(init, arguments, location) : []
@@ -595,7 +600,7 @@ module Solargraph
         next if tag.types.nil?
         details = {
           tagged: tag.types.join(', '),
-          qualified: Solargraph::ComplexType.try_parse(*tag.types).qualify(api_map, pin.full_context.namespace)
+          qualified: Solargraph::ComplexType.try_parse(*tag.types).qualify(api_map, *pin.gates)
         }
         # don't complain about a param that didn't come from the pin we're looking at anyway
         if details[:qualified].defined? ||
