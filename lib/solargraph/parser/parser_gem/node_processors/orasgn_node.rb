@@ -22,6 +22,10 @@ module Solargraph
                                       enclosing_compound_statement_pin).process_or_asgn(node, presence)
             end
 
+            FlowSensitiveTyping.new(locals,
+                                    ivars,
+                                    enclosing_breakable_pin,
+                                    enclosing_compound_statement_pin).process_index_or_asgn(node)
             new_node = node.updated(target_type, target_children + [value])
             NodeProcessor.process(new_node, region, pins, locals, ivars)
           end

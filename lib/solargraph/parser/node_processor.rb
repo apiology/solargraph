@@ -18,10 +18,8 @@ module Solargraph
         # @param type [Symbol]
         # @param cls [Class<NodeProcessor::Base>]
         # @return [Array<Class<NodeProcessor::Base>>]
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1417
         def register type, cls
           @@processors[type] ||= []
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1417
           @@processors[type] << cls
         end
 
