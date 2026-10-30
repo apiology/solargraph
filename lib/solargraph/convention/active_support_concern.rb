@@ -57,7 +57,7 @@ module Solargraph
 
           @rooted_type = ComplexType.parse(rooted_tag).force_rooted
           @fqns = rooted_type.namespace
-          @namespace_pin = api_map.get_path_pins(fqns).select { |p| p.is_a?(Pin::Namespace) }.first
+          @namespace_pin = api_map.get_path_pins(fqns).grep(Pin::Namespace).first
 
           api_map.get_includes(fqns).reverse.each do |include_tag|
             process_include include_tag
