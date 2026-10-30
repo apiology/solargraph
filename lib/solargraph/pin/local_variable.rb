@@ -8,7 +8,7 @@ module Solargraph
       # @param api_map [ApiMap]
       # @return [ComplexType, ComplexType::UniqueType]
       def probe api_map
-        if presence_certain? && return_type&.defined?
+        if presence_certain? && return_type&.defined? && !narrowed_to_value_constant?(api_map)
           # flow sensitive typing has already figured out this type
           # has been downcast - use the type it figured out
           return adjust_type api_map, return_type.qualify(api_map, *gates)

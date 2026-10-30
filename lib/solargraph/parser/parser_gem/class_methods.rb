@@ -144,7 +144,6 @@ module Solargraph
           result = []
           result.push Range.from_node(node) if node.type == :str
           node.children.each do |child|
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1416
             result.concat string_ranges(child)
           end
           if node.type == :dstr && node.children.last.nil?
@@ -155,7 +154,6 @@ module Solargraph
             # carry a trailing nil child.
             last = node.children[-2]
             unless last.nil?
-              # @sg-ignore https://github.com/castwide/solargraph/pull/1416
               rng = Range.from_node!(last)
               pos = Position.new(rng.ending.line, rng.ending.column - 1)
               result.push Range.new(pos, pos)

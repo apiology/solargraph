@@ -288,13 +288,12 @@ module Solargraph
       def process_case_match case_node
         return unless case_node.type == :case_match
 
-        case_node => [:case_match, ::Parser::AST::Node => subject, *]
+        subject = case_node.children.fetch(0)
         return unless %i[lvar ivar].include?(subject.type)
 
         pin = find_var(subject.children.fetch(0).to_s, get_node_start_position(subject))
         return unless pin
 
-        # @type [Array<Parser::AST::Node>]
         clauses = case_node.children.drop(1).compact
         clauses.each do |clause|
           next unless clause.type == :in_pattern
@@ -416,6 +415,33 @@ module Solargraph
         process_and(expression_node, true_ranges, false_ranges)
         process_or(expression_node, true_ranges, false_ranges)
         process_variable(expression_node, true_ranges, false_ranges)
+        process_pattern_match(expression_node, true_ranges)
+      end
+
+      # `x in PAT` binds every capture in PAT when it is true
+      #
+      # @param node [Parser::AST::Node]
+      # @param true_presences [Array<Range>]
+      #
+      # @return [void]
+      def process_pattern_match node, true_presences
+        return unless node.type == :match_pattern_p
+
+        capture_vars(node.children.fetch(1)).each do |var|
+          # The capture is present from just after its start
+          pin = find_var(var.children.fetch(0).to_s, get_node_end_position(var))
+          next unless pin
+
+          process_facts({ pin => [{ not_type: ComplexType::NIL }] }, true_presences)
+        end
+      end
+
+      # @param pattern [Parser::AST::Node]
+      # @return [Array<Parser::AST::Node>] the match_var nodes in pattern
+      def capture_vars pattern
+        return [pattern] if pattern.type == :match_var
+
+        pattern.children.flat_map { |child| child.is_a?(::Parser::AST::Node) ? capture_vars(child) : [] }
       end
 
       # @param call_node [Parser::AST::Node]
@@ -504,7 +530,6 @@ module Solargraph
       # @return [Parser::AST::Node, nil] the receiver being asked for
       #   its class, e.g. "other" in "other.class", or nil unless
       #   node is exactly a 0-arg .class call
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1416
       def parse_class_call node
         return if node.nil?
         return unless node.type == :send && node.children[1] == :class
@@ -552,16 +577,13 @@ module Solargraph
                 # x.instance_of?(y.class) compares x itself; no receiver means self
                 node.children[0] || ::Parser::AST::Node.new(:self)
               else
-                # @sg-ignore https://github.com/castwide/solargraph/pull/1416
                 parse_class_call(node.children[0])
               end
         return unless lhs
 
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1416
         rhs = parse_class_call(node.children[2])
         return unless rhs
 
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1416
         other_side = if lhs.type == :self
                        rhs
                      elsif rhs.type == :self
@@ -572,7 +594,6 @@ module Solargraph
         self_type = enclosing.context
         return if self_type.undefined?
 
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1416
         variable_name = parse_variable_name(other_side)
         return unless variable_name
 
@@ -708,9 +729,11 @@ module Solargraph
       #
       # @return [void]
       def process_in_pattern pin, in_pattern
-        in_pattern => [:in_pattern, ::Parser::AST::Node => pattern, *]
+        pattern = in_pattern.children.fetch(0)
+        # `in Pt(x:)` on subject x rebinds x, so x is no longer the subject
+        return if binds_name?(pattern, pin.name)
+
         type_name = pattern_type_name(pattern)
-        # @type [Array<Parser::AST::Node>]
         guard_and_body = in_pattern.children.drop(1).compact
         return if type_name.nil? || guard_and_body.empty?
 
@@ -718,6 +741,15 @@ module Solargraph
         presence = Range.new(Position.new(before_loc.line, before_loc.column),
                              get_node_end_position(guard_and_body.fetch(-1)))
         process_facts({ pin => [{ type: ComplexType.parse(type_name) }] }, [presence])
+      end
+
+      # @param pattern [Parser::AST::Node]
+      # @param name [String]
+      # @return [Boolean] true if the pattern captures into a variable named name
+      def binds_name? pattern, name
+        return true if pattern.type == :match_var && pattern.children.fetch(0).to_s == name
+
+        pattern.children.any? { |child| child.is_a?(::Parser::AST::Node) && binds_name?(child, name) }
       end
 
       # @param clause_node [Parser::AST::Node, nil]
