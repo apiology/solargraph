@@ -2262,7 +2262,6 @@ describe Solargraph::SourceMap::Clip do
   end
 
   it 'resolves block parameter types from Hash#each' do
-    pending 'Maybe feasible'
     source = Solargraph::Source.load_string(%(
       # @type [Hash{String => Integer}]
       h = { 'foo' => 1 }
@@ -2283,7 +2282,6 @@ describe Solargraph::SourceMap::Clip do
   end
 
   it 'resolves block parameter types from Array(A, B)#each' do
-    pending 's and i are undefined'
     source = Solargraph::Source.load_string(%(
       # @type [Array<Array(String, Integer)>]
       h = [['foo', 1], ['bar', 2]]
@@ -2665,8 +2663,32 @@ describe Solargraph::SourceMap::Clip do
     expect(clip.infer.to_s).to eq('Integer')
   end
 
+  it 'types each target of a mass assignment from a tuple by position' do
+    source = Solargraph::Source.load_string(%(
+      class Blah
+        def run
+          foo, bar = baz
+          foo
+          bar
+        end
+
+        # @return [Array(Integer, String)]
+        def baz
+          [1, 'foo']
+        end
+      end
+    ), 'test.rb')
+
+    api_map = Solargraph::ApiMap.new.map(source)
+
+    clip = api_map.clip_at('test.rb', [4, 10])
+    expect(clip.infer.to_s).to eq('Integer')
+
+    clip = api_map.clip_at('test.rb', [5, 10])
+    expect(clip.infer.to_s).to eq('String')
+  end
+
   it 'handles mass assignment into instance variables' do
-    pending 'Should be feasible'
     source = Solargraph::Source.load_string(%(
       class Blah
         def initialize
