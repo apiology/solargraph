@@ -53,7 +53,7 @@ Lint/BinaryOperatorWithIdenticalOperands:
 # This cop supports unsafe autocorrection (--autocorrect-all).
 Lint/BooleanSymbol:
   Exclude:
-    - 'lib/solargraph/convention/struct_definition/struct_definition_node.rb'
+    - 'lib/solargraph/parser/parser_gem/node_processors/struct_definition/struct_definition_node.rb'
     - 'lib/solargraph/source/chain/literal.rb'
 
 # Configuration parameters: AllowedMethods.
@@ -134,8 +134,8 @@ Metrics/CyclomaticComplexity:
 Metrics/MethodLength:
   Exclude:
     - 'lib/solargraph/complex_type.rb'
-    - 'lib/solargraph/convention/struct_definition.rb'
     - 'lib/solargraph/parser/parser_gem/node_chainer.rb'
+    - 'lib/solargraph/parser/parser_gem/node_processors/struct_definition.rb'
     - 'lib/solargraph/shell.rb'
 
 # Configuration parameters: CountComments, CountAsOne.
