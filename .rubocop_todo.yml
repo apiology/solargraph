@@ -53,7 +53,6 @@ Lint/BinaryOperatorWithIdenticalOperands:
 # This cop supports unsafe autocorrection (--autocorrect-all).
 Lint/BooleanSymbol:
   Exclude:
-    - 'lib/solargraph/parser/parser_gem/node_processors/struct_definition/struct_definition_node.rb'
     - 'lib/solargraph/source/chain/literal.rb'
 
 # Configuration parameters: AllowedMethods.
