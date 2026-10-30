@@ -70,7 +70,7 @@ module Solargraph
       #
       # @todo 3: Missed nil violation
       #
-      # pending code fixes (589):
+      # pending code fixes (595):
       #
       # @todo 141: Need to add nil check here
       # @todo 79: https://github.com/castwide/solargraph/pull/1223
@@ -87,6 +87,8 @@ module Solargraph
       # @todo 12: MatchData relies on regex always matching
       # @todo 10: Array#[] integer index relies on fixed arity
       # @todo 7: Missing @return tag
+      # @todo 5: https://github.com/apiology/solargraph/pull/406
+      # @todo 1: https://github.com/castwide/solargraph/pull/1259
       # @todo 1: Unresolved call to ==
       # @todo 1: Unresolved call to []=
       # @todo 1: Unresolved constant BlankRubocopFormatter
