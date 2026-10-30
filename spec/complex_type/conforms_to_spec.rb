@@ -80,6 +80,21 @@ describe Solargraph::ComplexType do
     expect(match).to be(true)
   end
 
+  it 'validates modules included by a superclass' do
+    source = Solargraph::Source.load_string(%(
+      module Mixin; end
+      class Sup
+        include Mixin
+      end
+      class Sub < Sup; end
+    ))
+    api_map.map source
+    mixin = described_class.parse('Mixin')
+    sub = described_class.parse('Sub')
+    match = sub.conforms_to?(api_map, mixin, :method_call)
+    expect(match).to be(true)
+  end
+
   it 'handles singleton types compared against their literals' do
     pending 'side of effect of inference changes'
     exp = Solargraph::ComplexType::UniqueType.new('nil', rooted: true)
