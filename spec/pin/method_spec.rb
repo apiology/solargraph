@@ -118,14 +118,47 @@ describe Solargraph::Pin::Method do
     expect(pin.return_type).to be_undefined
   end
 
-  it 'combines many non-mergeable same-type-arity signatures without exponential blowup' do
-    pin = described_class.new(name: 'foo')
-    signatures = (1..8).map { |_i| instance_double(Solargraph::Pin::Signature, type_arity: ['same']) }
-    signatures.each do |sig|
-      allow(sig).to receive(:combine_with).and_return(instance_double(Solargraph::Pin::Signature, type_arity: ['different']))
+  describe 'combining signatures' do
+    # @param param_type [String]
+    # @param return_type [String]
+    def signature_taking param_type, return_type
+      closure = Solargraph::Pin::Method.new(name: 'foo', closure: Solargraph::Pin::Namespace.new(name: 'Foo'))
+      param = Solargraph::Pin::Parameter.new(name: 'a', return_type: Solargraph::ComplexType.parse(param_type),
+                                             closure: closure)
+      Solargraph::Pin::Signature.new(parameters: [param], return_type: Solargraph::ComplexType.parse(return_type),
+                                     closure: closure)
     end
-    result = pin.send(:combine_same_type_arity_signatures, signatures)
-    expect(result.length).to eq(signatures.length)
+
+    # @param signatures [Array<Solargraph::Pin::Signature>]
+    def combined signatures
+      described_class.new(name: 'foo').send(:combine_signatures_by_typed_arity, *signatures)
+                     .map { |sig| [sig.parameters.map { |p| p.return_type.to_s }, sig.return_type.items.map(&:to_s).sort] }
+                     .sort
+    end
+
+    [%w[undefined Integer], %w[Integer undefined], ['Array', 'Array<String>'], %w[Integer String]].each do |first, second|
+      it "gives the same result for #{first} and #{second} in either order" do
+        one = signature_taking(first, 'String')
+        two = signature_taking(second, 'Symbol')
+        expect(combined([one, two])).to eq(combined([two, one]))
+      end
+    end
+
+    it 'folds an untyped signature into the one typed signature' do
+      expect(combined([signature_taking('undefined', 'String'), signature_taking('Integer', 'Symbol')]))
+        .to eq([[['Integer'], %w[String Symbol]]])
+    end
+
+    it 'keeps an untyped signature apart when two typed signatures could take it' do
+      result = combined([signature_taking('undefined', 'String'), signature_taking('Integer', 'Symbol'),
+                         signature_taking('Float', 'Symbol')])
+      expect(result.length).to eq(3)
+    end
+
+    it 'keeps signatures with different parameter types apart' do
+      expect(combined([signature_taking('Array', 'String'), signature_taking('Array<String>', 'Symbol')]).length)
+        .to eq(2)
+    end
   end
 
   it 'does not merge with changes in parameters' do

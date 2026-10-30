@@ -23,19 +23,13 @@ module Solargraph
       end
 
       # @param context [ComplexType, ComplexType::UniqueType] Used as context for this pin
-      # @param closure [Pin::Namespace, nil] Used as the closure for this pin
+      # @param closure [Pin::Closure, nil] Used as the closure for this pin;
+      #   the root namespace if nil
       # @param binder [ComplexType, ComplexType::UniqueType, nil]
       # @return [ProxyType]
       # @param [Hash{Symbol => Object}] kwargs
       def self.anonymous context, closure: nil, binder: nil, **kwargs
-        unless closure
-          parts = context.namespace.split('::')
-          # @sg-ignore Need to add nil check here
-          namespace = parts[0..-2].join('::').to_s
-          closure = Solargraph::Pin::Namespace.new(name: namespace, source: :proxy_type)
-        end
-        # name = parts.last.to_s
-        # ProxyType.new(nil, namespace, name, return_type)
+        closure ||= Solargraph::Pin::Namespace.new(name: '', source: :proxy_type)
         ProxyType.new(
           closure: closure, return_type: context, binder: binder || context, **kwargs
         )
