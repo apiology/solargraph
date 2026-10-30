@@ -377,6 +377,12 @@ module Solargraph
       ComplexType.new(map { |ut| ut.transform(new_name, &transform_type) })
     end
 
+    # @param generics_to_erase [Enumerable<String>]
+    # @return [ComplexType]
+    def erase_generics generics_to_erase
+      ComplexType.new(map { |ut| ut.erase_generics(generics_to_erase) })
+    end
+
     def expand named_types
       ComplexType.new(map { |ut| ut.expand(named_types) })
     end
