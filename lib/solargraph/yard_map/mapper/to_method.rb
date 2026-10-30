@@ -26,12 +26,9 @@ module Solargraph
           return_type = ComplexType::SELF if name == 'new'
           comments = code_object.docstring ? code_object.docstring.all.to_s : ''
           final_scope = scope || code_object.scope
-          # @sg-ignore Need to add nil check here
           override_key = [closure.path, final_scope, name]
           final_visibility = VISIBILITY_OVERRIDE[override_key]
-          # @sg-ignore Need to add nil check here
           final_visibility ||= VISIBILITY_OVERRIDE[[closure.path, final_scope]]
-          # @sg-ignore Need to add nil check here
           if closure.path == 'Kernel' && Kernel.private_method_defined?(name.to_sym, false)
             final_visibility ||= :private
           end
@@ -55,7 +52,6 @@ module Solargraph
               source: :yardoc
             )
           else
-            # @sg-ignore Need to add nil check here
             pin = Pin::Method.new(
               location: location,
               closure: closure,
@@ -85,7 +81,7 @@ module Solargraph
           # @param code_object [YARD::CodeObjects::Base]
           # @param location [Location],
           # @param comments [String]
-          # @param pin [Pin::Base]
+          # @param pin [Pin::Method]
           # @return [Array<Solargraph::Pin::Parameter>]
           def get_parameters code_object, location, comments, pin
             return [] unless code_object.is_a?(YARD::CodeObjects::MethodObject)
@@ -106,23 +102,30 @@ module Solargraph
             end
           end
 
-          # @param a [Array<String>]
+          # @param a [Array(String, String | nil)]
           # @return [String]
           def arg_name a
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1231
             a[0].gsub(/[^a-z0-9_]/i, '')
           end
 
-          # @param a [Array]
+          # @param a [Array(String, String | nil)]
           # @return [::Symbol]
           def arg_type a
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1231
             if a[0].start_with?('**')
               :kwrestarg
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1231
             elsif a[0].start_with?('*')
               :restarg
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1231
             elsif a[0].start_with?('&')
               :blockarg
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1231
             elsif a[0].end_with?(':')
+              # @sg-ignore Array#[] chooses wrong signature when Array has no parameters
               a[1] ? :kwoptarg : :kwarg
+            # @sg-ignore Array#[] chooses wrong signature when Array has no parameters
             elsif a[1]
               :optarg
             else

@@ -105,13 +105,16 @@ module Solargraph
             message.process unless cancel?(request['id'])
           rescue StandardError => e
             logger.warn "Error processing request: [#{e.class}] #{e.message}"
-            # @sg-ignore Need to add nil check here
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1231
+            #   rescued exceptions need https://github.com/apiology/solargraph/tree/type-rescued-exception-backtrace on top
             logger.warn e.backtrace.join("\n")
             message.set_error Solargraph::LanguageServer::ErrorCodes::INTERNAL_ERROR, "[#{e.class}] #{e.message}"
           end
           message
         elsif request['id']
           if requests[request['id']]
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1258
+            #   pure calls need https://github.com/apiology/solargraph/tree/narrow-pure-rbs-calls on top
             requests[request['id']].process(request['result'])
             requests.delete request['id']
           else
@@ -301,12 +304,13 @@ module Solargraph
         end
       end
 
-      # @sg-ignore Need to validate config
+      # @raise [InvalidConfigError] if the client configured a non-string commandPath
       # @return [String]
-      # @sg-ignore Need to validate config
       def command_path
-        # @type [String]
-        options['commandPath'] || 'solargraph'
+        value = options['commandPath']
+        return 'solargraph' if value.nil?
+        return value if value.is_a?(String)
+        raise InvalidConfigError, "Invalid commandPath: must be a string, but was #{value.inspect}"
       end
 
       # Prepare multiple folders.
@@ -316,7 +320,7 @@ module Solargraph
       def prepare_folders array
         return if array.nil?
         array.each do |folder|
-          prepare uri_to_file(folder['uri']), folder['name']
+          prepare uri_to_file(folder.fetch('uri')), folder.fetch('name')
         end
       end
 
@@ -460,6 +464,8 @@ module Solargraph
 
       # @return [void]
       def stop
+        # Libraries cache gems whether or not the host was started
+        all_libraries.each(&:stop)
         return if @stopped
         @stopped = true
         message_worker.stop
@@ -468,8 +474,30 @@ module Solargraph
         notify_observers
       end
 
+      # @param timeout [Numeric] seconds to wait before raising
+      # @return [void]
+      def fully_stop timeout: 240
+        stop
+        # try for two minutes, raise if not fully stopped by then
+        start_time = Time.now
+        until fully_stopped?
+          if Time.now - start_time > timeout
+            raise "Host did not fully stop within #{timeout} seconds: #{still_running.join(', ')} still running."
+          end
+          logger.info 'Waiting for host to fully stop...'
+          sleep 0.1
+          # A thread still winding down may have made a library since #stop
+          all_libraries.each(&:stop)
+        end
+      end
+
       def stopped?
         @stopped
+      end
+
+      def fully_stopped?
+        @stopped && diagnoser.fully_stopped? && message_worker.fully_stopped? &&
+          all_libraries.all?(&:fully_stopped?)
       end
 
       # Locate multiple pins that match a completion item. The first match is
@@ -502,13 +530,12 @@ module Solargraph
           #   might not exist.
           if result.empty? && params['data']['path'] =~ /\.new$/
             result.concat(library.path_pins(params['data']['path'].sub(/\.new$/, '#initialize')).map do |pin|
-              next pin unless pin.name == 'initialize'
+              next pin unless pin.is_a?(Pin::Method) && pin.name == 'initialize'
 
               Pin::Method.new(
                 name: 'new',
                 scope: :class,
                 location: pin.location,
-                # @sg-ignore Unresolved call to parameters on Solargraph::Pin::Base
                 parameters: pin.parameters,
                 return_type: ComplexType.try_parse(params['data']['path']),
                 comments: pin.comments,
@@ -546,7 +573,7 @@ module Solargraph
         library.completions_at uri_to_file(uri), line, column
       end
 
-      # @return [Bool] if has pending completion request
+      # @return [Boolean] if has pending completion request
       def pending_completions?
         message_worker.messages.reverse_each.any? { |req| req['method'] == 'textDocument/completion' }
       end
@@ -597,6 +624,7 @@ module Solargraph
       # @return [Array<Solargraph::Pin::Base>]
       def query_symbols query
         result = []
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1223
         (libraries + [generic_library]).each { |lib| result.concat lib.query_symbols(query) }
         result.uniq
       end
@@ -702,7 +730,12 @@ module Solargraph
         @client_capabilities ||= {}
       end
 
+      # @return [Boolean]
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1258
+      #   pure calls need https://github.com/apiology/solargraph/tree/narrow-pure-rbs-calls on top
       def client_supports_progress?
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
+        #   pure calls need https://github.com/apiology/solargraph/tree/narrow-pure-rbs-calls on top
         client_capabilities['window'] && client_capabilities['window']['workDoneProgress']
       end
 
@@ -716,6 +749,27 @@ module Solargraph
       end
 
       private
+
+      # The workspace libraries plus the generic library, if one was made
+      #
+      # @return [Array<Library>]
+      def all_libraries
+        libraries + [@generic_library].compact
+      end
+
+      # Name the parts that keep #fully_stopped? false, since CI logs at warn
+      # and the raise in #fully_stop is all a hang leaves behind
+      #
+      # @return [Array<String>]
+      def still_running
+        parts = []
+        parts.push 'diagnoser' unless diagnoser.fully_stopped?
+        parts.push 'message worker' unless message_worker.fully_stopped?
+        all_libraries.reject(&:fully_stopped?).each do |lib|
+          parts.push "library #{lib.name || lib.workspace.directory.inspect}"
+        end
+        parts
+      end
 
       # @return [Array<Integer>]
       def cancelled
@@ -741,11 +795,11 @@ module Solargraph
       end
 
       # @param path [String]
-      # @sg-ignore Need to be able to choose signature on String#gsub
       # @return [String]
       def normalize_separators path
-        return path if File::ALT_SEPARATOR.nil?
-        path.gsub(File::ALT_SEPARATOR, File::SEPARATOR)
+        sep = File::ALT_SEPARATOR
+        return path if sep.nil?
+        path.gsub(sep, File::SEPARATOR)
       end
 
       # @param params [Hash]
@@ -780,7 +834,10 @@ module Solargraph
         source = sources.find(uri)
         return change if source.code.length + 1 != change['text'].length
         diffs = Diff::LCS.diff(source.code, change['text'])
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1223
         return change if diffs.empty? || diffs.length > 1 || diffs.first.length > 1
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
+        #   empty? guards need https://github.com/apiology/solargraph/tree/narrow-first-last-after-empty-guard on top
         # @type [Diff::LCS::Change]
         diff = diffs.first.first
         return change unless diff.adding? && ['.', ':', '(', ',', ' '].include?(diff.element)
@@ -861,7 +918,12 @@ module Solargraph
         }
       end
 
+      # @return [Boolean]
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1258
+      #   pure calls need https://github.com/apiology/solargraph/tree/narrow-pure-rbs-calls on top
       def prepare_rename?
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
+        #   pure calls need https://github.com/apiology/solargraph/tree/narrow-pure-rbs-calls on top
         client_capabilities['rename'] && client_capabilities['rename']['prepareSupport']
       end
 

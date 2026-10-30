@@ -23,8 +23,7 @@ module Solargraph
       # @param [Hash{Symbol => Object}] splat
       def initialize(method: nil, receiver: nil, name: method&.name, receiver_method_name: name, **splat)
         raise ArgumentError, 'either :method or :receiver is required' if (method && receiver) || (!method && !receiver)
-        # @sg-ignore Need to add nil check here
-        super(name: name, **splat)
+        super(name: name || raise(ArgumentError, ':name is required with :receiver'), **splat)
 
         @receiver_chain = receiver
         @resolved_method = method
@@ -49,7 +48,6 @@ module Solargraph
 
       %i[comments parameters return_type signatures].each do |method|
         define_method(method) do
-          # @sg-ignore Need to set context correctly in define_method blocks
           @resolved_method ? @resolved_method.send(method) : super()
         end
       end
@@ -58,7 +56,6 @@ module Solargraph
         # @param api_map [ApiMap]
         define_method(method) do |api_map|
           resolve_method(api_map)
-          # @sg-ignore Need to set context correctly in define_method blocks
           @resolved_method ? @resolved_method.send(method, api_map) : super(api_map)
         end
       end
@@ -71,44 +68,44 @@ module Solargraph
 
       private
 
+      # @return [void]
+      def preassign_ivars
+        super
+        @receiver_chain = nil
+        @receiver_method_name = nil
+        @resolved_method = nil
+      end
+
       # Resolves the receiver chain and method name to a method pin, resetting any previously resolution.
       #
       # @param api_map [ApiMap]
       # @return [Pin::Method, nil]
-      # @sg-ignore Declared return type ::Solargraph::Pin::Method, nil
-      #   does not match inferred type nil, false for
-      #   Solargraph::Pin::DelegatedMethod#resolve_method
+      # @sg-ignore https://github.com/apiology/solargraph/pull/178
       def resolve_method api_map
-        return if @resolved_method
+        chain = @receiver_chain
+        return if @resolved_method || chain.nil?
 
-        # @sg-ignore Need to add nil check here
-        resolver = @receiver_chain.define(api_map, self, []).first
+        resolver = chain.define(api_map, self, []).first
 
         unless resolver
-          # @sg-ignore Need to add nil check here
-          Solargraph.logger.warn "Delegated receiver for #{path} was resolved to nil from `#{print_chain(@receiver_chain)}'"
+          Solargraph.logger.warn "Delegated receiver for #{path} was resolved to nil from `#{print_chain(chain)}'"
           return
         end
 
-        # @sg-ignore Need to add nil check here
         receiver_type = resolver.return_type
 
-        # @sg-ignore Need to add nil check here
         return if receiver_type.undefined?
 
         receiver_path, method_scope =
-          # @sg-ignore Need to add nil check here
-          if @receiver_chain.constant?
+          if chain.constant?
             # HACK: the `return_type` of a constant is Class<Whatever>, but looking up a method expects
             # the arguments `"Whatever"` and `scope: :class`.
-            # @sg-ignore Need to add nil check here
             [receiver_type.to_s.sub(/^Class<(.+)>$/, '\1'), :class]
           else
-            # @sg-ignore Need to add nil check here
             [receiver_type.to_s, :instance]
           end
 
-        # @sg-ignore Need to add nil check here
+        # @sg-ignore ApiMap#get_method_stack name expected String, received String, nil
         method_stack = api_map.get_method_stack(receiver_path, @receiver_method_name, scope: method_scope)
         @resolved_method = method_stack.first
       end

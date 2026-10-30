@@ -8,7 +8,7 @@ module Solargraph
       class Literal < Link
         attr_reader :word
 
-        # @return [::String, ::Symbol]
+        # @return [::Integer, ::String, ::Symbol, ::Boolean, nil]
         attr_reader :value
 
         # @return [Parser::AST::Node]
@@ -25,8 +25,8 @@ module Solargraph
               @value = true
             elsif node.type == :false
               @value = false
-            elsif %i[int sym].include?(node.type)
-              @value = node.children.first
+            elsif node in [:int | :sym | :str, Integer | Symbol | String => value, *]
+              @value = value
             end
           end
           @type = type
@@ -35,9 +35,7 @@ module Solargraph
           @complex_type = ComplexType.try_parse(type)
         end
 
-        # @sg-ignore Fix "Not enough arguments to Module#protected"
         protected def equality_fields
-          # @sg-ignore literal arrays in this module turn into ::Solargraph::Source::Chain::Array
           super + [@value, @type, @literal_type, @complex_type]
         end
 

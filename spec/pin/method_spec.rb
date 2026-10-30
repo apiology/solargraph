@@ -128,6 +128,26 @@ describe Solargraph::Pin::Method do
     expect(result.length).to eq(signatures.length)
   end
 
+  describe '#combine_with' do
+    it 'keeps a non-attribute method a non-attribute' do
+      pin1 = described_class.new(name: 'foo', attribute: false)
+      pin2 = described_class.new(name: 'foo', attribute: false)
+      expect(pin1.combine_with(pin2)).not_to be_attribute
+    end
+
+    it 'keeps an attribute an attribute' do
+      pin1 = described_class.new(name: 'foo', attribute: true)
+      pin2 = described_class.new(name: 'foo', attribute: true)
+      expect(pin1.combine_with(pin2)).to be_attribute
+    end
+
+    it 'treats a method as an attribute when either source says so' do
+      pin1 = described_class.new(name: 'foo', attribute: false)
+      pin2 = described_class.new(name: 'foo', attribute: true)
+      expect(pin1.combine_with(pin2)).to be_attribute
+    end
+  end
+
   it 'does not merge with changes in parameters' do
     # @todo Method pin parameters are pins now
     pin1 = described_class.new(name: 'bar', parameters: %w[one two])
@@ -555,7 +575,9 @@ describe Solargraph::Pin::Method do
       # on type.  Let's make sure we combine those with anything else
       # found (e.g., additions from the BigDecimal RBS collection)
       # without collapsing signatures
-      api_map = Solargraph::ApiMap.load_with_cache(Dir.pwd, nil)
+      api_map = Solargraph::ApiMap.load(Dir.pwd)
+      bench = Solargraph::Bench.new external_requires: ['bigdecimal']
+      api_map.catalog(bench)
       method = api_map.get_method_stack('Integer', '+', scope: :instance).first
       expect(method.signatures.count).to be > 3
     end
@@ -578,6 +600,27 @@ describe Solargraph::Pin::Method do
       pin = api_map.get_path_pins('Foo#bar=').first
       expect(pin.typify(api_map)).to be_undefined
       expect(pin.probe(api_map).tag).to eq('String')
+    end
+
+    it 'ignores flow-sensitive narrowing when inferring from instance variables' do
+      # Mirrors Diff::LCS::Change, where IntClass is a constant holding
+      # a class, not a class name the guard could narrow to
+      source = Solargraph::Source.load_string(%(
+        class Foo
+          IntClass = 1.class
+
+          attr_reader :position
+
+          def initialize(*args)
+            @position, = *args
+            fail 'Invalid Position Type' unless @position.is_a? IntClass
+          end
+        end
+      ))
+      api_map = Solargraph::ApiMap.new
+      api_map.map source
+      pin = api_map.get_path_pins('Foo#position').first
+      expect(pin.probe(api_map)).to be_undefined
     end
 
     it 'infers return types from method rescue block' do
@@ -883,5 +926,35 @@ describe Solargraph::Pin::Method do
       pin = api_map.get_path_pins('#foo').first
       expect { pin.signatures }.not_to raise_error
     end
+
+    it 'ignores a comment that parses to no method type at all' do
+      source = Solargraph::Source.load_string(%(
+        #: # invalid RBS
+        def foo; end
+      ))
+      api_map = Solargraph::ApiMap.new
+      api_map.map source
+      pin = api_map.get_path_pins('#foo').first
+      expect { pin.return_type }.not_to raise_error
+      expect { pin.signatures }.not_to raise_error
+    end
+  end
+
+  it 'typifies a method documented with an empty (see) reference' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # (see )
+        def bar; end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+    pin = api_map.get_path_pins('Foo#bar').first
+    expect { pin.typify(api_map) }.not_to raise_error
+  end
+
+  it 'has no method body for a node that is not a method definition' do
+    pin = described_class.new(name: 'foo', node: Solargraph::Parser.parse('foo'))
+    expect(pin.send(:method_body_node)).to be_nil
   end
 end

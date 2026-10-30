@@ -36,7 +36,7 @@ module Solargraph
     def qualify api_map, *gates
       red = reduce_object
       types = red.items.map do |t|
-        next t if %w[nil void undefined].include?(t.name)
+        next t if %w[nil void undefined bot].include?(t.name)
         next t if ['::Boolean'].include?(t.rooted_name)
         api_map.unalias(t.name) || t.qualify(api_map, *gates)
       end
@@ -57,7 +57,7 @@ module Solargraph
       end)
     end
 
-    # @return [UniqueType]
+    # @return [UniqueType, nil]
     def first
       @items.first
     end
@@ -82,9 +82,7 @@ module Solargraph
     # @yieldparam [UniqueType]
     # @yieldreturn [UniqueType]
     # @return [Array<UniqueType>]
-    # @sg-ignore Declared return type
-    #   ::Array<::Solargraph::ComplexType::UniqueType> does not match
-    #   inferred type ::Array<::Proc> for Solargraph::ComplexType#map
+    # @sg-ignore https://github.com/apiology/solargraph/pull/112
     def map &block
       @items.map(&block)
     end
@@ -133,7 +131,7 @@ module Solargraph
     end
 
     # @param index [Integer]
-    # @return [UniqueType]
+    # @return [UniqueType, nil]
     def [] index
       @items[index]
     end
@@ -190,7 +188,6 @@ module Solargraph
 
     # @return [ComplexType]
     def downcast_to_literal_if_possible
-      return self
       ComplexType.new(items.map(&:downcast_to_literal_if_possible))
     end
 
@@ -301,6 +298,11 @@ module Solargraph
       ComplexType.new(map(&:simplify_literals))
     end
 
+    # @return [self]
+    def non_literal_type
+      ComplexType.new(map(&:non_literal_type))
+    end
+
     # @param new_name [String, nil]
     # @yieldparam t [UniqueType]
     # @yieldreturn [UniqueType]
@@ -312,6 +314,8 @@ module Solargraph
       ComplexType.new(map { |ut| ut.transform(new_name, &transform_type) })
     end
 
+    # @param named_types [Hash{String => ComplexType::UniqueType}]
+    # @return [ComplexType]
     def expand named_types
       ComplexType.new(map { |ut| ut.expand(named_types) })
     end
@@ -323,7 +327,7 @@ module Solargraph
       end
     end
 
-    # @param definitions [Pin::Namespace, Pin::Method]
+    # @param definitions [Pin::Namespace, Pin::Method, nil]
     # @param context_type [ComplexType]
     # @return [ComplexType]
     def resolve_generics definitions, context_type
@@ -344,7 +348,7 @@ module Solargraph
 
     # @return [Array<ComplexType>]
     def all_params
-      @items.first.all_params || []
+      @items.first&.all_params || []
     end
 
     # @return [ComplexType]
@@ -368,7 +372,7 @@ module Solargraph
     def erased_version_of? other
       return false if items.length != 1 || other.items.length != 1
 
-      @items.first.erased_version_of?(other.items.first)
+      @items.fetch(0).erased_version_of?(other.items.fetch(0))
     end
 
     # every top-level type has resolved to be fully qualified; see
@@ -385,8 +389,17 @@ module Solargraph
     def exclude exclude_types, api_map
       return self if exclude_types.nil?
 
-      types = items - exclude_types.items
-      types = [ComplexType::UniqueType::UNDEFINED] if types.empty?
+      # excludes by conformance, not equality: excluding Array also
+      # removes Array<Symbol, Array> (every Array<Symbol, Array> is an
+      # Array), but excluding Array<Integer> leaves plain Array alone.
+      types = items.reject do |ut|
+        exclude_types.any? { |exclude_type| ut.conforms_to?(api_map, exclude_type, :assignment) }
+      end
+      if types.empty?
+        # Exhausting every excluded type means the code here is unreachable, not
+        # a type error - `bot` keeps calls on it vacuously valid, not unresolved.
+        types = [ComplexType::UniqueType::BOT]
+      end
       ComplexType.new(types)
     end
 
@@ -445,14 +458,12 @@ module Solargraph
       #   only be used internally.
       # @param strings [Array<String>] The type definitions to parse
       # @return [ComplexType]
-      # # @overload parse(*strings, partial: false)
-      # #  @todo Need ability to use a literal true as a type below
-      # #  @param partial [Boolean] True if the string is part of a another type
-      # #  @return [Array<UniqueType>]
-      # @sg-ignore To be able to select the right signature above,
-      #   Chain::Call needs to know the decl type (:arg, :optarg,
-      #   :kwarg, etc) of the arguments given, instead of just having
-      #   an array of Chains as the arguments.
+      # @overload parse(*strings, partial: false)
+      #  @param partial [false]
+      #  @return [ComplexType]
+      # @overload parse(*strings, partial: true)
+      #  @param partial [true] True if the string is part of a another type
+      #  @return [Array<ComplexType::UniqueType>]
       def parse *strings, partial: false
         # @type [Hash{Array<String> => ComplexType, Array<ComplexType::UniqueType>}]
         @cache ||= {}
@@ -481,7 +492,6 @@ module Solargraph
               elsif base.end_with?('=')
                 raise ComplexTypeError, 'Invalid hash thing' unless key_types.nil?
                 # types.push ComplexType.new([UniqueType.new(base[0..-2].strip)])
-                # @sg-ignore Need to add nil check here
                 types.push UniqueType.parse(base[0..-2].strip, subtype_string)
                 # @todo this should either expand key_type's type
                 #   automatically or complain about not being

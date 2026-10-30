@@ -33,6 +33,9 @@ module Solargraph
       # @type [Source, nil]
       @current = nil
       @sync_count = 0
+      @stopped = false
+      # @type [Thread, nil]
+      @cache_thread = nil
     end
 
     def inspect
@@ -46,6 +49,21 @@ module Solargraph
     # @return [Boolean]
     def synchronized?
       @sync_count < 2
+    end
+
+    # Stop caching gems in the background. A gem already being cached
+    # finishes, but nothing gets cataloged or cached after it.
+    #
+    # @return [void]
+    def stop
+      @stopped = true
+    end
+
+    # True if no background gem caching is still running.
+    #
+    # @return [Boolean]
+    def fully_stopped?
+      @stopped && !@cache_thread&.alive?
     end
 
     # Attach a source to the library.
@@ -189,7 +207,7 @@ module Solargraph
         # @type [MatchData, nil]
         rgt = source.code[offset..]&.match(/^([a-z0-9_]*)(:[a-z0-9_:]*)?[\]>, ]/i)
         if lft && rgt
-          # @sg-ignore lft and rgt are checked for nil above
+          # @sg-ignore https://github.com/apiology/solargraph/pull/193
           tag = (lft[1] + rgt[1]).sub(/:+$/, '')
           clip = mutex.synchronize { api_map.clip(cursor) }
           clip.translate tag
@@ -259,30 +277,35 @@ module Solargraph
                 (workspace.sources + (@current ? [@current] : []))
               end
       files.uniq(&:filename).each do |source|
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1223
         found = source.references(pin.name)
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1223
         found.select! do |loc|
           referenced = definitions_at(loc.filename, loc.range.ending.line, loc.range.ending.character)&.first
           referenced&.path == pin.path
         end
         if pin.path == 'Class#new'
           caller = cursor.chain.base.infer(api_map, clip.send(:closure), clip.locals).first
-          if caller.defined?
+          if caller&.defined?
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1223
             found.select! do |loc|
               clip = api_map.clip_at(loc.filename, loc.range.start)
               other = clip.send(:cursor).chain.base.infer(api_map, clip.send(:closure), clip.locals).first
               caller == other
             end
           else
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1223
             found.clear
           end
         end
         # HACK: for language clients that exclude special characters from the start of variable names
         if strip && (match = cursor.word.match(/^[^a-z0-9_]+/i))
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1223
           found.map! do |loc|
-            # @sg-ignore Unresolved call to []
             Solargraph::Location.new(loc.filename, Solargraph::Range.from_to(loc.range.start.line, loc.range.start.column + match[0].length, loc.range.ending.line, loc.range.ending.column))
           end
         end
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1223
         result.concat(found.sort do |a, b|
           a.range.start.line <=> b.range.start.line
         end)
@@ -416,16 +439,16 @@ module Solargraph
         else
           args = line.split(':').map(&:strip)
           name = args.shift
+          raise DiagnosticsError, "Invalid diagnostics reporter entry #{line.inspect}" if name.nil?
+
           reporter = Diagnostics.reporter(name)
           raise DiagnosticsError, "Diagnostics reporter #{name} does not exist" if reporter.nil?
-          # @sg-ignore Hash errors
           repargs[reporter] ||= []
-          # @sg-ignore Hash errors
           repargs[reporter].concat args
         end
       end
       repargs.each_pair do |reporter, args|
-        result.concat reporter.new(*args.uniq).diagnose(source, api_map)
+        result.concat reporter.new(*args.uniq).diagnose(source, api_map, workspace: workspace)
       end
       result
     end
@@ -443,7 +466,6 @@ module Solargraph
         source_maps: source_map_hash.values,
         workspace: workspace,
         external_requires: external_requires,
-        # @sg-ignore OK if @current.filename is nil
         live_map: @current ? source_map_hash[@current.filename] : nil
       )
     end
@@ -483,10 +505,7 @@ module Solargraph
       src = workspace.sources.find { |s| !source_map_hash.key?(s.filename) }
       if src
         Logging.logger.debug "Mapping #{src.filename}"
-        # @sg-ignore OK if src.filename is nil
-        source_map_hash[src.filename] = Solargraph::SourceMap.map(src)
-        # @sg-ignore OK if src.filename is nil
-        source_map_hash[src.filename]
+        source_map_hash[src.filename!] = Solargraph::SourceMap.map(src)
       else
         false
       end
@@ -495,10 +514,7 @@ module Solargraph
     # @return [self]
     def map!
       workspace.sources.each do |src|
-        # @sg-ignore OK if src.filename is nil
-        source_map_hash[src.filename] = Solargraph::SourceMap.map(src)
-        # @sg-ignore OK if src.filename is nil
-        find_external_requires source_map_hash[src.filename]
+        find_external_requires(source_map_hash[src.filename!] = Solargraph::SourceMap.map(src))
       end
       self
     end
@@ -527,8 +543,7 @@ module Solargraph
       new_set = source_map.requires.to_set(&:name)
       _filenames = nil
       filenames = -> { _filenames ||= workspace.filenames.to_set }
-      # @sg-ignore OK if source_map.filename is nil
-      source_map_external_require_hash[source_map.filename] = new_set.reject do |path|
+      source_map_external_require_hash[source_map.source.filename!] = new_set.reject do |path|
         workspace.require_paths.any? do |base|
           full = File.join(base, path)
           filenames[].include?(full) or filenames[].include?(full << '.rb')
@@ -555,6 +570,8 @@ module Solargraph
     # @raise [FileNotFoundError] if the file does not exist
     # @param filename [String]
     # @return [Solargraph::Source]
+    # @sg-ignore https://github.com/castwide/solargraph/pull/1258
+    #   pure calls need https://github.com/apiology/solargraph/tree/narrow-pure-rbs-calls on top
     def read filename
       return @current if @current && @current.filename == filename
       raise FileNotFoundError, "File not found: #{filename}" unless workspace.has_file?(filename)
@@ -574,66 +591,51 @@ module Solargraph
     # @return [void]
     def maybe_map source
       return unless source
-      # @sg-ignore Wrong argument type for Solargraph::Workspace#has_file?: filename expected String, received String, nil
       return unless @current == source || workspace.has_file?(source.filename)
-      # @sg-ignore OK if source.filename is nil
-      source_map_hash[source.filename] = Solargraph::SourceMap.map(source)
+      source_map_hash[source.filename!] = Solargraph::SourceMap.map(source)
     end
 
-    # @return [Set<Gem::Specification>]
+    # @return [Set<Metagem>]
     def cache_errors
       @cache_errors ||= Set.new
     end
 
     # @return [void]
     def cache_next_gemspec
-      return if @cache_progress
+      return if @stopped || @cache_progress
 
       spec = (api_map.unloaded_gems - cache_errors).first
       return end_cache_progress unless spec
 
       pending = api_map.unloaded_gems.length - cache_errors.length - 1
 
-      if Yardoc.processing?(spec)
-        logger.info "Enqueuing cache of #{spec.name} #{spec.version} (already being processed)"
-        queued_gemspec_cache.push(spec)
-        return if pending - queued_gemspec_cache.length < 1
+      logger.info "Caching #{spec.name} #{spec.version}"
+      @cache_thread = Thread.new do
+        report_cache_progress spec.name, pending
 
-        # Try the next cacheable gemspec. This method is always called
-        # from inside sync_catalog's mutex (either directly or via this
-        # same recursive call), so recursing through sync_catalog here
-        # would try to re-lock a mutex this thread already holds and
-        # deadlock (https://github.com/castwide/solargraph/issues/1111).
-        cache_next_gemspec
-      else
-        logger.info "Caching #{spec.name} #{spec.version}"
-        Thread.new do
-          report_cache_progress spec.name, pending
-
-          cmd = [workspace.command_path, 'cache', spec.name]
-          cmd.push('--directory', workspace.directory) if workspace.directory
-          begin
-            _o, e, s = Open3.capture3(*cmd)
-          rescue SystemCallError => e
-            # The command could not start, e.g. Errno::ENOENT - handled below
-          end
-          if s&.success?
-            logger.info "Cached #{spec.name} #{spec.version}"
-          else
-            cache_errors.add spec
-            logger.warn "Error caching gemspec #{spec.name} #{spec.version}"
-            logger.warn e
-          end
-          end_cache_progress
-          catalog
-          sync_catalog
+        cmd = [workspace.command_path, 'cache', spec.name]
+        # Load the plugins this process has, not the workspace's
+        # configured ones, so the cache lands in the gem_dir read here.
+        cmd.push("--plugins=#{CacheDir.plugin_requires.join(File::PATH_SEPARATOR)}")
+        cmd.push('--directory', workspace.directory) if workspace.directory
+        begin
+          _o, e, s = Open3.capture3(*cmd)
+        rescue SystemCallError => e
+          # The command could not start, e.g. Errno::ENOENT - handled below
         end
-      end
-    end
+        if s&.success?
+          logger.info "Cached #{spec.name} #{spec.version}"
+        else
+          cache_errors.add spec
+          logger.warn "Error caching gemspec #{spec.name} #{spec.version}"
+          logger.warn e
+        end
+        end_cache_progress
+        next if @stopped
 
-    # @return [Array<Gem::Specification>]
-    def queued_gemspec_cache
-      @queued_gemspec_cache ||= []
+        catalog
+        sync_catalog
+      end
     end
 
     # @param gem_name [String]
@@ -641,15 +643,11 @@ module Solargraph
     # @return [void]
     def report_cache_progress gem_name, pending
       @total ||= pending
-      # @sg-ignore Wrong argument type for Integer#>: arg_0 expected Numeric, received Integer, nil
       @total = pending if pending > @total
-      # @sg-ignore Unresolved call to - on Integer, nil
       finished = @total - pending
-      # @sg-ignore @total should always be an Integer
       pct = if @total.zero?
               0
             else
-              # @sg-ignore Unresolved call to to_f
               ((finished.to_f / @total) * 100).to_i
             end
       message = "#{gem_name}#{" (+#{pending})" if pending.positive?}"
@@ -658,12 +656,12 @@ module Solargraph
         @cache_progress = LanguageServer::Progress.new('Caching gem')
         # If we don't send both a begin and a report, the progress notification
         # might get stuck in the status bar forever
-        # @sg-ignore Unresolved call to begin
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1338
         @cache_progress.begin(message, pct)
         changed
         notify_observers @cache_progress
       end
-      # @sg-ignore Unresolved call to report
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1338
       @cache_progress.report(message, pct)
       changed
       notify_observers @cache_progress

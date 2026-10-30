@@ -13,25 +13,129 @@ module Solargraph
 
       private
 
+      # @return [Array<Pin::Base>]
       def classmethod_pins
-        pins_by_class(Pin::Reference::Include).map do |inc|
-          Pin::Reference::Extend.new(name: "#{inc.name}::ClassMethods", closure: inc.closure)
+        include_pins.flat_map do |inc|
+          paths = [resolve_reference(inc), *nested_include_paths(inc)].compact.uniq
+          extends = paths.select { |path| namespace_paths.include?("#{path}::ClassMethods") }
+                         .map { |path| Pin::Reference::Extend.new(name: "::#{path}::ClassMethods", closure: inc.closure) }
+          concerns = paths.select { |path| concern?(path) }
+          extends + concerns.flat_map { |path| concern_class_pins(path, inc.closure) }
         end
       end
 
+      # The class side of a concern applies to its includer: methods
+      # defined on the concern itself (e.g., in a +class_methods+ block)
+      # and modules it extends (e.g., in an +included+ block).
+      #
+      # @param path [String] the concern's path
+      # @param closure [Pin::Closure, nil] the includer
+      # @return [Array<Pin::Base>]
+      def concern_class_pins path, closure
+        return [] if closure.nil?
+
+        extends = (extend_pins_by_namespace[path] || []).reject { |ext| concern_reference?(ext) }.map do |ext|
+          resolved = resolve_reference(ext)
+          Pin::Reference::Extend.new(name: resolved ? "::#{resolved}" : ext.name, closure: closure)
+        end
+        methods = (class_method_pins_by_namespace[path] || []).map do |meth|
+          meth.dup.tap { |copy| copy.closure = closure }
+        end
+        extends + methods
+      end
+
+      # @param path [String]
+      # @return [Boolean]
+      def concern? path
+        (extend_pins_by_namespace[path] || []).any? { |ext| concern_reference?(ext) }
+      end
+
+      # @param ext [Pin::Reference::Extend]
+      # @return [Boolean]
+      def concern_reference? ext
+        resolve_reference(ext) == 'ActiveSupport::Concern' || ext.name.delete_prefix('::') == 'ActiveSupport::Concern'
+      end
+
+      # @return [Hash{String => Array<Pin::Reference::Extend>}]
+      def extend_pins_by_namespace
+        @extend_pins_by_namespace ||= (panel.pins + panel.external_pins).grep(Pin::Reference::Extend)
+                                                                        .group_by { |ext| ext.closure&.path.to_s }
+      end
+
+      # @return [Hash{String => Array<Pin::Method>}]
+      def class_method_pins_by_namespace
+        @class_method_pins_by_namespace ||= (panel.pins + panel.external_pins)
+                                            .select { |pin| pin.is_a?(Pin::Method) && pin.scope == :class }
+                                            .group_by(&:namespace)
+      end
+
+      # @return [Array<Pin::Reference::Include>]
+      def include_pins
+        @include_pins ||= (panel.pins + panel.external_pins).grep(Pin::Reference::Include)
+      end
+
+      # @return [Hash{String => Array<Pin::Reference::Include>}]
+      def include_pins_by_namespace
+        @include_pins_by_namespace ||= include_pins.group_by { |inc| inc.closure&.path.to_s }
+      end
+
+      # @return [Set<String>]
+      def namespace_paths
+        @namespace_paths ||= (panel.pins + panel.external_pins).grep(Pin::Namespace).to_set(&:path)
+      end
+
+      # Paths of the modules that an included module includes, at any
+      # depth. A concern's dependencies extend the includer with their
+      # ClassMethods too.
+      #
+      # @param inc [Pin::Reference::Include]
+      # @param visited [Set<String>]
+      # @param result [Array<String>] paths found so far
+      # @return [Array<String>]
+      def nested_include_paths inc, visited = Set.new, result = []
+        path = resolve_reference(inc)
+        return result if path.nil? || !visited.add?(path)
+
+        (include_pins_by_namespace[path] || []).each do |nested|
+          nested_path = resolve_reference(nested)
+          next if nested_path.nil?
+
+          result.push nested_path
+          nested_include_paths(nested, visited, result)
+        end
+        result
+      end
+
+      # Resolve a mixin's module name lexically from its namespace.
+      #
+      # @param ref [Pin::Reference]
+      # @return [String, nil]
+      def resolve_reference ref
+        return ref.name.delete_prefix('::') if ref.name.start_with?('::')
+
+        parts = ref.closure&.path.to_s.split('::')
+        candidates = parts.length.downto(0).map { |len| [*parts.first(len), ref.name].join('::') }
+        candidates.find { |candidate| namespace_paths.include?(candidate) }
+      end
+
+      # @return [Array<Pin::Method>]
       def attribute_pins
-        source_maps.flat_map { |map| map.calls(:class_attribute, :mattr_accessor, :cattr_accessor, :mattr_reader, :cattr_reader, :mattr_writer, :cattr_writer, :config_accessor) }
-                   .select { |call| call.closure.is_a?(Pin::Namespace) }
-                   .flat_map { |call| generate_call_pins(call) }
-                   .compact
+        panel.source_maps.flat_map { |map| map.calls(:class_attribute, :mattr_accessor, :cattr_accessor, :mattr_reader, :cattr_reader, :mattr_writer, :cattr_writer, :config_accessor) }
+             .select { |call| call.closure.is_a?(Pin::Namespace) }
+             .flat_map { |call| generate_call_pins(call) }
+             .compact
       end
 
       # @param call [SourceMap::Call]
+      # @return [Array<Pin::Method>, nil]
       def generate_call_pins call
-        options = option_hash(call.chain.links.last.arguments.last)
-        method_names = call.chain.links.last.arguments.select(&:literal?).map { |arg| arg.links.last.value }.compact
+        link = call.chain.links.last
+        return [] unless link.is_a?(Source::Chain::Call)
+
+        options = option_hash(link.arguments.last)
+        method_names = link.arguments.map { |arg| arg.links.last }.grep(Source::Chain::Literal).map(&:value).compact
                            .grep(ATTRIBUTE_NAME)
-        case call.chain.links.last.word
+        case link.word
         when 'class_attribute'
           class_suffixes = ['', '=']
           class_suffixes.push '?' if options[:instance_predicate]
@@ -56,11 +160,11 @@ module Solargraph
           instance_suffixes = []
           instance_suffixes.push '=' if options[:instance_accessor] && options[:instance_writer]
           method_names.flat_map { |name| method_pins(name, class_suffixes, instance_suffixes, call) }
-        else
-          []
         end
       end
 
+      # @param args [Source::Chain, nil]
+      # @return [Hash{Symbol => Object}]
       def option_hash args
         defaults = {
           instance_reader: true,
@@ -68,8 +172,11 @@ module Solargraph
           instance_accessor: true,
           instance_predicate: true
         }
+        return defaults unless args
+
         kwargs = Parser::ParserGem::NodeMethods.convert_hash(args.node)
                                                .select { |_, val| val.literal? }
+                                               # @sg-ignore Chain#literal? does not narrow links.last to Chain::Literal
                                                .transform_values { |val| val.links.last.value }
         return defaults unless kwargs.is_a?(Hash)
         defaults.merge(kwargs)
@@ -79,17 +186,23 @@ module Solargraph
       # @param name [String]
       # @param class_suffixes [Array<String>]
       # @param instance_suffixes [Array<String>]
+      # @return [Array<Pin::Method>]
       def method_pins name, class_suffixes, instance_suffixes, call
-        comments = call.source_map.source.comments_for(call.chain.node)
-        location = Solargraph::Location.new(call.closure.filename, Solargraph::Range.from_node(call.chain.node))
+        closure = call.closure
+        node = call.chain.node
+        range = node && Solargraph::Range.from_node(node)
+        return [] unless closure && node && range
+
+        comments = call.source_map.source.comments_for(node)
+        location = Solargraph::Location.new(closure.filename, range)
         class_suffixes.map do |sfx|
-          Pin::Method.new(name: "#{name}#{sfx}", closure: call.closure, scope: :class, attribute: true, location: location, comments: comments).tap do |pin|
+          Pin::Method.new(name: "#{name}#{sfx}", closure: closure, scope: :class, attribute: true, location: location, comments: comments).tap do |pin|
             next unless sfx == '='
             pin.parameters.push Pin::Parameter.new(name: 'value', closure: pin)
           end
         end +
           instance_suffixes.map do |sfx|
-            Pin::Method.new(name: "#{name}#{sfx}", closure: call.closure, scope: :instance, attribute: true, location: location, comments: comments).tap do |pin|
+            Pin::Method.new(name: "#{name}#{sfx}", closure: closure, scope: :instance, attribute: true, location: location, comments: comments).tap do |pin|
               next unless sfx == '='
               pin.parameters.push Pin::Parameter.new(name: 'value', closure: pin)
             end

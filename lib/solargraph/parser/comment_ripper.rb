@@ -11,6 +11,8 @@ module Solargraph
       #   @return [Array(Symbol, String, Array)]
       # @!override Ripper::SexpBuilder#on_embdoc_end
       #   @return [Array(Symbol, String, Array)]
+      # @!override Ripper::SexpBuilder#on_comment
+      #   @return [Array(Symbol, String, Array(Integer, Integer))]
 
       # @param src [String]
       # @param filename [String]
@@ -22,8 +24,7 @@ module Solargraph
       end
 
       def on_comment *args
-        # @sg-ignore
-        # @type [Array(Symbol, String, Array([Integer, nil], [Integer, nil]))]
+        # @type [Array(Symbol, String, Array(Integer, Integer))]
         result = super
         # @sg-ignore Need to add nil check here
         if @buffer_lines[result[2][0]][0..result[2][1]].strip =~ /^#/
@@ -42,33 +43,30 @@ module Solargraph
       # @return [void]
       def create_snippet result
         chomped = result[1].chomp
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1223
         @comments[result[2][0]] =
           Snippet.new(
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1223
             Range.from_to(result[2][0] || 0, result[2][1] || 0, result[2][0] || 0,
+                          # @sg-ignore https://github.com/castwide/solargraph/pull/1223
                           (result[2][1] || 0) + chomped.length), chomped
           )
       end
 
-      # @sg-ignore @override is adding, not overriding
       def on_embdoc_beg *args
         result = super
-        # @sg-ignore @override is adding, not overriding
         create_snippet(result)
         result
       end
 
-      # @sg-ignore @override is adding, not overriding
       def on_embdoc *args
         result = super
-        # @sg-ignore @override is adding, not overriding
         create_snippet(result)
         result
       end
 
-      # @sg-ignore @override is adding, not overriding
       def on_embdoc_end *args
         result = super
-        # @sg-ignore @override is adding, not overriding
         create_snippet(result)
         result
       end

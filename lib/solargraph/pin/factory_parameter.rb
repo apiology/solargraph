@@ -21,10 +21,11 @@ module Solargraph
       attr_reader :method_name
       # @return [String]
       attr_reader :method_namespace
-      # @return [Symbol] :class or :instance
+      # @return [::Symbol] :class or :instance
       attr_reader :method_scope
       # @return [String, nil]
       attr_reader :param_name
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1223
       # @return [::String, ::Symbol] The literal value
       attr_reader :value
       # @return [::Symbol] :arg, :optarg, :kwarg, :kwoptarg, :restarg, :kwrestarg, :block, :blockarg
@@ -34,7 +35,7 @@ module Solargraph
 
       # @param method_name [String] The name of the method that this parameter belongs to
       # @param method_namespace [String] The class of the method that this parameter belongs to
-      # @param method_scope [Symbol] The scope of the method, either :class or :instance
+      # @param method_scope [::Symbol] The scope of the method, either :class or :instance
       # @param param_name [String, nil] The name of the parameter
       # @param value [String, Symbol] The value of the parameter
       # @param decl [::Symbol] :arg, :kwarg
@@ -58,6 +59,7 @@ module Solargraph
         @return_type = return_type
       end
 
+      # @return [String, nil]
       def name
         param_name
       end
@@ -68,12 +70,22 @@ module Solargraph
 
       # @return [String]
       def method_path
-        # @sg-ignore false failure on method_scope "Wrong argument type for Solargraph::Pin::Base#==: other expected
-        # Solargraph::Pin::Base, received :instance"
         @method_path ||= "#{method_namespace}#{method_scope == :instance ? '#' : '.'}#{method_name}"
       end
 
       private
+
+      # @return [void]
+      def preassign_ivars
+        super
+        @method_name = ''
+        @method_namespace = ''
+        @method_scope = :instance
+        @param_name = nil
+        @value = ''
+        @decl = :arg
+        @method_path = nil
+      end
 
       def inner_desc
         "method_path=#{method_path}, value=#{value.inspect}, decl=#{decl.inspect}, " \

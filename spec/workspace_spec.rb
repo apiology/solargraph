@@ -16,6 +16,24 @@ describe Solargraph::Workspace do
     expect(workspace.has_file?(file_path)).to be(true)
   end
 
+  describe '#rbs_collection_config_path' do
+    it 'finds the config in the workspace directory' do
+      yaml = File.join(dir_path, 'rbs_collection.yaml')
+      File.write yaml, "sources: []\n"
+
+      expect(workspace.rbs_collection_config_path).to eq(yaml)
+    end
+
+    it 'is nil when the workspace has no config' do
+      expect(workspace.rbs_collection_config_path).to be_nil
+    end
+
+    it 'is nil for a workspace with no directory to look in' do
+      expect(described_class.new('*').rbs_collection_config_path).to be_nil
+      expect(described_class.new.rbs_collection_config_path).to be_nil
+    end
+  end
+
   it 'ignores non-Ruby files by default' do
     not_ruby = File.join(dir_path, 'not_ruby.txt')
     File.write not_ruby, 'text'
@@ -31,6 +49,14 @@ describe Solargraph::Workspace do
     expect(workspace.filenames).not_to include(source.filename)
   end
 
+  it 'does not merge sources without a filename' do
+    wildcard = described_class.new('*')
+    source = Solargraph::Source.load_string("x = 1\n", nil)
+
+    expect(wildcard.merge(source)).to be(false)
+    expect(wildcard.filenames).to be_empty
+  end
+
   it 'updates sources' do
     original = workspace.source(file_path)
     updated = Solargraph::Source.load_string('puts "updated"', file_path)
@@ -39,6 +65,22 @@ describe Solargraph::Workspace do
     expect(workspace.filenames).to include(file_path)
     expect(workspace.source(file_path)).not_to eq(original)
     expect(workspace.source(file_path)).to eq(updated)
+  end
+
+  it 'ignores synchronizing a file outside the workspace' do
+    updater = Solargraph::Source::Updater.new(File.join(dir_path, 'other.rb'), 1, [])
+
+    expect { workspace.synchronize!(updater) }.not_to raise_error
+    expect(workspace.filenames).to eq([file_path])
+  end
+
+  it 'synchronizes a file in the workspace' do
+    original = workspace.source(file_path)
+    change = Solargraph::Source::Change.new(nil, 'puts "updated"')
+    updater = Solargraph::Source::Updater.new(file_path, original.version + 1, [change])
+    workspace.synchronize!(updater)
+
+    expect(workspace.source(file_path).code).to eq('puts "updated"')
   end
 
   it 'removes deleted sources' do
@@ -66,7 +108,7 @@ describe Solargraph::Workspace do
     calculated = Array.new(Solargraph::Workspace::Config::MAX_FILES + 1) { gemspec_file }
     # @todo Mock reveals tight coupling
     config = instance_double(Solargraph::Workspace::Config, calculated: calculated, max_files: 0, allow?: true,
-                                                            require_paths: [], plugins: [])
+                                                            require_paths: [], require_plugins: nil)
     expect do
       described_class.new('.', config)
     end.not_to raise_error
@@ -140,9 +182,45 @@ describe Solargraph::Workspace do
 
   it 'rescues errors loading files into sources' do
     config = instance_double(Solargraph::Workspace::Config, directory: './path',
-                                                            calculated: ['./path/does_not_exist.rb'], max_files: 5000, require_paths: [], plugins: [])
+                                                            calculated: ['./path/does_not_exist.rb'], max_files: 5000, require_paths: [], require_plugins: nil)
     expect do
       described_class.new('./path', config)
     end.not_to raise_error
+  end
+
+  describe 'with a metagem' do
+    let(:metagem) do
+      Solargraph::Metagem.new(name: 'foo', full_path: File.absolute_path('spec/fixtures/workspace'), spec_file: nil,
+                              source: 'source at spec/fixtures/workspace', version: '1.0.0',
+                              require_paths: ['lib'], dependencies: ['activesupport'])
+    end
+
+    it 'derives available gem names from the gem and its dependencies' do
+      expect(described_class.new(metagem: metagem).available_gem_names).to eq(%w[foo activesupport])
+    end
+
+    it 'loads no sources from the gem directory' do
+      expect(described_class.new(metagem: metagem).filenames).to be_empty
+    end
+  end
+
+  it 'has no available gem names for a directory' do
+    expect(described_class.new('spec/fixtures/workspace').available_gem_names).to be_empty
+  end
+
+  describe '#command_path' do
+    it 'defaults to solargraph' do
+      expect(described_class.new(dir_path).command_path).to eq('solargraph')
+    end
+
+    it 'uses the configured commandPath' do
+      workspace = described_class.new(dir_path, nil, { 'commandPath' => '/usr/local/bin/solargraph' })
+      expect(workspace.command_path).to eq('/usr/local/bin/solargraph')
+    end
+
+    it 'rejects a commandPath that is not a string' do
+      workspace = described_class.new(dir_path, nil, { 'commandPath' => true })
+      expect { workspace.command_path }.to raise_error(Solargraph::InvalidConfigError, /commandPath/)
+    end
   end
 end

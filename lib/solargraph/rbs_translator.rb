@@ -17,7 +17,9 @@ module Solargraph
     # do. Absolute names (`::Bar`, or any name from an RBS environment
     # after `resolve_type_names`) and RBS builtins stay rooted.
     #
-    # @param type [RBS::Types::t]
+    # rubocop:disable Layout/LineLength
+    # @param type [RBS::Types::Bases::Bool, RBS::Types::Bases::Void, RBS::Types::Bases::Any, RBS::Types::Bases::Nil, RBS::Types::Bases::Top, RBS::Types::Bases::Bottom, RBS::Types::Bases::Self, RBS::Types::Bases::Instance, RBS::Types::Bases::Class, RBS::Types::Variable, RBS::Types::ClassSingleton, RBS::Types::Interface, RBS::Types::ClassInstance, RBS::Types::Alias, RBS::Types::Tuple, RBS::Types::Record, RBS::Types::Optional, RBS::Types::Union, RBS::Types::Intersection, RBS::Types::Proc, RBS::Types::Literal]
+    # rubocop:enable Layout/LineLength
     # @param type_alias_decls [Hash{String => RBS::AST::Declarations::TypeAlias}]
     # @return [ComplexType]
     def self.to_complex_type type, type_alias_decls: {}
@@ -27,7 +29,7 @@ module Solargraph
     # @param param_type [RBS::Types::Function::Param]
     # @param name [String]
     # @param decl [Symbol]
-    # @param closure [Pin::Closure]
+    # @param closure [Pin::Callable]
     # @param type_alias_decls [Hash{String => RBS::AST::Declarations::TypeAlias}]
     # @return [Pin::Parameter]
     def self.to_parameter_pin param_type, name, decl, closure, type_alias_decls: {}
@@ -42,7 +44,7 @@ module Solargraph
     end
 
     # @param method_type [RBS::MethodType, RBS::Types::Block]
-    # @param closure [Pin::Closure]
+    # @param closure [Pin::Callable]
     # @param parameter_names [Array<String>]
     # @param type_alias_decls [Hash{String => RBS::AST::Declarations::TypeAlias}]
     # @return [Array<Pin::Parameter>]
@@ -56,12 +58,12 @@ module Solargraph
       arg_num = 0
       params = []
       method_type.type.required_positionals.each do |param|
-        # @sg-ignore Unresolved call to name on RBS::Types::Function::Param
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
         params.push RbsTranslator.to_parameter_pin(param, param.name&.to_s || parameter_names[arg_num] || "arg_#{arg_num}", :arg, closure, type_alias_decls: type_alias_decls)
         arg_num += 1
       end
       method_type.type.optional_positionals.each do |param|
-        # @sg-ignore Unresolved call to name on RBS::Types::Function::Param
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
         params.push RbsTranslator.to_parameter_pin(param, param.name&.to_s || parameter_names[arg_num] || "arg_#{arg_num}", :optarg, closure, type_alias_decls: type_alias_decls)
         arg_num += 1
       end
@@ -73,12 +75,12 @@ module Solargraph
         arg_num += 1
       end
       method_type.type.required_keywords.each do |param|
-        # @sg-ignore Unresolved calls to last, first on generic<D>
+        # @sg-ignore Need better generic inference here
         params.push RbsTranslator.to_parameter_pin(param.last, param.first.to_s, :kwarg, closure, type_alias_decls: type_alias_decls)
         arg_num += 1
       end
       method_type.type.optional_keywords.each do |param|
-        # @sg-ignore Unresolved calls to last, first on generic<D>
+        # @sg-ignore Need better generic inference here
         params.push RbsTranslator.to_parameter_pin(param.last, param.first.to_s, :kwoptarg, closure, type_alias_decls: type_alias_decls)
         arg_num += 1
       end
@@ -92,7 +94,7 @@ module Solargraph
     end
 
     # @param method_type [RBS::MethodType]
-    # @param closure [Pin::Closure]
+    # @param closure [Pin::Callable]
     # @param parameter_names [Array<String>]
     # @param type_alias_decls [Hash{String => RBS::AST::Declarations::TypeAlias}]
     # @return [Pin::Signature]
@@ -105,11 +107,11 @@ module Solargraph
       parameters = to_parameter_pins(method_type, closure, parameter_names, type_alias_decls: type_alias_decls)
       return_type = to_complex_type(method_type.type.return_type, type_alias_decls: type_alias_decls)
       block = if method_type.block
-                # @sg-ignore https://github.com/castwide/solargraph/issues/1249
-                block_parameters = to_parameter_pins(method_type.block, closure, type_alias_decls: type_alias_decls)
-                block_return_type = to_complex_type(method_type.block.type.return_type, type_alias_decls: type_alias_decls)
-                Pin::Signature.new(generics: generics, parameters: block_parameters, return_type: block_return_type, source: :rbs, type_location: closure.location, closure: closure)
-              end
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
+        block_parameters = to_parameter_pins(method_type.block, closure, type_alias_decls: type_alias_decls)
+        block_return_type = to_complex_type(method_type.block.type.return_type, type_alias_decls: type_alias_decls)
+        Pin::Signature.new(generics: generics, parameters: block_parameters, return_type: block_return_type, source: :rbs, type_location: closure.location, closure: closure)
+      end
       Pin::Signature.new(generics: generics, parameters: parameters, return_type: return_type, block: block,
                          block_required: method_type.block&.required || false, source: :rbs, type_location: closure.location, closure: closure)
     end
@@ -117,7 +119,7 @@ module Solargraph
     # @param location [RBS::Location, nil]
     # @return [Solargraph::Location, nil]
     def self.to_sg_location location
-      return nil if location&.name.nil?
+      return nil if location.nil? || location.name.nil?
 
       start_pos = Position.new(location.start_line - 1, location.start_column)
       end_pos = Position.new(location.end_line - 1, location.end_column)
@@ -128,7 +130,9 @@ module Solargraph
     class << self
       private
 
-      # @param type [RBS::Types::t]
+      # rubocop:disable Layout/LineLength
+      # @param type [RBS::Types::Bases::Bool, RBS::Types::Bases::Void, RBS::Types::Bases::Any, RBS::Types::Bases::Nil, RBS::Types::Bases::Top, RBS::Types::Bases::Bottom, RBS::Types::Bases::Self, RBS::Types::Bases::Instance, RBS::Types::Bases::Class, RBS::Types::Variable, RBS::Types::ClassSingleton, RBS::Types::Interface, RBS::Types::ClassInstance, RBS::Types::Alias, RBS::Types::Tuple, RBS::Types::Record, RBS::Types::Optional, RBS::Types::Union, RBS::Types::Intersection, RBS::Types::Proc, RBS::Types::Literal]
+      # rubocop:enable Layout/LineLength
       # @param type_alias_decls [Hash{String => RBS::AST::Declarations::TypeAlias}]
       # @param expanding_aliases [Array<String>] Names of aliases already
       #   being expanded in this call chain, to detect recursive aliases
@@ -136,18 +140,14 @@ module Solargraph
       def type_to_tag type, type_alias_decls = {}, expanding_aliases = []
         case type
         when RBS::Types::Optional
-          # @sg-ignore flow sensitive typing should support case/when
           "#{type_to_tag(type.type, type_alias_decls, expanding_aliases)}, nil"
         when RBS::Types::Bases::Bool
           '::Boolean'
         when RBS::Types::Tuple
-          # @sg-ignore flow sensitive typing should support case/when
           "::Array(#{type.types.map { |t| type_to_tag(t, type_alias_decls, expanding_aliases) }.join(', ')})"
         when RBS::Types::Literal
-          # @sg-ignore flow sensitive typing should support case/when
           type.literal.inspect
         when RBS::Types::Union
-          # @sg-ignore flow sensitive typing should support case/when
           type.types.map { |t| type_to_tag(t, type_alias_decls, expanding_aliases) }.join(', ')
         when RBS::Types::Record
           # @todo Better record support
@@ -157,7 +157,6 @@ module Solargraph
         when RBS::Types::Bases::Void
           'void'
         when RBS::Types::Variable
-          # @sg-ignore flow sensitive typing should support case/when
           "#{Solargraph::ComplexType::GENERIC_TAG_NAME}<#{type.name}>"
         when RBS::Types::Bases::Self, RBS::Types::Bases::Instance
           'self'
@@ -165,7 +164,6 @@ module Solargraph
           # `Top` is the most super superclass
           '::BasicObject'
         when RBS::Types::Intersection
-          # @sg-ignore flow sensitive typing should support case/when
           type.types.map { |member| type_to_tag(member, type_alias_decls, expanding_aliases) }.join(', ')
         when RBS::Types::Proc
           '::Proc'
@@ -173,12 +171,9 @@ module Solargraph
           # Expand so conformance checks see the members, not the name. A
           # generic alias falls back: args are not substituted, so expanding
           # would leak an unbound generic<T>.
-          # @sg-ignore flow sensitive typing should support case/when
           alias_name = type.name.to_s
           alias_decl = type_alias_decls[alias_name]
-          # @sg-ignore flow sensitive typing should support case/when
           if alias_decl.nil? || expanding_aliases.include?(alias_name) || !type.args.empty?
-            # @sg-ignore flow sensitive typing should support case/when
             type_tag(type.name, type.args, type_alias_decls, expanding_aliases)
           else
             # The alias body belongs to the alias's declaration, not the
@@ -190,19 +185,16 @@ module Solargraph
         when RBS::Types::ClassInstance, RBS::Types::Interface
           # `Interface` represents a mix-in module which can be considered a
           # subtype of a consumer of it
-          # @sg-ignore flow sensitive typing should support case/when
           type_tag(type.name, type.args, type_alias_decls, expanding_aliases)
         when RBS::Types::ClassSingleton
-          # e.g., singleton(String)
-          # @sg-ignore flow sensitive typing should support case/when
-          type_tag(type.name, [], type_alias_decls, expanding_aliases)
-        when RBS::Types::Bases::Any, RBS::Types::Bases::Bottom
-          # `Bottom`` is used in contexts where nothing will ever return
-          # - e.g., it could be the return type of 'exit()' or 'raise'
-          # @todo define a specific bottom type and use it to
-          #   determine dead code
-          #
+          # e.g., singleton(String) is the class object, Class<String>
+          "::Class<#{type_tag(type.name, [], type_alias_decls, expanding_aliases)}>"
+        when RBS::Types::Bases::Any
           'undefined'
+        when RBS::Types::Bases::Bottom
+          # `Bottom` is used in contexts where nothing will ever return
+          # - e.g., it could be the return type of 'exit()' or 'raise'
+          'bot'
         else
           Solargraph.logger.warn "Unrecognized RBS type: #{type.class} at #{type.location}"
           'undefined'

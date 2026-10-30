@@ -24,7 +24,7 @@ module Solargraph
         # @return [Source::Chain]
         def chain
           links = generate_links(@node)
-          Chain.new(links, @node, Parser.is_ast_node?(@node) && @node.type == :splat)
+          Chain.new(links, @node, @node.is_a?(::Parser::AST::Node) && @node.type == :splat)
         end
 
         class << self
@@ -44,6 +44,7 @@ module Solargraph
           # @return [Source::Chain]
           def load_string code, filename, starting_line
             node = Parser.parse(code.sub(/\.$/, ''), filename, starting_line)
+            # @sg-ignore Need to add nil check here
             chain = NodeChainer.new(node).chain
             chain.links.push(Chain::Link.new) if code.end_with?('.')
             chain
@@ -56,106 +57,120 @@ module Solargraph
         # @return [Array<Chain::Link>]
         def generate_links n
           return [] unless n.is_a?(::Parser::AST::Node)
-          return generate_links(n.children[0]) if n.type == :splat
+          # s(:splat, value) - an anonymous splat in an mlhs has no value
+          if n in [:splat, *rest]
+            return (rest in [::Parser::AST::Node => splatted, *]) ? generate_links(splatted) : []
+          end
           # @type [Array<Chain::Link>]
           result = []
-          if n.type == :block
-            result.concat NodeChainer.chain(n.children[0], @filename, n).links
-          elsif n.type == :send
-            if n.children[0].is_a?(::Parser::AST::Node)
-              result.concat generate_links(n.children[0])
-              result.push Chain::Call.new(n.children[1].to_s, Location.from_node(n), node_args(n), passed_block(n))
-            elsif n.children[0].nil?
-              # @sg-ignore Need to add nil check here
-              n.children[2..].map do |c|
-                NodeChainer.chain(c, @filename, n)
-              end
-              result.push Chain::Call.new(n.children[1].to_s, Location.from_node(n), node_args(n), passed_block(n))
-            else
-              raise "No idea what to do with #{n}"
+          case n
+          in [:block, ::Parser::AST::Node => call, *]
+            result.concat NodeChainer.chain(call, @filename, n).links
+          in [:send, ::Parser::AST::Node => receiver, Symbol, *]
+            result.concat generate_links(receiver)
+            result.push receiver_call(n)
+          in [:send, nil, Symbol => method_name, *args]
+            args.map do |c|
+              NodeChainer.chain(c, @filename, n)
             end
-          elsif n.type == :csend
-            if n.children[0].is_a?(::Parser::AST::Node)
-              result.concat generate_links(n.children[0])
-              result.push Chain::QCall.new(n.children[1].to_s, Location.from_node(n), node_args(n))
-            elsif n.children[0].nil?
-              result.push Chain::QCall.new(n.children[1].to_s, Location.from_node(n), node_args(n))
-            else
-              raise "No idea what to do with #{n}"
-            end
-          elsif n.type == :self
+            result.push Chain::Call.new(method_name.to_s, Location.from_node(n), node_args(n), passed_block(n))
+          in [:send, *]
+            raise "No idea what to do with #{n}"
+          in [:csend, ::Parser::AST::Node => receiver, Symbol => method_name, *]
+            result.concat generate_links(receiver)
+            result.push Chain::QCall.new(method_name.to_s, Location.from_node(n), node_args(n), passed_block(n),
+                                         assignment: assignment_syntax?(n))
+          in [:csend, nil, Symbol => method_name, *]
+            result.push Chain::QCall.new(method_name.to_s, Location.from_node(n), node_args(n), passed_block(n))
+          in [:csend, *]
+            raise "No idea what to do with #{n}"
+          in [:self, *]
             result.push Chain::Head.new('self')
-          elsif n.type == :zsuper
+          in [:zsuper, *]
             result.push Chain::ZSuper.new('super')
-          elsif n.type == :super
-            args = n.children.map { |c| NodeChainer.chain(c, @filename, n) }
+          in [:super, *]
+            # s(:super, *args) - every argument is a node
+            args = n.children.map do |child|
+              # raises NoMatchingPatternError on a non-node child
+              child => ::Parser::AST::Node => c
+              NodeChainer.chain(c, @filename, n)
+            end
             result.push Chain::Call.new('super', Location.from_node(n), args)
-          elsif n.type == :yield
-            args = n.children.map { |c| NodeChainer.chain(c, @filename, n) }
+          in [:yield, *]
+            # s(:yield, *args) - every argument is a node
+            args = n.children.map do |child|
+              # raises NoMatchingPatternError on a non-node child
+              child => ::Parser::AST::Node => c
+              NodeChainer.chain(c, @filename, n)
+            end
             result.push Chain::Call.new('yield', Location.from_node(n), args)
-          elsif n.type == :const
+          in [:const, *]
             const = unpack_name(n)
             result.push Chain::Constant.new(const)
-          elsif %i[lvar lvasgn].include?(n.type)
-            result.push Chain::Call.new(n.children[0].to_s, Location.from_node(n))
-          elsif %i[ivar ivasgn].include?(n.type)
-            result.push Chain::InstanceVariable.new(n.children[0].to_s, n, Location.from_node(n))
-          elsif %i[cvar cvasgn].include?(n.type)
-            result.push Chain::ClassVariable.new(n.children[0].to_s)
-          elsif %i[gvar gvasgn].include?(n.type)
-            result.push Chain::GlobalVariable.new(n.children[0].to_s)
-          elsif n.type == :or_asgn
+          in [:lvar | :lvasgn, Symbol => name, *]
+            result.push Chain::Call.new(name.to_s, Location.from_node(n))
+          in [:ivar | :ivasgn, Symbol => name, *]
+            result.push Chain::InstanceVariable.new(name.to_s, n, Location.from_node(n))
+          in [:cvar | :cvasgn, Symbol => name, *]
+            result.push Chain::ClassVariable.new(name.to_s)
+          in [:gvar | :gvasgn, Symbol => name, *]
+            result.push Chain::GlobalVariable.new(name.to_s)
+          in [:or_asgn, ::Parser::AST::Node => lhs, ::Parser::AST::Node => rhs, *]
             # @bar ||= 123 translates to:
             #
             # s(:or_asgn,
             #   s(:ivasgn, :@bar),
             #   s(:int, 123))
-            lhs_chain = NodeChainer.chain n.children[0] # s(:ivasgn, :@bar)
-            rhs_chain = NodeChainer.chain n.children[1] # s(:int, 123)
-            or_link = Chain::Or.new([lhs_chain, rhs_chain])
+            lhs_chain = NodeChainer.chain lhs # s(:ivasgn, :@bar)
+            rhs_chain = NodeChainer.chain rhs # s(:int, 123)
+            or_asgn_rhs_never_returns = always_leaves_compound_statement?(rhs)
+            or_link = Chain::Or.new([lhs_chain, rhs_chain], rhs_never_returns: or_asgn_rhs_never_returns)
             # this is just for a call chain, so we don't need to record the assignment
             result.push(or_link)
-          elsif %i[class module def defs].include?(n.type)
+          in [:class | :module | :def | :defs, *]
             # @todo Undefined or what?
             result.push Chain::UNDEFINED_CALL
-          elsif n.type == :and
-            result.concat generate_links(n.children.last)
-          elsif n.type == :or
-            result.push Chain::Or.new([NodeChainer.chain(n.children[0], @filename),
-                                       NodeChainer.chain(n.children[1], @filename, n)])
-          elsif n.type == :if
-            then_clause = if n.children[1]
-                            NodeChainer.chain(n.children[1], @filename, n)
+          in [:and, *, ::Parser::AST::Node => last]
+            result.concat generate_links(last)
+          in [:or, ::Parser::AST::Node => lhs, ::Parser::AST::Node => rhs, *]
+            or_lhs_chain = NodeChainer.chain(lhs, @filename)
+            or_rhs_chain = NodeChainer.chain(rhs, @filename, n)
+            or_rhs_never_returns = always_leaves_compound_statement?(rhs)
+            result.push Chain::Or.new([or_lhs_chain, or_rhs_chain], rhs_never_returns: or_rhs_never_returns)
+          in [:if, _, ::Parser::AST::Node | nil => then_node, ::Parser::AST::Node | nil => else_node, *]
+            then_clause = if then_node
+                            NodeChainer.chain(then_node, @filename, n)
                           else
                             Source::Chain.new([Source::Chain::Literal.new('nil', nil)], n)
                           end
-            else_clause = if n.children[2]
-                            NodeChainer.chain(n.children[2], @filename, n)
+            else_clause = if else_node
+                            NodeChainer.chain(else_node, @filename, n)
                           else
                             Source::Chain.new([Source::Chain::Literal.new('nil', nil)], n)
                           end
             result.push Chain::If.new([then_clause, else_clause])
-          elsif %i[begin kwbegin].include?(n.type)
-            result.concat generate_links(n.children.last)
-          elsif n.type == :block_pass
-            block_variable_name_node = n.children[0]
-            if block_variable_name_node.nil?
-              # anonymous block forwarding (e.g., "&")
-              # added in Ruby 3.1 - https://bugs.ruby-lang.org/issues/11256
-              result.push Chain::BlockVariable.new(nil)
-            elsif block_variable_name_node.type == :sym
-              result.push Chain::BlockSymbol.new(block_variable_name_node.children[0].to_s)
-            else
-              result.push Chain::BlockVariable.new("&#{block_variable_name_node.children[0]}")
+          in [:begin | :kwbegin, *, ::Parser::AST::Node => last]
+            result.concat generate_links(last)
+          in [:begin | :kwbegin]
+            # an empty begin...end has no links
+          in [:block_pass, *]
+            result.push block_pass_link(n)
+          in [:hash, *]
+            result.push Chain::Hash.new('::Hash', n, hash_is_splatted?(n), hash_pairs(n))
+          in [:array, *]
+            # s(:array, *elements) - every element is a node
+            chained_children = n.children.map do |child|
+              # raises NoMatchingPatternError on a non-node child
+              child => ::Parser::AST::Node => c
+              NodeChainer.chain(c)
             end
-          elsif n.type == :hash
-            result.push Chain::Hash.new('::Hash', n, hash_is_splatted?(n))
-          elsif n.type == :array
-            chained_children = n.children.map { |c| NodeChainer.chain(c) }
             result.push Source::Chain::Array.new(chained_children, n)
-          elsif inside_method_call? # If the node is inside a method call, it may be a parameter.
+          in [:match_pattern_p | :match_pattern, *]
+            result.push pattern_match_link(n)
+          in _ if inside_method_call? # If the node is inside a method call, it may be a parameter.
             lit = infer_literal_node_type(n)
             if lit
+              # @sg-ignore nil false alarm
               method_call_chain = NodeChainer.chain(send_node, @filename, nil, [])
               literal = Chain::Literal.new(lit, n)
               result.push Chain::Parameter.new(literal, method_call_chain)
@@ -168,6 +183,34 @@ module Solargraph
           result
         end
 
+        # @param block_pass [Parser::AST::Node]
+        # @return [Chain::Link]
+        def block_pass_link block_pass
+          case block_pass
+          in [_, [:sym, Symbol => symbol, *]]
+            Chain::BlockSymbol.new(symbol.to_s)
+          in [_, ::Parser::AST::Node => block_variable_name_node, *]
+            # &blk passes s(:lvar, :blk); &method(:x) passes a send whose first child is nil
+            variable_name = (block_variable_name_node in [_, value, *]) ? value : nil
+            Chain::BlockVariable.new("&#{variable_name}")
+          else
+            # anonymous block forwarding (e.g., "&")
+            # added in Ruby 3.1 - https://bugs.ruby-lang.org/issues/11256
+            Chain::BlockVariable.new(nil)
+          end
+        end
+
+        # `subject in pattern` evaluates to true or false; `subject =>
+        # pattern` evaluates to nil or raises
+        #
+        # @param node [Parser::AST::Node] a match_pattern_p or match_pattern node
+        # @return [Chain::Literal]
+        def pattern_match_link node
+          return Chain::Literal.new('::Boolean', node) if node.type == :match_pattern_p
+
+          Chain::Literal.new('nil', nil)
+        end
+
         def inside_method_call?
           !send_node.nil? && send_node != @node
         end
@@ -177,31 +220,72 @@ module Solargraph
           @send_node ||= @tree&.find { |n| n.type == :send }
         end
 
+        # True for `recv.attr = value` and `recv[key] = value`, which
+        # evaluate to `value` whatever the setter returns. An explicit
+        # call like `recv.[]=(key, value)` has no `=` operator and
+        # evaluates to the method's return value. The setter name check
+        # excludes the operator send that OpasgnNode synthesizes for
+        # `a += b`, which keeps the op_asgn's `+=` operator location.
+        #
+        # @param node [Parser::AST::Node]
+        def assignment_syntax? node
+          node.loc.respond_to?(:operator) && !node.loc.operator.nil? && node.children.length > 2 &&
+            node.children[1].to_s.end_with?('=')
+        end
+
         # @param node [Parser::AST::Node]
         def hash_is_splatted? node
-          return false unless Parser.is_ast_node?(node) && node.type == :hash
-          return false unless Parser.is_ast_node?(node.children.last) && node.children.last.type == :kwsplat
-          if Parser.is_ast_node?(node.children.last.children[0]) && node.children.last.children[0].type == :hash
-            return false
+          # {**splatted} - s(:hash, *pairs, s(:kwsplat, splatted)), unless splatted is a hash literal
+          return false unless node in ::Parser::AST::Node[:hash, *, ::Parser::AST::Node[:kwsplat, ::Parser::AST::Node => splatted, *]]
+
+          !(splatted in ::Parser::AST::Node[:hash, *])
+        end
+
+        # Chains each key/value pair so Chain::Hash can infer
+        # Hash{K => V}, mirroring how Chain::Array infers Array<T>.
+        # Returns nil for a `**splat` entry, which has no node to chain.
+        #
+        # @param node [Parser::AST::Node]
+        # @return [::Array<::Array(Chain, Chain)>, nil]
+        def hash_pairs node
+          return nil unless node.is_a?(::Parser::AST::Node) && node.type == :hash
+
+          node.children.map do |pair|
+            return nil unless pair.is_a?(::Parser::AST::Node) && pair.type == :pair
+
+            key_node, value_node = pair.children
+            [NodeChainer.chain(key_node, @filename, pair), NodeChainer.chain(value_node, @filename, pair)]
           end
-          true
         end
 
         # @param node [Parser::AST::Node]
         # @return [Source::Chain, nil]
         def passed_block node
-          return unless node == @node && @parent&.type == :block
+          # s(:block, call, args, body)
+          return unless node == @node && (@parent in [:block, _, _, ::Parser::AST::Node | nil => body])
 
-          # @sg-ignore Need to add nil check here
-          NodeChainer.chain(@parent.children[2], @filename)
+          # an empty block still passes a block, so it gets an empty chain, not nil
+          body ? NodeChainer.chain(body, @filename) : Chain.new([])
+        end
+
+        # @param node [Parser::AST::Node] a :send with a receiver
+        # @return [Chain::Call]
+        def receiver_call node
+          location = Location.from_node(node)
+          # 'h[k]', which a Pin::KeyLookup can prove present
+          if node.children in [::Parser::AST::Node | nil => receiver, :[], ::Parser::AST::Node => key]
+            return Chain::Index.new(receiver, key, location, node_args(node), passed_block(node))
+          end
+
+          Chain::Call.new(node.children[1].to_s, location, node_args(node), passed_block(node),
+                          assignment: assignment_syntax?(node))
         end
 
         # @param node [Parser::AST::Node]
-        # @sg-ignore Need to add nil check here
         # @return [Array<Source::Chain>]
         def node_args node
-          # @sg-ignore Need to add nil check here
-          node.children[2..].map do |child|
+          node => [_, _, _, *args]
+          args.map do |child|
             NodeChainer.chain(child, @filename, node)
           end
         end

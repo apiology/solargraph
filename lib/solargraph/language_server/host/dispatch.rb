@@ -6,6 +6,9 @@ module Solargraph
       # Methods for associating sources with libraries via URIs.
       #
       module Dispatch
+        # Serializes making a generic library, so concurrent callers share one
+        GENERIC_LIBRARY_MUTEX = Mutex.new
+
         # @abstract
         # @return [Host::Diagnoser]
         def diagnoser
@@ -33,7 +36,7 @@ module Solargraph
         # @return [void]
         def update_libraries uri
           src = sources.find(uri)
-          # @sg-ignore Need to add nil check here
+          # @sg-ignore Wrong argument type for Solargraph::Library#contain?: filename expected String, received String, nil
           using = libraries.select { |lib| lib.contain?(src.filename) }
           using.push library_for(uri) if using.empty?
           using.each { |lib| lib.merge src }
@@ -114,8 +117,10 @@ module Solargraph
 
         # @return [Library]
         def generic_library
-          @generic_library ||= Solargraph::Library.new(Solargraph::Workspace.new('', nil, options), nil)
-                                                  .tap { |lib| lib.add_observer self }
+          GENERIC_LIBRARY_MUTEX.synchronize do
+            @generic_library ||= Solargraph::Library.new(Solargraph::Workspace.new('', nil, options), nil)
+                                                    .tap { |lib| lib.add_observer self }
+          end
         end
 
         # The Library observer callback that #generic_library registers.

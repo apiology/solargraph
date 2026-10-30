@@ -6,18 +6,21 @@ module Solargraph
       # @return [::Symbol]
       attr_reader :decl
 
-      # @return [String]
+      # @return [String, nil]
       attr_reader :asgn_code
 
       # allow this to be set to the method after the method itself has
       # been created
+      #
+      # @param value [Pin::Callable]
       attr_writer :closure
 
+      # @param closure [Pin::Callable, nil]
       # @param decl [::Symbol] :arg, :optarg, :kwarg, :kwoptarg, :restarg, :kwrestarg, :block, :blockarg
       # @param asgn_code [String, nil]
       # @param [Hash{Symbol => Object}] splat
-      def initialize decl: :arg, asgn_code: nil, **splat
-        super(**splat)
+      def initialize closure: nil, decl: :arg, asgn_code: nil, **splat
+        super(closure: closure, **splat)
         @asgn_code = asgn_code
         @decl = decl
       end
@@ -31,8 +34,13 @@ module Solargraph
       end
 
       def combine_with other, attrs = {}
-        # Parameters can only be combined with local variables in the same closure
-        return self unless other.closure == closure
+        # Parameters can only be combined with local variables in the same
+        # closure. A parameter of a nested closure (e.g., a block) shadows us.
+        unless other.closure == closure
+          other_start = other.presence&.start
+          return other if other.is_a?(Parameter) && other_start && presence&.contain?(other_start)
+          return self
+        end
 
         new_attrs = if other.is_a?(Parameter)
                       {
@@ -63,7 +71,7 @@ module Solargraph
       end
 
       def kwrestarg?
-        # @sg-ignore flow sensitive typing needs to handle attrs
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
         decl == :kwrestarg || (assignment && %i[HASH hash].include?(assignment.type))
       end
 
@@ -174,14 +182,14 @@ module Solargraph
                     end
       end
 
-      # @sg-ignore super always sets @return_type to something
       # @return [ComplexType]
       def return_type
         if @return_type.nil?
           @return_type = ComplexType::UNDEFINED
           found = param_tag
           @return_type = ComplexType.try_parse(*found.types) unless found.nil? || found.types.nil?
-          # @sg-ignore flow sensitive typing should be able to handle redefinition
+          @return_type = inline_rbs_type || @return_type
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1338
           if @return_type.undefined?
             case decl
             when :restarg
@@ -196,13 +204,18 @@ module Solargraph
         super
       end
 
+      # @return [Pin::Callable]
+      def closure!
+        callable = closure
+        return callable if callable.is_a?(Pin::Callable)
+        raise "Closure of parameter #{name.inspect} is #{callable.class}, not a Pin::Callable"
+      end
+
       # The parameter's zero-based location in the block's signature.
       #
-      # @sg-ignore Need to add nil check here
-      # @return [Integer]
+      # @return [Integer, nil]
       def index
-        method_pin = closure
-        # @sg-ignore Need to add nil check here
+        method_pin = closure!
         method_pin.parameter_names.index(name)
       end
 
@@ -234,7 +247,7 @@ module Solargraph
         ptype.generic?
       end
 
-      # @sg-ignore flow sensitive typing needs to handle attrs
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1258
       def documentation
         tag = param_tag
         return '' if tag.nil? || tag.text.nil?
@@ -243,35 +256,52 @@ module Solargraph
 
       private
 
+      # @return [void]
+      def preassign_ivars
+        super
+        @asgn_code = nil
+        @decl = :arg
+      end
+
       def generate_complex_type
         nil
       end
 
       # @return [YARD::Tags::Tag, nil]
       def param_tag
-        # @sg-ignore Need to add nil check here
         params = closure.docstring.tags(:param)
-        # @sg-ignore Need to add nil check here
         params.each do |p|
           return p if p.name == name
         end
-        # @sg-ignore Need to add nil check here
-        params[index] if index && params[index] && (params[index].name.nil? || params[index].name.empty?)
+        idx = index
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
+        params[idx] if idx && params[idx] && (params[idx].name.nil? || params[idx].name.empty?)
       end
 
       # @param api_map [ApiMap]
       # @return [ComplexType]
       def typify_block_param api_map
         block_pin = closure
-        return block_pin.typify_parameters(api_map)[index] if block_pin.is_a?(Pin::Block) && block_pin.receiver && index
+        idx = index
+        return block_pin.typify_parameters(api_map).fetch(idx) if block_pin.is_a?(Pin::Block) && block_pin.receiver && idx
         ComplexType::UNDEFINED
+      end
+
+      # The parameter's type from its method's inline RBS signature,
+      # which takes precedence over @param tags as the signature does.
+      #
+      # @return [ComplexType, nil]
+      def inline_rbs_type
+        method_pin = closure
+        return nil unless method_pin.is_a?(Pin::Method)
+        method_pin.inline_rbs_parameter_type(name)
       end
 
       # @param api_map [ApiMap]
       # @return [ComplexType]
       def typify_method_param api_map
-        # @sg-ignore Need to add nil check here
         meths = api_map.get_method_stack(closure.full_context.tag, closure.name, scope: closure.scope)
+        idx = index
         # meths.shift # Ignore the first one
         meths.each do |meth|
           found = nil
@@ -281,13 +311,13 @@ module Solargraph
             found = p
             break
           end
-          if found.nil? && !index.nil? && params[index] && (params[index].name.nil? || params[index].name.empty?)
-            found = params[index]
+          # @sg-ignore missing flow-sensitive typing on array elements
+          if found.nil? && !idx.nil? && params[idx] && (params[idx].name.nil? || params[idx].name.empty?)
+            found = params[idx]
           end
           unless found.nil? || found.types.nil?
             return ComplexType.try_parse(*found.types).qualify(api_map,
-                                                               # @sg-ignore Need to add nil check here
-                                                               *meth.closure.gates)
+                                                               *meth.closure!.gates)
           end
         end
         ComplexType::UNDEFINED
@@ -302,7 +332,7 @@ module Solargraph
         # This should actually be an intersection type
         # @param ref [YARD::Tags::Tag, Solargraph::Yard::Tags::RefTag]
         heredoc.ref_tags.each do |ref|
-          # @sg-ignore ref should actually be an intersection type
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1231
           next unless ref.tag_name == 'param' && ref.owner
           # @todo ref should actually be an intersection type
           result = resolve_reference(ref.owner.to_s, api_map, skip)
@@ -318,14 +348,13 @@ module Solargraph
       def resolve_reference ref, api_map, skip
         return nil if skip.include?(ref)
         skip.push ref
-        parts = ref.split(/[.#]/)
-        if parts.first.empty?
+        prefix, separator, name = ref.rpartition(/[.#]/)
+        if prefix.empty?
           path = "#{namespace}#{ref}"
         else
-          fqns = api_map.qualify(parts.first, namespace)
+          fqns = api_map.qualify(prefix, namespace)
           return nil if fqns.nil?
-          # @sg-ignore Need to add nil check here
-          path = fqns + ref[parts.first.length] + parts.last
+          path = fqns + separator + name
         end
         pins = api_map.get_path_pins(path)
         pins.each do |pin|

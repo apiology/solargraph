@@ -14,6 +14,19 @@ describe Solargraph::Source::Chain::Call do
     expect(type.tag).to eq('String')
   end
 
+  it 'recognizes that the count overload of a core method is not nilable' do
+    api_map = Solargraph::ApiMap.new
+    source = Solargraph::Source.load_string(%(
+      # @type [Array<String>]
+      arr = []
+      arr.first(1)
+    ))
+    api_map.map source
+    chain = Solargraph::Source::SourceChainer.chain(source, Solargraph::Position.new(3, 11))
+    type = chain.infer(api_map, Solargraph::Pin::ROOT_PIN, api_map.source_map(nil).locals)
+    expect(type.rooted_tags).to eq('::Array<::String>')
+  end
+
   it 'recognizes core methods that return self' do
     api_map = Solargraph::ApiMap.new
     source = Solargraph::Source.load_string(%(
@@ -44,6 +57,26 @@ describe Solargraph::Source::Chain::Call do
     chain = Solargraph::Source::SourceChainer.chain(source, Solargraph::Position.new(11, 14))
     type = chain.infer(api_map, Solargraph::Pin::ROOT_PIN, api_map.source_map(nil).locals)
     expect(type.tag).to eq('Integer')
+  end
+
+  it 'resolves super passed as an argument to the superclass method' do
+    api_map = Solargraph::ApiMap.new
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        def my_method
+          1.5
+        end
+      end
+      class Bar < Foo
+        def my_method
+          456 + super
+        end
+      end
+      Bar.new.my_method))
+    api_map.map source
+    chain = Solargraph::Source::SourceChainer.chain(source, Solargraph::Position.new(11, 14))
+    type = chain.infer(api_map, Solargraph::Pin::ROOT_PIN, api_map.source_map(nil).locals)
+    expect(type.tag).to eq('Float')
   end
 
   it 'infers return types based on yield call and @yieldreturn' do
@@ -109,6 +142,43 @@ describe Solargraph::Source::Chain::Call do
     chain = Solargraph::Source::SourceChainer.chain(source, Solargraph::Position.new(6, 10))
     type = chain.infer(api_map, Solargraph::Pin::ROOT_PIN, [])
     expect(type.tag).to eq('String')
+  end
+
+  it 'infers types from a reference to a named macro' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @!macro [new] returner
+        #   @return [$1]
+        def self.bar; end
+
+        # @!macro returner
+        def self.baz; end
+      end
+      Foo.baz(String)
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map(source)
+    chain = Solargraph::Source::SourceChainer.chain(source, Solargraph::Position.new(9, 10))
+    type = chain.infer(api_map, Solargraph::Pin::ROOT_PIN, [])
+    expect(type.tag).to eq('String')
+  end
+
+  it 'falls back to the method type for a macro without a return tag' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @!macro
+        #   Does something with $1
+        def self.bar
+          1
+        end
+      end
+      Foo.bar(String)
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map(source)
+    chain = Solargraph::Source::SourceChainer.chain(source, Solargraph::Position.new(8, 10))
+    type = chain.infer(api_map, Solargraph::Pin::ROOT_PIN, [])
+    expect(type.tag).to eq('Integer')
   end
 
   it 'infers generic types from Array#reverse' do
@@ -891,5 +961,412 @@ describe Solargraph::Source::Chain::Call do
 
     clip = api_map.clip_at('test.rb', [14, 14])
     expect(clip.infer.rooted_tags).to eq('::Set<::Foo::Bar::Symbol>')
+  end
+
+  it 'does not nil-taint Array#[] with a literal 0-start Range' do
+    source = Solargraph::Source.load_string(%(
+      # @type [Array<String>]
+      arr = []
+      arr[0..-2]
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+
+    clip = api_map.clip_at('test.rb', [3, 16])
+    expect(clip.infer.rooted_tags).to eq('::Array<::String>')
+  end
+
+  it 'does not nil-taint Array#[] with a beginless Range' do
+    source = Solargraph::Source.load_string(%(
+      # @type [Array<String>]
+      arr = []
+      arr[..5]
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+
+    clip = api_map.clip_at('test.rb', [3, 14])
+    expect(clip.infer.rooted_tags).to eq('::Array<::String>')
+  end
+
+  it 'does not nil-taint Array#[] with a literal 0-start, exclusive Range' do
+    source = Solargraph::Source.load_string(%(
+      # @type [Array<String>]
+      arr = []
+      arr[0...5]
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+
+    clip = api_map.clip_at('test.rb', [3, 16])
+    expect(clip.infer.rooted_tags).to eq('::Array<::String>')
+  end
+
+  it 'does not nil-taint String#[] with a literal 0-start Range' do
+    source = Solargraph::Source.load_string(%(
+      # @param s [String]
+      # @param offset [Integer]
+      def foo(s, offset)
+        s[0..(offset - 1)]
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+
+    clip = api_map.clip_at('test.rb', [4, 26])
+    expect(clip.infer.rooted_tags).to eq('::String')
+  end
+
+  it 'still treats Array#[] with a non-zero literal start Range as nilable' do
+    source = Solargraph::Source.load_string(%(
+      # @type [Array<String>]
+      arr = []
+      arr[1..]
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+
+    clip = api_map.clip_at('test.rb', [3, 14])
+    expect(clip.infer.rooted_tags).to eq('::Array<::String>, nil')
+  end
+
+  it 'still treats Array#[] with a negative literal start Range as nilable' do
+    source = Solargraph::Source.load_string(%(
+      # @type [Array<String>]
+      arr = []
+      arr[-1..]
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+
+    clip = api_map.clip_at('test.rb', [3, 15])
+    expect(clip.infer.rooted_tags).to eq('::Array<::String>, nil')
+  end
+
+  it 'narrows select results to the class their block checks' do
+    source = Solargraph::Source.load_string(%(
+      # @param items [Array<String, Integer>]
+      def foo items
+        a = items.select { |i| i.is_a?(String) }
+        b = items.filter { |i| i.kind_of?(::Integer) }
+        c = items.select { |i| i.instance_of?(String) }
+        a
+        b
+        c
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+
+    expect(api_map.clip_at('test.rb', [6, 8]).infer.rooted_tags).to eq('::Array<::String>')
+    # Flow-sensitive typing does not yet narrow by kind_of? or
+    # instance_of? (castwide/solargraph#1297) or by `::Integer`
+    # (castwide/solargraph#1259)
+    expect(api_map.clip_at('test.rb', [7, 8]).infer.rooted_tags).to eq('::Array<::String, ::Integer>')
+    expect(api_map.clip_at('test.rb', [8, 8]).infer.rooted_tags).to eq('::Array<::String, ::Integer>')
+  end
+
+  it 'narrows select results by any condition flow-sensitive typing understands' do
+    source = Solargraph::Source.load_string(%(
+      # @param items [Array<String, Integer>]
+      def foo items
+        a = items.select { |i| i.is_a?(String) && !i.empty? }
+        a
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+
+    expect(api_map.clip_at('test.rb', [4, 8]).infer.rooted_tags).to eq('::Array<::String>')
+  end
+
+  it 'keeps select element types when the block does more than check its parameter' do
+    source = Solargraph::Source.load_string(%(
+      # @param items [Array<String, Integer>]
+      # @param other [Object]
+      def foo items, other
+        a = items.select { |i| other.is_a?(String) }
+        b = items.select { |i| i.is_a?(String) || i.zero? }
+        a
+        b
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+
+    expect(api_map.clip_at('test.rb', [6, 8]).infer.rooted_tags).to eq('::Array<::String, ::Integer>')
+    expect(api_map.clip_at('test.rb', [7, 8]).infer.rooted_tags).to eq('::Array<::String, ::Integer>')
+  end
+
+  it 'does not narrow select by a check on an enclosing block parameter' do
+    source = Solargraph::Source.load_string(%(
+      # @param items [Array<String, Integer>]
+      def foo items
+        items.each do |i|
+          a = items.select { |j| i.is_a?(String) }
+          a
+        end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+
+    expect(api_map.clip_at('test.rb', [5, 10]).infer.rooted_tags).to eq('::Array<::String, ::Integer>')
+  end
+
+  it 'infers an index assignment as its right-hand side' do
+    source = Solargraph::Source.load_string(%(
+      # @type [Hash{Integer => String, Symbol}]
+      h = {}
+      x = (h[1] = 'str')
+      x
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+
+    clip = api_map.clip_at('test.rb', [4, 6])
+    expect(clip.infer.rooted_tags).to eq('::String')
+  end
+
+  it 'infers an attribute assignment as its right-hand side' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @param value [String, Symbol]
+        # @return [Integer]
+        def bar=(value)
+          123
+        end
+      end
+      x = (Foo.new.bar = 'str')
+      x
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+
+    clip = api_map.clip_at('test.rb', [9, 6])
+    expect(clip.infer.rooted_tags).to eq('::String')
+  end
+
+  it 'infers a safe-navigation attribute assignment as its right-hand side or nil' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @param value [String, Symbol]
+        # @return [Integer]
+        def bar=(value)
+          123
+        end
+      end
+      # @type [Foo, nil]
+      foo = nil
+      x = (foo&.bar = 'str')
+      x
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+
+    clip = api_map.clip_at('test.rb', [11, 6])
+    expect(clip.infer.rooted_tags).to eq('::String, nil')
+  end
+
+  it 'infers an operator assignment as the operator return type' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @param other [String]
+        # @return [Foo]
+        def +(other)
+          self
+        end
+      end
+      args = Foo.new
+      args += 'str'
+      args
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+
+    pin = api_map.source_map('test.rb').locals.select { |l| l.name == 'args' }.last
+    expect(pin.probe(api_map).rooted_tags).to eq('::Foo')
+  end
+
+  it 'infers an explicit []= method call as the method return type' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @param key [Integer]
+        # @param value [String]
+        # @return [Integer]
+        def []=(key, value)
+          123
+        end
+      end
+      x = Foo.new.[]=(1, 'str')
+      x
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+
+    clip = api_map.clip_at('test.rb', [10, 6])
+    expect(clip.infer.rooted_tags).to eq('::Integer')
+  end
+
+  it 'resolves super inside define_method with a literal name' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @return [Integer]
+        def bar
+          1
+        end
+      end
+      class Baz < Foo
+        define_method(:bar) do
+          x = super()
+          x
+        end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+
+    clip = api_map.clip_at('test.rb', [10, 10])
+    expect(clip.infer.rooted_tags).to eq('::Integer')
+  end
+
+  context 'with an RBS declaration of a core method' do
+    around do |example|
+      require 'tmpdir'
+      Dir.mktmpdir('rspec-solargraph-') do |dir|
+        @temp_dir = dir
+        example.run
+      end
+    end
+
+    let(:api_map) do
+      require 'rbs'
+      File.write(File.join(@temp_dir, 'ext.rbs'), rbs)
+      loader = RBS::EnvironmentLoader.new(core_root: nil, repository: RBS::Repository.new(no_stdlib: false))
+      loader.add(path: Pathname(@temp_dir))
+      Solargraph::ApiMap.new.index(Solargraph::RbsMap::Conversions.new(loader: loader).pins)
+    end
+
+    # @param expression [String] a call to Integer#- starting with `1 - `
+    # @return [String]
+    def infer_value expression
+      source = Solargraph::Source.load_string(expression)
+      chain = Solargraph::Source::SourceChainer.chain(source, Solargraph::Position.new(0, 3))
+      chain.infer(api_map, Solargraph::Pin::ROOT_PIN, []).tag
+    end
+
+    context 'when it adds overloads with ...' do
+      let(:rbs) do
+        <<~RBS
+          class Integer
+            def -: (String) -> String | ...
+          end
+        RBS
+      end
+
+      it 'matches the overloads it adds to' do
+        expect(infer_value('1 - 1')).to eq('Integer')
+      end
+
+      it 'matches its own overloads' do
+        expect(infer_value("1 - 'a'")).to eq('String')
+      end
+    end
+
+    context 'when two declarations add overloads' do
+      let(:rbs) do
+        <<~RBS
+          class Integer
+            def -: (String) -> String | ...
+          end
+          class Integer
+            def -: (Symbol) -> Symbol | ...
+          end
+        RBS
+      end
+
+      it 'matches the overloads they add to' do
+        expect(infer_value('1 - 1')).to eq('Integer')
+      end
+
+      it 'matches the overloads of each' do
+        expect([infer_value("1 - 'a'"), infer_value('1 - :a')]).to eq(%w[String Symbol])
+      end
+    end
+
+    context 'when the same overloads are declared twice' do
+      let(:rbs) do
+        <<~RBS
+          class Integer
+            def -: (String) -> String | ...
+          end
+          class Integer
+            def -: (String) -> String | ...
+          end
+        RBS
+      end
+
+      it 'matches each overload once' do
+        source = Solargraph::Source.load_string('1 - nil')
+        chain = Solargraph::Source::SourceChainer.chain(source, Solargraph::Position.new(0, 3))
+        pin = chain.define(api_map, Solargraph::Pin::ROOT_PIN, []).first
+        expect(pin.signatures.map(&:to_rbs).grep(/String/).length).to eq(1)
+      end
+    end
+
+    context 'when it replaces the method' do
+      let(:rbs) do
+        <<~RBS
+          class Integer
+            def -: (String) -> String
+          end
+        RBS
+      end
+
+      it 'does not add its overloads to the core declaration' do
+        source = Solargraph::Source.load_string('1 - nil')
+        chain = Solargraph::Source::SourceChainer.chain(source, Solargraph::Position.new(0, 3))
+        pin = chain.define(api_map, Solargraph::Pin::ROOT_PIN, []).first
+        expect(pin.signatures.length).not_to eq(5)
+      end
+    end
+  end
+
+  it 'infers a symbol block calling a method with an undeclared return type' do
+    source = Solargraph::Source.load_string(%(
+      class Box
+        # @param items [Array<String>]
+        def initialize items
+          @items = items
+        end
+
+        attr_reader :items
+      end
+
+      # @type [Array<Box>]
+      boxes = []
+      all = boxes.flat_map(&:items)
+      all
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+
+    clip = api_map.clip_at('test.rb', [13, 6])
+    expect(clip.infer.rooted_tags).to eq('::Array<::String>')
+  end
+
+  it 'stops inferring a symbol block that calls the method being inferred' do
+    source = Solargraph::Source.load_string(%(
+      class Node
+        # @param children [Array<Node>]
+        def initialize children
+          @children = children
+          @leaves = children.flat_map(&:leaves)
+        end
+
+        attr_reader :leaves
+      end
+
+      Node.new([]).leaves
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+
+    clip = api_map.clip_at('test.rb', [11, 20])
+    expect { clip.infer }.not_to raise_error
   end
 end

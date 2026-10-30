@@ -82,7 +82,8 @@ module Solargraph
     end
 
     def bundled_directory?
-      directory && File.file?(gemfile) && File.file?(lockfile)
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1258
+      gemfile && lockfile && File.file?(gemfile) && File.file?(lockfile)
     end
 
     # Load metagems from the directory's bundle definition if available.
@@ -90,7 +91,7 @@ module Solargraph
     # This method performs gem collection in a separate process to suppress
     # output from the `Bundler.definition.specs` call.
     #
-    # @return [Array<Metagem>, nil]
+    # @return [void]
     def build_from_directory
       return unless bundled_directory? && ENV['BUNDLE_GEMFILE'] != gemfile
 
@@ -98,8 +99,11 @@ module Solargraph
         cmd = ['ruby', '-e', bundle_script]
         o, e, s = Open3.capture3(*cmd, chdir: directory)
         if s.success?
-          json = o && !o.empty? ? JSON.parse(o.strip.split("\n").last, symbolize_names: true) : []
-          @metagems = json[:metagems].map { |data| Metagem.new(**data) }
+          last_line = o.strip.split("\n").last
+          json = last_line ? JSON.parse(last_line, symbolize_names: true) : { metagems: [], groups: {} }
+          # @sg-ignore double-splat argument is checked as a keyword named after the variable
+          @metagems = bundle_array(json[:metagems]).map { |data| Metagem.new(**data) }
+          # @sg-ignore Unresolved call to map
           @bundled_group_map = json[:groups].transform_values { |names| names.map { |name| bundled_metagem_name_map[name] } }
         else
           Solargraph.logger.warn "Failed to load gems from bundle at #{directory}: #{e}"
@@ -108,6 +112,15 @@ module Solargraph
       end
     end
 
+    # @param value [Object]
+    # @return [Array]
+    def bundle_array value
+      raise TypeError, "Unexpected bundle data from #{directory}" unless value.is_a?(Array)
+
+      value
+    end
+
+    # @return [String]
     def bundle_script
       "
         require 'bundler/setup'
@@ -136,7 +149,10 @@ module Solargraph
     # @return [Metagem, nil]
     def system_find_by_path path
       gem = Gem::Specification.find_by_path(path)
-      gem && Metagem.from_specification(gem)
+      return Metagem.from_specification(gem) if gem
+
+      # find_by_path misses gems Bundler loads from git and path sources
+      loaded_metagems.find { |mg| mg.require?(path) }
     end
 
     # @param name [String]
@@ -158,18 +174,26 @@ module Solargraph
              .map { |spec| Metagem.from_specification(spec) }
     end
 
+    # @return [Hash{String => Metagem}]
     def bundled_metagem_name_map
       @bundled_metagem_name_map ||= bundled.to_set
                                            .classify(&:name)
                                            .transform_values(&:first)
     end
 
+    # @return [Hash{String => Metagem, nil}]
     def bundled_metagem_path_map
       @bundled_metagem_path_map ||= Hash.new do |hash, path|
         hash[path] = bundled.find { |mg| mg.require?(path) }
       end
     end
 
+    # @return [Array<Metagem>]
+    def loaded_metagems
+      @loaded_metagems ||= Gem.loaded_specs.values.map { |spec| Metagem.from_specification(spec) }
+    end
+
+    # @return [Hash{Symbol => Array<Metagem>}]
     def bundled_group_map
       @bundled_group_map ||= {}
     end

@@ -35,7 +35,30 @@ describe Solargraph::LanguageServer::Message::Extended::CheckGemVersion do
     expect { message.process }.not_to raise_error
   end
 
+  it 'reports an unreachable gem source instead of crashing' do
+    fetcher = instance_double(Gem::SpecFetcher)
+    allow(fetcher).to receive(:search_for_dependency).and_raise(Errno::EADDRNOTAVAIL)
+    described_class.fetcher = fetcher
+    host = Solargraph::LanguageServer::Host.new
+    message = described_class.new(host, { 'params' => { 'verbose' => true } })
+    message.process
+    expect(message.result).to eq({ installed: Gem::Version.new(Solargraph::VERSION), available: Gem::Version.new('0.0.0') })
+  end
+
+  it 'reports an empty gem source response instead of crashing' do
+    described_class.fetcher = instance_double(Gem::SpecFetcher, search_for_dependency: [])
+    host = Solargraph::LanguageServer::Host.new
+    message = described_class.new(host, { 'params' => { 'verbose' => true } })
+    message.process
+    expect(message.result).to eq({ installed: Gem::Version.new(Solargraph::VERSION), available: Gem::Version.new('0.0.0') })
+    expect(host.flush).to include('An error occurred fetching the gem data')
+  end
+
   it 'responds to update actions' do
+    status = instance_double(Process::Status)
+    allow(status).to receive(:==).with(0).and_return(true)
+    allow(Open3).to receive(:capture2).with('gem update solargraph').and_return(['', status])
+
     host = Solargraph::LanguageServer::Host.new
     message = described_class.new(host, {}, current: Gem::Version.new('0.0.1'))
     message.process
@@ -52,9 +75,15 @@ describe Solargraph::LanguageServer::Message::Extended::CheckGemVersion do
       }
       host.receive action
     end.not_to raise_error
+    expect(Open3).to have_received(:capture2).with('gem update solargraph')
   end
 
   it 'uses bundler' do
+    # Running the real command would rewrite this repo's Gemfile.lock
+    status = instance_double(Process::Status)
+    allow(status).to receive(:==).with(0).and_return(true)
+    allow(Open3).to receive(:capture2).with('bundle update solargraph').and_return(['', status])
+
     host = Solargraph::LanguageServer::Host.new
     host.configure({ 'useBundler' => true })
     message = described_class.new(host, {}, current: Gem::Version.new('0.0.1'))
@@ -72,5 +101,6 @@ describe Solargraph::LanguageServer::Message::Extended::CheckGemVersion do
       }
       host.receive action
     end.not_to raise_error
+    expect(Open3).to have_received(:capture2).with('bundle update solargraph')
   end
 end

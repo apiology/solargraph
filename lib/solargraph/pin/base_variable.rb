@@ -24,7 +24,7 @@ module Solargraph
       #   that was made to this variable
       # @param assignments [Array<Parser::AST::Node>] Possible
       #   assignments that may have been made to this variable
-      # @param mass_assignment [::Array(Parser::AST::Node, Integer), nil]
+      # @param mass_assignment [::Array(Parser::AST::Node, [Integer, ::Range<Integer>]), nil]
       # @param assignment [Parser::AST::Node, nil] First assignment
       #   that was made to this variable
       # @param assignments [Array<Parser::AST::Node>] Possible
@@ -61,7 +61,7 @@ module Solargraph
         super(**splat)
         @type_assertion = type_assertion
         @assignments = (assignment.nil? ? [] : [assignment]) + assignments
-        # @type [nil, ::Array(Parser::AST::Node, Integer)]
+        # @type [nil, ::Array(Parser::AST::Node, [Integer, ::Range<Integer>])]
         @mass_assignment = mass_assignment
         @return_type = return_type
         @intersection_return_type = intersection_return_type
@@ -72,7 +72,7 @@ module Solargraph
       # @param presence [Range]
       # @param exclude_return_type [ComplexType, nil]
       # @param intersection_return_type [ComplexType, nil]
-      # @param source [::Symbol]
+      # @param source [::Symbol, nil]
       #
       # @return [self]
       def downcast presence:, exclude_return_type: nil, intersection_return_type: nil,
@@ -112,7 +112,7 @@ module Solargraph
 
       # @param other [self]
       #
-      # @return [Array(AST::Node, Integer), nil]
+      # @return [Array(AST::Node, [Integer, ::Range<Integer>]), nil]
       def combine_mass_assignment other
         # @todo pick first non-nil arbitrarily - we don't yet support
         #   mass assignment merging
@@ -169,13 +169,13 @@ module Solargraph
             rng = Range.from_node(node)
             next if rng.nil?
             pos = rng.ending
-            # @sg-ignore Need to add nil check here
-            clip = api_map.clip_at(location.filename, pos)
+            # Assignments combined from other files carry their own filename
+            filename = Location.from_node(node)&.filename || location!.filename
+            clip = api_map.clip_at(filename, pos)
             # Use the return node for inference. The clip might infer from the
             # first node in a method call instead of the entire call.
             chain = Parser.chain(node, nil, nil)
-            # @sg-ignore Need to add nil check here
-            result = chain.infer(api_map, closure, clip.locals).self_to_type(closure.context)
+            result = chain.infer(api_map, closure!, clip.locals).self_to_type(closure!.context)
             types.push result unless result.undefined?
           end
         end
@@ -198,8 +198,16 @@ module Solargraph
         unless @mass_assignment.nil?
           mass_node, index = @mass_assignment
           types = return_types_from_node(mass_node, api_map)
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1416
+          return adjust_type api_map, rest_capture_type(api_map, types) if index.is_a?(::Range)
+
           types.map! do |type|
-            if type.tuple?
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1416
+            if type.tuple? && index.negative?
+              # A target after a splat can get any element, depending
+              # on the tuple's length and the targets before the splat
+              ComplexType.new(type.all_params)
+            elsif type.tuple?
               type.all_params[index]
             elsif ['::Array', '::Set', '::Enumerable'].include?(type.rooted_name)
               type.all_params.first
@@ -214,18 +222,57 @@ module Solargraph
         ComplexType::UNDEFINED
       end
 
+      # The Array bound by a `*rest` capture in an array pattern, of the
+      # subject's deconstructed element types, e.g. `Array<String>` from
+      # `[a, *rest]` on an `Array<String>` subject.  Tuples do not
+      # resolve by position (TypeMethods#tuple? is always false), so a
+      # tuple subject gives the union of its element types.  Plain
+      # `::Array` when the element type is unknown.
+      #
+      # @param api_map [ApiMap]
+      # @param types [::Array<ComplexType>] the subject's types
+      # @return [ComplexType]
+      def rest_capture_type api_map, types
+        elements = types.flat_map do |type|
+          type = deconstructed_type(api_map, type)
+          next [] unless ['::Array', '::Set', '::Enumerable'].include?(type.rooted_name)
+
+          type.all_params
+        end
+        return ComplexType.parse('::Array') if elements.empty?
+
+        element_type = ComplexType.new(elements.flat_map(&:items).uniq)
+        array_type = ComplexType::UniqueType.new('Array', [], [element_type], rooted: true, parameters_type: :list)
+        ComplexType.new([array_type]).qualify(api_map, *gates)
+      end
+
+      # What an array pattern matches against: the type itself if it is
+      # already an Array, else the return type of its `deconstruct`
+      # method.
+      #
+      # @param api_map [ApiMap]
+      # @param type [ComplexType]
+      # @return [ComplexType, ComplexType::UniqueType]
+      def deconstructed_type api_map, type
+        return type if type.rooted_name == '::Array'
+
+        deconstruct = api_map.get_method_stack(type.rooted_tag, 'deconstruct').first
+        return type if deconstruct.nil?
+
+        deconstruct.typify(api_map).self_to_type(type)
+      end
+
       # @param other [Object]
       def == other
         return false unless super
-        # @sg-ignore Should add type check on other
-        assignment == other.assignment
+        other.is_a?(BaseVariable) && assignment == other.assignment
       end
 
       def type_desc
         "#{super} = #{assignment&.type.inspect}"
       end
 
-      # @return [ComplexType, nil]
+      # @return [ComplexType]
       def return_type
         generate_complex_type || @return_type || intersection_return_type || ComplexType::UNDEFINED
       end
@@ -236,17 +283,17 @@ module Solargraph
         adjust_type(api_map, raw_return_type)
       end
 
-      # @sg-ignore need boolish support for ? methods
+      # @return [ComplexType, nil]
       def presence_certain?
         exclude_return_type || intersection_return_type
       end
 
       # @param other_loc [Location]
-      # @sg-ignore flow sensitive typing needs to handle attrs
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1258
       def starts_at? other_loc
         location&.filename == other_loc.filename &&
           presence &&
-          # @sg-ignore flow sensitive typing needs to handle attrs
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1258
           presence.start == other_loc.range.start
       end
 
@@ -258,7 +305,7 @@ module Solargraph
       def combine_presence other
         return presence || other.presence if presence.nil? || other.presence.nil?
 
-        # @sg-ignore flow sensitive typing needs to handle attrs
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
         Range.new([presence.start, other.presence.start].max, [presence.ending, other.presence.ending].min)
       end
 
@@ -276,14 +323,17 @@ module Solargraph
           return closure || other.closure
         end
 
-        # @sg-ignore flow sensitive typing needs to handle attrs
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
+        #   pure calls need https://github.com/apiology/solargraph/tree/narrow-pure-rbs-calls on top
         if closure.location.nil? || other.closure.location.nil?
-          # @sg-ignore flow sensitive typing needs to handle attrs
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1258
+          #   pure calls need https://github.com/apiology/solargraph/tree/narrow-pure-rbs-calls on top
           return closure.location.nil? ? other.closure : closure
         end
 
         # if filenames are different, this will just pick one
-        # @sg-ignore flow sensitive typing needs to handle attrs
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
+        #   pure calls need https://github.com/apiology/solargraph/tree/narrow-pure-rbs-calls on top
         return closure if closure.location <= other.closure.location
 
         other.closure
@@ -292,9 +342,9 @@ module Solargraph
       # @param other_closure [Pin::Closure]
       # @param other_loc [Location]
       def visible_at? other_closure, other_loc
-        # @sg-ignore flow sensitive typing needs to handle attrs
+        # @sg-ignore Unresolved call to filename on Solargraph::Location, nil
         location.filename == other_loc.filename &&
-          # @sg-ignore flow sensitive typing needs to handle attrs
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1258
           (!presence || presence.include?(other_loc.range.start)) &&
           visible_in_closure?(other_closure)
       end
@@ -303,10 +353,22 @@ module Solargraph
 
       attr_accessor :exclude_return_type, :intersection_return_type
 
-      # @return [Range]
+      # @return [Range, nil]
       attr_writer :presence
 
       private
+
+      # @return [void]
+      def preassign_ivars
+        super
+        @assignment = nil
+        # @type [::Array<::Parser::AST::Node>]
+        @assignments = []
+        @mass_assignment = nil
+        @presence = nil
+        @intersection_return_type = nil
+        @exclude_return_type = nil
+      end
 
       # @param api_map [ApiMap]
       # @param raw_return_type [ComplexType, ComplexType::UniqueType]
@@ -329,14 +391,11 @@ module Solargraph
         # if we're declared at top level, we can't be seen from within
         # methods declared tere
 
-        # @sg-ignore Need to add nil check here
-        return false if viewing_closure.is_a?(Pin::Method) && closure.context.tags == 'Class<>'
+        return false if viewing_closure.is_a?(Pin::Method) && closure!.context.tags == 'Class<>'
 
-        # @sg-ignore Need to add nil check here
-        return true if viewing_closure.binder.namespace == closure.binder.namespace
+        return true if viewing_closure.binder.namespace == closure!.binder.namespace
 
-        # @sg-ignore Need to add nil check here
-        return true if viewing_closure.return_type == closure.context
+        return true if viewing_closure.return_type == closure!.context
 
         # classes and modules can't see local variables declared
         # in their parent closure, so stop here

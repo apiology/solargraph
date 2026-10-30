@@ -14,8 +14,12 @@ module Solargraph
       # does not assert like super, as a namespace without a closure
       # may be the root level namespace, or it may not yet be
       # qualified
+      # @return [Solargraph::Pin::Closure, nil]
       attr_reader :closure
 
+      # node: (see CompoundStatement) carries this namespace body, which
+      # flow-sensitive typing scans to bound where a narrowed type holds.
+      #
       # @param type [::Symbol] :class or :module
       # @param visibility [::Symbol] :public or :private
       # @param gates [::Array<String>]
@@ -39,8 +43,7 @@ module Solargraph
           closure_name = if [Solargraph::Pin::ROOT_PIN, nil].include?(closure)
                            ''
                          else
-                           # @sg-ignore Need to add nil check here
-                           "#{closure.full_context.namespace}::"
+                           "#{closure!.full_context.namespace}::"
                          end
           closure_name += parts.join('::')
           @closure = Pin::Namespace.new(name: closure_name, gates: [parts.join('::')], source: :namespace)
@@ -56,6 +59,7 @@ module Solargraph
       end
 
       def to_rbs
+        # @sg-ignore Unresolved call to to_rbs on ComplexType, nil
         "#{@type} #{return_type.all_params.first.to_rbs}#{rbs_generics}".strip
       end
 
@@ -101,11 +105,6 @@ module Solargraph
         @return_type ||= ComplexType.try_parse((type == :class ? '::Class' : '::Module') + "<::#{path}>")
       end
 
-      # @return [Array<String>]
-      def domains
-        @domains ||= []
-      end
-
       def typify api_map
         return_type
       end
@@ -116,6 +115,19 @@ module Solargraph
                    else
                      [path] + @open_gates
                    end
+      end
+
+      private
+
+      # @return [void]
+      def preassign_ivars
+        super
+        @type = :class
+        @visibility = :public
+        # @type [::Array<String>]
+        @open_gates = []
+        @domains = nil
+        @full_context = nil
       end
     end
   end

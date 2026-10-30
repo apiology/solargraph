@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require 'tmpdir'
+require 'open3'
+
 describe Solargraph::Plugin::ActiveSupport do
   # @param namespace [String]
   # @param code [String]
@@ -40,6 +43,123 @@ describe Solargraph::Plugin::ActiveSupport do
       it 'adds extend references' do
         pins = api_map.get_methods('Consumer', scope: :class)
         expect(pins.map(&:path)).to include('Example::ClassMethods#foo')
+      end
+
+      context 'when the include is in a gem' do
+        let(:gem_pins) do
+          Solargraph::SourceMap.load_string(%(
+            module GemExample
+              module ClassMethods
+                def bar; end
+              end
+            end
+
+            class GemConsumer
+              include GemExample
+            end
+          ), 'gem.rb').pins
+        end
+
+        before do
+          # rubocop:disable-next RSpec/AnyInstance
+          allow_any_instance_of(Solargraph::External).to receive(:pins) { gem_pins.clone }
+        end
+
+        it 'adds extend references' do
+          pins = api_map.get_methods('GemConsumer', scope: :class)
+          expect(pins.map(&:path)).to include('GemExample::ClassMethods#bar')
+        end
+      end
+
+      context 'when an included module includes another' do
+        let(:source) do
+          Solargraph::Source.load_string(%(
+            module Support
+              module Callbacks
+                module ClassMethods
+                  def set_callback; end
+                end
+              end
+            end
+
+            module Job
+              module Callbacks
+                include Support::Callbacks
+
+                module ClassMethods
+                  def before_perform; end
+                end
+              end
+
+              class Base
+                include Callbacks
+              end
+            end
+          ), 'test.rb')
+        end
+
+        it 'adds extend references for the nested include' do
+          pins = api_map.get_methods('Job::Base', scope: :class)
+          expect(pins.map(&:path)).to include('Job::Callbacks::ClassMethods#before_perform',
+                                              'Support::Callbacks::ClassMethods#set_callback')
+        end
+      end
+
+      context 'when a concern has its own class methods and extends' do
+        let(:source) do
+          Solargraph::Source.load_string(%(
+            module Tracker
+              def direct_descendants; end
+            end
+
+            module Tracked
+              extend ActiveSupport::Concern
+              extend Tracker
+
+              def self.configurations; end
+            end
+
+            module Plain
+              def self.plain_class_method; end
+            end
+
+            class Consumer
+              include Tracked
+              include Plain
+            end
+          ), 'test.rb')
+        end
+
+        it 'adds them to the includer' do
+          names = api_map.get_methods('Consumer', scope: :class).map(&:name)
+          expect(names).to include('configurations', 'direct_descendants')
+        end
+
+        it 'skips class methods of a module that is not a concern' do
+          names = api_map.get_methods('Consumer', scope: :class).map(&:name)
+          expect(names).not_to include('plain_class_method')
+        end
+      end
+
+      context 'when the included module is not defined' do
+        let(:source) do
+          Solargraph::Source.load_string(%(
+            module Outer
+              module ClassMethods
+                def leaked; end
+              end
+
+              class Thing
+                include Helper
+              end
+            end
+          ), 'test.rb')
+        end
+
+        it 'skips the ClassMethods of an enclosing namespace' do
+          names = api_map.get_methods('Outer::Thing', scope: :class).map(&:name)
+          expect(names).not_to include('leaked')
+        end
       end
     end
 
@@ -88,6 +208,16 @@ describe Solargraph::Plugin::ActiveSupport do
                                         ['bar?', :class],
                                         ['bar?', :instance]
                                       ])
+      end
+
+      it 'generates no accessors for class_attribute without arguments' do
+        pins = method_pins_for 'Foo', %(
+          class Foo
+            class_attribute
+            class_attribute :bar
+          end
+        )
+        expect(accessors(pins)).to include(['bar', :class])
       end
 
       it 'generates accessors for multiple attributes' do
@@ -443,6 +573,82 @@ describe Solargraph::Plugin::ActiveSupport do
           pin = api_map.get_method_stack('Foo', name, scope: :class).first
           expect(pin.typify(api_map).to_s).to eq('Boolean'), name
         end
+      end
+    end
+
+    context 'with activesupport among the workspace gem dependencies' do
+      # @param dependencies [Array<String>]
+      # @return [Solargraph::ApiMap]
+      def catalog_with dependencies
+        source_map = Solargraph::SourceMap.load_string(%(
+          class Foo
+            cattr_accessor :bar
+          end
+        ), 'test.rb')
+        metagem = Solargraph::Metagem.new(name: 'foo', full_path: Dir.pwd, spec_file: nil, source: 'source at .',
+                                          version: '1.0.0', require_paths: ['lib'], dependencies: dependencies)
+        workspace = Solargraph::Workspace.new(metagem: metagem)
+        Solargraph::ApiMap.new.catalog(Solargraph::Bench.new(source_maps: [source_map], workspace: workspace))
+      end
+
+      it 'generates accessors' do
+        api_map = catalog_with(['activesupport'])
+        expect(api_map.get_method_stack('Foo', 'bar', scope: :class).map(&:path)).to eq(['Foo.bar'])
+      end
+
+      it 'skips accessors without activesupport' do
+        api_map = catalog_with([])
+        expect(api_map.get_method_stack('Foo', 'bar', scope: :class)).to be_empty
+      end
+    end
+
+    context 'with activesupport in the workspace bundle' do
+      around do |example|
+        Dir.mktmpdir do |dir|
+          @root = dir
+          example.run
+        end
+      end
+
+      # A workspace whose bundle has a stand-in activesupport path gem,
+      # kept outside the workspace so its files are not workspace sources
+      #
+      # @return [String] the workspace directory
+      def write_workspace
+        gem_dir = File.join(@root, 'activesupport')
+        workspace_dir = File.join(@root, 'app')
+        FileUtils.mkdir_p [File.join(gem_dir, 'lib'), workspace_dir]
+        File.write File.join(gem_dir, 'lib', 'active_support.rb'), "module ActiveSupport; end\n"
+        File.write File.join(gem_dir, 'activesupport.gemspec'), %(
+          Gem::Specification.new do |s|
+            s.name = 'activesupport'
+            s.version = '0.0.1'
+            s.summary = 'stand-in'
+            s.authors = ['stand-in']
+            s.files = ['lib/active_support.rb']
+          end
+        )
+        File.write File.join(workspace_dir, 'Gemfile'), %(
+          source 'https://rubygems.org'
+          gem 'activesupport', path: '../activesupport'
+        )
+        File.write File.join(workspace_dir, 'foo.rb'), %(
+          require 'active_support'
+
+          class Foo
+            cattr_accessor :bar
+          end
+        )
+        Solargraph.with_clean_env do
+          _out, err, status = Open3.capture3('bundle', 'lock', '--local', chdir: workspace_dir)
+          raise "bundle lock failed: #{err}" unless status.success?
+        end
+        workspace_dir
+      end
+
+      it 'generates accessors on the first catalog of a new ApiMap' do
+        api_map = Solargraph::ApiMap.load(write_workspace)
+        expect(api_map.get_method_stack('Foo', 'bar', scope: :class).map(&:path)).to eq(['Foo.bar'])
       end
     end
   end

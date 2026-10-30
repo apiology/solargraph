@@ -32,9 +32,10 @@ module Solargraph
 
         # @todo Fix this map
         @fqns_pins_map = nil
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1223
         return catalog(pinsets) if changed.zero?
 
-        # @sg-ignore Need to add nil check here
+        # @sg-ignore Unresolved call to each_with_index on Array<Array<Solargraph::Pin::Base>>, nil
         pinsets[changed..].each_with_index do |pins, idx|
           @pinsets[changed + idx] = pins
           @indexes[changed + idx] = if pins.empty?
@@ -44,7 +45,7 @@ module Solargraph
                                     end
         end
         # @type [Index]
-        @index = @indexes.last.clone
+        @index = @indexes.fetch(-1).clone
         @index = @index.merge(block.call) if block
         constants.clear
         cached_qualify_superclass.clear
@@ -64,8 +65,10 @@ module Solargraph
       # @return [Enumerable<Solargraph::Pin::Namespace, Solargraph::Pin::Constant>]
       def get_constants fqns, visibility = [:public]
         namespace_children(fqns).select do |pin|
-          # @sg-ignore flow sensitive typing not smart enough to handle this case
-          !pin.name.empty? && (pin.is_a?(Pin::Namespace) || pin.is_a?(Pin::Constant)) && visibility.include?(pin.visibility)
+          next false if pin.name.empty?
+          next visibility.include?(pin.visibility) if pin.is_a?(Pin::Namespace)
+
+          pin.is_a?(Pin::Constant) && visibility.include?(pin.visibility)
         end
       end
 
@@ -98,7 +101,7 @@ module Solargraph
       def qualify_superclass fq_sub_tag
         cached_qualify_superclass[fq_sub_tag] || qualify_and_cache_superclass(fq_sub_tag)
         type = ComplexType.try_parse(fq_sub_tag)
-        return type.simplify_literals.to_s if type.literal?
+        return type.non_literal_type.to_s if type.literal?
         ref = get_superclass(fq_sub_tag)
         return unless ref
         res = constants.dereference(ref)
@@ -133,7 +136,7 @@ module Solargraph
       # @param path [String]
       # @return [Array<Solargraph::Pin::Base>]
       def get_path_pins path
-        index.path_pin_hash[path]
+        index.path_pin_hash[path] || []
       end
 
       # @param fqns [String, nil]
@@ -168,19 +171,9 @@ module Solargraph
         pins_by_class(Solargraph::Pin::Namespace)
       end
 
-      # @return [Enumerable<Solargraph::Pin::Method>]
+      # @return [Set<Solargraph::Pin::Method>]
       def method_pins
         pins_by_class(Solargraph::Pin::Method)
-      end
-
-      # @param fqns [String]
-      # @return [Array<String>]
-      def domains fqns
-        result = []
-        fqns_pins(fqns).each do |nspin|
-          result.concat nspin.domains
-        end
-        result
       end
 
       # @return [Hash{String => YardMap::Macro}]
@@ -221,14 +214,17 @@ module Solargraph
           base = ''
           name = fqns
         end
-        fqns_pins_map[[base, name]]
+        fqns_pins_map[[base, name]] || []
       end
 
       # Get all ancestors (superclasses, includes, prepends, extends) for a namespace
       # @param fqns [String] The fully qualified namespace
       # @return [Array<String>] Array of ancestor namespaces including the original
       def get_ancestors fqns
-        return [] if fqns.nil? || fqns.empty?
+        return [] if fqns.nil?
+        # Top-level methods live in the root namespace and Ruby defines
+        # them on Object
+        return ['', *get_ancestors('Object')] if fqns.empty?
 
         ancestors = [fqns]
         visited = Set.new
@@ -251,14 +247,13 @@ module Solargraph
 
           # Add includes, prepends, and extends
           [get_includes(current), get_prepends(current), get_extends(current)].each do |refs|
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1223
             next if refs.nil?
             # @param ref [String]
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1223
             refs.map(&:type).map(&:to_s).each do |ref|
-              # @sg-ignore flow sensitive typing should be able to handle redefinition
               next if ref.nil? || ref.empty? || visited.include?(ref)
-              # @sg-ignore flow sensitive typing should be able to handle redefinition
               ancestors << ref
-              # @sg-ignore flow sensitive typing should be able to handle redefinition
               queue << ref
             end
           end
@@ -293,12 +288,12 @@ module Solargraph
         index.alias_hash[name]
       end
 
-      # @return [Array<String>]
+      # @return [Set<String>]
       def macro_method_names
         index.macro_method_names
       end
 
-      # @return [Hash{String => Array<Pin::Method>}]
+      # @return [Hash{String => Set<Pin::Method>}]
       def macro_method_name_pins
         index.macro_method_name_pins
       end
@@ -325,7 +320,7 @@ module Solargraph
           end
         end
         @index = @indexes.last.clone
-        @index = @index.merge(block.call) if block
+        @index = index.merge(block.call) if block
         constants.clear
         cached_qualify_superclass.clear
         true
@@ -347,32 +342,32 @@ module Solargraph
         index.pins_by_class(Pin::Symbol)
       end
 
-      # @return [Hash{String => Array<Pin::Reference::Superclass>}]
+      # @return [Index::ArrayHash{String => Array<Pin::Reference::Superclass>}]
       def superclass_references
         index.superclass_references
       end
 
-      # @return [Hash{String => Array<Pin::Reference::Include>}]
+      # @return [Index::ArrayHash{String => Array<Pin::Reference::Include>}]
       def include_references
         index.include_references
       end
 
-      # @return [Hash{String => Array<Solargraph::Pin::Reference::Include>}]
+      # @return [Index::ArrayHash{String => Array<Solargraph::Pin::Reference::Include>}]
       def include_reference_pins
         index.include_reference_pins
       end
 
-      # @return [Hash{String => Array<Pin::Reference::Prepend>}]
+      # @return [Index::ArrayHash{String => Array<Pin::Reference::Prepend>}]
       def prepend_references
         index.prepend_references
       end
 
-      # @return [Hash{String => Array<Pin::Reference::Extend>}]
+      # @return [Index::ArrayHash{String => Array<Pin::Reference::Extend>}]
       def extend_references
         index.extend_references
       end
 
-      # @return [Hash{String => Array<Pin::FactoryParameter>}]
+      # @return [Index::ArrayHash{String => Array<Pin::FactoryParameter>}]
       def factory_parameter_hash
         index.factory_parameter_hash
       end
@@ -396,7 +391,7 @@ module Solargraph
         return OBJECT_SUPERCLASS_PIN if !%w[BasicObject Object].include?(fqns) && namespace_exists?(fqns)
 
         sub = ComplexType.try_parse(fqns)
-        return get_superclass(sub.simplify_literals.name) if sub.literal?
+        return get_superclass(sub.non_literal_type.name) if sub.literal?
 
         get_superclass(sub.namespace) if sub.namespace != fqns
       end
@@ -416,7 +411,7 @@ module Solargraph
       # @return [String, nil]
       def uncached_qualify_superclass fq_sub_tag
         type = ComplexType.try_parse(fq_sub_tag)
-        return type.simplify_literals.to_s if type.literal?
+        return type.non_literal_type.to_s if type.literal?
         ref = get_superclass(fq_sub_tag)
         return unless ref
         res = constants.dereference(ref)

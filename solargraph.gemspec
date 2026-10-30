@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# @sg-ignore Should better support meaning of '&' in RBS
+# @sg-ignore https://github.com/castwide/solargraph/pull/1231
 $LOAD_PATH.unshift "#{File.dirname(__FILE__)}/lib"
 require 'solargraph/version'
 require 'date'
@@ -13,8 +13,8 @@ Gem::Specification.new do |s|
   s.description = 'IDE tools for code completion, inline documentation, and static analysis'
   s.authors     = ['Fred Snyder']
   s.email       = 'admin@castwide.com'
-  s.files       = Dir.chdir(File.expand_path(__dir__)) do
-    # @sg-ignore Need backtick support
+  s.files       = Dir.chdir(File.expand_path('.', __dir__)) do
+    # @sg-ignore https://github.com/castwide/solargraph/pull/1320
     # @type [String]
     all_files = `git ls-files -z`
     all_files.split("\x0").reject { |f| f.match(%r{^(test|spec|features)/}) }
@@ -34,6 +34,7 @@ Gem::Specification.new do |s|
   s.add_dependency 'backport', '~> 1.2'
   s.add_dependency 'benchmark', '~> 0.4'
   s.add_dependency 'bundler', '>= 2.0'
+  s.add_dependency 'concurrent-ruby', '~> 1.3', '>= 1.3.5'
   s.add_dependency 'diff-lcs', '~> 1.4'
   s.add_dependency 'jaro_winkler', '~> 1.6', '>= 1.6.1'
   s.add_dependency 'kramdown', '~> 2.3'
@@ -55,10 +56,14 @@ Gem::Specification.new do |s|
   s.add_dependency 'yard-activesupport-concern', '~> 0.0'
   s.add_dependency 'yard-solargraph', '~> 0.1'
 
+  # use latest available based on Ruby version support - might need to
+  # set an upper bound if/when parallel_tests breaks compatibility
+  s.add_development_dependency 'parallel_tests', '>= 4.10.1'
   s.add_development_dependency 'pry', '~> 0.15'
   s.add_development_dependency 'public_suffix', '~> 3.1'
   s.add_development_dependency 'rake', '~> 13.2'
   s.add_development_dependency 'rspec', '~> 3.5'
+  s.add_development_dependency 'rspec-time-guard', '~> 0.2.0'
   #
   # very specific development-time RuboCop version patterns for CI
   # stability - feel free to update in an isolated PR
@@ -66,10 +71,10 @@ Gem::Specification.new do |s|
   # even more specific on RuboCop itself, which is written into _todo
   # file.
   s.add_development_dependency 'overcommit', '~> 0.71.0'
-  s.add_development_dependency 'rubocop', '~> 1.80'
+  s.add_development_dependency 'rubocop', '~> 1.89'
   s.add_development_dependency 'rubocop-rake', '~> 0.7.1'
   s.add_development_dependency 'rubocop-rspec', '~> 3.6.0'
-  s.add_development_dependency 'rubocop-yard', '~> 1.0.0'
+  # rubocop-yard is in the Gemfile, which can gate it on the Ruby version
   s.add_development_dependency 'simplecov', '~> 0.21'
   s.add_development_dependency 'simplecov-lcov', '~> 0.8'
   s.add_development_dependency 'undercover', '~> 0.7'

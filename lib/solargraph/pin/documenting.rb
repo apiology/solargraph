@@ -105,11 +105,20 @@ module Solargraph
         left = text.lines.map do |line|
           match = line.match(/^ +/)
           next 0 unless match
-          # @sg-ignore Need to add nil check here
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1385
           match[0].length
         end.min
         return text if left.nil? || left.zero?
         text.lines.map { |line| line[left..] }.join
+      end
+
+      private
+
+      # The ivar this module owns, for Base#preassign_ivars.
+      #
+      # @return [void]
+      def preassign_documenting_ivars
+        @documentation = nil
       end
     end
   end

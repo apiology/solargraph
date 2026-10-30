@@ -6,6 +6,32 @@ describe Solargraph::TypeChecker do
       Solargraph::TypeChecker.load_string(code, 'test.rb', :strong)
     end
 
+    it 'accepts a nil argument for a parameter declared nilable' do
+      checker = type_checker(%(
+        # @param source [String, nil]
+        # @return [void]
+        def attach(source); end
+
+        attach nil
+      ))
+      expect(checker.problems.map(&:message)).to eq([])
+    end
+
+    it 'removes nil from a nilable hash value after a nil guard' do
+      checker = type_checker(%(
+        class Foo
+          # @param map [Hash{String => String, nil}]
+          # @return [String]
+          def bar map
+            v = map['a']
+            return '' unless v
+            v
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq([])
+    end
+
     it 'requires strict return tags for attributes when nil is involved' do
       checker = type_checker(%(
         class Foo
@@ -22,6 +48,27 @@ describe Solargraph::TypeChecker do
       ))
       expect(checker.problems).to be_one
       expect(checker.problems.first.message).to include('does not match inferred type')
+    end
+
+    it 'reads a destructured declared tuple element by position' do
+      checker = type_checker(%(
+        class Foo; end
+        class Bar; end
+
+        class Holder
+          # @return [Array(Foo, Bar)]
+          def pair
+            [Foo.new, Bar.new]
+          end
+
+          # @return [Bar]
+          def second
+            _h, sel = pair
+            sel
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
     end
 
     it 'does not flag attributes whose declared type already allows nil' do
@@ -95,6 +142,32 @@ describe Solargraph::TypeChecker do
           def a b
             c = b["123"]
             return if c.nil?
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
+    it 'does not leak an unbound generic from an unmatched Hash#fetch overload' do
+      checker = type_checker(%(
+        class A
+          # @param b [Hash{String => Integer}]
+          # @return [Integer]
+          def a b
+            b.fetch('x')
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
+    it 'infers nil as part of Hash#[] on a plainly-typed Hash' do
+      checker = type_checker(%(
+        class A
+          # @param b [Hash{String => Integer}]
+          # @return [Integer, nil]
+          def a b
+            b['x']
           end
         end
       ))
@@ -271,6 +344,45 @@ describe Solargraph::TypeChecker do
                                                      'Unresolved call to upcase on String, nil'])
     end
 
+    it 'reports a safe navigation call that a union member does not support' do
+      checker = type_checker(%(
+        # @param name [String, Symbol, nil]
+        # @return [void]
+        def quux(name)
+          name&.chomp(':')
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq(['Unresolved call to chomp on String, Symbol'])
+    end
+
+    it 'accepts a safe navigation call that every non-nil member supports' do
+      checker = type_checker(%(
+        # @param name [String, Symbol, nil]
+        # @return [String, nil]
+        def quux(name)
+          name&.to_s
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
+    it 'checks argument types on safe navigation calls' do
+      checker = type_checker(%(
+        class Foo
+          # @param num [Integer]
+          # @return [void]
+          def bar(num); end
+        end
+
+        # @param foo [Foo, nil]
+        # @return [void]
+        def quux(foo)
+          foo&.bar('one')
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq(['Wrong argument type for Foo#bar: num expected Integer, received String'])
+    end
+
     it 'applies a yieldparam type declared on a block-form @overload' do
       checker = type_checker(%(
         # @overload build
@@ -359,6 +471,42 @@ describe Solargraph::TypeChecker do
         end
       ))
       expect(checker.problems.map(&:message)).to eq(['Unneeded @sg-ignore comment'])
+    end
+
+    it 'accepts an explicit undefined return tag' do
+      checker = type_checker(%(
+        class Foo
+          # @param attr [Symbol]
+          # @return [undefined]
+          def bar(attr)
+            send(attr)
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
+    it 'accepts an explicit undefined return tag in a union' do
+      checker = type_checker(%(
+        class Foo
+          # @param attr [Symbol]
+          # @return [undefined, nil]
+          def bar(attr)
+            send(attr)
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
+    it 'reports a return tag without types as missing' do
+      checker = type_checker(%(
+        class Foo
+          # @return the result
+          def bar; end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq(['Missing @return tag for Foo#bar'])
     end
 
     it 'reports missing return tags' do
@@ -835,7 +983,6 @@ describe Solargraph::TypeChecker do
     end
 
     it 'resolves a generic type variable against a union @param type' do
-      pending 'https://github.com/castwide/solargraph/issues/1276'
       checker = type_checker(%(
         # @generic A
         # @param arg [generic<A>, nil]
@@ -870,7 +1017,6 @@ describe Solargraph::TypeChecker do
     end
 
     it 'resolves a generic type variable against a union @param type with more than two members' do
-      pending 'https://github.com/castwide/solargraph/issues/1276'
       checker = type_checker(%(
         # @generic A
         # @param arg [generic<A>, nil, Symbol]
@@ -889,7 +1035,6 @@ describe Solargraph::TypeChecker do
     end
 
     it 'resolves a generic type variable against a union @param type through two layers of generic methods' do
-      pending 'https://github.com/castwide/solargraph/issues/1276'
       checker = type_checker(%(
         # @generic A
         # @param arg [generic<A>, nil]
@@ -1002,7 +1147,6 @@ describe Solargraph::TypeChecker do
 
           # @param other [self]
           #
-          # @sg-ignore Missing @return tag
           # @return [undefined]
           def baz(other); end
         end
@@ -1155,6 +1299,41 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message)).to eq([])
     end
 
+    # base.rb sorts first, so the combined @foo pin takes its location, and
+    # the subclass assignment sits past base.rb's last line
+    it 'infers an ivar assigned in both an ancestor and a subclass file' do
+      base = Solargraph::Source.load_string(%(
+        class Base
+          def initialize
+            @foo = 'x'.
+              freeze
+          end
+        end
+      ), 'base.rb')
+      sub = Solargraph::Source.load_string(%(
+        class Sub < Base
+          # @return [String]
+          def foo
+            @foo
+          end
+
+          # @param value [String]
+          # @return [void]
+          def foo= value
+            @foo = value
+          end
+        end
+      ), 'sub.rb')
+      api_map = Solargraph::ApiMap.new
+      api_map.catalog(Solargraph::Bench.new(source_maps: [
+                                              Solargraph::SourceMap.map(base),
+                                              Solargraph::SourceMap.map(sub)
+                                            ]))
+      checker = described_class.new('sub.rb', api_map: api_map, level: :strong)
+
+      expect(checker.problems.map(&:message)).to eq([])
+    end
+
     it 'supports !@x.nil && @x.y' do
       checker = type_checker(%(
         class Bar
@@ -1197,6 +1376,402 @@ describe Solargraph::TypeChecker do
       # expect 'sub' to be treated as 'Subclass' inside the block, and
       # an error when trying to declare sub as Subclass
       expect(checker.problems.map(&:message)).not_to include('Unresolved call to bar on Base')
+    end
+
+    it 'trusts a Hash lookup guarded by key?' do
+      checker = type_checker(%(
+        # @param h [Hash{String => Integer}]
+        # @param k [String]
+        # @return [Integer]
+        def foo h, k
+          return 0 unless h.key?(k)
+          h[k] + 1
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
+    it 'reports an unguarded Hash lookup' do
+      checker = type_checker(%(
+        # @param h [Hash{String => Integer}]
+        # @param k [String]
+        # @return [Integer]
+        def foo h, k
+          h[k] + 1
+        end
+      ))
+      expect(checker.problems.map(&:message)).to include('Unresolved call to + on Integer, nil')
+    end
+
+    it 'trusts a Hash lookup after an ||= on it' do
+      checker = type_checker(%(
+        # @param h [Hash{String => Array<String>}]
+        # @param k [String]
+        # @return [Array<String>]
+        def foo h, k
+          h[k] ||= []
+          h[k] << 'a'
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
+    it 'reports a Hash lookup after an ||= that can assign nil' do
+      checker = type_checker(%(
+        # @param k [String]
+        # @return [Integer, nil]
+        def find k; end
+
+        # @param h [Hash{String => Integer}]
+        # @param k [String]
+        # @return [Integer]
+        def foo h, k
+          h[k] ||= find(k)
+          h[k] + 1
+        end
+      ))
+      expect(checker.problems.map(&:message)).to include('Unresolved call to + on Integer, nil')
+    end
+
+    it 'reports a Hash lookup after an ||= of an unknown value' do
+      checker = type_checker(%(
+        # @param h [Hash{String => Integer}]
+        # @param k [String]
+        # @return [Integer]
+        def foo h, k
+          h[k] ||= undefined_call
+          h[k] + 1
+        end
+      ))
+      expect(checker.problems.map(&:message)).to include('Unresolved call to + on Integer, nil')
+    end
+
+    it 'resolves super inside define_method with a literal name' do
+      checker = type_checker(%(
+        class Foo
+          # @return [Integer]
+          def bar
+            1
+          end
+        end
+
+        class Baz < Foo
+          define_method(:bar) do
+            super().upcase
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq(['Unresolved call to upcase on Integer'])
+    end
+
+    it 'does not report super inside define_method with a computed name' do
+      checker = type_checker(%(
+        class Foo
+          # @return [Integer]
+          def bar
+            1
+          end
+        end
+
+        class Baz < Foo
+          %i[bar].each do |name|
+            define_method(name) do
+              super()
+            end
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq([])
+    end
+
+    it 'reports super inside define_method when no ancestor defines the method' do
+      checker = type_checker(%(
+        class Foo; end
+
+        class Baz < Foo
+          define_method(:bar) do
+            super()
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq(['Unresolved call to super'])
+    end
+
+    it 'reports implicit-argument super inside define_method' do
+      checker = type_checker(%(
+        class Foo
+          # @return [Integer]
+          def bar
+            1
+          end
+        end
+
+        class Baz < Foo
+          define_method(:bar) do
+            super
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq(['Unresolved call to super'])
+    end
+
+    it 'reports super inside a block outside any method' do
+      checker = type_checker(%(
+        class Foo
+          # @return [Integer]
+          def bar
+            1
+          end
+        end
+
+        class Baz < Foo
+          tap do
+            super()
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq(['Unresolved call to super'])
+    end
+
+    it 'resolves super inside define_method in a singleton class as a class method' do
+      checker = type_checker(%(
+        class Foo
+          # @return [String]
+          def self.bar
+            'bar'
+          end
+
+          # @return [Integer]
+          def bar
+            1
+          end
+        end
+
+        class Baz < Foo
+          class << self
+            define_method(:bar) do
+              super().foo
+            end
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq(['Unresolved call to foo on String'])
+    end
+
+    it 'does not validate a non-delegating override against its ancestor return tag' do
+      checker = type_checker(%(
+        class Base
+          # @return [Boolean]
+          # @return [void]
+          def process
+            true
+          end
+        end
+
+        class Sub < Base
+          def process
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
+    it 'types a method ending in an index assignment as the assigned value' do
+      checker = type_checker(%(
+        class Foo
+          def initialize
+            # @type [Hash{Integer => String, Symbol}]
+            @cache = {}
+          end
+
+          # @return [String]
+          def bar
+            @cache[1] = :in_process
+            @cache[1] = baz
+          end
+
+          # @return [String]
+          def baz
+            'baz'
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq([])
+    end
+
+    it 'still checks the value passed to an index assignment' do
+      checker = type_checker(%(
+        class Foo
+          def initialize
+            # @type [Hash{Integer => String}]
+            @cache = {}
+          end
+
+          # @return [Integer]
+          def bar
+            @cache[1] = 123
+          end
+        end
+      ))
+      # The parameter name comes from core RBS and varies by rbs version
+      expect(checker.problems.map(&:message))
+        .to contain_exactly(/\AWrong argument type for Hash#\[\]=: \w+ expected String, received Integer\z/)
+    end
+
+    it 'still reports an assignment to an undefined attribute' do
+      checker = type_checker(%(
+        class Foo; end
+
+        # @return [String]
+        def bar
+          Foo.new.baz = 'baz'
+        end
+      ))
+      expect(checker.problems.map(&:message)).to include('Unresolved call to baz= on Foo')
+    end
+
+    it 'reports an unresolved call in an assigned value, not the assignment' do
+      checker = type_checker(%(
+        class Foo
+          # @return [String]
+          attr_accessor :baz
+        end
+
+        # @param foo [Foo]
+        # @param value [String, nil]
+        # @return [void]
+        def bar foo, value
+          foo.baz = value.upcase
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq(['Unresolved call to upcase on String, nil'])
+    end
+
+    it 'does not report a resolved setter whose assigned value cannot be inferred' do
+      checker = type_checker(%(
+        class Foo
+          # @return [Integer]
+          attr_accessor :baz
+        end
+
+        # @param foo [Foo]
+        # @param options [Hash{String => undefined}]
+        # @return [void]
+        def bar foo, options
+          foo.baz = options['baz']
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq([])
+    end
+
+    it "picks Hash#fetch's Hash::_Key-typed overload for a Symbol key instead of merging in the block form's generic" do
+      checker = type_checker(%(
+        class Foo; end
+
+        class Holder
+          # @return [Hash{Symbol => Class<Foo>}]
+          def registry
+            { x: Foo }
+          end
+
+          # @return [Foo]
+          def use_it
+            # @type [Class<Foo>]
+            clazz = registry.fetch(:x)
+            clazz.new
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq([])
+    end
+
+    it 'resolves super to the nearest override, not every ancestor' do
+      checker = type_checker(%(
+        class GrandParent
+          # @return [String]
+          def foo
+            'hello'
+          end
+        end
+
+        class Parent < GrandParent
+          # @return [Integer]
+          def foo
+            42
+          end
+        end
+
+        class Child < Parent
+          # @return [Integer]
+          def foo
+            super
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
+    it 'resolves the result generic of a blockless Enumerator so with_index reports the mapped array' do
+      checker = type_checker(%(
+        class Foo
+          # @param items [::Array<String>]
+          # @return [::Array<Integer>]
+          def bar(items)
+            items.map.with_index { |_, idx| idx }
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq([])
+    end
+
+    it 'reports the receiver itself when with_index runs over an each Enumerator' do
+      checker = type_checker(%(
+        class Foo
+          # @param items [::Array<String>]
+          # @return [::Array<String>]
+          def bar(items)
+            items.each.with_index { |_, idx| idx }
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq([])
+    end
+
+    it 'types the yielded pair of each_with_index.map' do
+      checker = type_checker(%(
+        # @param s [Symbol]
+        # @return [void]
+        def take_sym s; end
+
+        # @return [Array<String>]
+        def names
+          []
+        end
+
+        names.each_with_index.map do |pair|
+          take_sym pair
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq(
+        ['Wrong argument type for #take_sym: s expected Symbol, received Array(String, Integer)']
+      )
+    end
+
+    it 'types block parameters and the result of map.with_index' do
+      checker = type_checker(%(
+        # @param s [Symbol]
+        # @return [void]
+        def take_sym s; end
+
+        # @param items [Array<Integer>]
+        # @return [Array<Integer>]
+        def doubled items
+          items.map.with_index { |item, idx| take_sym idx; item * 2 }
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq(
+        ['Wrong argument type for #take_sym: s expected Symbol, received Integer']
+      )
     end
 
     it 'resolves the operators TrueClass and FalseClass share on Boolean' do
@@ -1252,6 +1827,16 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message)).to eq([])
     end
 
+    it 'resolves calls on class variables in a namespace body' do
+      checker = type_checker(%(
+        module Foo
+          @@bar = 'bar'
+          @@bar.upcase
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
     it 'accepts ... forwarding from a class method to new' do
       checker = type_checker(%(
         class Base
@@ -1279,6 +1864,53 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message)).to eq([])
     end
 
+    it 'reports an incompatible assignment to a global declared in core RBS and keeps the declared type' do
+      checker = type_checker(%(
+        # @return [void]
+        def swap
+          $stderr = 42
+        end
+
+        # @return [void]
+        def log
+          $stderr.puts 'x'
+        end
+      ))
+      expect(checker.problems.map(&:message))
+        .to eq(['Declared type IO does not match inferred type Integer for variable $stderr'])
+      expect(checker.problems.first.location.range.start.line).to eq(3)
+    end
+
+    it 'ignores an untyped assignment to a global declared in core RBS and keeps the declared type' do
+      checker = type_checker(%(
+        # @return [void]
+        def swap
+          $stderr = unknown_thing
+        end
+
+        # @return [void]
+        def log
+          $stderr.puts 'x'
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq(['Unresolved call to unknown_thing'])
+    end
+
+    it 'keeps inferring undeclared globals from their assignments' do
+      checker = type_checker(%(
+        # @return [void]
+        def swap
+          $my_global = 'x'
+        end
+
+        # @return [void]
+        def log
+          $my_global.upcase
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
     it 'accepts anonymous *, ** and & forwarding to a call' do
       checker = type_checker(%(
         class Foo
@@ -1294,6 +1926,27 @@ describe Solargraph::TypeChecker do
         end
 
         Foo.new.baz('my arg', kwarg: 'my kwarg')
+      ))
+      expect(checker.problems.map(&:message)).to eq([])
+    end
+
+    it 'resolves a repeated core-method call on a var reassigned mid-method after a reopened-class call' do
+      checker = type_checker(%(
+        class String
+          # @return [String]
+          def depunctuate
+            self
+          end
+        end
+
+        # @param str [String]
+        # @param other [String]
+        # @return [String]
+        def go(str, other)
+          str = str.gsub(other.depunctuate, other)
+          str = str.gsub(other, other)
+          str.gsub(other, other)
+        end
       ))
       expect(checker.problems.map(&:message)).to eq([])
     end
@@ -1604,6 +2257,32 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message)).to be_empty
     end
 
+    it 'accepts a subclass for an rbs singleton keyword parameter' do
+      checker = type_checker(%(
+        class Resource; end
+        class Task < Resource; end
+        class Collection
+          #: (type: singleton(Resource)) -> void
+          def initialize(type:); end
+        end
+        Collection.new(type: Task)
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
+    it 'complains on an instance passed to an rbs singleton parameter' do
+      checker = type_checker(%(
+        class Resource; end
+        class Collection
+          #: (type: singleton(Resource)) -> void
+          def initialize(type:); end
+        end
+        Collection.new(type: Resource.new)
+      ))
+      expect(checker.problems.map(&:message))
+        .to eq ['Wrong argument type for Collection.new: type expected Class<Resource>, received Resource']
+    end
+
     it 'complains on an inline rbs assertion that does not match' do
       checker = type_checker(%(
         x = 'x'.size #: String
@@ -1618,6 +2297,18 @@ describe Solargraph::TypeChecker do
       ))
       expect(checker.problems.map(&:message))
         .to eq ['Declared type String does not match inferred type String, nil for variable x']
+    end
+
+    it 'types method parameters from inline rbs signatures' do
+      checker = type_checker(%(
+        class Foo
+          #: (String) -> Integer
+          def bar(baz)
+            baz.size
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
     end
   end
 end

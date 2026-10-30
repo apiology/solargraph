@@ -22,10 +22,10 @@ module Solargraph
       # @return [String]
       attr_reader :name
 
-      # @return [String]
+      # @return [String, nil]
       attr_reader :path
 
-      # @return [::Symbol]
+      # @return [::Symbol, nil]
       attr_accessor :source
 
       # @type [::Numeric, nil] A priority for determining if pins should be combined or not
@@ -42,24 +42,23 @@ module Solargraph
       # @param closure [Solargraph::Pin::Closure, nil]
       # @param name [String]
       # @param comments [String, nil]
-      # @param source [Symbol, nil]
+      # @param source [::Symbol, nil]
       # @param docstring [YARD::Docstring, nil]
       # @param directives [::Array<YARD::Tags::Directive>, nil]
       # @param combine_priority [::Numeric, nil] See attr_reader for combine_priority
       def initialize location: nil, type_location: nil, closure: nil, source: nil, name: '', comments: '',
                      docstring: nil, directives: nil, combine_priority: nil
+        preassign_ivars
+
         @location = location
         @type_location = type_location
         @closure = closure
         @name = name
         @comments = comments
         @source = source
-        @identity = nil
         @docstring = docstring
         @directives = directives
         @combine_priority = combine_priority
-        # @type [ComplexType, ComplexType::UniqueType, nil]
-        @binder = nil
 
         assert_source_provided
         assert_location_provided
@@ -134,7 +133,6 @@ module Solargraph
 
       # @param other [self]
       # @param attr [::Symbol]
-      # @sg-ignore
       # @return [undefined]
       def choose_longer other, attr
         # @type [undefined]
@@ -158,6 +156,11 @@ module Solargraph
       # @param other [self]
       # @return [Pin::Closure, nil]
       def combine_closure other
+        # Source maps close a def in `class << self` or a block over that
+        # scope; RBS closes it over the namespace the scope sits in.
+        namespace = namespace_enclosing(closure, other.closure) || namespace_enclosing(other.closure, closure)
+        return namespace if namespace
+
         chosen = choose_pin_attr_with_same_name(other, :closure)
         return chosen unless chosen.is_a?(Pin::Namespace) && chosen.generics.empty?
 
@@ -171,8 +174,19 @@ module Solargraph
         chosen
       end
 
+      # @param scope [Pin::Closure, nil]
+      # @param namespace [Pin::Closure, nil]
+      # @return [Pin::Namespace, nil] namespace, if scope is a singleton class
+      #   or block directly inside it
+      def namespace_enclosing scope, namespace
+        return unless namespace.is_a?(Pin::Namespace)
+        return unless scope.is_a?(Pin::Singleton) || scope.is_a?(Pin::Block)
+
+        namespace if scope&.closure&.path == namespace.path
+      end
+
       # @param other [self]
-      # @sg-ignore @type should override probed type
+      # @sg-ignore dynamic send has no inferable return type
       # @return [String]
       def combine_name other
         if needs_consistent_name? || other.needs_consistent_name?
@@ -232,7 +246,7 @@ module Solargraph
         end
       end
 
-      # @sg-ignore need boolish support for ? methods
+      # @return [Boolean, nil]
       def dodgy_return_type_source?
         # uses a lot of 'Object' instead of 'self'
         location&.filename&.include?('core_ext/object/') ||
@@ -245,13 +259,12 @@ module Solargraph
       # @param other [Pin::Base]
       # @param attr [::Symbol]
       #
-      # @sg-ignore
       # @return [undefined, nil]
       def choose other, attr
         results = [self, other].map(&attr).compact
         # true and false are different classes and can't be sorted
 
-        return true if results.any? { |r| [true, false].include?(r) }
+        return results.include?(true) if results.intersect?([true, false])
         return results.first if results.any? { |r| r.is_a? AST::Node }
         results.min
       rescue StandardError
@@ -261,7 +274,6 @@ module Solargraph
 
       # @param other [self]
       # @param attr [::Symbol]
-      # @sg-ignore
       # @return [undefined]
       def choose_node other, attr
         if other.object_id < attr.object_id
@@ -273,7 +285,6 @@ module Solargraph
 
       # @param other [self]
       # @param attr [::Symbol]
-      # @sg-ignore
       # @return [undefined]
       def prefer_rbs_location other, attr
         if rbs_location? && !other.rbs_location?
@@ -285,7 +296,7 @@ module Solargraph
         end
       end
 
-      # @sg-ignore need boolish support for ? methods
+      # @return [Boolean, nil]
       def rbs_location?
         type_location&.rbs?
       end
@@ -315,7 +326,6 @@ module Solargraph
         values1 = arr1.map(&)
         # @type [undefined]
         values2 = arr2.map(&)
-        # @sg-ignore
         return arr1 if values1 == values2
         Solargraph.assert_or_log(:"combine_with_#{attr}",
                                  "Inconsistent #{attr.inspect} values between \nself =#{inspect} and \nother=#{other.inspect}:\n\n self values = #{values1}\nother values =#{attr} = #{values2}")
@@ -342,7 +352,6 @@ module Solargraph
       # @param other [self]
       # @param attr [::Symbol]
       #
-      # @sg-ignore
       # @return [undefined]
       def assert_same other, attr
         if other.nil?
@@ -360,8 +369,7 @@ module Solargraph
 
       # @param other [self]
       # @param attr [::Symbol]
-      # @sg-ignore
-      # @return [undefined]
+      # @return [Pin::Base, nil]
       def choose_pin_attr_with_same_name other, attr
         # @type [Pin::Base, nil]
         val1 = send(attr)
@@ -381,8 +389,8 @@ module Solargraph
       # @param other [self]
       # @param attr [::Symbol]
       #
-      # @sg-ignore Missing @return tag for Solargraph::Pin::Base#choose_pin_attr
-      # @return [undefined]
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1223
+      # @return [Pin::Base, nil]
       def choose_pin_attr other, attr
         # @type [Pin::Base, nil]
         val1 = send(attr)
@@ -401,10 +409,10 @@ module Solargraph
             # maximize number of gates, as types in other combined pins may
             # depend on those gates
 
-            # @sg-ignore Need better handling of #compact
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1223
             closure.gates.length,
             # use basename so that results don't vary system to system
-            # @sg-ignore Need better handling of #compact
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1223
             File.basename(closure.best_location.to_s)
           ]
         end
@@ -441,7 +449,7 @@ module Solargraph
       # parameters used in this method based on the parameters passed
       # into the its class and return a new method pin.
       #
-      # @param definitions [Pin::Namespace] The module/class which uses generic types
+      # @param definitions [Pin::Namespace, nil] The module/class which uses generic types
       # @param context_type [ComplexType] The receiver type
       # @return [self]
       def resolve_generics definitions, context_type
@@ -463,7 +471,7 @@ module Solargraph
       # @return [String, nil]
       def filename
         return nil if location.nil?
-        # @sg-ignore flow sensitive typing needs to handle attrs
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
         location.filename
       end
 
@@ -491,6 +499,22 @@ module Solargraph
         location || type_location
       end
 
+      # RBS, convention and synthesized pins may lack a location; every
+      # #location! call site receives a pin built from parsed source.
+      #
+      # @return [Location]
+      def location!
+        location || raise("No location set on #{inner_desc}")
+      end
+
+      # Only Namespace, FactoryParameter, DuckMethod, Reference::Require/Override and
+      # parentless RBS Constant pins lack a closure; no #closure! call site receives one unguarded.
+      #
+      # @return [Pin::Closure]
+      def closure!
+        closure || raise("No closure set on #{inner_desc}")
+      end
+
       # True if the specified pin is a near match to this one. A near match
       # indicates that the pins contain mostly the same data. Any differences
       # between them should not have an impact on the API surface.
@@ -499,18 +523,12 @@ module Solargraph
       # @return [Boolean]
       def nearly? other
         instance_of?(other.class) &&
-          # @sg-ignore Translate to something flow sensitive typing understands
           name == other.name &&
-          # @sg-ignore flow sensitive typing needs to handle attrs
           (closure.equal?(other.closure) || (closure&.nearly?(other.closure))) &&
-          # @sg-ignore Translate to something flow sensitive typing understands
           (comments == other.comments ||
-           # @sg-ignore Translate to something flow sensitive typing understands
            (((maybe_directives? == false && other.maybe_directives? == false) ||
              compare_directives(directives,
-                                # @sg-ignore Translate to something flow sensitive typing understands
                                 other.directives)) &&
-             # @sg-ignore Translate to something flow sensitive typing understands
              compare_docstring_tags(docstring, other.docstring))
           )
       end
@@ -521,8 +539,7 @@ module Solargraph
       # @param other [Object]
       def == other
         return false unless nearly? other
-        # @sg-ignore Should add more explicit type check on other
-        comments == other.comments && location == other.location
+        other.is_a?(Pin::Base) && comments == other.comments && location == other.location
       end
 
       # The pin's return type.
@@ -538,11 +555,11 @@ module Solargraph
         @docstring ||= Solargraph::Source.parse_docstring('').to_docstring
       end
 
-      # @sg-ignore parse_comments will always set @directives
       # @return [::Array<YARD::Tags::Directive>]
       def directives
         parse_comments unless @directives
-        @directives
+        parsed = @directives
+        parsed.nil? ? raise("parse_comments did not set directives for #{path}") : parsed
       end
 
       # @return [::Array<Solargraph::YardMap::Macro>]
@@ -550,6 +567,7 @@ module Solargraph
         @macros ||= collect_macros
       end
 
+      # @return [Array<String>]
       def macro_names
         parse_comments unless @macro_names
         @macro_names ||= collect_macro_names
@@ -724,7 +742,7 @@ module Solargraph
 
       protected
 
-      # @sg-ignore def should infer as symbol - "Not enough arguments to Module#protected"
+      # @return [Array]
       def equality_fields
         [name, location, type_location, closure, source]
       end
@@ -742,6 +760,37 @@ module Solargraph
 
       private
 
+      # Memory optimization: Ruby 3.2 keeps a table of up to 8 ivar-assignment
+      # orders per class; once those run out, every object built afterward
+      # carries its own table, which can quadruple the size of each one.
+      #
+      # @return [void]
+      def preassign_ivars
+        preassign_common_ivars
+        preassign_conversions_ivars
+        preassign_documenting_ivars
+        @location = nil
+        @type_location = nil
+        @closure = nil
+        @name = ''
+        @comments = ''
+        @source = nil
+        @docstring = nil
+        @directives = nil
+        @combine_priority = nil
+        # @type [ComplexType, ComplexType::UniqueType, nil]
+        @binder = nil
+        @identity = nil
+        @return_type = nil
+        @gates = nil
+        @deprecated = nil
+        @proxied = false
+        @probed = false
+        @macros = nil
+        @macro_names = nil
+        @maybe_directives = nil
+      end
+
       # Declarations of a reopened generic may spell its parameters
       # differently, so bind by position against this pin's own one.
       #
@@ -753,6 +802,11 @@ module Solargraph
         return definitions unless own.path == definitions.path && !own.generics.empty?
 
         own
+      end
+
+      # @return [Pin::Closure, nil]
+      def raw_closure
+        @closure
       end
 
       # @return [void]
@@ -781,7 +835,7 @@ module Solargraph
       def compare_docstring_tags docstring1, docstring2
         return false if docstring1.tags.length != docstring2.tags.length
         docstring1.tags.each_index do |i|
-          return false unless compare_tags(docstring1.tags[i], docstring2.tags[i])
+          return false unless compare_tags(docstring1.tags.fetch(i), docstring2.tags.fetch(i))
         end
         true
       end
@@ -792,7 +846,7 @@ module Solargraph
       def compare_directives dir1, dir2
         return false if dir1.length != dir2.length
         dir1.each_index do |i|
-          return false unless compare_tags(dir1[i].tag, dir2[i].tag)
+          return false unless compare_tags(dir1.fetch(i).tag, dir2.fetch(i).tag)
         end
         true
       end
@@ -817,6 +871,7 @@ module Solargraph
         end
       end
 
+      # @return [Array<String>]
       def collect_macro_names
         "#{comments}\n".scan(/\s*?@macro +(\S+).*?[\n]/).map { |match| match[0] }
       end

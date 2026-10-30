@@ -186,6 +186,23 @@ describe Solargraph::SourceMap::Mapper do
     expect(pin.return_type.tag).to eq('String')
   end
 
+  it 'closes attribute directives attached to methods over their namespace' do
+    map = Solargraph::SourceMap.load_string(%(
+      class Foo
+        # @!attribute [r] bar
+        #   @return [String]
+        def bar; end
+
+        # @!attribute [r] baz
+        #   @return [String]
+        attr_reader :baz
+      end
+    ))
+    foo = map.first_pin('Foo')
+    attribute_pins = map.pins.select { |pin| pin.source == :yard_map && %w[bar baz].include?(pin.name) }
+    expect(attribute_pins.map(&:closure)).to eq([foo, foo])
+  end
+
   it 'processes private visibility directives attached to methods' do
     map = Solargraph::SourceMap.load_string(%(
       class Foo
@@ -435,6 +452,21 @@ describe Solargraph::SourceMap::Mapper do
     expect(pin).to be_a(Solargraph::Pin::InstanceVariable)
     pin = map.pins.select { |p| p.name == '@bar' and p.context.scope == :instance }.first
     expect(pin).to be_a(Solargraph::Pin::InstanceVariable)
+  end
+
+  it 'gives module function instance variable closures a source' do
+    with_env_var('SOLARGRAPH_ASSERTS', 'on') do
+      map = Solargraph::SourceMap.load_string(%(
+        module Functions
+          module_function
+          def foo
+            @foo ||= {}
+          end
+        end
+      ))
+      pin = map.pins.find { |p| p.name == '@foo' and p.context.scope == :class }
+      expect(pin.closure.source).to eq(:parser)
+    end
   end
 
   it 'maps class variables' do
@@ -845,7 +877,7 @@ describe Solargraph::SourceMap::Mapper do
     ))
     pin = smap.locals.select { |p| p.name == 'baz' }.first
     # expect(pin.assignment).to be_a(Parser::AST::Node)
-    expect(Solargraph::Parser.is_ast_node?(pin.assignment)).to be(true)
+    expect(pin.assignment).to be_a(Parser::AST::Node)
   end
 
   it 'defers resolution of distant alias_method aliases' do
@@ -1597,5 +1629,51 @@ describe Solargraph::SourceMap::Mapper do
     map = Solargraph::SourceMap.load_string(source)
     pin = map.first_pin('Bar#foobar')
     expect(pin.path).to eq('Bar#foobar')
+  end
+
+  it 'maps pattern match captures as locals' do
+    map = Solargraph::SourceMap.load_string(%(
+      def m(x, t)
+        case x
+        in [a, *rest] if a
+          a
+        in {k:, j: Integer => jj}
+          k
+        in Foo | Bar => alt
+          alt
+        in [*, Integer => mid, *]
+          mid
+        in [first, *]
+          first
+        in {h:, **others}
+          others
+        else
+          e = 1
+        end
+        t => [s, n] => pair
+        t in u
+        t in Foo | 1 => mixed
+      end
+    ))
+    names = map.locals.map(&:name)
+    expect(names).to include('a', 'rest', 'k', 'jj', 'alt', 'mid', 'first', 'h', 'others', 'e', 's', 'n', 'pair',
+                             'u', 'mixed')
+    expect(names.count('a')).to eq(1)
+    expect(names.count('jj')).to eq(1)
+  end
+
+  it 'keeps pattern match captures present until the end of the closure' do
+    map = Solargraph::SourceMap.load_string(%(
+      def m(x)
+        case x
+        in Integer => i
+          i
+        end
+        i
+      end
+    ))
+    pin = map.locals.find { |p| p.name == 'i' }
+    expect(pin.presence.start.line).to eq(3)
+    expect(pin.presence.ending.line).to eq(7)
   end
 end

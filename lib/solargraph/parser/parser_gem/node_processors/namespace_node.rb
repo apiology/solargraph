@@ -8,12 +8,15 @@ module Solargraph
           include ParserGem::NodeMethods
 
           def process
-            name = unpack_name(node.children[0])
+            # s(:class, name, superclass, body) or s(:module, name, body)
+            node => [:class | :module, ::Parser::AST::Node => name_node, *]
+
+            name = unpack_name(name_node)
             comments = comments_for(node)
 
-            superclass_name = if node.type == :class && node.children[1]&.type == :const
-              "#{type_from_node}#{parameters_from_inline_rbs}"
-            end
+            superclass_name = if node in [:class, _, ::Parser::AST::Node[:const, *] => superclass, *]
+                                "#{unpack_name(superclass)}#{parameters_from_inline_rbs(superclass)}"
+                              end
 
             loc = get_node_location(node)
             nspin = Solargraph::Pin::Namespace.new(
@@ -24,6 +27,7 @@ module Solargraph
               comments: comments,
               visibility: :public,
               gates: region.closure.gates.freeze,
+              node: node,
               source: :parser
             )
             pins.push nspin
@@ -45,11 +49,9 @@ module Solargraph
           # it: directly after the superclass, on the same line, with no space
           # between `#` and `[`. Anything else is an ordinary comment.
           #
+          # @param superclass [Parser::AST::Node]
           # @return [String, nil]
-          def parameters_from_inline_rbs
-            superclass = node.children[1]
-            return unless superclass
-
+          def parameters_from_inline_rbs superclass
             source = region.source.code
             pos = get_node_end_position(superclass)
             offset = Position.line_char_to_offset(source, pos.line, pos.character)
@@ -57,14 +59,12 @@ module Solargraph
             match = source[offset...eol].to_s.match(/\A\s*#\[([^\]]*)\]/)
             return unless match
 
+            # @sg-ignore https://github.com/apiology/solargraph/pull/193
             code = match[1].strip
+            # @sg-ignore MatchData#[] is nilable even for a group that always matches
             return if code.empty?
 
             "<#{code}>"
-          end
-
-          def type_from_node
-            unpack_name(node.children[1]) if node.children[1]&.type == :const
           end
         end
       end

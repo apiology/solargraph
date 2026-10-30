@@ -20,6 +20,13 @@ module Solargraph
     attr_reader :filename
 
     # @return [String]
+    def filename!
+      name = filename
+      return name if name
+      raise ArgumentError, 'Source has no filename'
+    end
+
+    # @return [String]
     def code
       finalize
       @code
@@ -49,10 +56,11 @@ module Solargraph
       @repaired = code
       @filename = filename
       @version = version
+      @finalize_mutex = Mutex.new
     end
 
     # @param range [Solargraph::Range]
-    # @return [String]
+    # @return [String, nil]
     def at range
       from_to range.start.line, range.start.character, range.ending.line, range.ending.character
     end
@@ -62,8 +70,7 @@ module Solargraph
     # @param l2 [Integer]
     # @param c2 [Integer]
     #
-    # @sg-ignore Need to add nil check here
-    # @return [String]
+    # @return [String, nil]
     def from_to l1, c1, l2, c2
       b = Solargraph::Position.line_char_to_offset(code, l1, c1)
       e = Solargraph::Position.line_char_to_offset(code, l2, c2)
@@ -74,7 +81,7 @@ module Solargraph
     #
     # @param line [Integer]
     # @param column [Integer]
-    # @return [AST::Node]
+    # @return [AST::Node, nil]
     def node_at line, column
       tree_at(line, column).first
     end
@@ -133,30 +140,23 @@ module Solargraph
     def string_at? position
       return false if Position.to_offset(code, position) >= code.length
       string_nodes.each do |node|
-        range = Range.from_node(node)
-        # @sg-ignore Need to add nil check here
+        range = Range.from_node!(node)
         next if range.ending.line < position.line
-        # @sg-ignore Need to add nil check here
         break if range.ending.line > position.line
-        # @sg-ignore Need to add nil check here
         return true if node.type == :str && range.include?(position) && range.start != position
-        # @sg-ignore Need to add nil check here
         return true if %i[STR str].include?(node.type) && range.include?(position) && range.start != position
         if node.type == :dstr
           inner = node_at(position.line, position.column)
           next if inner.nil?
-          inner_range = Range.from_node(inner)
-          # @sg-ignore Need to add nil check here
+          inner_range = Range.from_node!(inner)
           next unless range.include?(inner_range.ending)
           return true if inner.type == :str
-          # @sg-ignore Need to add nil check here
           inner_code = at(Solargraph::Range.new(inner_range.start, position))
-          # @sg-ignore Need to add nil check here
+          # @sg-ignore Unresolved call to end_with?
           return true if (inner.type == :dstr && inner_range.ending.character <= position.character && !inner_code.end_with?('}')) ||
-                         # @sg-ignore Need to add nil check here
+                         # @sg-ignore Unresolved call to end_with?
                          (inner.type != :dstr && inner_range.ending.line == position.line && position.character <= inner_range.ending.character && inner_code.end_with?('}'))
         end
-        # @sg-ignore Need to add nil check here
         break if range.ending.line > position.line
       end
       false
@@ -192,10 +192,8 @@ module Solargraph
     # @param node [Parser::AST::Node]
     # @return [String]
     def code_for node
-      rng = Range.from_node(node)
-      # @sg-ignore Need to add nil check here
+      rng = Range.from_node!(node)
       b = Position.line_char_to_offset(code, rng.start.line, rng.start.column)
-      # @sg-ignore Need to add nil check here
       e = Position.line_char_to_offset(code, rng.ending.line, rng.ending.column)
       frag = code[b..(e - 1)].to_s
       frag.strip.gsub(/,$/, '')
@@ -205,10 +203,8 @@ module Solargraph
     #
     # @return [String, nil]
     def comments_for node
-      rng = Range.from_node(node)
-      # @sg-ignore Need to add nil check here
+      rng = Range.from_node!(node)
       stringified_comments[rng.start.line] ||= begin
-        # @sg-ignore Need to add nil check here
         buff = associated_comments[rng.start.line]
         stringify_comment_array(buff)
       end
@@ -268,11 +264,13 @@ module Solargraph
     # @return [Hash{Integer => Array<String>}]
     def associated_comments
       @associated_comments ||= begin
-        # @type [Hash{Integer => String}]
+        # @type [Hash{Integer => Array<String>}]
         result = {}
         buffer = []
         # @type [Integer, nil]
         last = nil
+        # @param num [Integer]
+        # @param snip [Solargraph::Parser::Snippet]
         comments.each_pair do |num, snip|
           if !last || num == last + 1
             buffer.push "#{snip.text}\n"
@@ -293,7 +291,7 @@ module Solargraph
     # @return [Integer]
     def first_not_empty_from line
       cursor = line
-      cursor += 1 while cursor < code_lines.length && code_lines[cursor].strip.empty?
+      cursor += 1 while cursor < code_lines.length && code_lines.fetch(cursor).strip.empty?
       cursor = line if cursor > code_lines.length - 1
       cursor
     end
@@ -303,18 +301,16 @@ module Solargraph
     # @param parent [Symbol, nil]
     # @return [void]
     def inner_folding_ranges top, result = [], parent = nil
-      return unless Parser.is_ast_node?(top)
-      # @sg-ignore Translate to something flow sensitive typing understands
+      return unless top.is_a?(::Parser::AST::Node)
       if FOLDING_NODE_TYPES.include?(top.type)
-        # @sg-ignore Translate to something flow sensitive typing understands
         range = Range.from_node(top)
-        # @sg-ignore Need to add nil check here
+        # @sg-ignore Unresolved call to ending
         if (result.empty? || range.start.line > result.last.start.line) && range.ending.line - range.start.line >= 2
           result.push range
         end
       end
-      # @sg-ignore Translate to something flow sensitive typing understands
       top.children.each do |child|
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1416
         inner_folding_ranges(child, result, top.type)
       end
     end
@@ -327,6 +323,7 @@ module Solargraph
       ctxt = []
       started = false
       skip = nil
+      # @param l [String]
       comments&.each do |l|
         if l =~ /^#-\R/
           ctxt.clear
@@ -339,8 +336,8 @@ module Solargraph
           ctxt.push p
         else
           here = p.index(/[^ \t]/)
-          # @sg-ignore flow sensitive typing should be able to handle redefinition
-          skip = here if skip.nil? || here < skip
+          indent = here.nil? ? raise('Non-blank comment line has no non-blank character') : here
+          skip = indent if skip.nil? || indent < skip
           ctxt.push p[skip..]
         end
         started = true
@@ -389,12 +386,11 @@ module Solargraph
     # @return [Array<Parser::AST::Node>]
     def string_nodes_in n
       result = []
-      if Parser.is_ast_node?(n)
-        # @sg-ignore Translate to something flow sensitive typing understands
+      if n.is_a?(::Parser::AST::Node)
         if %i[str dstr STR DSTR].include?(n.type)
           result.push n
         else
-          # @sg-ignore Translate to something flow sensitive typing understands
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1416
           n.children.each { |c| result.concat string_nodes_in(c) }
         end
       end
@@ -408,11 +404,12 @@ module Solargraph
     def inner_tree_at node, position, stack
       return if node.nil?
       here = Range.from_node(node)
-      # @sg-ignore Need to add nil check here
+      # @sg-ignore Unresolved call to contain?
       return unless here.contain?(position)
       stack.unshift node
+      # @param c [Parser::AST::Node]
       node.children.each do |c|
-        next unless Parser.is_ast_node?(c)
+        next unless c.is_a?(::Parser::AST::Node)
         next if c.loc.expression.nil?
         inner_tree_at(c, position, stack)
       end
@@ -425,7 +422,7 @@ module Solargraph
       @changes ||= []
     end
 
-    # @return [String]
+    # @return [String, nil]
     attr_writer :filename
 
     # @return [Integer]
@@ -433,6 +430,13 @@ module Solargraph
 
     # @return [void]
     def finalize
+      # @finalized is set before the parse finishes, so a thread arriving
+      # mid-parse must wait for it instead of reading a nil node.
+      @finalize_mutex.synchronize { finalize_unsynchronized }
+    end
+
+    # @return [void]
+    def finalize_unsynchronized
       return if @finalized && changes.empty?
 
       changes.each do |change|
@@ -493,10 +497,10 @@ module Solargraph
       @repaired
     end
 
-    # @return [Boolean]
+    # @return [Boolean, nil]
     attr_writer :parsed
 
-    # @return [Hash{Integer => String}
+    # @return [Hash{Integer => Solargraph::Parser::Snippet}]
     attr_writer :comments
 
     # @return [Boolean]
@@ -529,6 +533,7 @@ module Solargraph
 
       # @param comments [String]
       # @return [YARD::DocstringParser]
+      # @sg-ignore Library method has no usable type
       def parse_docstring comments
         # HACK: Pass a dummy code object to the parser for plugins that
         # expect it not to be nil

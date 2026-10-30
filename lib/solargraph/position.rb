@@ -34,7 +34,7 @@ module Solargraph
     # Get a hash of the position. This representation is suitable for use in
     # the language server protocol.
     #
-    # @return [Hash]
+    # @return [Hash{Symbol => Integer}]
     def to_hash
       {
         line: line,
@@ -58,8 +58,7 @@ module Solargraph
       line = -1
       last_line_index = 0
 
-      # @sg-ignore Typechecker thinks `newline_index` inside of the assignment
-      #   can be nil
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1338
       while (newline_index = text.index("\n", newline_index + 1)) && line <= position.line
         line += 1
         break if line == position.line
@@ -68,8 +67,7 @@ module Solargraph
       end
 
       last_line_index += 1 if position.line.positive?
-      # @sg-ignore `last_line_index` is always an Integer because `newline_index`
-      #   is never nil inside the while block
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1338
       last_line_index + position.character
     end
 
@@ -99,16 +97,15 @@ module Solargraph
       character = offset
       newline_index = -1
 
-      # @sg-ignore Typechecker thinks `newline_index` inside of the assignment
-      #   can be nil
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1338
       while (newline_index = text.index("\n", newline_index + 1)) && newline_index < offset
         line += 1
-        # @sg-ignore `newline_index` is always an Integer inside the while block
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1338
         character = offset - newline_index - 1
       end
       character = 0 if character.nil? && (cursor - offset).between?(0, 1)
       raise InvalidOffsetError if character.nil?
-      # @sg-ignore flow sensitive typing needs to handle 'raise if'
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1338
       Position.new(line, character)
     end
 

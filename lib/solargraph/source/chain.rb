@@ -20,6 +20,7 @@ module Solargraph
       autoload :Link,             'solargraph/source/chain/link'
       autoload :Call,             'solargraph/source/chain/call'
       autoload :QCall,            'solargraph/source/chain/q_call'
+      autoload :Index,            'solargraph/source/chain/index'
       autoload :Variable,         'solargraph/source/chain/variable'
       autoload :ClassVariable,    'solargraph/source/chain/class_variable'
       autoload :Constant,         'solargraph/source/chain/constant'
@@ -39,6 +40,7 @@ module Solargraph
       @@inference_stack = []
       @@inference_depth = 0
       @@inference_invalidation_key = nil
+      # @type [::Hash{::Array => ComplexType}]
       @@inference_cache = {}
 
       UNDEFINED_CALL = Chain::Call.new('<undefined>', nil)
@@ -67,7 +69,6 @@ module Solargraph
 
       # @return [Chain]
       def base
-        # @sg-ignore Need to add nil check here
         @base ||= Chain.new(links[0..-2])
       end
 
@@ -110,10 +111,10 @@ module Solargraph
         #
         # @todo ProxyType uses 'type' for the binder, but '
         working_pin = name_pin
-        # @sg-ignore Need to add nil check here
         links[0..-2].each do |link|
           pins = link.resolve(api_map, working_pin, locals)
           type = infer_from_definitions(pins, working_pin, api_map, locals)
+          type = type.without_nil if key_present?(link, api_map, name_pin, working_pin, locals)
           if type.undefined?
             logger.debug do
               "Chain#define(links=#{links.map(&:desc)}, name_pin=#{name_pin.inspect}, locals=#{locals}) => [] - undefined type from #{link.desc}"
@@ -130,15 +131,14 @@ module Solargraph
             "Chain#define(links=#{links.map(&:desc)}, name_pin=#{name_pin.inspect}, locals=#{locals}) - after processing #{link.desc}, new working_pin=#{working_pin} with binder #{working_pin.binder}"
           end
         end
-        links.last.last_context = working_pin
-        links.last.resolve(api_map, working_pin, locals)
+        links.fetch(-1).last_context = working_pin
+        links.fetch(-1).resolve(api_map, working_pin, locals)
       end
 
       # @param api_map [ApiMap]
       # @param name_pin [Pin::Base] The pin for the closure in which this code runs
       # @param locals [::Array<Pin::LocalVariable>]
       # @return [ComplexType]
-      # @sg-ignore
       def infer api_map, name_pin, locals
         # includes binder as it is mutable in Pin::Block
         cache_key = [node, node&.location, links, name_pin&.return_type, name_pin&.binder, locals]
@@ -147,8 +147,10 @@ module Solargraph
           return cached if cached
         else
           @@inference_invalidation_key = api_map.hash
+          # @type [::Hash{::Array => ComplexType}]
           @@inference_cache = {}
         end
+        # @todo Missed nil violation
         out = infer_uncached(api_map, name_pin, locals).downcast_to_literal_if_possible
         logger.debug do
           "Chain#infer() - caching result - cache_key_hash=#{cache_key.hash}, links.map(&:hash)=#{links.map(&:hash)}, links=#{links}, cache_key.map(&:hash) = #{cache_key.map(&:hash)}, cache_key=#{cache_key}"
@@ -159,7 +161,7 @@ module Solargraph
       # @param api_map [ApiMap]
       # @param name_pin [Pin::Base]
       # @param locals [::Array<Pin::LocalVariable>]
-      # @return [ComplexType, ComplexType::UniqueType]
+      # @return [ComplexType]
       def infer_uncached api_map, name_pin, locals
         pins = define(api_map, name_pin, locals)
         if pins.empty?
@@ -168,7 +170,14 @@ module Solargraph
           end
           return ComplexType::UNDEFINED
         end
-        type = infer_from_definitions(pins, links.last.last_context, api_map, locals)
+        value = assigned_value
+        return maybe_nil(value.infer(api_map, name_pin, locals), api_map) if value
+
+        last_context = links.fetch(-1).last_context
+        type = infer_from_definitions(pins, last_context, api_map, locals)
+        # @sg-ignore https://github.com/apiology/solargraph/pull/286
+        #   also covers: Unresolved call to without_nil on Solargraph::ComplexType, Solargraph::ComplexType::UniqueType
+        type = type.without_nil if key_present?(links.fetch(-1), api_map, name_pin, last_context, locals)
         out = maybe_nil(type, api_map)
         logger.debug do
           "Chain#infer_uncached(links=#{links.map(&:desc)}, locals=#{locals.map(&:desc)}, " \
@@ -184,9 +193,11 @@ module Solargraph
       end
 
       # @return [Boolean]
-      # @sg-ignore false "return type could not be inferred"
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1258
+      #   pure calls need https://github.com/apiology/solargraph/tree/narrow-pure-rbs-calls on top
       def require_parameter?
-        # @sg-ignore false "Unresolved call to require_parameter? on Solargraph::Source::Chain::Link"
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
+        #   pure calls need https://github.com/apiology/solargraph/tree/narrow-pure-rbs-calls on top
         links.last.is_a?(Chain::Parameter) && links.last.require_parameter?
       end
 
@@ -196,6 +207,15 @@ module Solargraph
 
       def defined?
         !undefined?
+      end
+
+      # True if the chain ends in an attribute or index assignment
+      # (`a.b = c`, `a[b] = c`)
+      #
+      # @return [Boolean]
+      def assignment?
+        last = links.last
+        last.is_a?(Chain::Call) && last.assignment?
       end
 
       # @return [Boolean]
@@ -235,7 +255,6 @@ module Solargraph
           next unless link.is_a?(Chain::Call)
 
           pin = api_map.get_method_stack('NilClass', link.word, scope: :instance).first
-          # @sg-ignore Need to add nil check here
           currently_nullable = pin.nil? || pin.return_type.tag == 'self'
         end
         currently_nullable
@@ -256,12 +275,39 @@ module Solargraph
 
       private
 
+      # The right-hand side of an attribute or index assignment, which
+      # is the value of the whole expression
+      #
+      # @return [Chain, nil]
+      def assigned_value
+        last = links.last
+        return unless last.is_a?(Chain::Call) && last.assignment?
+
+        last.arguments.last
+      end
+
+      # A global whose type is declared takes it from its declarations
+      # alone, while its definitions still include every assignment, so
+      # go-to-definition keeps reaching them.
+      #
+      # @param pins [::Array<Pin::Base>]
+      # @param api_map [ApiMap]
+      # @return [::Array<Pin::Base>]
+      def declared_global_pins pins, api_map
+        first = pins.first
+        return pins unless first.is_a?(Pin::GlobalVariable)
+
+        declared = api_map.get_declared_global_variable_pins(first.name)
+        declared.empty? ? pins : declared
+      end
+
       # @param pins [::Array<Pin::Base>]
       # @param name_pin [Pin::Base]
       # @param api_map [ApiMap]
       # @param locals [::Enumerable<Pin::LocalVariable>]
-      # @return [ComplexType, ComplexType::UniqueType]
+      # @return [ComplexType]
       def infer_from_definitions pins, name_pin, api_map, locals
+        pins = declared_global_pins(pins, api_map)
         # @type [::Array<ComplexType, ComplexType::UniqueType>]
         types = []
         unresolved_pins = []
@@ -280,7 +326,7 @@ module Solargraph
               # @todo even at strong, no typechecking complaint
               #   happens when a [Pin::Base,nil] is passed into a method
               #   that accepts only [Pin::Namespace] as an argument
-              # @sg-ignore Need to add nil check here
+              # @sg-ignore Wrong argument type for Solargraph::ComplexType#resolve_generics: context_type expected Solargraph::ComplexType, received Solargraph::ComplexType, Solargraph::ComplexType::UniqueType
               type = type.resolve_generics(pin.closure, name_pin.binder)
             end
             types << type
@@ -323,9 +369,20 @@ module Solargraph
         type.self_to_type(name_pin.context)
       end
 
-      # @param type [ComplexType, ComplexType::UniqueType]
+      # @param link [Chain::Link]
       # @param api_map [ApiMap]
-      # @return [ComplexType, ComplexType::UniqueType]
+      # @param name_pin [Pin::Base]
+      # @param working_pin [Pin::Base] its binder is the receiver's type
+      # @param locals [::Array<Pin::LocalVariable, Pin::KeyLookup>]
+      # @return [Boolean] true if `link` is an 'h[k]' lookup that a
+      #   Pin::KeyLookup in `locals` proves present
+      def key_present? link, api_map, name_pin, working_pin, locals
+        link.is_a?(Chain::Index) && link.present?(api_map, name_pin, working_pin.binder, locals)
+      end
+
+      # @param type [ComplexType]
+      # @param api_map [ApiMap]
+      # @return [ComplexType]
       def maybe_nil type, api_map
         return type if type.undefined? || type.void? || type.nullable?
         return type unless nullable?(api_map)
@@ -334,7 +391,6 @@ module Solargraph
 
       protected
 
-      # @sg-ignore Fix "Not enough arguments to Module#protected"
       def equality_fields
         [links, node]
       end

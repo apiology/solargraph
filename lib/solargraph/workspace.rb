@@ -19,10 +19,13 @@ module Solargraph
     attr_reader :gemnames
     alias source_gems gemnames
 
-    # @param directory [String] TODO: Remove '' and '*' special cases
+    # @todo Remove '*' special case
+    # @param directory [String] If empty, no config will be loaded,
+    #   and no RBS collection will be used.  Useful for specs.
     # @param config [Config, nil]
     # @param server [Hash]
-    def initialize directory = '', config = nil, server = {}
+    # @param metagem [Metagem, nil] the gem whose source the workspace is
+    def initialize directory = '', config = nil, server = {}, metagem: nil
       raise ArgumentError, 'directory must be a String' unless directory.is_a?(String)
 
       @directory = if ['*', ''].include?(directory)
@@ -34,7 +37,18 @@ module Solargraph
       @server = server
       load_sources
       @gemnames = []
+      @metagem = metagem
       require_plugins
+    end
+
+    # Names of the gems the workspace's code can use beyond those its bundle
+    # and requires provide: for a gem's source, the gem and its runtime
+    # dependencies
+    #
+    # @return [Array<String>]
+    def available_gem_names
+      return [] unless @metagem
+      [@metagem.name] + @metagem.dependencies
     end
 
     # The require paths associated with the workspace.
@@ -70,10 +84,11 @@ module Solargraph
 
       includes_any = false
       sources.each do |source|
-        next unless directory == '*' || config.calculated.include?(source.filename)
+        filename = source.filename
+        next if filename.nil?
+        next unless directory == '*' || config.calculated.include?(filename)
 
-        # @sg-ignore Wrong argument type for Hash#[]=: arg0 expected String, received String, nil
-        source_hash[source.filename] = source
+        source_hash[filename] = source
         includes_any = true
       end
 
@@ -101,7 +116,7 @@ module Solargraph
       source_hash.values
     end
 
-    # @param filename [String]
+    # @param filename [String, nil]
     # @return [Boolean]
     def has_file? filename
       source_hash.key?(filename)
@@ -110,7 +125,7 @@ module Solargraph
     # Get a source by its filename.
     #
     # @param filename [String]
-    # @return [Solargraph::Source]
+    # @return [Solargraph::Source, nil]
     def source filename
       source_hash[filename]
     end
@@ -134,10 +149,11 @@ module Solargraph
 
     # @return [String, nil]
     def rbs_collection_config_path
-      @rbs_collection_config_path ||= unless directory.empty? || directory == '*'
-                                        yaml_file = File.join(directory, 'rbs_collection.yaml')
-                                        yaml_file if File.file?(yaml_file)
-                                      end
+      @rbs_collection_config_path ||=
+        unless directory.empty? || directory == '*'
+          yaml_file = File.join(directory, 'rbs_collection.yaml')
+          yaml_file if File.file?(yaml_file)
+        end
     end
 
     # @param name [String]
@@ -154,13 +170,19 @@ module Solargraph
     # @param updater [Source::Updater]
     # @return [void]
     def synchronize! updater
-      source_hash[updater.filename] = source_hash[updater.filename].synchronize(updater)
+      source = source_hash[updater.filename]
+      return unless source
+
+      source_hash[updater.filename] = source.synchronize(updater)
     end
 
-    # @sg-ignore return type could not be inferred
+    # @raise [InvalidConfigError] if the client configured a non-string commandPath
     # @return [String]
     def command_path
-      server['commandPath'] || 'solargraph'
+      value = server['commandPath']
+      return 'solargraph' if value.nil?
+      return value if value.is_a?(String)
+      raise InvalidConfigError, "Invalid commandPath: must be a string, but was #{value.inspect}"
     end
 
     # @return [String, nil]
@@ -222,17 +244,14 @@ module Solargraph
 
     # @return [void]
     def require_plugins
-      config.plugins.each do |plugin|
-        require plugin
-      rescue LoadError
-        Solargraph.logger.warn "Failed to load plugin '#{plugin}'"
-      end
+      config.require_plugins
     end
 
     # @return [String, nil]
     def read_rbs_collection_path
       return unless rbs_collection_config_path
 
+      # @sg-ignore Translate to something flow sensitive typing understands
       path = YAML.load_file(rbs_collection_config_path)&.fetch('path')
       # make fully qualified
       File.expand_path(path, directory)

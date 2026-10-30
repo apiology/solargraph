@@ -11,6 +11,17 @@ module Solargraph
       class Call < Chain::Link
         include Solargraph::Parser::NodeMethods
 
+        # Array#[]/String#[] declare their Range-taking overload
+        # nilable, since an out-of-range start returns nil - but a
+        # literal 0 (or omitted/beginless) start can never be out of
+        # range, so the result is never nil there regardless of the
+        # receiver's actual size.
+        SLICE_METHOD_PATHS = ['Array#[]', 'String#[]'].freeze
+        private_constant :SLICE_METHOD_PATHS
+
+        # Methods that keep the elements their block is truthy for
+        SELECTING_METHODS = %w[Array#select Array#filter Enumerable#select Enumerable#filter].freeze
+
         # @return [String]
         attr_reader :word
 
@@ -27,12 +38,15 @@ module Solargraph
         # @param location [Location, nil]
         # @param arguments [::Array<Chain>]
         # @param block [Chain, nil]
-        def initialize word, location = nil, arguments = [], block = nil
+        # @param assignment [Boolean] True if the call is written as an
+        #   attribute or index assignment (`a.b = c`, `a[b] = c`)
+        def initialize word, location = nil, arguments = [], block = nil, assignment: false
           super(word)
 
           @location = location
           @arguments = arguments
           @block = block
+          @assignment = assignment
           fix_block_pass
         end
 
@@ -40,11 +54,19 @@ module Solargraph
           !!@block
         end
 
+        # True if the call is written as an attribute or index
+        # assignment, so its value is its last argument
+        #
+        # @return [Boolean]
+        def assignment?
+          @assignment
+        end
+
         # @param api_map [ApiMap]
         # @param name_pin [Pin::Closure] name_pin.binder should give us the type of the object on which 'word' will be invoked
         # @param locals [::Array<Pin::LocalVariable>]
         def resolve api_map, name_pin, locals
-          return super_pins(api_map, name_pin) if word == 'super'
+          return explicit_super_pins(api_map, name_pin) if word == 'super'
           return yield_pins(api_map, name_pin) if word == 'yield'
           found = api_map.var_at_location(locals, word, name_pin, location) if head?
 
@@ -61,14 +83,21 @@ module Solargraph
           resolved = []
           unresolved_type = false
           binder.each_unique_type do |context|
-            if context.duck_type? && context.name[1..] == word
+            if context.bot?
+              # bot is a subtype of everything, so a call on it is unreachable code,
+              # not unresolved. A DuckMethod pin (bot return type keeps propagating,
+              # explicit: false skips arity) gives resolution something to work
+              # with; closure must come from name_pin, or #closure raises.
+              pin = Pin::DuckMethod.new(name: word, source: :chain, explicit: false, return_type: ComplexType::BOT,
+                                        closure: name_pin.closure)
+            elsif context.duck_type? && context.name[1..] == word
               # explicit: false skips arity checking; the duck type
               # only tells us the method exists, not its signature
               pin = Pin::DuckMethod.new(name: word, source: :chain, explicit: false)
             else
               ns_tag = context.namespace == '' ? '' : context.namespace_type.tag
               stack = api_map.get_method_stack(ns_tag, word, scope: context.scope)
-              pin = stack.first
+              pin = with_overloaded_signatures(stack)
             end
             if pin.nil?
               unresolved_type = true
@@ -80,7 +109,10 @@ module Solargraph
                                                      gates: name_pin.gates,
                                                      binder: context,
                                                      source: :chain)
-            resolved.concat inferred_pins([pin], api_map, type_name_pin, locals)
+            pins = inferred_pins([pin], api_map, type_name_pin, locals)
+            element_type = tuple_element_type(context)
+            pins = pins.map { |p| p.proxy(element_type) } unless element_type.nil?
+            resolved.concat pins
           end
           return [] if unresolved_type && !api_map.loose_unions
           return [] if resolved.empty?
@@ -91,6 +123,82 @@ module Solargraph
         end
 
         private
+
+        # @return [Boolean] true if this call's sole argument is a
+        #   Range literal with a literal 0 or omitted start
+        def zero_start_range_arg?
+          return false unless arguments.length == 1
+
+          arg = arguments[0]
+          return false if arg.nil?
+
+          node = arg.node
+          return false if node.nil?
+          return false unless %i[irange erange].include?(node.type)
+
+          start_node = node.children[0]
+          return true if start_node.nil?
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1416
+          return false unless start_node.type == :int
+
+          # @sg-ignore Parser::AST::Node#children is declared Array<Node>, but an :int node's child is a literal Integer
+          start_node.children[0].zero?
+        end
+
+        # The element a declared tuple returns from #first, #last, or
+        # #[] with an integer literal, which Array's signatures can only
+        # type as the union of all elements
+        #
+        # @param context [ComplexType::UniqueType] the receiver
+        # @return [ComplexType, nil] nil when this is not such a call
+        def tuple_element_type context
+          return nil unless context.tuple?
+          index = case word
+                  when 'first' then 0 if arguments.empty?
+                  when 'last' then -1 if arguments.empty?
+                  when '[]' then integer_literal_argument
+                  end
+          return nil if index.nil?
+          context.all_params[index] || ComplexType::NIL
+        end
+
+        # @return [Integer, nil] the value of the call's only argument,
+        #   when that is an integer literal
+        def integer_literal_argument
+          return nil unless arguments.length == 1
+          argument = arguments.first
+          return nil if argument.nil? || argument.links.length != 1
+          link = argument.links.first
+          return nil unless link.is_a?(Chain::Literal)
+          value = link.value
+          value if value.is_a?(Integer)
+        end
+
+        # An RBS `def m: (A) -> B | ...` adds overloads to the
+        # declaration of the same method that it reopens rather than
+        # replacing it, so match the call's arguments against both.
+        #
+        # @param stack [::Array<Pin::Base>]
+        # @return [Pin::Base, nil]
+        def with_overloaded_signatures stack
+          pin = stack.first
+          return pin unless pin.is_a?(Pin::Method) && pin.source == :rbs
+
+          # @type [::Array<Pin::Method>]
+          same_method = stack.select do |other|
+            other.is_a?(Pin::Method) && other.source == :rbs && other.path == pin.path
+          end
+          overloading, declared = same_method.partition(&:overloading?)
+          return pin if overloading.empty?
+
+          # The stack does not follow RBS load order, so the reopened
+          # declaration need not come after the ones reopening it
+          signatures = overloading.flat_map(&:signatures)
+          reopened = declared.first
+          signatures.concat reopened.signatures if reopened
+          # a gem's sig and its stdlib copy declare the same overloads
+          pin.with_signatures(signatures.uniq(&:to_rbs))
+        end
 
         # Checks whether a single overload signature matches the call's
         # arguments/block and, if so, resolves its return type. Threaded
@@ -113,16 +221,16 @@ module Solargraph
           atypes = []
           arguments.each_with_index do |arg, idx|
             param = overload.parameters[idx]
-            if param.nil?
-              match = overload.parameters.any?(&:restarg?)
-              break
-            end
+            match = overload.parameters.any?(&:restarg?) if param.nil?
+            break if param.nil?
+
             arg_name_pin = Pin::ProxyType.anonymous(name_pin.context,
                                                     closure: name_pin.closure,
                                                     gates: name_pin.gates,
                                                     source: :chain)
+            # @sg-ignore Array#[] chooses wrong signature when Array has no parameters
             atype = atypes[idx] ||= arg.infer(api_map, arg_name_pin, locals)
-            # @sg-ignore flow sensitive typing should handle is_a? and next
+            # @sg-ignore Wrong argument type for Solargraph::Pin::Parameter#compatible_arg?: atype expected Solargraph::ComplexType, received Array, Solargraph::ComplexType
             unless param.compatible_arg?(atype, api_map) || param.restarg?
               match = false
               break
@@ -131,10 +239,10 @@ module Solargraph
           return [type, new_signature_pin] unless match
 
           if overload.block && with_block?
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1258
             block_atypes = overload.block.parameters.map(&:return_type)
             # @todo Need to add nil check here
-            # @sg-ignore Need to add nil check here
-            blocktype = if block.links.map(&:class) == [BlockSymbol]
+            blocktype = if block&.links&.map(&:class) == [BlockSymbol]
                           # like the bar in foo(&:bar)
                           block_symbol_call_type(api_map, name_pin.context, block_atypes, locals)
                         else
@@ -144,12 +252,11 @@ module Solargraph
           new_signature_pin = overload.resolve_generics_from_context_until_complete(overload.generics, atypes, nil, nil,
                                                                                     blocktype)
           # @todo It shouldn't be necessary to choose either generics or macros
-          # @sg-ignore Need to add nil check here
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1338
           new_return_type = if new_signature_pin.return_type.defined?
-                              # @sg-ignore Need to add nil check here
+                              # @sg-ignore https://github.com/castwide/solargraph/pull/1338
                               new_signature_pin.return_type
                             else
-                              # @sg-ignore Need to add nil check here
                               named_types = pin.parameter_names.zip(arguments.map { |arg| ComplexType.try_parse(simple_convert(arg.node).to_s) }).to_h
                               pin.typify(api_map).expand(named_types)
                             end
@@ -200,26 +307,30 @@ module Solargraph
             # reject it regardless
 
             with_block, without_block = overloads.partition(&:block?)
-            # @sg-ignore flow sensitive typing should handle is_a? and next
-            # @type Array<Pin::Signature>
+            # @type [::Array<Pin::Signature>]
             sorted_overloads = with_block + without_block
             # @type [Pin::Signature, nil]
             new_signature_pin = nil
-            # @sg-ignore flow sensitive typing should handle is_a? and next
             # @param ol [Pin::Signature]
             sorted_overloads.each do |ol|
               type, new_signature_pin = match_overload_type(ol, p, api_map, name_pin, locals, type, new_signature_pin)
               break if type.defined?
             end
+            # RBS types slice args as Range[Integer]; Range has one type
+            # parameter shared by both ends, so no overload can match only
+            # ranges starting at 0, and the signatures must return nil.
+            # Narrow here when the argument is a 0-start Range literal.
+            type = type.without_nil if type.nullable? && SLICE_METHOD_PATHS.include?(p.path) && zero_start_range_arg?
+            type = narrow_selected(type, p, api_map)
             p = p.with_single_signature(new_signature_pin) unless new_signature_pin.nil?
             next p.proxy(type) if type.defined?
             if !p.macros.empty?
               result = process_macro(p, api_map, name_pin.context, locals)
-              # @sg-ignore flow sensitive typing should be able to handle redefinition
+              # @sg-ignore https://github.com/castwide/solargraph/pull/1338
               next result unless result.return_type.undefined?
             elsif !p.directives.empty?
               result = process_directive(p, api_map, name_pin.context, locals)
-              # @sg-ignore flow sensitive typing should be able to handle redefinition
+              # @sg-ignore https://github.com/castwide/solargraph/pull/1338
               next result unless result.return_type.undefined?
             end
             p
@@ -232,11 +343,8 @@ module Solargraph
               reduced_context = name_pin.binder.reduce_class_type
               pin.proxy(reduced_context)
             else
-              # @sg-ignore Need to add nil check here
               next pin if pin.return_type.undefined?
-              # @sg-ignore Need to add nil check here
               selfy = pin.return_type.self_to_type(name_pin.binder)
-              # @sg-ignore Need to add nil check here
               selfy == pin.return_type ? pin : pin.proxy(selfy)
             end
           end
@@ -249,9 +357,9 @@ module Solargraph
           factory_parameter = api_map.factory_parameters_for_method(method_pin).find do |factory_param|
             method_pin.parameters.each_with_index.find do |param, index|
               current_argument = arguments[index]
-              next unless current_argument&.literal?
-              # @type [Solargraph::Source::Chain::Literal]
+              next if current_argument.nil? || !current_argument.literal?
               last_link = current_argument.links.last
+              next unless last_link.is_a?(Chain::Literal)
               argument_value = last_link.value
 
               param.name == factory_param.param_name && argument_value == factory_param.value
@@ -270,13 +378,6 @@ module Solargraph
         # @return [Pin::Base]
         def process_macro pin, api_map, context, locals
           pin.macros.each do |macro|
-            # @todo 'Wrong argument type for
-            #   Solargraph::Source::Chain::Call#inner_process_macro:
-            #   macro expected YARD::Tags::MacroDirective, received
-            #   generic<Elem>' is because we lose 'rooted' information
-            #   in the 'Chain::Array' class internally, leaving
-            #   ::Array#each shadowed when it shouldn't be.
-            # @sg-ignore macro is Solargraph::YardMap::Macro, wraps a YARD::Tags::MacroDirective
             result = inner_process_macro(pin, macro, api_map, context, locals)
             return result unless result.return_type.undefined?
           end
@@ -292,7 +393,6 @@ module Solargraph
           pin.directives.each do |dir|
             macro = api_map.named_macro(dir.tag.name)
             next if macro.nil?
-            # @sg-ignore macro is Solargraph::YardMap::Macro, wraps a YARD::Tags::MacroDirective
             result = inner_process_macro(pin, macro, api_map, context, locals)
             return result unless result.return_type.undefined?
           end
@@ -300,26 +400,23 @@ module Solargraph
         end
 
         # @param pin [Pin::Base]
-        # @param macro [YARD::Tags::MacroDirective]
+        # @param macro [YardMap::Macro]
         # @param api_map [ApiMap]
         # @param context [ComplexType, ComplexType::UniqueType]
         # @param locals [::Array<Pin::LocalVariable, Pin::Parameter>]
         # @return [Pin::ProxyType]
         def inner_process_macro pin, macro, api_map, context, locals
           vals = arguments.map { |c| Pin::ProxyType.anonymous(c.infer(api_map, pin, locals), source: :chain) }
-          txt = macro.tag.text.clone
-          # @sg-ignore Need to add nil check here
+          txt = macro.text.clone
           if txt.empty? && macro.tag.name
             named = api_map.named_macro(macro.tag.name)
-            txt = named.tag.text.clone if named
+            txt = named.text.clone if named
           end
           i = 1
           vals.each do |v|
-            # @sg-ignore Need to add nil check here
             txt.gsub!(/\$#{i}/, v.context.namespace)
             i += 1
           end
-          # @sg-ignore Need to add nil check here
           docstring = Solargraph::Source.parse_docstring(txt).to_docstring
           tag = docstring.tag(:return)
           unless tag.nil? || tag.types.nil?
@@ -345,7 +442,7 @@ module Solargraph
         def find_method_pin name_pin
           method_pin = name_pin
           until method_pin.is_a?(Pin::Method)
-            # @sg-ignore Need to support this in flow sensitive typing
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1338
             method_pin = method_pin.closure
             return if method_pin.nil?
           end
@@ -359,7 +456,84 @@ module Solargraph
           method_pin = find_method_pin(name_pin)
           return [] if method_pin.nil?
           pins = api_map.get_method_stack(method_pin.namespace, method_pin.name, scope: method_pin.context.scope)
-          pins.reject { |p| p.path == name_pin.path }
+          # super dispatches to exactly one method - the nearest ancestor
+          # pin, not every ancestor that happens to share the name.
+          pins.reject { |p| p.path == method_pin.path }.first(1)
+        end
+
+        # Pins for `super(...)` with explicit arguments. Outside a def,
+        # it can still call an ancestor's method from a define_method
+        # block, which defines a method of the name it is given.
+        #
+        # Implicit-argument `super` raises a RuntimeError inside
+        # define_method, so ZSuper does not use this.
+        #
+        # @param api_map [ApiMap]
+        # @param name_pin [Pin::Base]
+        # @return [::Array<Pin::Base>]
+        def explicit_super_pins api_map, name_pin
+          return super_pins(api_map, name_pin) if find_method_pin(name_pin)
+
+          block_pin = find_define_method_block(name_pin)
+          call = define_method_call(block_pin)
+          return [] if block_pin.nil? || call.nil?
+
+          name = literal_method_name(call)
+          # A computed name could be any method, so its super is untyped
+          return [Pin::ProxyType.anonymous(ComplexType::UNDEFINED, source: :chain)] if name.nil?
+
+          namespace = block_pin.namespace
+          pins = api_map.get_method_stack(namespace, name, scope: define_method_scope(block_pin))
+          pins.reject { |p| p.namespace == namespace }
+        end
+
+        # define_method inside `class << self` defines a class method
+        #
+        # @param pin [Pin::Base, nil] The define_method block or a closure around it
+        # @return [Symbol]
+        def define_method_scope pin
+          return :instance if pin.nil? || pin.is_a?(Pin::Namespace)
+          return :class if pin.is_a?(Pin::Singleton)
+
+          define_method_scope(pin.closure)
+        end
+
+        # The innermost enclosing block passed to define_method
+        #
+        # @param name_pin [Pin::Base]
+        # @return [Pin::Block, nil]
+        def find_define_method_block name_pin
+          pin = name_pin
+          until pin.nil? || pin.is_a?(Pin::Namespace)
+            return pin if pin.is_a?(Pin::Block) && define_method_call(pin)
+
+            pin = pin.closure
+          end
+          nil
+        end
+
+        # The `define_method(name)` call on self that a block is passed to
+        #
+        # @param block_pin [Pin::Block, nil]
+        # @return [Chain::Call, nil]
+        def define_method_call block_pin
+          return if block_pin.nil?
+
+          receiver_links = Parser.chain(block_pin.receiver).links
+          call = receiver_links.last
+          return unless call.is_a?(Chain::Call) && call.word == 'define_method' && call.arguments.one?
+
+          call if receiver_links.one? || (receiver_links.length == 2 && receiver_links.first.is_a?(Chain::Head))
+        end
+
+        # @param call [Chain::Call] A define_method call
+        # @return [String, nil] The defined method's name if it is a literal symbol
+        def literal_method_name call
+          name_link = call.arguments.first&.links&.last
+          return unless name_link.is_a?(Chain::Literal)
+
+          value = name_link.value
+          value.to_s if value.is_a?(::Symbol)
         end
 
         # @param api_map [ApiMap]
@@ -371,15 +545,14 @@ module Solargraph
 
           # @param signature_pin [Pin::Signature]
           method_pin.signatures.map(&:block).compact.map do |signature_pin|
-            # @sg-ignore Need to add nil check here
             return_type = signature_pin.return_type.qualify(api_map, *name_pin.gates)
             signature_pin.proxy(return_type)
           end
         end
 
-        # @param type [ComplexType]
+        # @param type [ComplexType, ComplexType::UniqueType]
         # @param context [ComplexType, ComplexType::UniqueType]
-        # @return [ComplexType]
+        # @return [ComplexType, ComplexType::UniqueType]
         def with_params type, context
           return type unless type.to_s.include?('$')
           ComplexType.try_parse(type.to_s.gsub('$', context.value_types.map(&:rooted_tag).join(', ')).gsub('<>', ''))
@@ -399,28 +572,56 @@ module Solargraph
         def block_symbol_call_type api_map, context, block_parameter_types, locals
           # Ruby's shorthand for sending the passed in method name
           # to the first yield parameter with no arguments
-          # @sg-ignore Need to add nil check here
-          block_symbol_name = block.links.first.word
+          block_symbol_link = block&.links&.first
+          block_symbol_name = block_symbol_link&.word
           block_symbol_call_path = "#{block_parameter_types.first}##{block_symbol_name}"
           callee = api_map.get_path_pins(block_symbol_call_path).first
           return_type = callee&.return_type
+          receiver_type = block_parameter_types.first
+          if block_symbol_name && receiver_type && callee && return_type&.undefined?
+            # Infer through a chain, which guards against the callee's
+            # own inference reaching this block again
+            receiver = Pin::ProxyType.anonymous(receiver_type, source: :chain)
+            return_type = Chain.new([Call.new(block_symbol_name)]).infer(api_map, receiver, [])
+          end
           # @todo: Figure out why we get unresolved generics at
           #   this point and need to assume method return types
           #   based on the generic type
-          # @sg-ignore Need to add nil check here
-          return_type ||= api_map.get_path_pins("#{context.subtypes.first}##{block.links.first.word}").first&.return_type
+          return_type ||= api_map.get_path_pins("#{context.subtypes.first}##{block_symbol_name}").first&.return_type
           return_type || ComplexType::UNDEFINED
         end
 
         # @param api_map [ApiMap]
         # @return [Pin::Block, nil]
         def find_block_pin api_map
-          # @sg-ignore Need to add nil check here
-          node_location = Solargraph::Location.from_node(block.node)
+          node_location = Solargraph::Location.from_node(block&.node)
           return if node_location.nil?
           block_pins = api_map.get_block_pins
-          # @sg-ignore Need to add nil check here
-          block_pins.find { |pin| pin.location.contain?(node_location) }
+          block_pins.find { |pin| pin.location!.contain?(node_location) }
+        end
+
+        # Narrow the elements of `select` and `filter` results to the
+        # type their block's parameter has where the block is truthy,
+        # e.g. `children.select { |c| c.is_a?(Foo) }` is an `Array<Foo>`
+        #
+        # @param type [ComplexType]
+        # @param method_pin [Pin::Method]
+        # @param api_map [ApiMap]
+        # @return [ComplexType]
+        def narrow_selected type, method_pin, api_map
+          return type unless SELECTING_METHODS.include?(method_pin.path)
+          return type unless type.items.length == 1 && type.rooted_name == '::Array'
+
+          body = block&.node
+          return type unless body.is_a?(AST::Node)
+          return type if type.all_params.empty?
+
+          element_type = ComplexType.new(type.all_params.flat_map(&:items))
+          narrowed = Parser::FlowSensitiveTyping.narrowed_select_element_type(body, element_type, api_map)
+          return type if narrowed.undefined?
+
+          array_type = ComplexType::UniqueType.new('Array', [], [narrowed], rooted: true, parameters_type: :list)
+          ComplexType.new([array_type])
         end
 
         # @param api_map [ApiMap]
@@ -434,16 +635,14 @@ module Solargraph
           # We use the block pin as the closure, as the parameters
           # here will only be defined inside the block itself and we
           # need to be able to see them
-          # @sg-ignore Need to add nil check here
-          block.infer(api_map, block_pin, locals)
+          # @sg-ignore Wrong argument type for Solargraph::Source::Chain#infer: name_pin expected Solargraph::Pin::Base, received Solargraph::Pin::Block, nil
+          block&.infer(api_map, block_pin, locals)
         end
 
         protected
 
-        # @sg-ignore Fix "Not enough arguments to Module#protected"
         def equality_fields
-          # @sg-ignore literal arrays in this module turn into ::Solargraph::Source::Chain::Array
-          super + [arguments, block]
+          super + [arguments, block, assignment?]
         end
       end
     end

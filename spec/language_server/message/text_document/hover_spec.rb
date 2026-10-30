@@ -33,12 +33,13 @@ describe Solargraph::LanguageServer::Message::TextDocument::Hover do
       x = foo.upcase
     )
     host = Solargraph::LanguageServer::Host.new
-    host.open('file:///test.rb', code, 1)
+    file_uri = 'file:///test.rb'
+    host.open(file_uri, code, 1)
     host.catalog
     message = described_class.new(host, {
                                     'params' => {
                                       'textDocument' => {
-                                        'uri' => 'file:///test.rb'
+                                        'uri' => file_uri
                                       },
                                       'position' => {
                                         'line' => 4,
@@ -46,7 +47,10 @@ describe Solargraph::LanguageServer::Message::TextDocument::Hover do
                                       }
                                     }
                                   })
+    library = host.library_for(file_uri)
+    library.stop
     message.process
+    # keep this from syncing a bunch of bundle gems in background
     expect(message.result[:contents][:value]).to eq("x\n\n`=~ String`")
   end
 end

@@ -9,6 +9,8 @@ module Solargraph
   module Yardoc
     module_function
 
+    # @param metagem [Metagem]
+    # @return [String]
     def path_for metagem
       File.join(CacheDir.yard_dir, "#{metagem.cache_name}.yardoc")
     end
@@ -22,7 +24,12 @@ module Solargraph
       Solargraph.logger.info "Caching yardoc for #{metagem.cache_name}"
       path = path_for(metagem)
       FileUtils.mkdir_p File.dirname(path)
-      cmd = ['yardoc', '--db', path, '--no-output', '--plugin', 'solargraph', '--plugin', 'activesupport-concern']
+      # Resolve the actual executable instead of relying on a bare `yardoc`
+      # being on PATH - it may only exist inside the current bundle's own bin
+      # directory, which a subprocess spawned outside `bundle exec` does not
+      # inherit.
+      cmd = [Gem.bin_path('yard', 'yardoc'), '--db', path, '--no-output',
+             '--plugin', 'solargraph', '--plugin', 'activesupport-concern']
       Solargraph.logger.debug "Running: #{cmd.inspect}"
       output, status = Open3.capture2e(*cmd, chdir: metagem.full_path)
       return if status.success?

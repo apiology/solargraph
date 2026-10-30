@@ -30,6 +30,13 @@ describe Solargraph::Repo do
       meta = repo.find_by_path('backport/machine')
       expect(meta.name).to eq('backport')
     end
+
+    it 'finds loaded gems outside the gems directory by path' do
+      repo = described_class.new(directory)
+      # The spec helper's bundle loads Solargraph from a path source
+      meta = repo.find_by_path('solargraph/version')
+      expect(meta.name).to eq('solargraph')
+    end
   end
 
   context 'with a bundle' do
@@ -69,6 +76,12 @@ describe Solargraph::Repo do
       # nokogiri is a transitive dependency of reverse_markdown
       meta = repo.find_by_name('nokogiri')
       expect(meta.name).to eq('nokogiri')
+    end
+
+    it 'raises TypeError when the bundle reports metagems that are not an array' do
+      status = instance_double(Process::Status, success?: true)
+      allow(Open3).to receive(:capture3).and_return(['{"metagems":{},"groups":{}}', '', status])
+      expect { described_class.new(directory) }.to raise_error(TypeError)
     end
   end
 end

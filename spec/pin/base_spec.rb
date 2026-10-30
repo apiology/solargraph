@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require 'json'
+require 'objspace'
+
 describe Solargraph::Pin::Base do
   let(:zero_location) { Solargraph::Location.new('test.rb', Solargraph::Range.from_to(0, 0, 0, 0)) }
   let(:one_location) { Solargraph::Location.new('test.rb', Solargraph::Range.from_to(0, 0, 1, 0)) }
@@ -54,6 +57,7 @@ describe Solargraph::Pin::Base do
   it 'deals well with known closure combination issue' do
     bench = Solargraph::Bench.new(external_requires: ['yard'])
     api_map = Solargraph::ApiMap.new.catalog(bench)
+    cache_unloaded_gems(api_map, bench)
     pins = api_map.get_method_stack('YARD::Docstring', 'parser', scope: :class)
     # @todo Some environments get more than one pin
     expect(pins.length).to be_positive
@@ -77,16 +81,100 @@ describe Solargraph::Pin::Base do
   describe '#macro_names' do
     it 'returns names' do
       pin = described_class.new(name: 'Example', comments: "@macro addcomment\n@macro returnself")
-      expect(pin.macro_names).to eq(['addcomment', 'returnself'])
+      expect(pin.macro_names).to eq(%w[addcomment returnself])
     end
   end
 
   describe '#nearly?' do
     it 'avoids recursion when two pins have the same closure' do
-      pin1 = Solargraph::Pin::Base.new(name: 'foo')
+      pin1 = described_class.new(name: 'foo')
       pin1.closure = pin1
-      pin2 = Solargraph::Pin::Base.new(name: 'foo', closure: pin1)
+      pin2 = described_class.new(name: 'foo', closure: pin1)
       expect { pin1.nearly?(pin2) }.not_to raise_error
+    end
+  end
+
+  describe '#location!' do
+    it 'returns the location when one is set' do
+      pin = described_class.new(location: zero_location, name: 'Foo', source: :parser)
+      expect(pin.location!).to eq(zero_location)
+    end
+
+    it 'raises when the pin has no location' do
+      pin = described_class.new(name: 'Foo')
+      expect { pin.location! }.to raise_error(RuntimeError, /No location set/)
+    end
+  end
+
+  describe '#closure!' do
+    it 'returns the closure when one is set' do
+      closure = Solargraph::Pin::Namespace.new(name: 'Foo')
+      pin = described_class.new(name: 'bar', closure: closure)
+      expect(pin.closure!).to eq(closure)
+    end
+
+    it 'raises when the pin has no closure' do
+      pin = described_class.new(name: 'bar')
+      expect { pin.closure! }.to raise_error(RuntimeError, /No closure set/)
+    end
+  end
+
+  describe '#preassign_ivars' do
+    let(:mapped_pins) do
+      source = Solargraph::Source.load_string(<<~RUBY, 'shapes.rb')
+        module Outer
+          CONST = 1
+          class Thing
+            include Comparable
+            extend Kernel
+            prepend Comparable
+            # @return [String]
+            attr_reader :label
+            def initialize(a, b = 2, *rest, kw:, kwo: 3, **opts, &blk)
+              @label = a.to_s
+              @@count = 0
+              $registry = self
+              list = [a, b]
+              list.each { |item| item.to_s }
+              while a
+                break
+              end
+              until a
+                break
+              end
+              :done
+            end
+            def run(*); end
+            alias go run
+            class << self
+              def build; end
+            end
+          end
+          module Mod; end
+        end
+      RUBY
+      api_map = Solargraph::ApiMap.new
+      api_map.map(source)
+      map = Solargraph::SourceMap.map(source)
+      pins = map.pins + map.locals
+      pins.each { |pin| pin.typify(api_map) }
+      pins
+    end
+
+    it 'gives every instance of a pin class the same ivars in the same order' do
+      ivars = mapped_pins.group_by(&:class).transform_values do |pins|
+        pins.map(&:instance_variables).uniq
+      end
+
+      expect(ivars.select { |_klass, lists| lists.length > 1 }).to be_empty
+    end
+
+    it 'keeps every pin out of the per-object ivar table Ruby falls back to' do
+      spilled = mapped_pins.select do |pin|
+        JSON.parse(ObjectSpace.dump(pin)).fetch('too_complex_shape', false)
+      end
+
+      expect(spilled.map(&:class).uniq).to be_empty
     end
   end
 end

@@ -49,7 +49,6 @@ module Solargraph
         parameters_type = nil
         unless substring.empty?
           subs = ComplexType.parse(substring[1..-2], partial: true)
-          # @sg-ignore Need to add nil check here
           parameters_type = PARAMETERS_TYPE_BY_STARTING_TAG.fetch(substring[0])
           if parameters_type == :hash
             unless !subs.is_a?(ComplexType) && (subs.length == 2) && !subs[0].is_a?(UniqueType) && !subs[1].is_a?(UniqueType)
@@ -64,13 +63,14 @@ module Solargraph
               raise ComplexTypeError,
                     "Bad hash type: name=#{name}, substring=#{substring} - must have exactly two parameters"
             end
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1223
             key_types.concat(subs[0].map { |u| ComplexType.new([u]) })
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1223
             subtypes.concat(subs[1].map { |u| ComplexType.new([u]) })
           else
             subtypes.concat subs
           end
         end
-        # @sg-ignore Need to add nil check here
         new(name, key_types, subtypes, rooted: rooted, parameters_type: parameters_type)
       end
 
@@ -113,7 +113,7 @@ module Solargraph
       # @return [self]
       def simplify_literals
         transform do |t|
-          next t unless t.literal?
+          next t unless t.simplifyable_literal?
           t.recreate(new_name: t.non_literal_name)
         end
       end
@@ -124,8 +124,15 @@ module Solargraph
       def exclude exclude_types, api_map
         return self if exclude_types.nil?
 
-        types = items - exclude_types.items
-        types = [ComplexType::UniqueType::UNDEFINED] if types.empty?
+        # see ComplexType#exclude: matches by conformance, not equality
+        types = items.reject do |ut|
+          exclude_types.any? { |exclude_type| ut.conforms_to?(api_map, exclude_type, :assignment) }
+        end
+        if types.empty?
+          # Exhausting every excluded type means the code here is unreachable, not
+          # a type error - `bot` keeps calls on it vacuously valid, not unresolved.
+          types = [ComplexType::UniqueType::BOT]
+        end
         ComplexType.new(types)
       end
 
@@ -157,13 +164,17 @@ module Solargraph
       end
 
       def literal?
-        return false
         non_literal_name != name
       end
 
       # @return [String]
       def non_literal_name
         @non_literal_name ||= determine_non_literal_name
+      end
+
+      # @return [self]
+      def non_literal_type
+        recreate(new_name: non_literal_name)
       end
 
       # @return [self]
@@ -193,17 +204,11 @@ module Solargraph
 
       def eql? other
         self.class == other.class &&
-          # @sg-ignore flow sensitive typing should support .class == .class
           @name == other.name &&
-          # @sg-ignore flow sensitive typing should support .class == .class
           @key_types == other.key_types &&
-          # @sg-ignore flow sensitive typing should support .class == .class
           @subtypes == other.subtypes &&
-          # @sg-ignore flow sensitive typing should support .class == .class
           @rooted == other.rooted? &&
-          # @sg-ignore flow sensitive typing should support .class == .class
           @all_params == other.all_params &&
-          # @sg-ignore flow sensitive typing should support .class == .class
           @parameters_type == other.parameters_type
       end
 
@@ -263,6 +268,11 @@ module Solargraph
       # @param variance [:invariant, :covariant, :contravariant]
       def conforms_to? api_map, expected, situation, rules = [],
                        variance: erased_variance(situation)
+        # bot is a subtype of every type - not a leniency knob like
+        # :allow_undefined, but a type-theoretic fact (e.g., the return
+        # type of `raise` or `abort`)
+        return true if bot?
+
         return true if undefined? && rules.include?(:allow_undefined)
 
         # @todo teach this to validate duck types as inferred type
@@ -312,7 +322,6 @@ module Solargraph
         rooted_tags
       end
 
-      # @sg-ignore Need better if/elseanalysis
       # @return [String]
       def to_rbs
         if duck_type?
@@ -322,7 +331,7 @@ module Solargraph
         elsif name.downcase == 'nil'
           'nil'
         elsif name == GENERIC_TAG_NAME
-          all_params.first&.name
+          all_params.first&.name || 'untyped'
         elsif %w[Class Module].include?(name)
           rbs_name
         elsif %w[Tuple Array].include?(name) && fixed_parameters?
@@ -352,7 +361,7 @@ module Solargraph
       # @return [String]
       def rbs_union types
         if types.length == 1
-          types.first.to_rbs
+          types.fetch(0).to_rbs
         else
           "(#{types.map(&:to_rbs).join(' | ')})"
         end
@@ -385,7 +394,6 @@ module Solargraph
 
       # @return [UniqueType]
       def downcast_to_literal_if_possible
-        return self
         SINGLE_SUBTYPE.fetch(rooted_tag, self)
       end
 
@@ -396,11 +404,9 @@ module Solargraph
       def resolve_generics_from_context generics_to_resolve, context_type, resolved_generic_values: {}
         if name == ComplexType::GENERIC_TAG_NAME
           type_param = subtypes.first&.name
-          return self unless generics_to_resolve.include? type_param
-          # @sg-ignore flow sensitive typing needs to eliminate literal from union with [:bar].include?(foo)
+          return self unless type_param && generics_to_resolve.include?(type_param)
           unless context_type.nil? || !resolved_generic_values[type_param].nil?
             new_binding = true
-            # @sg-ignore flow sensitive typing needs to eliminate literal from union with [:bar].include?(foo)
             resolved_generic_values[type_param] = context_type
           end
           if new_binding
@@ -409,7 +415,6 @@ module Solargraph
                                                          resolved_generic_values: resolved_generic_values)
             end
           end
-          # @sg-ignore flow sensitive typing needs to eliminate literal from union with [:bar].include?(foo)
           return resolved_generic_values[type_param] || self
         end
 
@@ -433,6 +438,7 @@ module Solargraph
             context_params = yield context_type if context_type
             if context_params && context_params[i]
               type_arg = context_params[i]
+              # @sg-ignore https://github.com/castwide/solargraph/pull/1258
               type_arg.map do |new_unique_context_type|
                 ut.resolve_generics_from_context generics_to_resolve, new_unique_context_type,
                                                  resolved_generic_values: resolved_generic_values
@@ -449,7 +455,7 @@ module Solargraph
       # parameters used in this type, and return a new type if
       # possible.
       #
-      # @param definitions [Pin::Namespace, Pin::Method] The module/class/method which uses generic types
+      # @param definitions [Pin::Namespace, Pin::Method, nil] The module/class/method which uses generic types
       # @param context_type [ComplexType] The receiver type
       # @return [UniqueType, ComplexType]
       def resolve_generics definitions, context_type
@@ -463,6 +469,7 @@ module Solargraph
             generic_name = t.subtypes.first&.name
             idx = definitions.generics.index(generic_name)
             next t if idx.nil?
+            generic_default = definitions.generic_defaults[generic_name]
             if context_type.parameters_type == :hash
               if idx.zero?
                 next ComplexType.new(context_type.key_types)
@@ -471,10 +478,19 @@ module Solargraph
               else
                 next ComplexType::UNDEFINED
               end
-            # @todo Treating parameterized classes and tuples the same for now
-            # elsif context_type.all?(&:implicit_union?) || true
-            elsif idx.zero? && !context_type.all_params.empty?
-              ComplexType.new(context_type.all_params)
+            elsif context_type.all?(&:implicit_union?) || definitions.generics.length < context_type.all_params.length
+              if idx.zero? && !context_type.all_params.empty?
+                ComplexType.new(context_type.all_params)
+              else
+                ComplexType::UNDEFINED
+              end
+            elsif context_type.all_params[idx]
+              context_type.all_params[idx]
+            elsif generic_default
+              # Tuples declare later positional generics (e.g. C, D, ...) as defaults
+              # in terms of earlier ones (e.g. C = A | B). Resolve those defaults
+              # against the same context instead of returning unresolved placeholders.
+              generic_default.resolve_generics(definitions, context_type)
             else
               ComplexType::UNDEFINED
             end
@@ -516,7 +532,7 @@ module Solargraph
         new_key_types ||= @key_types
         new_subtypes ||= @subtypes
         make_rooted = @rooted if make_rooted.nil?
-        # @sg-ignore flow sensitive typing needs better handling of ||= on lvars
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1338
         UniqueType.new(new_name, new_key_types, new_subtypes, rooted: make_rooted, parameters_type: parameters_type)
       end
 
@@ -560,6 +576,8 @@ module Solargraph
         yield new_type
       end
 
+      # @param named_types [Hash{String => UniqueType}]
+      # @return [UniqueType]
       def expand named_types
         named_types[name] || self
       end
@@ -572,7 +590,7 @@ module Solargraph
       def qualify api_map, *gates
         transform do |t|
           next t if t.name == GENERIC_TAG_NAME
-          next t if t.duck_type? || t.void? || t.undefined? || t.literal?
+          next t if t.duck_type? || t.void? || t.undefined? || t.literal? || t.bot?
           open = t.rooted? ? [''] : gates
           fqns = api_map.qualify(t.non_literal_name, *open)
           if fqns.nil?
@@ -634,6 +652,11 @@ module Solargraph
       end
 
       UNDEFINED = UniqueType.new('undefined', rooted: false)
+      # #eql? and #hash read the raw @rooted ivar, while #rooted?
+      # reports true for any lowercase name regardless of it. rooted:
+      # true is therefore required for BOT to compare equal to - and
+      # hash alongside - ComplexType::BOT.first.
+      BOT = UniqueType.new('bot', rooted: true)
       BOOLEAN = UniqueType.new('Boolean', rooted: true)
       TRUE = UniqueType.new('true', rooted: true)
       FALSE = UniqueType.new('false', rooted: true)
