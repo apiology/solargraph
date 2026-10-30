@@ -114,6 +114,7 @@ module Solargraph
       # @todo 1: flow sensitive typing needs to handle constants
       # @todo 1: flow sensitive typing needs to eliminate literal from union with return if foo == :bar
       # @todo 1: Array#flatten returns a bare Array
+      # @todo 1: flat_map over a block returning bare Array infers Array<Array>
       def require_all_unique_types_match_expected?
         report?(:require_all_unique_types_match_expected, :strong)
       end

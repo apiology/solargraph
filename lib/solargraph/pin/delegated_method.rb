@@ -91,7 +91,7 @@ module Solargraph
         end
 
         # @sg-ignore Need to add nil check here
-        receiver_type = resolver.return_type
+        receiver_type = @receiver_chain.infer(api_map, self, [])
 
         # @sg-ignore Need to add nil check here
         return if receiver_type.undefined?
@@ -110,7 +110,8 @@ module Solargraph
 
         # @sg-ignore Need to add nil check here
         method_stack = api_map.get_method_stack(receiver_path, @receiver_method_name, scope: method_scope)
-        @resolved_method = method_stack.first
+        # A receiver of this pin's own class can delegate back to this pin
+        @resolved_method = method_stack.first unless method_stack.first.equal?(self)
       end
 
       # helper to print a source chain as code, probably not 100% correct.
