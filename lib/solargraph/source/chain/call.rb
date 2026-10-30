@@ -257,7 +257,6 @@ module Solargraph
                               # @sg-ignore https://github.com/castwide/solargraph/pull/1338
                               new_signature_pin.return_type
                             else
-                              # @sg-ignore Found after #1418 merged
                               named_types = pin.parameter_names.zip(arguments.map { |arg| ComplexType.try_parse(simple_convert(arg.node).to_s) }).to_h
                               pin.typify(api_map).expand(named_types)
                             end
@@ -578,6 +577,13 @@ module Solargraph
           block_symbol_call_path = "#{block_parameter_types.first}##{block_symbol_name}"
           callee = api_map.get_path_pins(block_symbol_call_path).first
           return_type = callee&.return_type
+          receiver_type = block_parameter_types.first
+          if block_symbol_name && receiver_type && callee && return_type&.undefined?
+            # Infer through a chain, which guards against the callee's
+            # own inference reaching this block again
+            receiver = Pin::ProxyType.anonymous(receiver_type, source: :chain)
+            return_type = Chain.new([Call.new(block_symbol_name)]).infer(api_map, receiver, [])
+          end
           # @todo: Figure out why we get unresolved generics at
           #   this point and need to assume method return types
           #   based on the generic type

@@ -1306,4 +1306,48 @@ describe Solargraph::Source::Chain::Call do
       end
     end
   end
+
+  it 'infers a symbol block calling a method with an undeclared return type' do
+    source = Solargraph::Source.load_string(%(
+      class Box
+        # @param items [Array<String>]
+        def initialize items
+          @items = items
+        end
+
+        attr_reader :items
+      end
+
+      # @type [Array<Box>]
+      boxes = []
+      all = boxes.flat_map(&:items)
+      all
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+
+    clip = api_map.clip_at('test.rb', [13, 6])
+    expect(clip.infer.rooted_tags).to eq('::Array<::String>')
+  end
+
+  it 'stops inferring a symbol block that calls the method being inferred' do
+    source = Solargraph::Source.load_string(%(
+      class Node
+        # @param children [Array<Node>]
+        def initialize children
+          @children = children
+          @leaves = children.flat_map(&:leaves)
+        end
+
+        attr_reader :leaves
+      end
+
+      Node.new([]).leaves
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+
+    clip = api_map.clip_at('test.rb', [11, 20])
+    expect { clip.infer }.not_to raise_error
+  end
 end
