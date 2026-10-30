@@ -12,13 +12,18 @@ module Solargraph
       # @return [Array<String>]
       attr_reader :gem_names
 
+      # @return [Array<Pin::Base>] pins from gems and stdlib
+      attr_reader :external_pins
+
       # @param source_maps [Enumerable<SourceMap>]
       # @param live_map [SourceMap, nil]
       # @param gem_names [Array<String>]
-      def initialize source_maps: [], live_map: nil, gem_names: []
+      # @param external_pins [Array<Pin::Base>]
+      def initialize source_maps: [], live_map: nil, gem_names: [], external_pins: []
         @source_maps = source_maps
         @live_map = live_map
         @gem_names = gem_names
+        @external_pins = external_pins
       end
 
       # @return [Array<Pin::Base>]

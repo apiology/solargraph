@@ -112,7 +112,8 @@ module Solargraph
       external_changed = external.update(requires, external.extra_gem_names.dup)
       addon = Plugin::Addon.new
       Plugin.registry.each do |plugin|
-        panel ||= Plugin::Panel.new(source_maps: bench.source_maps, live_map: bench.live_map, gem_names: external.configured_gem_names | bench.workspace.available_gem_names)
+        panel ||= Plugin::Panel.new(source_maps: bench.source_maps, live_map: bench.live_map, gem_names: external.configured_gem_names | bench.workspace.available_gem_names,
+                                    external_pins: external.pins)
         added = plugin.new(panel).addon
         addon.gem_names.concat added.gem_names
         addon.pins.concat added.pins
