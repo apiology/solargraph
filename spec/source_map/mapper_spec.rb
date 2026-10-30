@@ -255,6 +255,29 @@ describe Solargraph::SourceMap::Mapper do
     expect(method3.visibility).to be(:public)
   end
 
+  it 'limits class-wide visibility directives to the following methods of their class' do
+    map = Solargraph::SourceMap.load_string(%(
+      class Example
+        def before; end
+
+        # @!visibility private
+
+        def after; end
+
+        def self.class_method; end
+      end
+
+      class Other
+        def other; end
+      end
+    ))
+    expect(map.first_pin('Example#before').visibility).to be(:public)
+    expect(map.first_pin('Example#after').visibility).to be(:private)
+    expect(map.first_pin('Example.class_method').visibility).to be(:public)
+    expect(map.first_pin('Other#other').visibility).to be(:public)
+    expect(map.first_pin('Other').visibility).to be(:public)
+  end
+
   it 'processes attribute directives at class endings' do
     map = Solargraph::SourceMap.load_string(%(
       class Foo
