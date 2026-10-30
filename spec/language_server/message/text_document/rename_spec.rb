@@ -6,19 +6,14 @@ describe Solargraph::LanguageServer::Message::TextDocument::Rename do
     'file:///file.rb'
   end
 
-  # Host#open catalogues in the background, and no library predicate reports
-  # on an attached, non-workspace source, so there is nothing to await.
-  # Rename#process is synchronous, so re-run it until the catalog catches up.
-  def process_until_changes rename, url, timeout: 20
-    deadline = Time.now + timeout
-    loop do
-      rename.process
-      changes = rename.result[:changes][url]
-      return changes if changes && !changes.empty?
-      raise "Timed out waiting for rename result: #{rename.result.inspect}" if Time.now > deadline
+  # Rename#process catalogs the library before it searches, so one call
+  # gives the final answer; show the whole result when the file is missing.
+  def process_changes rename, url
+    rename.process
+    changes = rename.result[:changes][url]
+    raise "No rename changes for #{url}: #{rename.result.inspect}" unless changes
 
-      sleep 0.1
-    end
+    changes
   end
 
   it 'renames a symbol' do
@@ -46,7 +41,7 @@ describe Solargraph::LanguageServer::Message::TextDocument::Rename do
     # keep this from syncing a bunch of bundle gems in background
     library = host.library_for(temp_file_url)
     library.stop
-    changes = process_until_changes(rename, temp_file_url)
+    changes = process_changes(rename, temp_file_url)
     expect(changes.length).to eq(2)
   ensure
     host.fully_stop
@@ -81,7 +76,7 @@ describe Solargraph::LanguageServer::Message::TextDocument::Rename do
     # keep this from syncing a bunch of bundle gems in background
     library = host.library_for(temp_file_url)
     library.stop
-    changes = process_until_changes(rename, temp_file_url)
+    changes = process_changes(rename, temp_file_url)
     expect(changes.length).to eq(3)
   ensure
     host.fully_stop
@@ -113,7 +108,7 @@ describe Solargraph::LanguageServer::Message::TextDocument::Rename do
     # keep this from syncing a bunch of bundle gems in background
     library = host.library_for(temp_file_url)
     library.stop
-    changes = process_until_changes(rename, temp_file_url)
+    changes = process_changes(rename, temp_file_url)
     expect(changes.length).to eq(3)
     expect(changes.first[:range][:start][:character]).to eq(13)
     expect(changes.first[:range][:end][:character]).to eq(22)
