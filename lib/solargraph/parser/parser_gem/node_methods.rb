@@ -131,7 +131,7 @@ module Solargraph
         end
 
         # Convert a DSL method call argument with directly inferrable simple params.
-        # @param node [Parser::AST::Node]
+        # @param node [Parser::AST::Node, nil]
         # @return [String, Integer, Float, Symbol, Parser::AST::Node, Array, Hash, Source::Chain, nil]
         def simple_convert node
           return nil unless node.is_a?(::Parser::AST::Node)
@@ -247,7 +247,7 @@ module Solargraph
           node in [_, ::Parser::AST::Node[:kwsplat, *], *]
         end
 
-        # @param node [Parser::AST::Node]
+        # @param node [Parser::AST::Node, nil]
         def splatted_call? node
           # **splatted as the first child, unless splatted is a hash literal
           return false unless node in ::Parser::AST::Node[_, ::Parser::AST::Node[:kwsplat, ::Parser::AST::Node => splatted, *], *]
@@ -255,7 +255,7 @@ module Solargraph
           splatted.type != :hash
         end
 
-        # @param nodes [Enumerable<Parser::AST::Node>]
+        # @param nodes [Enumerable<Parser::AST::Node, nil>]
         def any_splatted_call? nodes
           nodes.any? { |n| splatted_call?(n) }
         end
@@ -263,7 +263,7 @@ module Solargraph
         # Anonymous `*`, `**` and `...` arguments pass on whatever the
         # enclosing method received, so neither count nor types are known.
         #
-        # @param nodes [Enumerable<Parser::AST::Node>]
+        # @param nodes [Enumerable<Parser::AST::Node, nil>]
         def any_forwarded_args? nodes
           nodes.any? do |n|
             next false unless n.is_a?(::Parser::AST::Node)
