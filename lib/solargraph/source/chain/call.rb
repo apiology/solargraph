@@ -138,7 +138,7 @@ module Solargraph
 
           start_node = node.children[0]
           return true if start_node.nil?
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1416
+          # @sg-ignore Unresolved call to type
           return false unless start_node.type == :int
 
           # @sg-ignore Parser::AST::Node#children is declared Array<Node>, but an :int node's child is a literal Integer

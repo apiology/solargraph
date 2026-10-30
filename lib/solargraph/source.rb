@@ -310,7 +310,6 @@ module Solargraph
         end
       end
       top.children.each do |child|
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1416
         inner_folding_ranges(child, result, top.type)
       end
     end
@@ -390,7 +389,6 @@ module Solargraph
         if %i[str dstr STR DSTR].include?(n.type)
           result.push n
         else
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1416
           n.children.each { |c| result.concat string_nodes_in(c) }
         end
       end
