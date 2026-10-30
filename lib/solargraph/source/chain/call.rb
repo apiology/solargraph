@@ -377,7 +377,7 @@ module Solargraph
         def super_pins api_map, name_pin
           method_pin = find_method_pin(name_pin)
           return [] if method_pin.nil?
-          pins = api_map.get_method_stack(method_pin.namespace, method_pin.name, scope: method_pin.context.scope)
+          pins = api_map.get_method_stack(method_pin.namespace, method_pin.name, scope: method_pin.scope)
           pins.reject { |p| p.path == name_pin.path }
         end
 
