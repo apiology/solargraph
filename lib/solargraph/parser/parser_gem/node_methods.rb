@@ -733,6 +733,10 @@ module Solargraph
                   node => [_, ::Parser::AST::Node | nil => body, ::Parser::AST::Node => first_resbody, *]
                   result.concat reduce_to_value_nodes([body, first_resbody])
                 elsif node.type == :block
+                  # the block itself is a first class value that could be returned
+                  result.push node
+                  # a return inside the block returns from the enclosing method,
+                  # so those values are possible here as well
                   body = (node in [_, _, _, ::Parser::AST::Node | nil => block_body, *]) ? block_body : nil
                   result.concat explicit_return_values_from_compound_statement(body) unless body.nil?
                 elsif node.type == :resbody

@@ -46,14 +46,13 @@ module Solargraph
                     else
                       pins.find { |iv| iv.location == location && iv.is_a?(Pin::BaseVariable) }
                     end
-              # @todo in line below, nothing in typechecking alerts
-              #   when a non-existant method is called on 'l'
               if pin.nil?
                 Solargraph.logger.debug do
                   "Could not find local for masgn= value in location #{location.inspect} in #{lhs_arr} - masgn = #{masgn}, lhs.type = #{lhs.type}"
                 end
                 next
               end
+              # @sg-ignore Need a downcast here
               pin.mass_assignment = [mass_rhs, index]
             end
           end
