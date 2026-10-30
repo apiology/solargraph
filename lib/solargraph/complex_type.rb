@@ -501,12 +501,10 @@ module Solargraph
 
     attr_reader :items
 
-    # @param exclude_types [ComplexType, nil]
+    # @param exclude_types [ComplexType]
     # @param api_map [ApiMap]
     # @return [ComplexType, self]
     def exclude exclude_types, api_map
-      return self if exclude_types.nil?
-
       types = items - exclude_types.items
       types = [ComplexType::UniqueType::UNDEFINED] if types.empty?
       ComplexType.new(types)
@@ -514,11 +512,10 @@ module Solargraph
 
     # @see https://en.wikipedia.org/wiki/Intersection_type
     #
-    # @param intersection_type [ComplexType, ComplexType::UniqueType, nil]
+    # @param intersection_type [ComplexType]
     # @param api_map [ApiMap]
-    # @return [self, ComplexType::UniqueType]
+    # @return [self, ComplexType]
     def intersect_with intersection_type, api_map
-      return self if intersection_type.nil?
       return intersection_type if undefined?
       types = []
       # try to find common types via conformance

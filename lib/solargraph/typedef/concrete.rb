@@ -166,6 +166,10 @@ module Solargraph
         "#{base}#{params_to_s}"
       end
 
+      def to_typedef_typeset
+        self
+      end
+
       def to_complex_type
         if params.empty?
           ComplexType.try_parse(base.to_s_for_complex_type)
