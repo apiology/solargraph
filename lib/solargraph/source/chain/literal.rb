@@ -8,8 +8,7 @@ module Solargraph
       class Literal < Link
         attr_reader :word
 
-        # @return [::String, ::Symbol, ::Boolean]
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1240
+        # @return [::Integer, ::String, ::Symbol, ::Boolean, nil]
         attr_reader :value
 
         # @return [Parser::AST::Node]
@@ -26,7 +25,7 @@ module Solargraph
               @value = true
             elsif node.type == :false
               @value = false
-            elsif node in [:int | :sym, Integer | Symbol => value, *]
+            elsif node in [:int | :sym | :str, Integer | Symbol | String => value, *]
               @value = value
             end
           end
