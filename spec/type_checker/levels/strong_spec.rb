@@ -1633,5 +1633,30 @@ describe Solargraph::TypeChecker do
       ))
       expect(checker.problems.map(&:message)).to be_empty
     end
+
+    it 'reports nil on a local reassigned from itself in a conditional' do
+      pending('https://github.com/apiology/solargraph/pull/468')
+
+      checker = type_checker(%(
+        class Foo
+          # @return [Foo, nil]
+          def parent; end
+
+          # @return [void]
+          def bar; end
+
+          # @param flag [Boolean]
+          # @return [void]
+          def run flag
+            f = Foo.new
+            if flag
+              f = f.parent
+            end
+            f.bar
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq(['Unresolved call to bar'])
+    end
   end
 end
