@@ -1025,4 +1025,101 @@ describe Solargraph::Parser::FlowSensitiveTyping do
     clip = api_map.clip_at('test.rb', [13, 12])
     expect(clip.infer.to_s).to eq('ReproBase')
   end
+
+  it 'uses the innermost is_a? when nested ifs narrow the same variable' do
+    source = Solargraph::Source.load_string(%(
+      class ReproBase; end
+      class ReproMid < ReproBase; end
+      class ReproSub < ReproMid; end
+      # @param repr [ReproBase]
+      def verify_repro(repr)
+        if repr.is_a?(ReproMid)
+          if repr.is_a?(ReproSub)
+            repr
+          else
+            repr
+          end
+          repr
+        else
+          repr
+        end
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [8, 12])
+    expect(clip.infer.to_s).to eq('ReproSub')
+
+    clip = api_map.clip_at('test.rb', [10, 12])
+    expect(clip.infer.to_s).to eq('ReproMid')
+
+    clip = api_map.clip_at('test.rb', [12, 10])
+    expect(clip.infer.to_s).to eq('ReproMid')
+
+    clip = api_map.clip_at('test.rb', [14, 10])
+    expect(clip.infer.to_s).to eq('ReproBase')
+  end
+
+  it 'keeps the narrower type when an inner is_a? names a superclass' do
+    source = Solargraph::Source.load_string(%(
+      class ReproBase; end
+      class ReproMid < ReproBase; end
+      class ReproSub < ReproMid; end
+      # @param repr [ReproBase]
+      def verify_repro(repr)
+        if repr.is_a?(ReproSub)
+          if repr.is_a?(ReproMid)
+            repr
+          end
+        end
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [8, 12])
+    expect(clip.infer.to_s).to eq('ReproSub')
+  end
+
+  it 'combines is_a? checks on the same variable joined by &&' do
+    source = Solargraph::Source.load_string(%(
+      class ReproBase; end
+      class ReproMid < ReproBase; end
+      class ReproSub < ReproMid; end
+      # @param repr [ReproBase]
+      def verify_repro(repr)
+        if repr.is_a?(ReproMid) && repr.is_a?(ReproSub)
+          repr
+        else
+          repr
+        end
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [7, 10])
+    expect(clip.infer.to_s).to eq('ReproSub')
+
+    clip = api_map.clip_at('test.rb', [9, 10])
+    expect(clip.infer.to_s).to eq('ReproBase')
+  end
+
+  it 'does not carry a nested is_a? into a sibling elsif' do
+    source = Solargraph::Source.load_string(%(
+      class ReproBase; end
+      class ReproMid < ReproBase; end
+      class ReproSub < ReproMid; end
+      class ReproOther < ReproBase; end
+      # @param repr [ReproBase]
+      def verify_repro(repr)
+        if repr.is_a?(ReproMid)
+          repr if repr.is_a?(ReproSub)
+        elsif repr.is_a?(ReproOther)
+          repr
+        end
+      end
+  ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [8, 10])
+    expect(clip.infer.to_s).to eq('ReproSub')
+
+    clip = api_map.clip_at('test.rb', [10, 10])
+    expect(clip.infer.to_s).to eq('ReproOther')
+  end
 end
