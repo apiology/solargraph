@@ -357,6 +357,71 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.first.message).to include('Unresolved type UndefinedClass')
     end
 
+    it 'reports undefined types in param tag type parameters' do
+      checker = type_checker(%(
+        # @param bar [Array<UndefinedClass>]
+        # @param baz [Hash{UndefinedKey => String}]
+        def foo(bar, baz)
+        end
+      ))
+      expect(checker.problems.map(&:message))
+        .to eq(['Unresolved type Array<UndefinedClass> for bar param on #foo',
+                'Unresolved type Hash{UndefinedKey => String} for baz param on #foo'])
+    end
+
+    it 'reports undefined types in return tag type parameters' do
+      checker = type_checker(%(
+        # @return [Array<String, UndefinedClass>]
+        def foo
+          []
+        end
+      ))
+      expect(checker.problems.map(&:message))
+        .to eq(['Unresolved return type Array<String, UndefinedClass> for #foo'])
+    end
+
+    it 'reports malformed tuple syntax in return tags' do
+      checker = type_checker(%(
+        # @return [Array([String, nil], [String, nil])]
+        def foo
+          ['a', 'b']
+        end
+      ))
+      expect(checker.problems.map(&:message))
+        .to eq(['Unresolved return type Array([String, nil], [String, nil]) for #foo'])
+    end
+
+    it 'reports undefined types in variable tag type parameters' do
+      checker = type_checker(%(
+        # @type [Array<UndefinedClass>]
+        foo = []
+      ))
+      expect(checker.problems.map(&:message))
+        .to eq(['Unresolved type Array<UndefinedClass> for variable foo'])
+    end
+
+    it 'accepts resolvable and special types in tag type parameters' do
+      checker = type_checker(%(
+        # @generic T
+        class Foo
+          # @param bar [Array<String, nil>]
+          # @param baz [Hash{Symbol => undefined}]
+          # @param quux [Array<#to_s, :sym, Boolean, generic<T>>]
+          # @return [Array<self>]
+          def foo(bar, baz, quux)
+            [self]
+          end
+
+          # @param value [generic<T>]
+          # @return [generic<T>]
+          def same(value)
+            value
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
     it 'validates included modules in types' do
       checker = type_checker(%(
         module Interface

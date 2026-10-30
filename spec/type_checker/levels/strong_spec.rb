@@ -626,7 +626,7 @@ describe Solargraph::TypeChecker do
           end
         end
       ))
-      expect(checker.problems.map(&:message)).to be_empty
+      expect(checker.problems.map(&:message)).to eq(['Unresolved type Array<undefind> for bing param on Foo#baz'])
     end
 
     it 'ignores generic resolution failure with no generic tag' do
