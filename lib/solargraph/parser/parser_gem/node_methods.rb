@@ -54,12 +54,14 @@ module Solargraph
           when :nil
             'nil'
           when :const_pattern, :match_as
-            node => [_, ::Parser::AST::Node => inner, *]
-            pattern_type_name(inner)
+            inner = node.children.fetch(0)
+            pattern_type_name(inner) if inner.is_a?(::Parser::AST::Node)
           when :match_alt
-            # @type [Array<Parser::AST::Node>]
-            alternatives = node.children
-            names = alternatives.map { |alternative| pattern_type_name(alternative) }
+            names = node.children.map do |alternative|
+              next nil unless alternative.is_a?(::Parser::AST::Node)
+
+              pattern_type_name(alternative)
+            end
             names.join(', ') unless names.include?(nil)
           end
         end
@@ -620,12 +622,12 @@ module Solargraph
             # @return [Array<Parser::AST::Node>]
             def from_case_match node
               # No else adds no nil: an unmatched case/in raises NoMatchingPatternError
-              # @type [Array<Parser::AST::Node>]
               clauses = node.children.drop(1).compact
               clauses.flat_map do |clause|
-                body = clause
-                clause => [:in_pattern, _, _, ::Parser::AST::Node | nil => body] if clause.type == :in_pattern
-                next [NIL_NODE] if body.nil? || body.type == :empty_else
+                next [] unless clause.is_a?(::Parser::AST::Node)
+
+                body = clause.type == :in_pattern ? clause.children[2] : clause
+                next [NIL_NODE] unless body.is_a?(::Parser::AST::Node) && body.type != :empty_else
 
                 reduce_to_value_nodes([body])
               end
