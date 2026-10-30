@@ -203,11 +203,9 @@ module Solargraph
     # @param filename [String, nil]
     # @param position [Position, Array(Integer, Integer)]
     # @return [Source::Cursor]
-    # @sg-ignore https://github.com/castwide/solargraph/pull/1417
     def cursor_at filename, position
       position = Position.normalize(position)
       raise FileNotFoundError, "File not found: #{filename}" unless source_map_hash.key?(filename)
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1417
       source_map_hash[filename].cursor_at(position)
     end
 
@@ -677,7 +675,6 @@ module Solargraph
     # @return [Array<Solargraph::Pin::Base>]
     def locate_pins location
       return [] if location.nil? || !source_map_hash.key?(location.filename)
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1417
       resolve_method_aliases source_map_hash[location.filename].locate_pins(location)
     end
 
@@ -696,7 +693,6 @@ module Solargraph
     # @return [Array<Pin::Symbol>]
     def document_symbols filename
       return [] unless source_map_hash.key?(filename) # @todo Raise error?
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1417
       resolve_method_aliases source_map_hash[filename].document_symbols
     end
 
@@ -709,7 +705,6 @@ module Solargraph
     #
     # @param filename [String, nil]
     # @return [SourceMap]
-    # @sg-ignore https://github.com/castwide/solargraph/pull/1417
     def source_map filename
       raise FileNotFoundError, "Source map for `#{filename}` not found" unless source_map_hash.key?(filename)
       source_map_hash[filename]

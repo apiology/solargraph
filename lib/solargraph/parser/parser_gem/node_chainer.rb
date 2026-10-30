@@ -66,10 +66,9 @@ module Solargraph
           case n
           in [:block, ::Parser::AST::Node => call, *]
             result.concat NodeChainer.chain(call, @filename, n).links
-          in [:send, ::Parser::AST::Node => receiver, Symbol => method_name, *]
+          in [:send, ::Parser::AST::Node => receiver, Symbol, *]
             result.concat generate_links(receiver)
-            result.push Chain::Call.new(method_name.to_s, Location.from_node(n), node_args(n), passed_block(n),
-                                        assignment: assignment_syntax?(n))
+            result.push receiver_call(n)
           in [:send, nil, Symbol => method_name, *args]
             args.map do |c|
               NodeChainer.chain(c, @filename, n)
@@ -264,6 +263,19 @@ module Solargraph
 
           # an empty block still passes a block, so it gets an empty chain, not nil
           body ? NodeChainer.chain(body, @filename) : Chain.new([])
+        end
+
+        # @param node [Parser::AST::Node] a :send with a receiver
+        # @return [Chain::Call]
+        def receiver_call node
+          location = Location.from_node(node)
+          # 'h[k]', which a Pin::KeyLookup can prove present
+          if node.children[1] == :[] && node.children.length == 3
+            return Chain::Index.new(node.children[0], node.children[2], location, node_args(node), passed_block(node))
+          end
+
+          Chain::Call.new(node.children[1].to_s, location, node_args(node), passed_block(node),
+                          assignment: assignment_syntax?(node))
         end
 
         # @param node [Parser::AST::Node]

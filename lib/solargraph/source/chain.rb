@@ -20,6 +20,7 @@ module Solargraph
       autoload :Link,             'solargraph/source/chain/link'
       autoload :Call,             'solargraph/source/chain/call'
       autoload :QCall,            'solargraph/source/chain/q_call'
+      autoload :Index,            'solargraph/source/chain/index'
       autoload :Variable,         'solargraph/source/chain/variable'
       autoload :ClassVariable,    'solargraph/source/chain/class_variable'
       autoload :Constant,         'solargraph/source/chain/constant'
@@ -113,6 +114,7 @@ module Solargraph
         links[0..-2].each do |link|
           pins = link.resolve(api_map, working_pin, locals)
           type = infer_from_definitions(pins, working_pin, api_map, locals)
+          type = type.without_nil if key_present?(link, api_map, name_pin, working_pin, locals)
           if type.undefined?
             logger.debug do
               "Chain#define(links=#{links.map(&:desc)}, name_pin=#{name_pin.inspect}, locals=#{locals}) => [] - undefined type from #{link.desc}"
@@ -171,7 +173,11 @@ module Solargraph
         value = assigned_value
         return maybe_nil(value.infer(api_map, name_pin, locals), api_map) if value
 
-        type = infer_from_definitions(pins, links.fetch(-1).last_context, api_map, locals)
+        last_context = links.fetch(-1).last_context
+        type = infer_from_definitions(pins, last_context, api_map, locals)
+        # @sg-ignore https://github.com/apiology/solargraph/pull/286
+        #   also covers: Unresolved call to without_nil on Solargraph::ComplexType, Solargraph::ComplexType::UniqueType
+        type = type.without_nil if key_present?(links.fetch(-1), api_map, name_pin, last_context, locals)
         out = maybe_nil(type, api_map)
         logger.debug do
           "Chain#infer_uncached(links=#{links.map(&:desc)}, locals=#{locals.map(&:desc)}, " \
@@ -361,6 +367,17 @@ module Solargraph
           return type
         end
         type.self_to_type(name_pin.context)
+      end
+
+      # @param link [Chain::Link]
+      # @param api_map [ApiMap]
+      # @param name_pin [Pin::Base]
+      # @param working_pin [Pin::Base] its binder is the receiver's type
+      # @param locals [::Array<Pin::LocalVariable, Pin::KeyLookup>]
+      # @return [Boolean] true if `link` is an 'h[k]' lookup that a
+      #   Pin::KeyLookup in `locals` proves present
+      def key_present? link, api_map, name_pin, working_pin, locals
+        link.is_a?(Chain::Index) && link.present?(api_map, name_pin, working_pin.binder, locals)
       end
 
       # @param type [ComplexType]
