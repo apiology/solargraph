@@ -3,6 +3,13 @@
 require 'timeout'
 
 describe Solargraph::LanguageServer::Message::TextDocument::TypeDefinition do
+  around do |testobj|
+    # we need a consistent directory
+    Solargraph::CHDIR_MUTEX.synchronize do
+      testobj.run
+    end
+  end
+
   it 'finds definitions of methods' do
     host = Solargraph::LanguageServer::Host.new
     host.prepare('spec/fixtures/workspace')
@@ -25,5 +32,7 @@ describe Solargraph::LanguageServer::Message::TextDocument::TypeDefinition do
                                   })
     message.process
     expect(message.result.first[:uri]).to eq(something_uri)
+  ensure
+    host&.fully_stop
   end
 end
