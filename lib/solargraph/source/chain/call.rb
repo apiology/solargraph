@@ -433,7 +433,7 @@ module Solargraph
           pins = api_map.get_method_stack(method_pin.namespace, method_pin.name, scope: method_pin.context.scope)
           # super dispatches to exactly one method - the nearest ancestor
           # pin, not every ancestor that happens to share the name.
-          pins.reject { |p| p.path == name_pin.path }.first(1)
+          pins.reject { |p| p.path == method_pin.path }.first(1)
         end
 
         # Pins for `super(...)` with explicit arguments. Outside a def,
