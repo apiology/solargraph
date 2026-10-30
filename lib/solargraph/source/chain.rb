@@ -40,7 +40,8 @@ module Solargraph
       @@inference_depth = 0
       @@inference_invalidation_key = nil
       @@inference_cache = {}
-      # Counts pins skipped by the recursion guards in infer_from_definitions
+      # Counts pins skipped by the pin.identity recursion guard in
+      # infer_from_definitions
       @@inference_guard_skips = 0
 
       UNDEFINED_CALL = Chain::Call.new('<undefined>', nil)
@@ -278,10 +279,7 @@ module Solargraph
         # @param pin [Pin::Base]
         pins.each do |pin|
           # Avoid infinite recursion
-          if @@inference_stack.include?(pin)
-            @@inference_guard_skips += 1
-            next
-          end
+          next if @@inference_stack.include?(pin)
 
           @@inference_stack.push pin
           type = pin.typify(api_map)
