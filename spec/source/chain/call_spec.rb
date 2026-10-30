@@ -892,4 +892,38 @@ describe Solargraph::Source::Chain::Call do
     clip = api_map.clip_at('test.rb', [14, 14])
     expect(clip.infer.rooted_tags).to eq('::Set<::Foo::Bar::Symbol>')
   end
+
+  context 'when flat_map block returns an array' do
+    let(:api_map) do
+      source = Solargraph::Source.load_string(%(
+        # @return [Array]
+        def bare = []
+        # @return [Array<String>]
+        def strs = []
+        # @return [String]
+        def str = ''
+        bare_result = [1].flat_map { bare }
+        strs_result = [1].flat_map { strs }
+        str_result = [1].flat_map { str }
+        bare_result
+        strs_result
+        str_result
+      ), 'test.rb')
+      api_map = Solargraph::ApiMap.new
+      api_map.map source
+      api_map
+    end
+
+    it 'leaves the element undefined for a bare Array' do
+      expect(api_map.clip_at('test.rb', [10, 8]).infer.rooted_tags).to eq('::Array')
+    end
+
+    it 'uses the element type of a parameterized Array' do
+      expect(api_map.clip_at('test.rb', [11, 8]).infer.rooted_tags).to eq('::Array<::String>')
+    end
+
+    it 'uses a non-array block result as the element type' do
+      expect(api_map.clip_at('test.rb', [12, 8]).infer.rooted_tags).to eq('::Array<::String>')
+    end
+  end
 end
