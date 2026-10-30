@@ -122,6 +122,13 @@ describe Solargraph::Typedef::Union do
     end
   end
 
+  describe '#to_typedef_typeset' do
+    it 'returns itself, already being a Typedef type' do
+      typeset = Solargraph::ComplexType.parse('String, Integer').to_typedef_typeset
+      expect(typeset.to_typedef_typeset).to be(typeset)
+    end
+  end
+
   describe '#nullable?' do
     it 'returns true with a nil return type' do
       complex_type = Solargraph::ComplexType.parse('String, nil')
