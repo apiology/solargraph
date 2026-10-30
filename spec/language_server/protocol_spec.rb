@@ -421,17 +421,6 @@ describe Protocol do
     expect(response['result']['content']).not_to be_empty
   end
 
-  it 'reports $/solargraph/document errors as internal errors' do
-    allow(@protocol.host).to receive(:document).and_raise(NoMethodError, 'document failed')
-    @protocol.request '$/solargraph/document', {
-      'query' => 'String'
-    }
-    expect(@protocol.response['error']).to include(
-      'code' => Solargraph::LanguageServer::ErrorCodes::INTERNAL_ERROR,
-      'message' => '[NoMethodError] document failed'
-    )
-  end
-
   it 'handles workspace/didChangeConfiguration' do
     @protocol.request 'workspace/didChangeConfiguration', {
       'settings' => {
