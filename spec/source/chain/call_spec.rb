@@ -111,6 +111,27 @@ describe Solargraph::Source::Chain::Call do
     expect(type.tag).to eq('String')
   end
 
+  it 'keeps the method pin when a directive names a macro for its type' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @!macro [new] baz
+        #   @return [$1]
+        def self.qux(klass); end
+      end
+      class Bar
+        # @!attribute [r] baz
+        def baz(klass); end
+      end
+      Bar.new.baz(String)
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map(source)
+    chain = Solargraph::Source::SourceChainer.chain(source, Solargraph::Position.new(10, 15))
+    pins = chain.define(api_map, Solargraph::Pin::ROOT_PIN, [])
+    expect(pins.map(&:class)).to eq([Solargraph::Pin::Method])
+    expect(pins.first.return_type.tag).to eq('String')
+  end
+
   it 'infers generic types from Array#reverse' do
     source = Solargraph::Source.load_string(%(
       # @type [Array<String>]
