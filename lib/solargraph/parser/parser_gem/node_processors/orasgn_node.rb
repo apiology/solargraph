@@ -23,7 +23,18 @@ module Solargraph
             end
 
             new_node = node.updated(target_type, target_children + [value])
-            NodeProcessor.process(new_node, region, pins, locals, ivars)
+            # `x ||= y` assigns only when x is falsy, so it never overrides
+            # x's prior type.
+            asgn_cs = Solargraph::Pin::CompoundStatement.new(
+              location: get_node_location(node),
+              closure: region.closure,
+              compound_statement: region.compound_statement,
+              conditional: true,
+              node: node,
+              source: :parser
+            )
+            pins.push asgn_cs
+            NodeProcessor.process(new_node, region.update(compound_statement: asgn_cs), pins, locals, ivars)
           end
         end
       end
