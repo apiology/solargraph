@@ -21,14 +21,13 @@ module Solargraph
                                     ivars,
                                     enclosing_breakable_pin,
                                     enclosing_compound_statement_pin).process_case_match(node)
-            node => [_, ::Parser::AST::Node => subject, *]
+            subject = node.children.fetch(0)
             NodeProcessor.process(subject, region, pins, locals, ivars)
-            unless node.type == :case_match
-              node => [_, _, ::Parser::AST::Node => pattern]
-              return add_captures(pattern, subject)
-            end
+            # Only `subject => pattern` raises instead of failing, so
+            # only its captures are always bound
+            @nilable = node.type != :match_pattern
+            return add_captures(node.children.fetch(1), subject) unless node.type == :case_match
 
-            # @type [Array<Parser::AST::Node>]
             clauses = node.children.drop(1).compact
             clauses.each do |clause|
               next process_body(clause) unless clause.type == :in_pattern
@@ -83,12 +82,18 @@ module Solargraph
           # @param subject [Parser::AST::Node, nil]
           # @return [void]
           def add_as_capture pattern, subject
-            pattern => [:match_as, ::Parser::AST::Node => inner, ::Parser::AST::Node => var]
+            inner = pattern.children.fetch(0)
+            var = pattern.children.fetch(1)
             type_name = pattern_type_name(inner)
-            if type_name
-              add_capture(var, comments: "@type [#{type_name}]")
-            else
+            if type_name.nil?
               add_capture(var, assignment: subject)
+            elsif subject
+              # The subject narrowed to the pattern, as `in Foo` narrows the subject itself
+              add_capture(var, assignment: subject, intersection_return_type: ComplexType.parse(type_name))
+            else
+              # Undeclared and narrowed, so a value constant pattern leaves it unknown
+              add_capture(var, return_type: ComplexType::UNDEFINED,
+                               intersection_return_type: ComplexType.parse(type_name))
             end
             add_captures(inner, subject)
           end
@@ -97,13 +102,12 @@ module Solargraph
           # @param subject [Parser::AST::Node, nil]
           # @return [void]
           def add_array_captures pattern, subject
-            # @type [Array<Parser::AST::Node>]
             elements = pattern.children
             # Indexes stop meaning anything after a splat
             indexed = elements.take_while { |element| element.type != :match_rest }
             elements.each_with_index do |element, index|
               if subject && index < indexed.length && element.type == :match_var
-                add_capture(element, mass_assignment: [subject, index])
+                add_capture(element, mass_assignment: [subject, index], deconstruct: true)
               elsif element in [:match_rest, ::Parser::AST::Node[:match_var, *] => rest_var]
                 add_rest_capture(rest_var, subject, rest_range(pattern, index))
               else
@@ -120,7 +124,7 @@ module Solargraph
           # @param range [::Range<Integer>] subject positions the rest covers
           # @return [void]
           def add_rest_capture rest_var, subject, range
-            return add_capture(rest_var, comments: '@type [::Array]') if subject.nil?
+            return add_capture(rest_var, return_type: ComplexType.parse('::Array')) if subject.nil?
 
             add_capture(rest_var, mass_assignment: [subject, range])
           end
@@ -138,12 +142,29 @@ module Solargraph
             after.zero? ? (index..) : (index..-(after + 1))
           end
 
+          # @param type [ComplexType, nil]
+          # @return [ComplexType, nil]
+          def with_nil type
+            return type if type.nil? || type.undefined?
+
+            ComplexType.new(type.items + ComplexType::NIL.items)
+          end
+
           # @param var [Parser::AST::Node] a match_var node
           # @param assignment [Parser::AST::Node, nil]
-          # @param mass_assignment [::Array(Parser::AST::Node, [Integer, ::Range<Integer>]), nil]
-          # @param comments [String, nil]
+          # @param mass_assignment [::Array(Parser::AST::Node, Integer), ::Array(Parser::AST::Node, ::Range<Integer>), nil]
+          # @param return_type [ComplexType, nil]
+          # @param intersection_return_type [ComplexType, nil]
+          # @param deconstruct [Boolean] see Pin::BaseVariable#initialize
           # @return [void]
-          def add_capture var, assignment: nil, mass_assignment: nil, comments: nil
+          def add_capture var, assignment: nil, mass_assignment: nil, return_type: nil, intersection_return_type: nil,
+                          deconstruct: false
+            if @nilable
+              # A failed match leaves its captures nil
+              assignments = [assignment, NIL_NODE] unless assignment.nil?
+              return_type = with_nil(return_type)
+              intersection_return_type = with_nil(intersection_return_type)
+            end
             closure_location = region.closure.location
             # Captures outlive the match, like any local assignment
             presence = Range.new(get_node_start_position(var), closure_location.range.ending) if closure_location
@@ -151,9 +172,11 @@ module Solargraph
               location: get_node_location(var),
               closure: region.closure,
               name: var.children.fetch(0).to_s,
-              assignment: assignment,
+              assignments: assignments || [assignment].compact,
               mass_assignment: mass_assignment,
-              comments: comments,
+              deconstruct: deconstruct,
+              return_type: return_type,
+              intersection_return_type: intersection_return_type,
               presence: presence,
               source: :parser
             )
