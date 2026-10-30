@@ -15,6 +15,17 @@ module Solargraph
                      ::Parser::AST::Node | nil => variable,
                      ::Parser::AST::Node | nil => body]
 
+            rescue_body_cs = Solargraph::Pin::CompoundStatement.new(
+              # an empty clause has no body node; fall back to the
+              # clause itself, since SourceMap expects located pins
+              location: get_node_location(body || node),
+              closure: region.closure,
+              compound_statement: region.compound_statement,
+              conditional: true,
+              node: body,
+              source: :parser
+            )
+            pins.push rescue_body_cs
             # variable is an lvasgn, ivasgn, cvasgn or gvasgn (Symbol name), a
             # send for `=> a.b` (receiver node) or a casgn for `=> A` (nil scope)
             if variable in [_, Symbol | ::Parser::AST::Node | nil => variable_name, *]
@@ -39,10 +50,13 @@ module Solargraph
                 name: variable_name.to_s,
                 comments: "@type [#{types.join(',')}]",
                 presence: presence,
+                # bound only when this rescue clause runs
+                definite: false,
+                compound_statement: rescue_body_cs,
                 source: :parser
               )
             end
-            NodeProcessor.process(body, region, pins, locals, ivars)
+            NodeProcessor.process(body, region.update(compound_statement: rescue_body_cs), pins, locals, ivars) if body
           end
         end
       end

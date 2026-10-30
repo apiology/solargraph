@@ -82,7 +82,6 @@ module Solargraph
       #
       # @param api_map [ApiMap]
       # @return [Pin::Method, nil]
-      # @sg-ignore https://github.com/apiology/solargraph/pull/178
       def resolve_method api_map
         chain = @receiver_chain
         return if @resolved_method || chain.nil?
