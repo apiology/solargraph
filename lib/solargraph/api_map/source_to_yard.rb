@@ -5,7 +5,6 @@ module Solargraph
     module SourceToYard
       # Get the YARD CodeObject at the specified path.
       #
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1419
       # @generic T
       # @param path [String]
       # @param klass [Class<generic<T>>]
