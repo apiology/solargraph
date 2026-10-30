@@ -887,13 +887,10 @@ module Solargraph
       with_block = false
       # @param pin [Pin::Parameter]
       pin.parameters.each do |pin|
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1424
         if %i[kwarg kwoptarg kwrestarg].include?(pin.decl)
           with_opts = true
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1424
         elsif pin.decl == :block
           with_block = true
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1424
         elsif pin.decl == :restarg
           args.push Solargraph::Source::Chain.new([Solargraph::Source::Chain::Variable.new(pin.name)], nil, true)
         else
