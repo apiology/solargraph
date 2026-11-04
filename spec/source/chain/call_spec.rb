@@ -892,4 +892,68 @@ describe Solargraph::Source::Chain::Call do
     clip = api_map.clip_at('test.rb', [14, 14])
     expect(clip.infer.rooted_tags).to eq('::Set<::Foo::Bar::Symbol>')
   end
+
+  it 'narrows grep results to the class or module its argument names' do
+    source = Solargraph::Source.load_string(%(
+      module Mixin; end
+      class Source; end
+      class Remote < Source; end
+      class Local < Source
+        include Mixin
+      end
+      # @param sources [Array<Remote, Local>]
+      # @param objects [Array<Object>]
+      def foo sources, objects
+        a = sources.grep(Local)
+        b = sources.grep(Mixin)
+        c = objects.grep(Local)
+        a
+        b
+        c
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+
+    expect(api_map.clip_at('test.rb', [13, 8]).infer.rooted_tags).to eq('::Array<::Local>')
+    expect(api_map.clip_at('test.rb', [14, 8]).infer.rooted_tags).to eq('::Array<::Local>')
+    expect(api_map.clip_at('test.rb', [15, 8]).infer.rooted_tags).to eq('::Array<::Local>')
+  end
+
+  it 'keeps grep element types when its argument is not a narrower class' do
+    source = Solargraph::Source.load_string(%(
+      class Source; end
+      class Remote < Source; end
+      class Local < Source; end
+      class Matcher < Local
+        # @param other [Object]
+        # @return [Boolean]
+        def self.===(other)
+          true
+        end
+      end
+      # @param sources [Array<Remote, Local>]
+      # @param remotes [Array<Remote>]
+      def foo sources, remotes
+        a = sources.grep(/x/)
+        b = sources.grep(Source)
+        c = remotes.grep(Local)
+        d = sources.grep(Local) { |s| s.to_s }
+        e = sources.grep(Matcher)
+        a
+        b
+        c
+        d
+        e
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+
+    expect(api_map.clip_at('test.rb', [19, 8]).infer.rooted_tags).to eq('::Array<::Remote, ::Local>')
+    expect(api_map.clip_at('test.rb', [20, 8]).infer.rooted_tags).to eq('::Array<::Remote, ::Local>')
+    expect(api_map.clip_at('test.rb', [21, 8]).infer.rooted_tags).to eq('::Array<::Remote>')
+    expect(api_map.clip_at('test.rb', [22, 8]).infer.rooted_tags).to eq('::Array<::String>')
+    expect(api_map.clip_at('test.rb', [23, 8]).infer.rooted_tags).to eq('::Array<::Remote, ::Local>')
+  end
 end
