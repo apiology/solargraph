@@ -933,7 +933,7 @@ module Solargraph
     # @param alias_pin [Pin::MethodAlias]
     # @return [Pin::Method, nil]
     def resolve_method_alias alias_pin
-      ancestors = store.get_ancestors(alias_pin.full_context.reduce_class_type.tag)
+      ancestors = store.get_ancestors(alias_pin.namespace)
       # @type [Pin::Method, nil]
       original = nil
 
@@ -964,7 +964,7 @@ module Solargraph
       if original.nil?
         # :nocov:
         Solargraph.assert_or_log(:alias_target_missing) do
-          "Rejecting alias - target is missing while looking for #{alias_pin.full_context.tag} #{alias_pin.original} in #{alias_pin.scope} scope = #{alias_pin.inspect}"
+          "Rejecting alias - target is missing while looking for #{alias_pin.full_context.tags} #{alias_pin.original} in #{alias_pin.scope} scope = #{alias_pin.inspect}"
         end
         return nil
         # :nocov:
