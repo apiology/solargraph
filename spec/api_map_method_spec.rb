@@ -174,6 +174,21 @@ describe Solargraph::ApiMap do
       pins = api_map.get_methods('Foo::Includer')
       expect(pins.map(&:path)).to include('Foo::Bar#baz')
     end
+
+    it 'keeps same-name pins in the order the store returns them' do
+      foo = Solargraph::Pin::Namespace.new(name: 'Foo')
+      bars = %w[String Symbol].map do |type|
+        Solargraph::Pin::Method.new(name: 'bar', closure: foo, scope: :instance, comments: "@return [#{type}]")
+      end
+      others = (1..30).map { |i| Solargraph::Pin::Method.new(name: "m#{i}", closure: foo, scope: :instance) }
+      # Shuffle with several seeds so that an unstable name sort reorders the two #bar pins in some of them
+      results = (1..10).map do |seed|
+        methods = [*bars, *others].shuffle(random: Random.new(seed))
+        stack = described_class.new(pins: [foo, *methods]).get_method_stack('Foo', 'bar')
+        [stack.map { |pin| pin.return_type.tag }, methods.select { |pin| pin.name == 'bar' }.map { |pin| pin.return_type.tag }]
+      end
+      expect(results.map(&:first)).to eq(results.map(&:last))
+    end
   end
 
   describe '#typify' do
