@@ -416,6 +416,29 @@ describe Solargraph::RbsMap::Conversions do
     end
   end
 
+  # RBS 3.x has no inline declarations
+  if Gem::Version.new(RBS::VERSION) >= Gem::Version.new('4.0.0')
+    context 'with an inline Ruby declaration in the environment' do
+      it 'logs and skips it' do
+        # EnvironmentLoader reads only .rbs files, so add the inline source by hand
+        buffer = RBS::Buffer.new(name: Pathname('foo.rb'), content: "class Foo\nend\n")
+        result = RBS::InlineParser.parse(buffer, Prism.parse(buffer.content))
+        source = RBS::Source::Ruby.new(buffer, result.prism_result, result.declarations, result.diagnostics)
+        allow(RBS::Environment).to receive(:from_loader).and_wrap_original do |original, loader|
+          original.call(loader).tap { |env| env.add_source(source) }
+        end
+        allow(Solargraph.logger).to receive(:warn)
+        loader = RBS::EnvironmentLoader.new(core_root: nil, repository: RBS::Repository.new(no_stdlib: true))
+
+        conversions = described_class.new(loader: loader)
+
+        expect(Solargraph.logger).to have_received(:warn)
+          .with('Skipping declaration RBS::AST::Ruby::Declarations::ClassDecl')
+        expect(conversions.pins).to be_empty
+      end
+    end
+  end
+
   if Gem::Version.new(RBS::VERSION) >= Gem::Version.new('3.9.1')
     context 'with method pin for Open3.capture2e' do
       it 'accepts chdir kwarg' do

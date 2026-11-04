@@ -57,8 +57,14 @@ module Solargraph
         core_aware_environment(loader, fallback: environment).type_alias_decls.each_value do |entry|
           type_alias_decls[entry.decl.name.to_s] = entry.decl
         end
-        # @sg-ignore Need a downcast here
-        environment.declarations.each { |decl| convert_decl_to_pin(decl, Solargraph::Pin::ROOT_PIN) }
+        environment.declarations.each do |decl|
+          # Inline declarations (RBS::AST::Ruby) come from .rb files, not .rbs
+          if decl.is_a?(RBS::AST::Declarations::Base)
+            convert_decl_to_pin(decl, Solargraph::Pin::ROOT_PIN)
+          else
+            Solargraph.logger.warn "Skipping declaration #{decl.class}"
+          end
+        end
       rescue RBS::DuplicatedDeclarationError => e
         Solargraph.logger.warn "RBS conversion failed due to duplicate declarations: [#{e.class}] #{e.message}"
       end
