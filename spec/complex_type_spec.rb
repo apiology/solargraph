@@ -581,7 +581,11 @@ describe 'YARD type specifier list parsing' do
         non_discriminating_preserves_already_resolved_generic: ['generic<A>, nil', 'String, nil', { 'A' => 'Integer' },
                                                                 %w[A], 'Integer, nil', { 'A' => 'Integer' }],
         discriminating_reordered_context_members: ['generic<A>, nil', 'nil, String', {}, %w[A], 'String, nil',
-                                                   { 'A' => 'String' }]
+                                                   { 'A' => 'String' }],
+        # Enumerable#flat_map's block type: a bare Array leaves A undefined
+        # rather than binding it to Array through the second member
+        bare_container_context: ['Array<generic<A>>, generic<A>', 'Array', {}, %w[A], 'undefined',
+                                 { 'A' => 'undefined' }]
       }.freeze
 
       # The concrete members cover the whole context, so no value can reach the
