@@ -2283,6 +2283,41 @@ describe Solargraph::SourceMap::Clip do
     expect(clip.infer.to_s).to eq('nil')
   end
 
+  it 'picks an overload by a string literal argument' do
+    pending 'https://github.com/castwide/solargraph/pull/1451'
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @overload pick(key)
+        #   @param key ["Index"]
+        #   @return [Float]
+        # @overload pick(key)
+        #   @param key ['Triggers']
+        #   @return [Array<String>]
+        def pick(key); end
+      end
+
+      a = Foo.new.pick("Index")
+      a
+      b = Foo.new.pick("Triggers")
+      b
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [12, 6])
+    expect(clip.infer.to_s).to eq('Float')
+    clip = api_map.clip_at('test.rb', [14, 6])
+    expect(clip.infer.to_s).to eq('Array<String>')
+  end
+
+  it 'infers String for a local assigned a string literal' do
+    source = Solargraph::Source.load_string(%(
+      y = 'a'
+      y
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [2, 6])
+    expect(clip.infer.to_s).to eq('String')
+  end
+
   it 'uses types to determine overload to match' do
     pending 'Overload resolution by argument type currently unions signatures instead of narrowing (see castwide/solargraph#1246)'
     source = Solargraph::Source.load_string(%(

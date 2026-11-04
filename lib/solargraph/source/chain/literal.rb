@@ -8,6 +8,12 @@ module Solargraph
       class Literal < Link
         attr_reader :word
 
+        # The literal's own type (e.g. `"a"`) for a string literal, else
+        # undefined; see Chain#argument_type.
+        #
+        # @return [ComplexType]
+        attr_reader :literal_type
+
         # @return [::String, ::Symbol]
         attr_reader :value
 
@@ -25,13 +31,18 @@ module Solargraph
               @value = true
             elsif node.type == :false
               @value = false
-            elsif %i[int sym].include?(node.type)
+            # @sg-ignore flow sensitive typing needs to narrow down type with an if is_a? check
+            elsif %i[int sym str].include?(node.type)
               @value = node.children.first
             end
           end
           @type = type
-          # @literal_type = ComplexType.try_parse(@value.inspect)
-          @literal_type = ComplexType::UNDEFINED
+          # @sg-ignore Unresolved call to type on Parser::AST::Node, Object
+          @literal_type = if node.is_a?(::Parser::AST::Node) && node.type == :str
+                            ComplexType.try_parse(@value.inspect)
+                          else
+                            ComplexType::UNDEFINED
+                          end
           @complex_type = ComplexType.try_parse(type)
         end
 
@@ -41,13 +52,10 @@ module Solargraph
           super + [@value, @type, @literal_type, @complex_type]
         end
 
+        # Resolves to the class (e.g. String), so a variable assigned a
+        # literal keeps that class; only argument checks read #literal_type.
         def resolve api_map, name_pin, locals
-          if api_map.super_and_sub?(@complex_type.name, @literal_type.name)
-            [Pin::ProxyType.anonymous(@literal_type, source: :chain)]
-          else
-            # we don't support this value as a literal type
-            [Pin::ProxyType.anonymous(@complex_type, source: :chain)]
-          end
+          [Pin::ProxyType.anonymous(@complex_type, source: :chain)]
         end
       end
     end

@@ -123,7 +123,7 @@ module Solargraph
                                                     source: :chain)
             atype = atypes[idx] ||= arg.infer(api_map, arg_name_pin, locals)
             # @sg-ignore flow sensitive typing should handle is_a? and next
-            unless param.compatible_arg?(atype, api_map) || param.restarg?
+            unless param.compatible_arg?(arg.argument_type(atype, param.return_type), api_map) || param.restarg?
               match = false
               break
             end
