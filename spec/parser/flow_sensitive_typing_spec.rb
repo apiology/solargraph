@@ -1025,4 +1025,25 @@ describe Solargraph::Parser::FlowSensitiveTyping do
     clip = api_map.clip_at('test.rb', [13, 12])
     expect(clip.infer.to_s).to eq('ReproBase')
   end
+
+  it 'keeps nil from a conditional reassignment of a local from itself' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @return [Foo, nil]
+        def parent; end
+
+        # @param flag [Boolean]
+        def run flag
+          f = Foo.new
+          if flag
+            f = f.parent
+          end
+          f
+        end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    clip = api_map.clip_at('test.rb', [11, 10])
+    expect(clip.infer.to_s).to eq('Foo, nil')
+  end
 end

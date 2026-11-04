@@ -399,6 +399,15 @@ module Solargraph
         !pin.visible_at?(closure, location) && !pin.starts_at?(location)
       end
 
+      # A read inside a variable's own assignment (`x = x.foo`) sees
+      # the previous value, not the one being assigned
+      vars_at_location.reject! do |pin|
+        assigned = pin.location&.range
+        next false if assigned.nil?
+
+        assigned.contain?(location.range.start) && assigned.start != location.range.start
+      end
+
       vars_at_location.inject(&:combine_with)
     end
 

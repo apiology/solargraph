@@ -88,7 +88,14 @@ module Solargraph
 
       def reset_generated!
         @assignment = nil
+        @identity = nil
         super
+      end
+
+      # Combined and downcast pins keep their first pin's location, so
+      # the presence tells them apart for the inference recursion guard
+      def identity
+        @identity ||= "#{super}|#{presence.inspect}"
       end
 
       def combine_with other, attrs = {}
