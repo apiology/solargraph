@@ -1398,6 +1398,79 @@ describe Solargraph::TypeChecker do
       expect(checker.problems).to be_empty
     end
 
+    it 'resolves methods delegated from an instance variable with an inferred type' do
+      checker = type_checker_with_gems(%(
+        require 'forwardable'
+
+        class Records
+          # @return [Integer]
+          def size; 3; end
+        end
+
+        class Holder
+          extend Forwardable
+
+          def_delegators :@records, :size
+
+          # @param records [Records]
+          def initialize records
+            @records = records
+          end
+
+          # @return [Integer]
+          def total
+            size
+          end
+        end
+      ), ['forwardable'])
+      expect(checker.problems).to be_empty
+    end
+
+    it 'leaves a delegation to an untyped instance variable unresolved' do
+      checker = type_checker_with_gems(%(
+        require 'forwardable'
+
+        class Holder
+          extend Forwardable
+
+          def_delegators :@records, :size
+
+          def initialize records
+            @records = records
+          end
+
+          # @return [Integer]
+          def total
+            size
+          end
+        end
+      ), ['forwardable'])
+      expect(checker.problems.map(&:message)).to include('Holder#total return type could not be inferred')
+    end
+
+    it 'does not recurse on a delegation to a receiver of its own class' do
+      checker = type_checker_with_gems(%(
+        require 'forwardable'
+
+        class Node
+          extend Forwardable
+
+          def_delegators :@parent, :root
+
+          # @param parent [Node]
+          def initialize parent
+            @parent = parent
+          end
+
+          # @return [String]
+          def label
+            root
+          end
+        end
+      ), ['forwardable'])
+      expect(checker.problems.map(&:message)).to include('Node#label return type could not be inferred')
+    end
+
     it 'takes the @!method tag for a delegation whose receiver does not resolve' do
       checker = type_checker_with_gems(%(
         require 'forwardable'

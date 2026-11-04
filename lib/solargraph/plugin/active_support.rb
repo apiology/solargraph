@@ -8,6 +8,7 @@ module Solargraph
       def addon
         return EMPTY_ADDON unless gem_names.include?('activesupport')
 
+        # @sg-ignore flat_map over a block returning bare Array infers Array<Array>
         Addon.new(pins: classmethod_pins + attribute_pins)
       end
 
