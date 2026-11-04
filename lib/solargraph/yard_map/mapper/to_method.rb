@@ -109,19 +109,19 @@ module Solargraph
           # @param a [Array<String>]
           # @return [String]
           def arg_name a
-            a[0].gsub(/[^a-z0-9_]/i, '')
+            a.fetch(0).gsub(/[^a-z0-9_]/i, '')
           end
 
           # @param a [Array]
           # @return [::Symbol]
           def arg_type a
-            if a[0].start_with?('**')
+            if a.fetch(0).start_with?('**')
               :kwrestarg
-            elsif a[0].start_with?('*')
+            elsif a.fetch(0).start_with?('*')
               :restarg
-            elsif a[0].start_with?('&')
+            elsif a.fetch(0).start_with?('&')
               :blockarg
-            elsif a[0].end_with?(':')
+            elsif a.fetch(0).end_with?(':')
               a[1] ? :kwoptarg : :kwarg
             elsif a[1]
               :optarg
