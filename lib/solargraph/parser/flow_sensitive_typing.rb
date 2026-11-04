@@ -460,9 +460,27 @@ module Solargraph
       end
 
       # @param clause_node [Parser::AST::Node, nil]
+      # @return [Boolean]
       def always_leaves_compound_statement? clause_node
+        return false if clause_node.nil?
+
+        case clause_node.type
         # https://docs.ruby-lang.org/en/2.2.0/keywords_rdoc.html
-        %i[return raise next redo retry].include?(clause_node&.type)
+        when :return, :raise, :next, :redo, :retry
+          true
+        when :begin
+          # A statement sequence leaves if any statement in it does,
+          # since nothing after that statement can run
+          # @param child [Parser::AST::Node]
+          clause_node.children.any? { |child| always_leaves_compound_statement?(child) }
+        when :if
+          # An if leaves only if both branches do; a missing branch is
+          # nil and falls through
+          # @param branch [Parser::AST::Node, nil]
+          clause_node.children.drop(1).all? { |branch| always_leaves_compound_statement?(branch) }
+        else
+          false
+        end
       end
 
       attr_reader :locals, :ivars, :enclosing_breakable_pin, :enclosing_compound_statement_pin
