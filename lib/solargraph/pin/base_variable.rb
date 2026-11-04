@@ -49,14 +49,16 @@ module Solargraph
       #   with Numeric and nil is compatible with nil.
       # @see https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#union-types
       # @see https://en.wikipedia.org/wiki/Intersection_type#TypeScript_example
+      # @param intersection_return_types [::Array<ComplexType>] Further
+      #   constraints like intersection_return_type, all of which apply.
       # @param presence [Range, nil]
       # @param type_assertion [String, nil] RBS type from a trailing
       #   rbs-inline `#: TYPE` comment on the assignment
       # @param [Hash{Symbol => Object}] splat
       def initialize assignment: nil, assignments: [], mass_assignment: nil,
                      presence: nil, return_type: nil,
-                     intersection_return_type: nil, exclude_return_type: nil,
-                     type_assertion: nil,
+                     intersection_return_type: nil, intersection_return_types: [],
+                     exclude_return_type: nil, type_assertion: nil,
                      **splat
         super(**splat)
         @type_assertion = type_assertion
@@ -64,7 +66,7 @@ module Solargraph
         # @type [nil, ::Array(Parser::AST::Node, Integer)]
         @mass_assignment = mass_assignment
         @return_type = return_type
-        @intersection_return_type = intersection_return_type
+        @intersection_return_types = [intersection_return_type, *intersection_return_types].compact.uniq
         @exclude_return_type = exclude_return_type
         @presence = presence
       end
@@ -102,7 +104,11 @@ module Solargraph
                                   assignments: new_assignments,
                                   mass_assignment: combine_mass_assignment(other),
                                   return_type: combine_return_type(other),
-                                  intersection_return_type: combine_types(other, :intersection_return_type),
+                                  # Every narrowing visible at a location holds there,
+                                  # so a variable narrowed by nested is_a? checks must
+                                  # satisfy each of them, not just one.
+                                  intersection_return_types: (intersection_return_types +
+                                                              other.intersection_return_types).uniq,
                                   exclude_return_type: combine_types(other, :exclude_return_type),
                                   presence: combine_presence(other),
                                   type_assertion: choose(other, :type_assertion)
@@ -133,7 +139,7 @@ module Solargraph
 
       def inner_desc
         super + ", presence=#{presence.inspect}, assignments=#{assignments}, " \
-                "intersection_return_type=#{intersection_return_type&.rooted_tags.inspect}, " \
+                "intersection_return_types=#{intersection_return_types.map(&:rooted_tags).inspect}, " \
                 "exclude_return_type=#{exclude_return_type&.rooted_tags.inspect}"
       end
 
@@ -301,7 +307,21 @@ module Solargraph
 
       protected
 
-      attr_accessor :exclude_return_type, :intersection_return_type
+      attr_accessor :exclude_return_type
+
+      # @return [::Array<ComplexType>]
+      attr_reader :intersection_return_types
+
+      # @return [ComplexType, nil]
+      def intersection_return_type
+        intersection_return_types.first
+      end
+
+      # @param type [ComplexType, nil]
+      # @return [void]
+      def intersection_return_type= type
+        @intersection_return_types = [type].compact
+      end
 
       # @return [Range]
       attr_writer :presence
@@ -314,9 +334,11 @@ module Solargraph
       # @return [ComplexType, ComplexType::UniqueType]
       def adjust_type api_map, raw_return_type
         qualified_exclude = exclude_return_type&.qualify(api_map, *(closure&.gates || ['']))
-        minus_exclusions = raw_return_type.exclude qualified_exclude, api_map
-        qualified_intersection = intersection_return_type&.qualify(api_map, *(closure&.gates || ['']))
-        minus_exclusions.intersect_with qualified_intersection, api_map
+        adjusted = raw_return_type.exclude qualified_exclude, api_map
+        intersection_return_types.each do |intersection|
+          adjusted = adjusted.intersect_with intersection.qualify(api_map, *(closure&.gates || [''])), api_map
+        end
+        adjusted
       end
 
       # See if this variable is visible within 'viewing_closure'
