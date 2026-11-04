@@ -151,15 +151,11 @@ module Solargraph
           # @sg-ignore Translate to something flow sensitive typing understands
           return convert_hash(node.children[0]) if node.type == :kwsplat
           # @sg-ignore Translate to something flow sensitive typing understands
-          if Parser.is_ast_node?(node.children[0]) && node.children[0].type == :kwsplat
-            # @sg-ignore Translate to something flow sensitive typing understands
-            return convert_hash(node.children[0])
-          end
-          # @sg-ignore Translate to something flow sensitive typing understands
           return {} unless node.type == :hash
           result = {}
           # @sg-ignore Translate to something flow sensitive typing understands
           node.children.each do |pair|
+            next result.merge!(convert_hash(pair)) if pair.type == :kwsplat
             result[pair.children[0].children[0]] = Solargraph::Parser.chain(pair.children[1])
           end
           result
@@ -189,7 +185,10 @@ module Solargraph
         # @param node [Parser::AST::Node]
         def splatted_call? node
           return false unless Parser.is_ast_node?(node)
-          Parser.is_ast_node?(node.children[0]) && node.children[0].type == :kwsplat && node.children[0].children[0].type != :hash
+          node.children.any? do |child|
+            # @sg-ignore node.children[] relies on grammar-guaranteed arity
+            Parser.is_ast_node?(child) && child.type == :kwsplat && child.children[0].type != :hash
+          end
         end
 
         # @param nodes [Enumerable<Parser::AST::Node>]
