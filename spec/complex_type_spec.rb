@@ -394,6 +394,17 @@ describe 'YARD type specifier list parsing' do
       end.to raise_error(Solargraph::ComplexTypeError)
     end
 
+    it 'raises ComplexTypeError for a comma inside square brackets' do
+      pending 'parse splits at the comma into members named "[Integer" and "::Range<Integer>]"'
+
+      expect do
+        Solargraph::ComplexType.parse('Array(String, [Integer, ::Range<Integer>])')
+      end.to raise_error(Solargraph::ComplexTypeError)
+      expect do
+        Solargraph::ComplexType.parse('[Integer, nil]')
+      end.to raise_error(Solargraph::ComplexTypeError)
+    end
+
     it 'raises ComplexTypeError for hash parameters without key => value syntax' do
       expect do
         Solargraph::ComplexType.parse('Hash{Foo}')
