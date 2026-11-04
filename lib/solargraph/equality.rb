@@ -26,8 +26,10 @@ module Solargraph
       equality_fields.hash
     end
 
+    # A Module in equality_fields discriminates #hash rather than holding
+    # state; freezing it would block definition and autoload under it.
     def freeze
-      equality_fields.each(&:freeze)
+      equality_fields.grep_v(Module).each(&:freeze)
       super
     end
   end
