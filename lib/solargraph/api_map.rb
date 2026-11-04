@@ -722,6 +722,26 @@ module Solargraph
       store.get_includes(host_ns).map { |inc_tag| inc_tag.type.name }.include?(module_ns)
     end
 
+    # Check if the host class or one of its superclasses includes the
+    # specified module, ignoring type parameters used.
+    #
+    # @param host_ns [String] The class namespace (no type parameters)
+    # @param module_ns [String] The module namespace (no type parameters)
+    #
+    # @return [Boolean]
+    def inherited_include? host_ns, module_ns
+      visited = Set.new
+      # @type [String, nil]
+      sc_fqns = host_ns
+      while sc_fqns && visited.add?(sc_fqns)
+        return true if type_include?(sc_fqns, module_ns)
+
+        ref = store.get_superclass(sc_fqns)
+        sc_fqns = ref && store.constants.dereference(ref)
+      end
+      false
+    end
+
     # @param pins [Enumerable<Pin::Base>]
     # @param visibility [Enumerable<Symbol>]
     # @return [Array<Pin::Base>]
