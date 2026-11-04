@@ -24,7 +24,7 @@ module Solargraph
                 }
               }
             }
-          }
+          } #: { capabilities: { textDocumentSync: Integer, workspace: { workspaceFolders: { supported: bool, changeNotifications: bool } }, ?positionEncoding: String } }
           # FIXME: lsp default is utf-16, may have different position
           result[:capabilities][:positionEncoding] = 'utf-32' if params.dig('capabilities', 'general',
                                                                             'positionEncodings')&.include?('utf-32')

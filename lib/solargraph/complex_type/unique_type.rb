@@ -9,6 +9,8 @@ module Solargraph
       include TypeMethods
       include Equality
 
+      autoload :Record, 'solargraph/complex_type/unique_type/record'
+
       attr_reader :all_params, :subtypes, :key_types
 
       # @type [Hash{String => String}]

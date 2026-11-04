@@ -51,6 +51,10 @@ Style/MethodDefParentheses:
 Layout/EmptyLineAfterGuardClause:
   Enabled: false
 
+# rbs-inline type annotations (`#: Type`) are written without a space
+Layout/LeadingCommentSpace:
+  AllowRBSInlineAnnotation: true
+
 Naming/AsciiIdentifiers:
   Exclude:
     - 'spec/fixtures/unicode.rb'
