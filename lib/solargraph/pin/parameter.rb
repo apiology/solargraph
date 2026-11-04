@@ -64,7 +64,7 @@ module Solargraph
 
       def kwrestarg?
         # @sg-ignore flow sensitive typing needs to handle attrs
-        decl == :kwrestarg || (assignment && %i[HASH hash].include?(assignment.type))
+        decl == :kwrestarg || (decl == :optarg && assignment && %i[HASH hash].include?(assignment.type))
       end
 
       def needs_consistent_name?
