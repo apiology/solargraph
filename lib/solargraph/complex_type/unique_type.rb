@@ -9,6 +9,8 @@ module Solargraph
       include TypeMethods
       include Equality
 
+      autoload :Intersection, 'solargraph/complex_type/unique_type/intersection'
+
       attr_reader :all_params, :subtypes, :key_types
 
       # @type [Hash{String => String}]
@@ -265,21 +267,68 @@ module Solargraph
                        variance: erased_variance(situation)
         return true if undefined? && rules.include?(:allow_undefined)
 
+        expected.satisfied_by?(self, api_map, situation, rules, variance: variance)
+      end
+
+      # What an inferred type must do to satisfy this one as expected.
+      #
+      # @param inferred [ComplexType, ComplexType::UniqueType, Intersection]
+      # @param api_map [ApiMap]
+      # @param situation [:method_call, :assignment, :return_type]
+      # @param rules [Array<Symbol>]
+      # @param variance [:invariant, :covariant, :contravariant]
+      # @return [Boolean]
+      def satisfied_by? inferred, api_map, situation, rules = [],
+                        variance: inferred.erased_variance(situation)
+        # A duck-typed expectation is structural: the inferred type has only
+        # to provide the method the '#' names.
+        return inferred.provides_duck_method?(api_map, to_s[1..] || '') if duck_type?
+
+        inferred.conforms_to_unique?(self, api_map, situation, rules, variance: variance)
+      end
+
+      # @param expected [ComplexType::UniqueType]
+      # @param api_map [ApiMap]
+      # @param situation [:method_call, :assignment, :return_type]
+      # @param rules [Array<Symbol>]
+      # @param variance [:invariant, :covariant, :contravariant]
+      # @return [Boolean]
+      def conforms_to_unique? expected, api_map, situation, rules = [],
+                              variance: erased_variance(situation)
         # @todo teach this to validate duck types as inferred type
         return true if duck_type?
 
-        # complex types as expectations are unions - we only need to
-        # match one of their unique types
-        expected.any? do |expected_unique_type|
-          # :nocov:
-          unless expected_unique_type.instance_of?(UniqueType)
-            raise "Expected type must be a UniqueType, got #{expected_unique_type.class} in #{expected.inspect}"
-          end
-          # :nocov:
-          conformance = Conformance.new(api_map, self, expected_unique_type, situation,
-                                        rules, variance: variance)
-          conformance.conforms_to_unique_type?
-        end
+        Conformance.new(api_map, self, expected, situation, rules,
+                        variance: variance).conforms_to_unique_type?
+      end
+
+      # @param api_map [ApiMap]
+      # @param quack [String]
+      # @return [Boolean]
+      def provides_duck_method? api_map, quack
+        return true if duck_type? && to_s[1..] == quack
+
+        !api_map.get_method_stack(namespace, quack, scope: scope).empty?
+      end
+
+      # @param api_map [ApiMap]
+      # @param context [String] Fully qualified namespace the type is referenced from
+      # @param internal [Boolean] True to include private methods
+      # @return [Array<Pin::Base>]
+      def candidate_methods_from api_map, context, internal
+        ComplexType.new([self]).candidate_methods_from(api_map, context, internal)
+      end
+
+      # @return [Boolean]
+      def any_generic?
+        generic?
+      end
+
+      # @param api_map [ApiMap]
+      # @param gates [Array<String>]
+      # @return [UniqueType, ComplexType]
+      def unalias_and_qualify api_map, *gates
+        api_map.unalias(name) || qualify(api_map, *gates)
       end
 
       def hash
@@ -603,14 +652,20 @@ module Solargraph
       end
 
       # @return [ComplexType]
-      def reduce_class_type
-        new_items = items.flat_map do |type|
-          next type unless %w[Module Class].include?(type.name)
-          next type if type.all_params.empty?
+      # @return [ComplexType]
+      def reduce_object
+        return ComplexType.new([self]) unless name == 'Object'
+        return ComplexType.new([self]) if subtypes.empty?
 
-          type.all_params
-        end
-        ComplexType.new(new_items)
+        ComplexType.new(subtypes)
+      end
+
+      # @return [ComplexType]
+      def reduce_class_type
+        return ComplexType.new([self]) unless %w[Module Class].include?(name)
+        return ComplexType.new([self]) if all_params.empty?
+
+        ComplexType.new(all_params)
       end
 
       def all_rooted?

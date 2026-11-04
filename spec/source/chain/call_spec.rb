@@ -892,4 +892,21 @@ describe Solargraph::Source::Chain::Call do
     clip = api_map.clip_at('test.rb', [14, 14])
     expect(clip.infer.rooted_tags).to eq('::Set<::Foo::Bar::Symbol>')
   end
+
+  it 'resolves Class#new on an intersection containing Class' do
+    pending 'https://github.com/castwide/solargraph/pull/1244'
+
+    source = Solargraph::Source.load_string(%(
+      #: () -> (Class & Comparable)
+      def klass; end
+      klass.new
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+    locals = api_map.source_map('test.rb').locals
+    binder = Solargraph::Source::SourceChainer.chain(source, Solargraph::Position.new(3, 8))
+    expect(binder.infer(api_map, Solargraph::Pin::ROOT_PIN, locals).to_s).to eq('Class & Comparable')
+    chain = Solargraph::Source::SourceChainer.chain(source, Solargraph::Position.new(3, 13))
+    expect(chain.define(api_map, Solargraph::Pin::ROOT_PIN, locals).map(&:path)).to eq(['Class#new'])
+  end
 end

@@ -1063,4 +1063,16 @@ describe Solargraph::ApiMap do
     expect(api_map.get_path_pins('Example.foo_one')).to be_one
     expect(api_map.get_path_pins('Example.foo_two')).to be_one
   end
+
+  it 'finds methods through a constant holding an intersection' do
+    pending 'https://github.com/castwide/solargraph/pull/1244'
+
+    source = Solargraph::Source.load_string(%(
+      #: () -> (Comparable & String)
+      def make; end
+      FOO = make
+    ), 'test.rb')
+    api_map = described_class.new.map(source)
+    expect(api_map.get_method_stack('FOO', 'upcase').map(&:path)).to include('String#upcase')
+  end
 end
