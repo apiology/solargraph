@@ -1619,5 +1619,16 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message))
         .to eq ['Declared type String does not match inferred type String, nil for variable x']
     end
+
+    it 'types an each_with_index index when the element type is unknown' do
+      checker = type_checker(%(
+        # @param list [Array]
+        # @return [void]
+        def first_only list
+          list.each_with_index { |item, idx| puts item if idx == 0 }
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq []
+    end
   end
 end
