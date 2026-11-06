@@ -263,6 +263,16 @@ describe Solargraph::Shell do
         end
         expect(out).to eq("::String\n")
       end
+
+      it 'prints every member of a union typify type' do
+        allow(to_s_pin).to receive(:typify).and_return(Solargraph::ComplexType.parse('::String', 'nil'))
+
+        out = capture_both do
+          shell.options = { typify: true }
+          shell.pin('String#to_s')
+        end
+        expect(out).to eq("::String, nil\n")
+      end
     end
 
     context 'with --typify --rbs options' do
