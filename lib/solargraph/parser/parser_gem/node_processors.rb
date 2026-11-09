@@ -46,7 +46,6 @@ module Solargraph
       register :def,          ParserGem::NodeProcessors::DefNode
       register :defs,         ParserGem::NodeProcessors::DefsNode
       register :if,           ParserGem::NodeProcessors::IfNode
-      register :send,         Convention::SentAttributes::NodeProcessors::SendNode
       register :send,         ParserGem::NodeProcessors::SendNode
       register :class,        ParserGem::NodeProcessors::StructDefinition::StructNode
       register :class,        ParserGem::NodeProcessors::DataDefinition::DataNode

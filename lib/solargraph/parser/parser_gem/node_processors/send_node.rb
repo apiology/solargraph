@@ -19,13 +19,17 @@ module Solargraph
               return process_children
             end
             # :nocov:
-            if node.children[0].nil?
+            # e.g. Foo.send(:attr_accessor, :bar) - s(:send, receiver, :send, s(:sym, kind), *names)
+            if node in [:send, nil | [:self | :const, *], :send | :public_send,
+                        [:sym, :attr_reader | :attr_writer | :attr_accessor], *]
+              process_sent_attribute
+            elsif node.children[0].nil?
               if %i[private public protected].include?(method_name)
                 process_visibility
               elsif method_name == :module_function
                 process_module_function
               elsif %i[attr_reader attr_writer attr_accessor].include?(method_name)
-                process_attribute
+                process_attribute method_name, node.children[2..] || []
               elsif method_name == :include
                 process_include
               elsif method_name == :extend
@@ -178,33 +182,40 @@ module Solargraph
             end
           end
 
+          # @param kind [Symbol] :attr_reader, :attr_writer or :attr_accessor
+          # @param args [Array<::Parser::AST::Node>] the attribute name arguments
+          # @param closure [Pin::Closure]
+          # @param scope [Symbol] :class or :instance
+          # @param visibility [Symbol]
           # @return [void]
-          def process_attribute
-            # @sg-ignore Need to add nil check here
-            node.children[2..].each do |a|
+          def process_attribute kind, args, closure: region.closure, scope: region.scope || :instance,
+                                visibility: region.visibility
+            args.each do |a|
+              # s(:sym, name) or s(:str, name); skip anything else, e.g. attr_reader(*NAMES)
+              next unless a in [:sym | :str, Symbol | String => attr_name]
               loc = get_node_location(node)
-              clos = region.closure
               cmnt = comments_for(node)
-              if %i[attr_reader attr_accessor].include?(node.children[1])
+              if %i[attr_reader attr_accessor].include?(kind)
                 pins.push Solargraph::Pin::Method.new(
                   location: loc,
-                  closure: clos,
-                  name: a.children[0].to_s,
+                  closure: closure,
+                  # @sg-ignore https://github.com/castwide/solargraph/pull/1416
+                  name: attr_name.to_s,
                   comments: cmnt,
-                  scope: region.scope || :instance,
-                  visibility: region.visibility,
+                  scope: scope,
+                  visibility: visibility,
                   attribute: true,
                   source: :parser
                 )
               end
-              next unless %i[attr_writer attr_accessor].include?(node.children[1])
+              next unless %i[attr_writer attr_accessor].include?(kind)
               method_pin = Solargraph::Pin::Method.new(
                 location: loc,
-                closure: clos,
-                name: "#{a.children[0]}=",
+                closure: closure,
+                name: "#{attr_name}=",
                 comments: cmnt,
-                scope: region.scope || :instance,
-                visibility: region.visibility,
+                scope: scope,
+                visibility: visibility,
                 attribute: true,
                 source: :parser
               )
@@ -215,6 +226,22 @@ module Solargraph
                 pins.last.docstring.add_tag YARD::Tags::Tag.new(:param, '',
                                                                 pins.last.return_type.items.map(&:rooted_tags), 'value')
               end
+            end
+          end
+
+          # Map attributes declared through +send+ the same way as the
+          # equivalent direct call. A constant receiver gets public instance
+          # attributes, as +Foo.include(Bar)+ maps onto Foo.
+          #
+          # @return [void]
+          def process_sent_attribute
+            node => [:send, ::Parser::AST::Node | nil => receiver, _, [:sym, Symbol => kind], *names]
+            if receiver in [:const, *]
+              closure = Pin::Namespace.new(location: get_node_location(receiver), name: unpack_name(receiver),
+                                           source: :parser)
+              process_attribute kind, names, closure: closure, scope: :instance, visibility: :public
+            else
+              process_attribute kind, names
             end
           end
 

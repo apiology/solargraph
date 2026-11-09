@@ -9,7 +9,6 @@ module Solargraph
     autoload :Gemfile, 'solargraph/convention/gemfile'
     autoload :Gemspec, 'solargraph/convention/gemspec'
     autoload :Rakefile, 'solargraph/convention/rakefile'
-    autoload :SentAttributes, 'solargraph/convention/sent_attributes'
 
     # @type [Set<Convention::Base>]
     @@conventions = Set.new
