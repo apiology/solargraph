@@ -142,6 +142,7 @@ module Solargraph
         attribute? ? Solargraph::LanguageServer::SymbolKinds::PROPERTY : LanguageServer::SymbolKinds::METHOD
       end
 
+      # @return [ComplexType]
       def return_type
         @return_type ||= return_type_from_inline_rbs || ComplexType.new(signatures.map(&:return_type).flat_map(&:items))
       end
