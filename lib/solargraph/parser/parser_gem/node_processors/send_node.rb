@@ -223,11 +223,10 @@ module Solargraph
               method_pin.parameters.push Pin::Parameter.new(name: 'value', decl: :arg, closure: pins.last,
                                                             source: :parser)
               # @sg-ignore Need to add nil check here
-              if method_pin.return_type.defined?
-                # @sg-ignore Need to add nil check here
-                pins.last.docstring.add_tag YARD::Tags::Tag.new(:param, '',
-                                                                pins.last.return_type.items.map(&:rooted_tags), 'value')
-              end
+              next unless method_pin.return_type.defined?
+              # @sg-ignore Need to add nil check here
+              pins.last.docstring.add_tag YARD::Tags::Tag.new(:param, '',
+                                                              pins.last.return_type.items.map(&:rooted_tags), 'value')
             end
           end
 
