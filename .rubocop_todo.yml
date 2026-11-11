@@ -183,6 +183,7 @@ Naming/BlockForwarding:
     - 'lib/solargraph/complex_type/type_methods.rb'
     - 'lib/solargraph/pin/base.rb'
     - 'lib/solargraph/pin/common.rb'
+    - 'spec/language_server/progress_spec.rb'
 
 # Configuration parameters: ForbiddenDelimiters.
 # ForbiddenDelimiters: (?i-mx:(^|\s)(EO[A-Z]{1}|END)(\s|$))
