@@ -10,4 +10,20 @@ describe Solargraph::ComplexType::UniqueType do
       expect(types_encountered).to eq([type])
     end
   end
+
+  describe '#exclude' do
+    let(:api_map) { Solargraph::ApiMap.new }
+
+    it 'keeps itself when the excluded type does not include it' do
+      type = described_class.parse('String')
+      result = type.exclude(Solargraph::ComplexType.parse('Integer'), api_map)
+      expect(result.to_s).to eq('String')
+    end
+
+    it 'returns undefined when the excluded type includes it' do
+      type = described_class.parse('String')
+      result = type.exclude(Solargraph::ComplexType.parse('String, nil'), api_map)
+      expect(result).to be_undefined
+    end
+  end
 end

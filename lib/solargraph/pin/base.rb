@@ -59,7 +59,7 @@ module Solargraph
         @docstring = docstring
         @directives = directives
         @combine_priority = combine_priority
-        # @type [ComplexType, ComplexType::UniqueType, nil]
+        # @type [Type, nil]
         @binder = nil
         @expansions = expansions
 
@@ -442,7 +442,7 @@ module Solargraph
 
       # @param generics_to_resolve [Enumerable<String>]
       # @param return_type_context [Type, nil]
-      # @param resolved_generic_values [Hash{String => ComplexType}]
+      # @param resolved_generic_values [Hash{String => Type}]
       # @return [self]
       def resolve_generics_from_context generics_to_resolve, return_type_context = nil, resolved_generic_values: {}
         proxy return_type.resolve_generics_from_context(generics_to_resolve,
@@ -450,8 +450,8 @@ module Solargraph
                                                         resolved_generic_values: resolved_generic_values)
       end
 
-      # @yieldparam [ComplexType]
-      # @yieldreturn [ComplexType]
+      # @yieldparam [Type]
+      # @yieldreturn [Type]
       # @return [self]
       def transform_types &transform
         proxy return_type.transform(&transform)
@@ -462,7 +462,7 @@ module Solargraph
       # into the its class and return a new method pin.
       #
       # @param definitions [Pin::Namespace] The module/class which uses generic types
-      # @param context_type [ComplexType] The receiver type
+      # @param context_type [Type] The receiver type
       # @return [self]
       def resolve_generics definitions, context_type
         definitions = declaring_definitions(definitions)
@@ -547,7 +547,7 @@ module Solargraph
 
       # The pin's return type.
       #
-      # @return [ComplexType]
+      # @return [Type]
       def return_type
         @return_type ||= ComplexType::UNDEFINED
       end
