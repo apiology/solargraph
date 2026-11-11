@@ -9,7 +9,7 @@ module Solargraph
 
           def process
             location = get_node_location(node)
-            scope = region.scope || region.closure.context.scope
+            scope = region.scope || region.closure.scope
             if other_class_eval?
               clazz_name = unpack_name(node.children[0].children[0])
               # instance variables should come from the Class<T> type

@@ -194,27 +194,23 @@ module Solargraph
         result = []
         result.concat complete_keyword_parameters
         if cursor.chain.constant? || cursor.start_of_constant?
-          full = cursor.chain.links.first.word
-          type = if cursor.chain.undefined?
-                   cursor.chain.base.infer(api_map, context_pin, locals)
-                 elsif full.include?('::') && cursor.chain.links.length == 1
-                   # @sg-ignore Need to add nil check here
-                   ComplexType.try_parse(full.split('::')[0..-2].join('::'))
-                 elsif cursor.chain.links.length > 1
-                   ComplexType.try_parse(full)
-                 else
-                   ComplexType::UNDEFINED
-                 end
-          if type.undefined?
-            if full.include?('::')
-              result.concat api_map.get_constants(full, *gates)
-            else
-              result.concat api_map.get_constants('', cursor.start_of_constant? ? '' : context_pin.full_context.namespace, *gates) # .select { |pin| pin.name.start_with?(full) }
-            end
-          else
-            type = type.qualify(api_map, *gates)
-            result.concat api_map.get_constants(type.namespace,
+          full = cursor.chain.links.fetch(0).word
+          if cursor.chain.undefined?
+            type = cursor.chain.base.infer(api_map, context_pin, locals)
+            namespace = type.qualify(api_map, *gates).namespace unless type.undefined?
+          elsif full.include?('::') || cursor.chain.links.length > 1
+            # @sg-ignore Need to add nil check here
+            path = cursor.chain.links.length > 1 ? full : full.split('::')[0..-2].join('::')
+            # an unresolvable path names no constants
+            return package_completions(result) unless (namespace = api_map.qualify(path, *gates))
+          end
+          if namespace
+            result.concat api_map.get_constants(namespace,
                                                 cursor.start_of_constant? ? '' : context_pin.full_context.namespace, *gates)
+          elsif full.include?('::')
+            result.concat api_map.get_constants(full, *gates)
+          else
+            result.concat api_map.get_constants('', cursor.start_of_constant? ? '' : context_pin.full_context.namespace, *gates) # .select { |pin| pin.name.start_with?(full) }
           end
         else
           type = cursor.chain.base.infer(api_map, closure, locals)
