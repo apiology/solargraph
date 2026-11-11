@@ -408,6 +408,23 @@ describe Solargraph::Pin::Method do
     expect(type.tag).to eq('String')
   end
 
+  it 'typifies an alias replacing a core method from its RBS signature' do
+    source = Solargraph::Source.load_string(%(
+      class Time
+        def compare_with_coercion(other)
+          compare_without_coercion(other)
+        end
+        alias_method :compare_without_coercion, :<=>
+        alias_method :<=>, :compare_with_coercion
+      end
+    ))
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+    pin = api_map.get_method_stack('Time', '<=>').find { |p| p.source == :resolve_method_alias }
+    type = pin.typify(api_map)
+    expect(type.to_s).to eq('Integer, nil')
+  end
+
   it 'assumes interrogative methods are Boolean' do
     source = Solargraph::Source.load_string(%(
       class Foo
