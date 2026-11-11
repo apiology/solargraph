@@ -16,6 +16,8 @@ describe Solargraph::Yardoc do
   end
 
   describe '.uncache' do
+    around { |example| with_private_cache { example.run } }
+
     it 'deletes yardoc caches' do
       described_class.uncache(metagem)
       expect(File.exist?(described_class.path_for(metagem))).to be(false)

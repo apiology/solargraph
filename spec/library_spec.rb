@@ -30,6 +30,8 @@ describe Solargraph::Library do
   end
 
   context 'with a require from a not-yet-cached external gem' do
+    around { |example| with_private_cache { example.run } }
+
     before do
       metagem = Solargraph::Metagem.from_specification(Gem::Specification.find_by_name('backport'))
       Solargraph::Collection::Gem.uncache(metagem)
@@ -61,6 +63,8 @@ describe Solargraph::Library do
   context 'with a require from a gem whose yardoc another process has locked' do
     let(:metagem) { Solargraph::Metagem.from_specification(Gem::Specification.find_by_name('backport')) }
     let(:lock_file) { File.join(Solargraph::Yardoc.path_for(metagem), 'processing') }
+
+    around { |example| with_private_cache { example.run } }
 
     before do
       Solargraph::Collection::Gem.uncache(metagem)
