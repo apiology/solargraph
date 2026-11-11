@@ -62,20 +62,18 @@ task :full_spec do
     metagems.each { |metagem| puts "Caching #{metagem.name} #{metagem.version}" }
     Solargraph::Collection::Gem.load_all metagems, out: $stdout
   end
-  # Five files the balancer must not split, each over state that is one
-  # copy for the whole run. library, external and yardoc uncache the
-  # backport gem from the pin cache every worker shares; external and
-  # repo delete and reinstall the same fixture Gemfile.lock under
+  # Three files the balancer must not split. external and repo delete
+  # and reinstall the same fixture Gemfile.lock under
   # spec/fixtures/external_bundled_gem, which is where the path gem
   # gem-with-yard-macros comes from. Apart, one worker destroys what
-  # another is mid-way through reading.
+  # the other is mid-way through reading.
   #
   # rubocop_helpers is here for an unrelated reason: it needs rubocop
   # unloaded, and RSpec requires every file in a group before running
   # any example, so protocol_spec's top-level `require 'rubocop'` has to
   # land in a different worker. --isolate is what keeps it out.
   sh 'TEST_COVERAGE_COMMAND_NAME=full-new bundle exec parallel_rspec --runtime-log spec/parallel_runtime_rspec.log ' \
-     '--single "spec/(library|external|yardoc|repo)_spec\.rb|spec/diagnostics/rubocop_helpers_spec\.rb" --isolate ' \
+     '--single "spec/(external|repo)_spec\.rb|spec/diagnostics/rubocop_helpers_spec\.rb" --isolate ' \
      '--verbose-command spec/' #  --profile'
   # clear now-outdated coverage
   FileUtils.rm_rf('coverage/full')
