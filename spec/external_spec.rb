@@ -19,6 +19,8 @@ describe Solargraph::External do
   context 'with uncached sources' do
     let(:metagem) { Solargraph::Metagem.from_specification(Gem::Specification.find_by_name('backport')) }
 
+    around { |example| with_private_cache { example.run } }
+
     it 'tracks and updates unloaded gems' do
       Solargraph::Collection::Gem.uncache(metagem)
       expect(external.unloaded_gems.map(&:name)).to include('backport')

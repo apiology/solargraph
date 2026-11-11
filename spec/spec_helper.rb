@@ -2,6 +2,7 @@
 
 require 'parallel_tests'
 require 'bundler/setup'
+require 'tmpdir'
 require 'webmock/rspec'
 require 'rspec_time_guard'
 WebMock.disable_net_connect!(allow_localhost: true)
@@ -79,6 +80,23 @@ def with_env_var name, value
     yield # Execute the block
   ensure
     ENV[name] = old_value # Restore the old value
+  end
+end
+
+# Run the block against a temporary copy of the current cache, so specs
+# that delete cache entries cannot remove them from under other processes
+# sharing the cache directory.
+def with_private_cache &block
+  Dir.mktmpdir do |dir|
+    base = Solargraph::CacheDir.base_dir
+    [Solargraph::CacheDir.work_dir, Solargraph::CacheDir.yard_dir].each do |src|
+      next unless File.directory?(src)
+
+      dest = File.join(dir, src.delete_prefix(base))
+      FileUtils.mkdir_p File.dirname(dest)
+      FileUtils.cp_r src, dest
+    end
+    with_env_var('SOLARGRAPH_CACHE', dir, &block)
   end
 end
 
