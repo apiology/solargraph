@@ -4,12 +4,16 @@ require 'tmpdir'
 require 'yard'
 require 'timeout'
 
-describe Solargraph::Library do
+# run these in order so we don't uncache backport right when we
+# need it before
+describe Solargraph::Library, order: :defined do
+  let(:filename) { "file#{rand(1000)}.rb" }
+
   it 'does not open created files in the workspace' do
     Dir.mktmpdir do |temp_dir_path|
       # Ensure we resolve any symlinks to their real path
       workspace_path = File.realpath(temp_dir_path)
-      file_path = File.join(workspace_path, 'file.rb')
+      file_path = File.join(workspace_path, filename)
       File.write(file_path, 'a = b')
       library = described_class.load(workspace_path)
       result = library.create(file_path, File.read(file_path))
@@ -20,23 +24,27 @@ describe Solargraph::Library do
 
   it 'returns a Completion' do
     library = described_class.new
+    # keep this from syncing a bunch of bundle gems in background
+    library.stop
     library.attach Solargraph::Source.load_string(%(
       x = 1
       x
-    ), 'file.rb', 0)
-    completion = library.completions_at('file.rb', 2, 7)
+    ), filename, 0)
+    completion = library.completions_at(filename, 2, 7)
     expect(completion).to be_a(Solargraph::SourceMap::Completion)
     expect(completion.pins.map(&:name)).to include('x')
   end
 
   context 'with a require from a not-yet-cached external gem' do
+    around { |example| with_private_cache { example.run } }
+
     before do
       metagem = Solargraph::Metagem.from_specification(Gem::Specification.find_by_name('backport'))
       Solargraph::Collection::Gem.uncache(metagem)
     end
 
-    it 'returns a Completion' do
-      library = described_class.new(Solargraph::Workspace.new(Dir.pwd,
+    it 'returns a Completion', time_limit_seconds: 50 do
+      library = described_class.new(Solargraph::Workspace.new(PROJECT_DIRECTORY,
                                                               Solargraph::Workspace::Config.new))
       library.attach Solargraph::Source.load_string(%(
         require 'backport'
@@ -45,10 +53,10 @@ describe Solargraph::Library do
         def foo(adapter)
           adapter.remo
         end
-      ), 'file.rb', 0)
+      ), filename, 0)
       Timeout.timeout 60 do
         # give Solargraph time to cache the gem
-        while (completion = library.completions_at('file.rb', 5, 19)).pins.empty?
+        while (completion = library.completions_at(filename, 5, 19)).pins.empty?
           expect(library.send(:cache_errors)).to be_empty
           sleep 0.25
         end
@@ -61,6 +69,8 @@ describe Solargraph::Library do
   context 'with a require from a gem whose yardoc another process has locked' do
     let(:metagem) { Solargraph::Metagem.from_specification(Gem::Specification.find_by_name('backport')) }
     let(:lock_file) { File.join(Solargraph::Yardoc.path_for(metagem), 'processing') }
+
+    around { |example| with_private_cache { example.run } }
 
     before do
       Solargraph::Collection::Gem.uncache(metagem)
@@ -97,7 +107,7 @@ describe Solargraph::Library do
     end
 
     it 'returns a Completion' do
-      library = described_class.new(Solargraph::Workspace.new('',
+      library = described_class.new(Solargraph::Workspace.new(PROJECT_DIRECTORY,
                                                               Solargraph::Workspace::Config.new))
       library.attach Solargraph::Source.load_string(%(
         require 'backport'
@@ -106,8 +116,8 @@ describe Solargraph::Library do
         def foo(adapter)
           adapter.remo
         end
-      ), 'file.rb', 0)
-      completion = library.completions_at('file.rb', 5, 19)
+      ), filename, 0)
+      completion = library.completions_at(filename, 5, 19)
       expect(completion).to be_a(Solargraph::SourceMap::Completion)
       expect(completion.pins.map(&:name)).to include('remote')
     end
@@ -120,9 +130,11 @@ describe Solargraph::Library do
         def bar
         end
       end
-    ), 'file.rb', 0
+    ), filename, 0
+    # keep this from syncing a bunch of bundle gems in background
+    library.stop
     library.attach src
-    paths = library.definitions_at('file.rb', 2, 13).map(&:path)
+    paths = library.definitions_at(filename, 2, 13).map(&:path)
     expect(paths).to include('Foo#bar')
   end
 
@@ -136,9 +148,11 @@ describe Solargraph::Library do
         end
       end
       Foo.bar
-    ), 'file.rb', 0
+    ), filename, 0
     library.attach src
-    paths = library.type_definitions_at('file.rb', 7, 13).map(&:path)
+    # keep this from syncing a bunch of bundle gems in background
+    library.stop
+    paths = library.type_definitions_at(filename, 7, 13).map(&:path)
     expect(paths).to include('Bar')
   end
 
@@ -150,9 +164,11 @@ describe Solargraph::Library do
         end
       end
       Foo.new.bar()
-    ), 'file.rb', 0
+    ), filename, 0
+    # keep this from syncing a bunch of bundle gems in background
+    library.stop
     library.attach src
-    pins = library.signatures_at('file.rb', 5, 18)
+    pins = library.signatures_at(filename, 5, 18)
     expect(pins.length).to eq(1)
     expect(pins.first.path).to eq('Foo#bar')
   end
@@ -190,9 +206,11 @@ describe Solargraph::Library do
     library = described_class.new
     src = Solargraph::Source.load_string(%(
       puts 'hello'
-    ), 'file.rb', 0)
+    ), filename, 0)
+    # keep this from syncing a bunch of bundle gems in background
+    library.stop
     library.attach src
-    result = library.diagnose 'file.rb'
+    result = library.diagnose filename
     expect(result).to be_a(Array)
     # @todo More tests
   end
@@ -200,14 +218,16 @@ describe Solargraph::Library do
   it 'diagnoses using all reporters' do
     directory = ''
     config = instance_double(Solargraph::Workspace::Config)
-    allow(config).to receive_messages(plugins: [], required: [], reporters: ['all!'])
+    allow(config).to receive_messages(plugins: [], required: [], reporters: ['all!'], type_checker_rules: {})
     workspace = Solargraph::Workspace.new directory, config
     library = described_class.new workspace
+    # keep this from syncing a bunch of bundle gems in background
+    library.stop
     src = Solargraph::Source.load_string(%(
       puts 'hello'
-    ), 'file.rb', 0)
+    ), filename, 0)
     library.attach src
-    result = library.diagnose 'file.rb'
+    result = library.diagnose filename
     expect(result.to_s).to include('rubocop')
   end
 
@@ -218,18 +238,26 @@ describe Solargraph::Library do
         def bar
         end
       end
-    ), 'file.rb', 0)
+    ), filename, 0)
+    # keep this from syncing a bunch of bundle gems in background
+    library.stop
     library.attach src
-    pins = library.document_symbols 'file.rb'
+    pins = library.document_symbols filename
     expect(pins.length).to eq(2)
     expect(pins.map(&:path)).to include('Foo')
     expect(pins.map(&:path)).to include('Foo#bar')
   end
 
   describe '#references_from' do
+    before :context do
+      Solargraph::Shell.new.cache('backport')
+    end
+
     it 'collects references to a new method on a constant from assignment of Class.new' do
       workspace = Solargraph::Workspace.new('*')
       library = described_class.new(workspace)
+      # keep this from syncing a bunch of bundle gems in background
+      library.stop
       src1 = Solargraph::Source.load_string(%(
         Foo.new
       ), 'file1.rb', 0)
@@ -247,6 +275,8 @@ describe Solargraph::Library do
     it 'collects references to a new method to a constant from assignment' do
       workspace = Solargraph::Workspace.new('*')
       library = described_class.new(workspace)
+      # keep this from syncing a bunch of bundle gems in background
+      library.stop
       src1 = Solargraph::Source.load_string(%(
         Foo.new
       ), 'file1.rb', 0)
@@ -266,6 +296,8 @@ describe Solargraph::Library do
     it 'collects references to an instance method symbol' do
       workspace = Solargraph::Workspace.new('*')
       library = described_class.new(workspace)
+      # keep this from syncing a bunch of bundle gems in background
+      library.stop
       src1 = Solargraph::Source.load_string(%(
       class Foo
         def bar
@@ -293,6 +325,8 @@ describe Solargraph::Library do
     it 'collects references to a class method symbol' do
       workspace = Solargraph::Workspace.new('*')
       library = described_class.new(workspace)
+      # keep this from syncing a bunch of bundle gems in background
+      library.stop
       src1 = Solargraph::Source.load_string(%(
       class Foo
         def self.bar
@@ -328,6 +362,8 @@ describe Solargraph::Library do
     it 'collects stripped references to constant symbols' do
       workspace = Solargraph::Workspace.new('*')
       library = described_class.new(workspace)
+      # keep this from syncing a bunch of bundle gems in background
+      library.stop
       src1 = Solargraph::Source.load_string(%(
       class Foo
         def bar
@@ -357,6 +393,8 @@ describe Solargraph::Library do
     it 'rejects new references from different classes' do
       workspace = Solargraph::Workspace.new('*')
       library = described_class.new(workspace)
+      # keep this from syncing a bunch of bundle gems in background
+      library.stop
       source = Solargraph::Source.load_string(%(
       class Foo
         def bar
@@ -388,6 +426,8 @@ describe Solargraph::Library do
 
     it 'returns YARD documentation from sources' do
       library = described_class.new
+      # keep this from syncing a bunch of bundle gems in background
+      library.stop
       src = Solargraph::Source.load_string(%(
       class Foo
         # My bar method
@@ -423,6 +463,8 @@ describe Solargraph::Library do
 
     it 'finds unique references' do
       library = described_class.new(Solargraph::Workspace.new('*'))
+      # keep this from syncing a bunch of bundle gems in background
+      library.stop
       src1 = Solargraph::Source.load_string(%(
       class Foo
       end
@@ -439,6 +481,8 @@ describe Solargraph::Library do
 
     it 'includes method parameters in references' do
       library = described_class.new(Solargraph::Workspace.new('*'))
+      # keep this from syncing a bunch of bundle gems in background
+      library.stop
       source = Solargraph::Source.load_string(%(
       class Foo
         def bar(baz)
@@ -455,6 +499,8 @@ describe Solargraph::Library do
 
     it "lies about names when client can't handle the truth" do
       library = described_class.new(Solargraph::Workspace.new('*'))
+      # keep this from syncing a bunch of bundle gems in background
+      library.stop
       source = Solargraph::Source.load_string(%(
       class Foo
         def 🤦🏻foo♀️; 123; end
@@ -467,6 +513,8 @@ describe Solargraph::Library do
 
     it 'tells the truth about names when client can handle the truth' do
       library = described_class.new(Solargraph::Workspace.new('*'))
+      # keep this from syncing a bunch of bundle gems in background
+      library.stop
       source = Solargraph::Source.load_string(%(
       class Foo
         def 🤦🏻foo♀️; 123; end
@@ -479,6 +527,8 @@ describe Solargraph::Library do
 
     it 'includes block parameters in references' do
       library = described_class.new(Solargraph::Workspace.new('*'))
+      # keep this from syncing a bunch of bundle gems in background
+      library.stop
       source = Solargraph::Source.load_string(%(
       100.times do |foo|
         puts foo
@@ -502,6 +552,8 @@ describe Solargraph::Library do
         def foo; end
       end
     ), 'test.rb')
+    # keep this from syncing a bunch of bundle gems in background
+    library.stop
     library.attach source
     # Start of tag
     pins = library.definitions_at('test.rb', 4, 19)
@@ -526,6 +578,8 @@ describe Solargraph::Library do
       end
     ), 'test.rb')
     library.attach source
+    # keep this from syncing a bunch of bundle gems in background
+    library.stop
     pins = library.definitions_at('test.rb', 5, 19)
     expect(pins.map(&:path)).to include('Tagged')
     pins = library.definitions_at('test.rb', 5, 26)
@@ -544,6 +598,8 @@ describe Solargraph::Library do
       end
     ), 'test.rb')
     library.attach source
+    # keep this from syncing a bunch of bundle gems in background
+    library.stop
     pins = library.definitions_at('test.rb', 3, 31)
     expect(pins.map(&:path)).to include('TaggedExample')
   end
@@ -558,12 +614,16 @@ describe Solargraph::Library do
       end
     ), 'test.rb')
     library.attach source
+    # keep this from syncing a bunch of bundle gems in background
+    library.stop
     pins = library.definitions_at('test.rb', 3, 31)
     expect(pins.map(&:path)).to include('TaggedExample')
   end
 
   it 'skips comment text outside of tags' do
     library = described_class.new
+    # keep this from syncing a bunch of bundle gems in background
+    library.stop
     source = Solargraph::Source.load_string(%(
       # String
       def foo; end
@@ -575,6 +635,8 @@ describe Solargraph::Library do
 
   it 'marks aliases as methods or attributes in completion items' do
     library = described_class.new
+    # keep this from syncing a bunch of bundle gems in background
+    library.stop
     source = Solargraph::Source.load_string(%(
       class Example
         attr_reader :foo
@@ -598,6 +660,8 @@ describe Solargraph::Library do
 
   it 'marks aliases as methods or attributes in definitions' do
     library = described_class.new
+    # keep this from syncing a bunch of bundle gems in background
+    library.stop
     source = Solargraph::Source.load_string(%(
       class Example
         attr_reader :foo
@@ -646,6 +710,8 @@ describe Solargraph::Library do
     it 'removes files from Library#source_map_hash' do
       workspace = File.absolute_path(File.join('spec', 'fixtures', 'workspace'))
       library = described_class.load(workspace)
+      # keep this from syncing a bunch of bundle gems in background
+      library.stop
       library.map!
       library.catalog
       other_file = File.absolute_path(File.join('spec', 'fixtures', 'workspace', 'lib', 'other.rb'))

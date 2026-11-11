@@ -12,6 +12,7 @@ module Solargraph
           @mutex = Mutex.new
           @queue = []
           @stopped = true
+          @fully_stopped = true
         end
 
         # Schedule a file to be diagnosed.
@@ -36,17 +37,26 @@ module Solargraph
           @stopped
         end
 
+        def fully_stopped?
+          @fully_stopped
+        end
+
         # Start the diagnosis thread.
         #
         # @return [self, nil]
         def start
           return unless @stopped
-          @stopped = false
+          @fully_stopped = @stopped = false
           Thread.new do
             until stopped?
               tick
               sleep 0.1
             end
+          ensure
+            # Guarantee fully_stopped? eventually becomes true even if tick
+            # raised something unexpected, so Host#fully_stop can't hang
+            # forever waiting on a thread that already died.
+            @fully_stopped = true
           end
           self
         end
@@ -70,6 +80,12 @@ module Solargraph
             #   but it's quick and easy.
             Logging.logger.warn "Deferring diagnosis due to invalid offset: #{current}"
             mutex.synchronize { queue.push current }
+          rescue StandardError => e
+            # Diagnosing a single file shouldn't be able to permanently
+            # kill the background thread (e.g. a file/directory disappearing
+            # mid-diagnosis, or a reporter misconfiguration) - log it and
+            # keep processing the rest of the queue.
+            Logging.logger.warn "Error diagnosing #{current}: [#{e.class}] #{e.message}"
           end
         end
 

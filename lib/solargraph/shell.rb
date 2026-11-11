@@ -154,9 +154,8 @@ module Solargraph
     )
     option :directory, type: :string, desc: 'Workspace directory', default: Dir.pwd
     option :rebuild, type: :boolean, desc: 'Rebuild existing documentation', default: false
-    # @param names [Array<String>]
+    # @param gem_names [Array<String>]
     # @return [void]
-    # @param [Array<Object>] gem_names
     def cache *gem_names
       repo = Solargraph::Repo.new(options[:directory])
       metagems = if gem_names.empty?
@@ -186,11 +185,8 @@ module Solargraph
                      end
                    end
                  end
-      metagems.each do |metagem|
-        Collection::Gem.uncache(metagem) if options[:rebuild]
-        puts "Caching #{metagem.name} #{metagem.version} (#{metagem.cache_name})"
-        Collection::Gem.load(metagem)
-      end
+      metagems.each { |metagem| puts "Caching #{metagem.name} #{metagem.version} (#{metagem.cache_name})" }
+      Collection::Gem.load_all metagems, out: $stdout, rebuild: options[:rebuild]
       puts "Documentation cached for #{metagems.count} gems."
     end
     map 'gems' => :cache

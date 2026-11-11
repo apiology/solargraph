@@ -1,7 +1,10 @@
 # frozen_string_literal: true
 
+require 'parallel_tests'
 require 'bundler/setup'
+require 'tmpdir'
 require 'webmock/rspec'
+require 'rspec_time_guard'
 WebMock.disable_net_connect!(allow_localhost: true)
 unless ENV['SIMPLECOV_DISABLED']
   # set up lcov reporting for undercover
@@ -10,7 +13,13 @@ unless ENV['SIMPLECOV_DISABLED']
 
   SimpleCov.start do
     cname = ENV.fetch('TEST_COVERAGE_COMMAND_NAME', 'ad-hoc')
-    command_name cname
+    # Every parallel_tests worker writes the one resultset file under
+    # cname, and SimpleCov keys that file by command name - so a name
+    # shared across workers makes each overwrite the last, leaving only
+    # the final worker's lines for collate and undercover to see. The
+    # worker number keeps each one its own entry.
+    worker = ENV['TEST_ENV_NUMBER'].to_s
+    command_name worker.empty? ? cname : "#{cname}-#{worker}"
     new_dir = File.join('coverage', cname)
     coverage_dir new_dir
 
@@ -23,17 +32,43 @@ unless ENV['SIMPLECOV_DISABLED']
     enable_coverage(:branch) if ENV['SOLARGRAPH_BRANCH_COVERAGE']
   end
 end
+PROJECT_DIRECTORY = File.expand_path('..', __dir__)
+
+module ::RuboCop
+  class Runner
+    def run
+      raise 'this should always be mocked'
+    end
+  end
+end
+
 RSpec.configure do |c|
   # Allow use of --only-failures with rspec, handy for local development
   c.example_status_persistence_file_path = 'rspec-examples.txt'
+  c.before(:suite) do
+    files = c.files_to_run
+    banner = "PID (#{Process.pid}) #{files.count} files to run:"
+    puts [banner, *files].join("\n\t")
+  end
+end
+RspecTimeGuard.setup
+RspecTimeGuard.configure do |config|
+  config.global_time_limit_seconds = 300
+  config.continue_on_timeout = false
 end
 require 'solargraph'
-# execute any logging blocks to make sure they don't blow up
-Solargraph::Logging.logger.sev_threshold = Logger::DEBUG
-# ...but still suppress logger output in specs (if possible)
-if Solargraph::Logging.logger.respond_to?(:reopen) && !ENV.key?('SOLARGRAPH_LOG')
+
+# Suppress logger output in specs (if possible)
+def set_logging
+  # execute any logging blocks to make sure they don't blow up
+  Solargraph::Logging.logger.sev_threshold = Logger::DEBUG
+  # ...but still suppress logger output in specs (if possible)
+  return unless Solargraph::Logging.logger.respond_to?(:reopen) && !ENV.key?('SOLARGRAPH_LOG')
   Solargraph::Logging.logger.reopen(File::NULL)
+  warn 'Logging set to null'
 end
+
+set_logging
 
 # @param name [String]
 # @param value [String]
@@ -45,6 +80,23 @@ def with_env_var name, value
     yield # Execute the block
   ensure
     ENV[name] = old_value # Restore the old value
+  end
+end
+
+# Run the block against a temporary copy of the current cache, so specs
+# that delete cache entries cannot remove them from under other processes
+# sharing the cache directory.
+def with_private_cache &block
+  Dir.mktmpdir do |dir|
+    base = Solargraph::CacheDir.base_dir
+    [Solargraph::CacheDir.work_dir, Solargraph::CacheDir.yard_dir].each do |src|
+      next unless File.directory?(src)
+
+      dest = File.join(dir, src.delete_prefix(base))
+      FileUtils.mkdir_p File.dirname(dest)
+      FileUtils.cp_r src, dest
+    end
+    with_env_var('SOLARGRAPH_CACHE', dir, &block)
   end
 end
 

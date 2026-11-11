@@ -40,6 +40,19 @@ describe Solargraph::LanguageServer::Host::Dispatch do
     expect(lib).to be(@dispatch.generic_library)
   end
 
+  it 'makes one generic library when two threads ask at once' do
+    dispatch = Object.new.extend(described_class)
+    # Slow construction so both threads are inside it together
+    allow(Solargraph::Library).to receive(:new).and_wrap_original do |original, *args|
+      sleep 0.2
+      original.call(*args)
+    end
+
+    made = Array.new(2) { Thread.new { dispatch.generic_library } }.map(&:value)
+
+    expect(made.uniq.length).to eq(1)
+  end
+
   it 'requires the including class to handle library progress' do
     progress = Solargraph::LanguageServer::Progress.new('Testing')
     expect do

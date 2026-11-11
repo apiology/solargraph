@@ -6,6 +6,17 @@ require 'open3'
 describe Solargraph::Yardoc do
   let(:gemspec) { Gem::Specification.find_by_name('backport') }
   let(:metagem) { Solargraph::Metagem.from_specification(gemspec) }
+  let(:yard_dir) { Dir.mktmpdir }
+
+  # The shared yard dir is keyed only by YARD versions, so other
+  # processes load the same backport yardoc that .uncache deletes.
+  before do
+    allow(Solargraph::CacheDir).to receive(:yard_dir).and_return(yard_dir)
+  end
+
+  after do
+    FileUtils.rm_rf yard_dir
+  end
 
   describe '.cache' do
     it 'saves yardoc caches from metagems' do
@@ -17,6 +28,7 @@ describe Solargraph::Yardoc do
 
   describe '.uncache' do
     it 'deletes yardoc caches' do
+      described_class.cache(metagem)
       described_class.uncache(metagem)
       expect(File.exist?(described_class.path_for(metagem))).to be(false)
       expect(described_class.cached?(metagem)).to be(false)
