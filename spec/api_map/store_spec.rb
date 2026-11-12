@@ -93,10 +93,14 @@ describe Solargraph::ApiMap::Store do
 
           class Sub[T] < Base[T]
           end
+
+          class HSub[K, V] < Hash[K, V]
+          end
         RBS
         source_pins = Solargraph::SourceMap.load_string(%(
           class Base; end
           class Sub < Base; end
+          class HSub < Hash; end
         ), 'sub.rb').pins
         rbs_pins = Solargraph::RbsMap::Path.new(@temp_dir).pins
         Solargraph::ApiMap.new(pins: Solargraph::RbsMap::Helpers.combine(source_pins, rbs_pins))
@@ -105,6 +109,12 @@ describe Solargraph::ApiMap::Store do
       it 'resolves an inherited method through the RBS type arguments' do
         pin = api_map.get_method_stack('Sub<Integer>', 'value').first
         expect(pin.return_type.to_s).to eq('Integer')
+      end
+
+      it 'resolves an inherited method through two RBS type arguments' do
+        sub_pin = api_map.get_method_stack('HSub<String, Integer>', 'values').first
+        hash_pin = api_map.get_method_stack('Hash<String, Integer>', 'values').first
+        expect(sub_pin.return_type.to_s).to eq(hash_pin.return_type.to_s)
       end
     end
   end
