@@ -624,9 +624,9 @@ module Solargraph
       # @param api_map [ApiMap]
       # @return [ComplexType, nil]
       def typify_from_super api_map
-        # Another declaration of this method, e.g. the RBS signature of a
+        # This method's own RBS signature, e.g. that of a
         # core method that code replaces with alias_method, comes first
-        stack = redeclarations(api_map) + rest_of_stack(api_map)
+        stack = rbs_declarations(api_map) + rest_of_stack(api_map)
         return nil if stack.empty?
         stack.each do |pin|
           # @sg-ignore Need to add nil check here
@@ -637,9 +637,9 @@ module Solargraph
 
       # @param api_map [ApiMap]
       # @return [Array<Pin::Method>]
-      def redeclarations api_map
+      def rbs_declarations api_map
         api_map.get_method_stack(method_namespace, method_name, scope: scope).select do |pin|
-          pin.path == path && !pin.equal?(self)
+          pin.path == path && pin.source == :rbs && !pin.equal?(self)
         end
       end
 
