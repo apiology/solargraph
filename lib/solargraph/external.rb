@@ -7,19 +7,37 @@ module Solargraph
   #   bundle or dependency updates
   #
   class External
-    # @return [String]
+    # @return [String, nil]
     attr_reader :directory
 
     # @return [Array<String>]
     attr_reader :requires
 
-    # @param directory [String]
+    attr_reader :extra_gem_names
+
+    # @return [Hash{String => String, nil}] Solargraph plugin gem name =>
+    #   version, nil when the plugin was not loaded from a gem; selects the
+    #   gem cache directory (see {Workspace#plugin_versions})
+    attr_reader :plugin_versions
+
+    # @param directory [String, nil]
     # @param requires [Array<String>]
-    def initialize directory, requires
+    # @param extra_gem_names [Array<String>]
+    # @param plugin_versions [Hash{String => String, nil}] the workspace's
+    #   Solargraph plugin gem name => version, nil when the plugin was not
+    #   loaded from a gem; selects the gem cache directory (see
+    #   {Workspace#plugin_versions})
+    def initialize directory, requires, extra_gem_names = [], plugin_versions: {}
       @repo = Repo.new(directory)
       @directory = directory
       @requires = requires
+      @extra_gem_names = extra_gem_names
+      @plugin_versions = plugin_versions
       update!
+    end
+
+    def configured_gem_names
+      loaded_gems.map(&:name) + unloaded_gems.map(&:name) + extra_gem_names
     end
 
     def unresolved_requires
@@ -38,6 +56,10 @@ module Solargraph
       @unloaded_gems ||= Set.new
     end
 
+    def unfound_gem_names
+      @unfound_gem_names ||= []
+    end
+
     def loaded_stdlibs
       @loaded_stdlibs ||= Set.new
     end
@@ -53,10 +75,11 @@ module Solargraph
 
     # @param new_requires [Array<String>]
     # @return [Boolean]
-    def update new_requires
-      return false if requires == new_requires && !cache_changed?
+    def update new_requires, new_gem_names = []
+      return false if requires == new_requires && new_gem_names == extra_gem_names && !cache_changed?
 
       requires.replace new_requires
+      extra_gem_names.replace new_gem_names
       update!
       true
     end
@@ -69,6 +92,7 @@ module Solargraph
     # @return [String, nil]
     def rbs_collection_config_path
       # @todo Get rid of the '*' case
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1258
       @rbs_collection_config_path ||= unless directory.nil? || directory.empty? || directory == '*'
                                         yaml_file = File.join(directory, 'rbs_collection.yaml')
                                         yaml_file if File.file?(yaml_file)
@@ -81,11 +105,12 @@ module Solargraph
       @generation = generation + 1
       clear_all
       load_requires
+      load_gem_names
       # load_rbs_collection
     end
 
     def cache_changed?
-      unloaded_gems.any? { |gem| Collection::Gem.cached?(gem) }
+      unloaded_gems.any? { |gem| Collection::Gem.cached?(gem, plugin_versions) }
     end
 
     def load_requires
@@ -109,11 +134,20 @@ module Solargraph
       @repo.find_by_group(:default).each { |metagem| process_gem metagem }
     end
 
+    def load_gem_names
+      extra_gem_names.uniq.each do |gem|
+        metagem = @repo.find_by_name(gem)
+        next unfound_gem_names.push(gem) unless metagem
+        process_gem metagem
+      end
+    end
+
     def rbs_collection
       @rbs_collection ||= RbsCollection.new(rbs_collection_lockfile)
     end
 
     def rbs_collection_lockfile
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1258
       return if directory.nil? || directory.empty? || directory == '*'
       lockfile = File.join(directory, 'rbs_collection.lock.yaml')
       lockfile if File.file?(lockfile)
@@ -126,16 +160,18 @@ module Solargraph
       loaded_gems.clear
       unloaded_gems.clear
       loaded_stdlibs.clear
+      unfound_gem_names.clear
     end
 
+    # @param metagem [Metagem]
     def process_gem metagem
       return if loaded_gems.include?(metagem) || unloaded_gems.include?(metagem)
 
-      if metagem.cacheable? && !Collection::Gem.cached?(metagem)
+      if metagem.cacheable? && !Collection::Gem.cached?(metagem, plugin_versions)
         unloaded_gems.add metagem
       else
         loaded_gems.add metagem
-        base_pins = Collection::Gem.load(metagem)
+        base_pins = Collection::Gem.load(metagem, plugin_versions)
         rbsc_pins = rbs_collection.load(metagem)
         if rbsc_pins.empty?
           pins.concat base_pins
