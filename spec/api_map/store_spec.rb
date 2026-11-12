@@ -160,5 +160,13 @@ describe Solargraph::ApiMap::Store do
       store = described_class.new([klass, inc, ext])
       expect(store.get_included_mixins('Klass')).to eq([inc, ext])
     end
+
+    it 'keeps the include whose type arguments the namespace declares' do
+      enum = Solargraph::Pin::Namespace.new(name: 'Enum', type: :module, generics: ['E'])
+      shim = Solargraph::Pin::Reference::Include.new(name: '_Each', closure: enum, generic_values: ['generic<Elem>'])
+      core = Solargraph::Pin::Reference::Include.new(name: '_Each', closure: enum, generic_values: ['generic<E>'])
+      store = described_class.new([enum, shim, core])
+      expect(store.get_includes('Enum').map(&:generic_values)).to eq([['generic<E>']])
+    end
   end
 end

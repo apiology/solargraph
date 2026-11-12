@@ -182,7 +182,8 @@ module Solargraph
 
       # Ruby source and RBS can both state one relationship, e.g. YARD's
       # `include Box` and RBS's `include Box[String]`.  Keep one reference
-      # per target, preferring one that carries type arguments.
+      # per target, preferring one that carries type arguments, and among
+      # those one whose type parameters its namespace declares.
       #
       # @generic T
       # @param refs [Array<generic<T>>]
@@ -192,7 +193,27 @@ module Solargraph
         groups = refs.group_by { |ref| reference_key(ref) }
         # @param same [Array<Pin::Reference>]
         groups.values.map do |same|
-          same.find { |ref| !ref.generic_values.empty? } || same.first
+          # @param ref [Pin::Reference]
+          with_args = same.reject { |ref| ref.generic_values.empty? }
+          # @param ref [Pin::Reference]
+          (with_args.find { |ref| bindable?(ref) } if with_args.length > 1) || with_args.first || same.first
+        end
+      end
+
+      # RBS can declare one relationship under different type parameter
+      # names, e.g. core's `Enumerable[E] : _Each[E]` and a shim's
+      # `Enumerable[Elem] : _Each[Elem]`.  Only the names the indexed
+      # namespace declares can bind.
+      #
+      # @param ref [Pin::Reference]
+      # @return [Boolean]
+      def bindable? ref
+        # fetch, unlike [], does not add an entry through the default proc
+        owner = path_pin_hash.fetch(ref.namespace) { [] }.find { |pin| pin.is_a?(Pin::Namespace) }
+        generics = owner.is_a?(Pin::Namespace) ? owner.generics : []
+        ref.generic_values.all? do |value|
+          param = value[/\Ageneric<(\w+)>\z/, 1]
+          param.nil? || generics.include?(param)
         end
       end
 
