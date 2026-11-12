@@ -93,9 +93,8 @@ module Solargraph
           return param_types if param_types.all?(&:defined?)
           # One yielded value spread over several parameters is a
           # destructuring this method could not type, so keep nothing
-          # @sg-ignore tool-limitation:pr-1258-and-pr-195
+          # @sg-ignore https://github.com/apiology/solargraph/pull/195
           #   https://github.com/castwide/solargraph/pull/1258
-          #   https://github.com/apiology/solargraph/pull/195 with @pure on Pin::Method#block
           next if yield_types.length < parameters.length
 
           fallback ||= parameters.each_index.map { |idx| param_types[idx] || ComplexType::UNDEFINED }
