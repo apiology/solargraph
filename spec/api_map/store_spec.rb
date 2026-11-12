@@ -108,4 +108,47 @@ describe Solargraph::ApiMap::Store do
       end
     end
   end
+
+  describe 'mixin references declared twice' do
+    let(:klass) { Solargraph::Pin::Namespace.new(name: 'Klass') }
+
+    # @param ref_class [Class<Solargraph::Pin::Reference>]
+    # @param extra [Hash{Symbol => Object}]
+    # @return [Array(Solargraph::Pin::Reference, Solargraph::Pin::Reference)]
+    def plain_and_parameterized ref_class, **extra
+      [ref_class.new(name: 'Box', closure: klass, **extra),
+       ref_class.new(name: '::Box', closure: klass, generic_values: ['::String'], **extra)]
+    end
+
+    it 'keeps the include with type arguments' do
+      refs = plain_and_parameterized(Solargraph::Pin::Reference::Include)
+      store = described_class.new([klass, *refs])
+      expect(store.get_includes('Klass')).to eq([refs.last])
+    end
+
+    it 'keeps the prepend with type arguments' do
+      refs = plain_and_parameterized(Solargraph::Pin::Reference::Prepend)
+      store = described_class.new([klass, *refs])
+      expect(store.get_prepends('Klass')).to eq([refs.last])
+    end
+
+    it 'keeps the extend with type arguments' do
+      refs = plain_and_parameterized(Solargraph::Pin::Reference::Extend)
+      store = described_class.new([klass, *refs])
+      expect(store.get_extends('Klass')).to eq([refs.last])
+    end
+
+    it 'keeps the included mixin with type arguments' do
+      refs = plain_and_parameterized(Solargraph::Pin::Reference::IncludedMixin, keyword: :extend)
+      store = described_class.new([klass, *refs])
+      expect(store.get_included_mixins('Klass')).to eq([refs.last])
+    end
+
+    it 'keeps included mixins applied with different keywords' do
+      inc = Solargraph::Pin::Reference::IncludedMixin.new(name: 'Box', closure: klass, keyword: :include)
+      ext = Solargraph::Pin::Reference::IncludedMixin.new(name: 'Box', closure: klass, keyword: :extend)
+      store = described_class.new([klass, inc, ext])
+      expect(store.get_included_mixins('Klass')).to eq([inc, ext])
+    end
+  end
 end

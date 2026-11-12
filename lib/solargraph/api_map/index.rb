@@ -177,6 +177,30 @@ module Solargraph
         pins_by_class(klass).each do |pin|
           hash[pin.namespace].push pin
         end
+        hash.transform_values! { |refs| collapse_references(refs) }
+      end
+
+      # Ruby source and RBS can both state one relationship, e.g. YARD's
+      # `include Box` and RBS's `include Box[String]`.  Keep one reference
+      # per target, preferring one that carries type arguments.
+      #
+      # @generic T
+      # @param refs [Array<generic<T>>]
+      # @return [Array<generic<T>>]
+      def collapse_references refs
+        # @param ref [Pin::Reference]
+        groups = refs.group_by { |ref| reference_key(ref) }
+        # @param same [Array<Pin::Reference>]
+        groups.values.map do |same|
+          same.find { |ref| !ref.generic_values.empty? } || same.first
+        end
+      end
+
+      # @param ref [Pin::Reference]
+      # @return [Array(String, ::Symbol, nil)]
+      def reference_key ref
+        keyword = ref.keyword if ref.is_a?(Pin::Reference::IncludedMixin)
+        [ref.name.delete_prefix('::'), keyword]
       end
 
       # @return [void]
