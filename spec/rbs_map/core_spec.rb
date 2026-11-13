@@ -62,6 +62,12 @@ describe Solargraph::RbsMap::Core do
     expect(signature.block.parameters.map(&:return_type).map(&:to_s)).to eq(['String'])
   end
 
+  it 'keeps mixin generics on a receiver without type parameters' do
+    api_map = Solargraph::ApiMap.new
+    pin = api_map.get_methods('Hash', scope: :instance).find { |p| p.name == 'sum' }
+    expect(pin.typify(api_map).to_s).to eq('Array(generic<K>, generic<V>), Integer, generic<T>, generic<U>')
+  end
+
   it 'understands defaulted type parameters' do
     pending('defaulted type parameter support')
 

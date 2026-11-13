@@ -475,6 +475,8 @@ module Solargraph
             # elsif context_type.all?(&:implicit_union?) || true
             elsif idx.zero? && !context_type.all_params.empty?
               ComplexType.new(context_type.all_params)
+            elsif context_type.all_params.empty?
+              t
             else
               ComplexType::UNDEFINED
             end
