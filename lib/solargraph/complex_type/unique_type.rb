@@ -475,7 +475,9 @@ module Solargraph
             # elsif context_type.all?(&:implicit_union?) || true
             elsif idx.zero? && !context_type.all_params.empty?
               ComplexType.new(context_type.all_params)
-            elsif context_type.all_params.empty?
+            elsif context_type.all_params.empty? && context_type.namespace == definitions.path
+              # An unparameterized receiver of the generic's own class
+              # (e.g. bare Hash for K and V) keeps the generic as written
               t
             else
               ComplexType::UNDEFINED
