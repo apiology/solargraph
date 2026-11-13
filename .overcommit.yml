@@ -20,10 +20,16 @@ PreCommit:
   RuboCop:
     enabled: true
 
-  Solargraph:
+  # see .git-hooks/pre_commit/solargraph_vs_base.rb
+  SolargraphVsBase:
     enabled: true
+    description: 'Typecheck with Solargraph'
+    required_executable: 'solargraph'
+    flags: ['typecheck', '--level', 'strong']
+    include: '**/*.rb'
     exclude:
       - 'spec/**/*'
+      - '.git-hooks/**/*'
 
   FixMe:
     enabled: true
