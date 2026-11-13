@@ -390,6 +390,53 @@ describe Solargraph::Source::Chain::Call do
     expect(type.tag).to eq('Enumerator<Integer, Array<Integer>>')
   end
 
+  context 'with a block call on an Array of unknown element type' do
+    # @param code [String]
+    # @return [String]
+    def infer_last_line code
+      source = Solargraph::Source.load_string(%(
+        # @type [Array]
+        list = unknown_list
+        #{code}
+      ), 'test.rb')
+      api_map = Solargraph::ApiMap.new
+      api_map.map source
+      chain = Solargraph::Source::SourceChainer.chain(source, Solargraph::Position.new(3, 14))
+      chain.infer(api_map, Solargraph::Pin::ROOT_PIN, api_map.source_map('test.rb').locals).tag
+    end
+
+    it 'does not take the blockless overload return type' do
+      expect(infer_last_line('list.max_by { |x| x }')).to eq('undefined')
+      expect(infer_last_line('list.find { |x| x }')).to eq('undefined')
+    end
+
+    it 'does not take the blockless overload return type for a block pass' do
+      expect(infer_last_line('list.max_by(&:size)')).to eq('undefined')
+    end
+
+    it 'still infers an Enumerator without a block' do
+      expect(infer_last_line('list.max_by')).to start_with('Enumerator')
+    end
+
+    it 'still infers block overloads whose return type is known' do
+      expect(infer_last_line('list.map { |x| x }')).to eq('Array')
+      expect(infer_last_line('list.max_by(2) { |x| x }')).to eq('Array')
+    end
+  end
+
+  it 'still infers a block overload return type on a typed Array' do
+    source = Solargraph::Source.load_string(%(
+      # @type [Array<String>]
+      list = string_list
+      list.max_by { |x| x }
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+    chain = Solargraph::Source::SourceChainer.chain(source, Solargraph::Position.new(3, 12))
+    type = chain.infer(api_map, Solargraph::Pin::ROOT_PIN, api_map.source_map('test.rb').locals)
+    expect(type.rooted_tags).to eq('::String, nil')
+  end
+
   it 'resolves an RBS self return type to the union member that supplied the method' do
     source = Solargraph::Source.load_string(%(
       # @type [String, Symbol]
