@@ -1109,5 +1109,70 @@ describe Solargraph::TypeChecker do
 
       expect(checker.problems.map(&:message)).to eq([])
     end
+
+    it 'reports a symbol block-pass naming a method the element type lacks' do
+      checker = type_checker(%(
+        # @return [Array<String>]
+        def list
+          ['a']
+        end
+
+        list.all?(&:no_such_method_on_string)
+      ))
+
+      expect(checker.problems.map(&:message)).to eq(['Unresolved call to no_such_method_on_string on String'])
+    end
+
+    it 'accepts a symbol block-pass naming a method the element type has' do
+      checker = type_checker(%(
+        # @return [Array<String>]
+        def list
+          ['a']
+        end
+
+        list.all?(&:upcase)
+      ))
+
+      expect(checker.problems.map(&:message)).to eq([])
+    end
+
+    it 'reports a symbol block-pass no member of a union element type answers' do
+      checker = type_checker(%(
+        # @return [Array<String, Integer>]
+        def mixed
+          ['a']
+        end
+
+        mixed.all?(&:no_such_method_anywhere)
+      ))
+
+      expect(checker.problems.map(&:message)).to eq(['Unresolved call to no_such_method_anywhere on String, Integer'])
+    end
+
+    it 'accepts a symbol block-pass one member of a union element type answers' do
+      checker = type_checker(%(
+        # @return [Array<String, Integer>]
+        def mixed
+          ['a']
+        end
+
+        mixed.all?(&:upcase)
+      ))
+
+      expect(checker.problems.map(&:message)).to eq([])
+    end
+
+    it 'ignores a symbol block-pass against an intersection element type' do
+      checker = type_checker(%(
+        # @return [Array<Comparable & Enumerable>]
+        def both
+          []
+        end
+
+        both.all?(&:no_such_method_anywhere)
+      ))
+
+      expect(checker.problems.map(&:message)).to eq([])
+    end
   end
 end
