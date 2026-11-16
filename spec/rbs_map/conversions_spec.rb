@@ -352,6 +352,22 @@ describe Solargraph::RbsMap::Conversions do
         expect(prepend_pin.name).to eq('Bar')
       end
     end
+
+    context 'with an attribute typed as a union of capitalized symbol literals' do
+      subject(:attr_pin) { api_map.get_method_stack('Door', 'state').first }
+
+      let(:rbs) do
+        <<~RBS
+          class Door
+            attr_reader state: :Open | :Closed
+          end
+        RBS
+      end
+
+      it 'keeps the literal types' do
+        expect(attr_pin.return_type.tags).to eq(':Open, :Closed')
+      end
+    end
   end
 
   context 'with standard loads for solargraph project' do
