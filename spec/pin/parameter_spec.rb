@@ -607,4 +607,13 @@ describe Solargraph::Pin::Parameter do
     pin = api_map.get_path_pins('Foo#bar').first.parameters.first
     expect { pin.typify(api_map) }.not_to raise_error
   end
+
+  it 'keeps both declared types when combining overloads of one parameter' do
+    method = Solargraph::Pin::Method.new(name: 'plus')
+    integer = described_class.new(name: 'other', closure: method,
+                                  return_type: Solargraph::ComplexType.parse('Integer'))
+    float = described_class.new(name: 'other', closure: method,
+                                return_type: Solargraph::ComplexType.parse('Float'))
+    expect(integer.combine_with(float).return_type.to_s).to eq('Integer, Float')
+  end
 end
