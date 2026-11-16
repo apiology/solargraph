@@ -246,8 +246,9 @@ module Solargraph
           end
 
           # Add includes, prepends, and extends
-          [get_includes(current), get_prepends(current), get_extends(current)].each do |refs|
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1223
+          # @type [Array<Array<Pin::Reference>>]
+          ref_lists = [get_includes(current), get_prepends(current), get_extends(current)]
+          ref_lists.each do |refs|
             next if refs.nil?
             # @param ref [String]
             # @sg-ignore https://github.com/castwide/solargraph/pull/1223
