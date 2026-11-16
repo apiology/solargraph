@@ -171,6 +171,7 @@ Naming/BlockForwarding:
     - 'lib/solargraph/complex_type/type_methods.rb'
     - 'lib/solargraph/pin/base.rb'
     - 'lib/solargraph/pin/common.rb'
+    - 'spec/language_server/progress_spec.rb'
 
 # Configuration parameters: ForbiddenDelimiters.
 # ForbiddenDelimiters: (?i-mx:(^|\s)(EO[A-Z]{1}|END)(\s|$))
@@ -249,6 +250,14 @@ RSpec/MultipleMemoizedHelpers:
 # Configuration parameters: AllowedGroups.
 RSpec/NestedGroups:
   Max: 4
+
+RSpec/RepeatedExampleGroupBody:
+  Exclude:
+    - 'spec/library_spec.rb'
+
+RSpec/RepeatedExampleGroupDescription:
+  Exclude:
+    - 'spec/library_spec.rb'
 
 # This cop supports unsafe autocorrection (--autocorrect-all).
 # Configuration parameters: EnforcedStyle, AllowModifiersOnSymbols, AllowModifiersOnAttrs, AllowModifiersOnAliasMethod.
