@@ -46,6 +46,34 @@ describe Solargraph::Source::Chain::Call do
     expect(type.tag).to eq('Integer')
   end
 
+  it 'resolves super from the class side of a module_function method' do
+    api_map = Solargraph::ApiMap.new
+    source = Solargraph::Source.load_string(%(
+      module Extended
+        # @return [String]
+        def my_method; end
+      end
+      module Included
+        # @return [Integer]
+        def my_method; end
+      end
+      module Foo
+        extend Extended
+        include Included
+        module_function
+
+        def my_method
+          super
+        end
+      end
+    ), 'test.rb')
+    api_map.map source
+    instance_pin = api_map.get_path_pins('Foo#my_method').first
+    class_pin = api_map.get_path_pins('Foo.my_method').first
+    expect(instance_pin.probe(api_map).rooted_tags).to eq('::Integer')
+    expect(class_pin.probe(api_map).rooted_tags).to eq('::String')
+  end
+
   it 'infers return types based on yield call and @yieldreturn' do
     api_map = Solargraph::ApiMap.new
     source = Solargraph::Source.load_string(%(
