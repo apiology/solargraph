@@ -68,7 +68,7 @@ module Solargraph
 
       # Convert a RuboCop offense to an LSP diagnostic
       #
-      # @param off [Hash{String => unknown}] Offense received from Rubocop
+      # @param off [Hash{String => undefined}] Offense received from Rubocop
       # @return [Hash{Symbol => Hash, String, Integer}] LSP diagnostic
       def offense_to_diagnostic off
         {
