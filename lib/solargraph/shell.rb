@@ -555,7 +555,7 @@ module Solargraph
       if options[:rbs]
         puts type.to_rbs
       else
-        puts type.rooted_tag
+        puts type.rooted_tags
       end
     end
 
