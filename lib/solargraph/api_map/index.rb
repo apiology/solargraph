@@ -197,16 +197,13 @@ module Solargraph
               pin.docstring.delete_tags tag
               new_pin&.docstring&.delete_tags tag
             end
-            ovr.tags.each do |tag|
-              pin.docstring.add_tag(tag)
-              redefine_return_type pin, tag
-              pin.reset_generated!
-
-              next unless new_pin
-
-              new_pin.docstring.add_tag(tag)
-              redefine_return_type new_pin, tag
-              new_pin.reset_generated!
+            [pin, new_pin].compact.each do |target|
+              # Add every tag before generating anything from the
+              # docstring, or signatures miss all but the first @overload
+              ovr.tags.each { |tag| target.docstring.add_tag(tag) }
+              target.reset_docstring_signatures! if target.is_a?(Pin::Method)
+              ovr.tags.each { |tag| redefine_return_type target, tag }
+              target.reset_generated!
             end
           end
         end

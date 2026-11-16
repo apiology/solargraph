@@ -149,7 +149,8 @@ module Solargraph
       end
 
       def return_type
-        @return_type ||= return_type_from_inline_rbs || ComplexType.new(signatures.map(&:return_type).flat_map(&:items))
+        @return_type ||= @generated_return_type =
+          return_type_from_inline_rbs || ComplexType.new(signatures.map(&:return_type).flat_map(&:items))
       end
 
       # @param parameters [::Array<Parameter>]
@@ -195,11 +196,22 @@ module Solargraph
 
       # @return [::Array<Signature>]
       def signatures
-        @signatures ||= if inline_rbs.empty?
-                          signatures_from_yard
-                        else
-                          signatures_from_inline_rbs
-                        end
+        @signatures ||= @generated_signatures = if inline_rbs.empty?
+                                                  signatures_from_yard
+                                                else
+                                                  signatures_from_inline_rbs
+                                                end
+      end
+
+      # Forget the overloads, signatures and return type generated from the
+      # docstring, so that they are generated again from its current tags.
+      # Ones passed in or assigned are kept.
+      #
+      # @return [void]
+      def reset_docstring_signatures!
+        @overloads = nil
+        @signatures = nil if @signatures.equal?(@generated_signatures)
+        @return_type = nil if @return_type.equal?(@generated_return_type)
       end
 
       # @param return_type [ComplexType]
@@ -433,7 +445,6 @@ module Solargraph
             source: :overloads
           )
         end
-        @overloads
       end
 
       def anon_splat?

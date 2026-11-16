@@ -84,4 +84,27 @@ describe Solargraph::ApiMap::Index do
       expect(constant_pin.return_type.tag).to eq('Integer')
     end
   end
+
+  describe '#map_overrides with several @overload tags' do
+    let(:source_map) do
+      Solargraph::SourceMap.load_string(<<~RUBY, 'test.rb')
+        class Foo
+          def bar(*args); end
+        end
+
+        # @!override Foo#bar
+        #   @overload bar(one)
+        #     @return [Array]
+        #   @overload bar(one, two)
+        #     @return [Array<Array>]
+      RUBY
+    end
+
+    let(:input_pins) { source_map.pins }
+
+    it 'applies every @overload tag' do
+      method_pin = output_pins.find { |pin| pin.path == 'Foo#bar' }
+      expect(method_pin.signatures.map { |sig| sig.return_type.tag }).to eq(['Array', 'Array<Array>'])
+    end
+  end
 end
