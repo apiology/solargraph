@@ -110,13 +110,13 @@ module Solargraph
         when :covariant
           # covariant: we can pass in a more specific type
           # we contain the expected mix-in, or we have a more specific type
-          return false unless api_map.type_include?(inferred.name, expected.name) ||
+          return false unless api_map.inherited_include?(inferred.name, expected.name) ||
                               api_map.super_and_sub?(expected.name, inferred.name) ||
                               inferred.name == expected.name
         when :contravariant
           # contravariant: we can pass in a more general type
           # we contain the expected mix-in, or we have a more general type
-          return false unless api_map.type_include?(inferred.name, expected.name) ||
+          return false unless api_map.inherited_include?(inferred.name, expected.name) ||
                               api_map.super_and_sub?(inferred.name, expected.name) ||
                               inferred.name == expected.name
         else
