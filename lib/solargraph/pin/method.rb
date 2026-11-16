@@ -769,10 +769,12 @@ module Solargraph
       def signatures_from_yard
         top_type = generate_complex_type
         result = []
-        result.push generate_signature(parameters, top_type) if top_type.defined?
         # @param meth [Pin::Signature]
         # @param tag [YARD::Tags::OverloadTag]
         result.concat(overloads.zip(docstring.tags(:overload).select(&:parameters)).map { |meth, tag| generate_signature(meth.parameters, meth.return_type, tag.docstring) }) unless overloads.empty?
+        # Calls take the first signature they match, so method-level tags
+        # come after the overloads and serve calls none of them accept.
+        result.push generate_signature(parameters, top_type) if top_type.defined?
         result.push generate_signature(parameters, @return_type || ComplexType::UNDEFINED) if result.empty?
         result
       end
