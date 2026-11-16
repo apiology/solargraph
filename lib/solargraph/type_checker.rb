@@ -170,7 +170,7 @@ module Solargraph
         # Without this carve-out, a manually-written @return tag on an attribute is
         # never cross-checked against how the ivar is actually assigned (e.g. a nilable
         # default in the constructor), so a bad tag silently passes at every level.
-        unless (pin.node.nil? && !pin.attribute?) || declared.void? || virtual_pin?(pin) || abstract?(pin)
+        unless (pin.node.nil? && !pin.attribute?) || declared.items.any?(&:void?) || virtual_pin?(pin) || abstract?(pin)
           inferred = pin.probe(api_map).self_to_type(pin.full_context)
           if inferred.undefined?
             # An attribute with no locally-discoverable ivar assignment (set via a

@@ -1620,6 +1620,21 @@ describe Solargraph::TypeChecker do
         .to eq ['Declared type String does not match inferred type String, nil for variable x']
     end
 
+    it 'accepts any body for a method whose signatures include void' do
+      checker = type_checker(%(
+        # @yieldparam [Integer]
+        # @return [void]
+        # @overload each_number()
+        #   @return [Enumerator<Integer>]
+        def each_number &block
+          return enum_for(__method__) unless block_given?
+
+          [1, 2].each(&block)
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
     context 'with method-level tags beside @overload tags' do
       def conv_source call
         %(
