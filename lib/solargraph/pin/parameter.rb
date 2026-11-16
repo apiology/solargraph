@@ -93,9 +93,9 @@ module Solargraph
         end
       end
 
-      # @return [String]
-      def type_arity_decl
-        arity_decl + return_type.items.count.to_s
+      # @return [Array(String, Type)]
+      def typed_arity_decl
+        [arity_decl, return_type]
       end
 
       def arg?
@@ -175,7 +175,7 @@ module Solargraph
       end
 
       # @sg-ignore super always sets @return_type to something
-      # @return [ComplexType]
+      # @return [Type]
       def return_type
         if @return_type.nil?
           @return_type = ComplexType::UNDEFINED

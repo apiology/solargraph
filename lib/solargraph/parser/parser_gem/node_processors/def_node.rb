@@ -11,7 +11,7 @@ module Solargraph
             # specify context explicitly instead of relying on
             # closure, as they may differ (e.g., defs inside
             # class_eval)
-            method_context = scope == :instance ? region.closure.binder.namespace_type : region.closure.binder
+            method_context = scope == :instance ? region.closure.binder.reduce_class_type : region.closure.binder
             methpin = Solargraph::Pin::Method.new(
               location: get_node_location(node),
               closure: region.closure,

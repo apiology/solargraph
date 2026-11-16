@@ -252,7 +252,8 @@ describe Solargraph::Source::Chain do
     api_map = Solargraph::ApiMap.new
     api_map.map source
     chain = Solargraph::Source::SourceChainer.chain(source, Solargraph::Position.new(6, 16))
-    pins = chain.define(api_map, Solargraph::Pin::ProxyType.anonymous(Solargraph::ComplexType.parse('Class<Foo::Other>')), [])
+    other = api_map.get_path_pins('Foo::Other').first
+    pins = chain.define(api_map, Solargraph::Pin::ProxyType.anonymous(other.return_type, closure: other), [])
     expect(pins.first.path).to eq('Foo::Bar::Baz')
   end
 

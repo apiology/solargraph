@@ -141,7 +141,7 @@ module Solargraph
       # @return [Enumerable<Solargraph::Pin::Base>]
       def get_instance_variables fqns, scope = :instance
         all_instance_variables.select do |pin|
-          pin.binder.namespace == fqns && pin.binder.scope == scope
+          pin.binder.namespace == fqns && pin.scope == scope
         end
       end
 

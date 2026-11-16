@@ -495,61 +495,62 @@ module Solargraph
         elsif other_all_undefined && !all_undefined
           signatures
         else
-          combine_signatures_by_type_arity(*signatures, *other.signatures)
+          combine_signatures_by_typed_arity(*signatures, *other.signatures)
         end
       end
 
+      # Merges signatures that declare the same parameter types, so the
+      # result keeps the ability to choose a return type from argument
+      # types (RBS distinguishes overloads by type, not just arity). A
+      # signature that leaves parameter types undefined is merged into
+      # the one fully typed signature it is compatible with, if exactly
+      # one exists. The result does not depend on the order of
+      # +signature_pins+.
+      #
       # @param signature_pins [Array<Pin::Signature>]
       #
       # @return [Array<Pin::Signature>]
-      def combine_signatures_by_type_arity(*signature_pins)
-        # @type [Hash{Array => Array<Pin::Signature>}]
-        by_type_arity = {}
-        signature_pins.each do |signature_pin|
-          by_type_arity[signature_pin.type_arity] ||= []
-          by_type_arity[signature_pin.type_arity] << signature_pin
+      def combine_signatures_by_typed_arity *signature_pins
+        # @type [Hash{Array => Pin::Signature}]
+        by_typed_arity = signature_pins.group_by(&:typed_arity).transform_values do |same|
+          same.reduce { |memo, sig| memo.combine_with(sig) }
         end
-
-        by_type_arity.transform_values! do |same_type_arity_signatures|
-          combine_same_type_arity_signatures same_type_arity_signatures
+        merged = by_typed_arity.values
+        # @type [Hash{Pin::Signature => Pin::Signature}]
+        targets = {}.compare_by_identity
+        merged.each do |general|
+          candidates = merged.select { |specific| fully_typed?(specific) && refines?(specific, general) }
+          targets[general] = candidates.fetch(0) if candidates.length == 1
         end
-        by_type_arity.values.flatten
+        merged.reject { |sig| targets.key?(sig) }.map do |specific|
+          # @param memo [Pin::Signature]
+          # @param general [Pin::Signature]
+          targets.select { |_, target| target.equal?(specific) }.keys.reduce(specific) do |memo, general|
+            # the typed signature's parameters stand: undefined says nothing
+            memo.combine_with(general, parameters: memo.parameters)
+          end
+        end
       end
 
-      # @param same_type_arity_signatures [Array<Pin::Signature>]
+      # @param signature [Pin::Signature]
+      def fully_typed? signature
+        signature.blockless_parameters.none? { |param| param.return_type.undefined? }
+      end
+
+      # Whether +specific+ declares every parameter type +general+ does,
+      # and more: each of +general+'s types is undefined or equal.
       #
-      # @return [Array<Pin::Signature>]
-      def combine_same_type_arity_signatures same_type_arity_signatures
-        # This is an O(n^2) operation, so bail out if n is not small
-        return same_type_arity_signatures if same_type_arity_signatures.length > 10
+      # @param specific [Pin::Signature]
+      # @param general [Pin::Signature]
+      def refines? specific, general
+        return false if specific.equal?(general) || specific.arity != general.arity
+        return false unless specific.block&.typed_arity == general.block&.typed_arity
 
-        # @param old_signatures [Array<Pin::Signature>]
-        # @param new_signature [Pin::Signature]
-        same_type_arity_signatures.reduce([]) do |old_signatures, new_signature|
-          next old_signatures + [new_signature] if old_signatures.empty?
-
-          merged = false
-          combined = old_signatures.map do |old_signature|
-            potential_new_signature = old_signature.combine_with(new_signature)
-
-            if potential_new_signature.type_arity == old_signature.type_arity
-              # the number of types in each parameter and return type
-              # match, so we found compatible signatures to merge.  If
-              # we increased the number of types, we'd potentially
-              # have taken away the ability to use parameter types to
-              # choose the correct return type (while Ruby doesn't
-              # dispatch based on type, RBS does distinguish overloads
-              # based on types, not just arity, allowing for type
-              # information describing how methods behave based on
-              # their input types)
-              merged = true
-              potential_new_signature
-            else
-              old_signature
-            end
-          end
-          merged ? combined : old_signatures + [new_signature]
-        end
+        # @param theirs [Pin::Parameter]
+        # @param idx [Integer]
+        general.blockless_parameters.map.with_index do |theirs, idx|
+          theirs.return_type.undefined? || theirs.return_type == specific.blockless_parameters.fetch(idx).return_type
+        end.all?
       end
 
       # @param name [String]

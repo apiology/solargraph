@@ -187,14 +187,11 @@ module Solargraph
                         # place where the method is defined
                         name_pin.binder
                       end
-          # This same logic applies to the YARD work done by
-          # 'with_params()'.
-          #
           # qualify(), however, happens in the namespace where
           # the docs were written - from the method pin.
           # @todo Need to add nil check here
           type = if new_return_type.defined?
-                   with_params(new_return_type.self_to_type(self_type), self_type).qualify(api_map, *pin.gates)
+                   new_return_type.self_to_type(self_type).qualify(api_map, *pin.gates)
                  else
                    inferr_from_factory_parameters(api_map, pin)
                  end
@@ -247,8 +244,8 @@ module Solargraph
             "Call#inferred_pins(name_pin.binder=#{name_pin.binder}, word=#{word}, pins=#{pins.map(&:desc)}, name_pin=#{name_pin}) - result=#{result}"
           end
           result.map do |pin|
-            if pin.path == 'Class#new' && name_pin.binder.tag != 'Class'
-              reduced_context = name_pin.binder.reduce_class_type
+            reduced_context = name_pin.binder.reduce_class_type if pin.path == 'Class#new'
+            if reduced_context && reduced_context.rooted_tags != name_pin.binder.rooted_tags
               pin.proxy(reduced_context)
             else
               # @sg-ignore Need to add nil check here
@@ -325,7 +322,9 @@ module Solargraph
         # @param locals [::Array<Pin::LocalVariable, Pin::Parameter>]
         # @return [Pin::ProxyType]
         def inner_process_macro pin, macro, api_map, context, locals
-          vals = arguments.map { |c| Pin::ProxyType.anonymous(c.infer(api_map, pin, locals), source: :chain) }
+          vals = arguments.map do |c|
+            Pin::ProxyType.anonymous(c.infer(api_map, pin, locals), closure: pin.closure, gates: pin.gates, source: :chain)
+          end
           txt = macro.tag.text.clone
           # @sg-ignore Need to add nil check here
           if txt.empty? && macro.tag.name
@@ -342,21 +341,10 @@ module Solargraph
           docstring = Solargraph::Source.parse_docstring(txt).to_docstring
           tag = docstring.tag(:return)
           unless tag.nil? || tag.types.nil?
-            return Pin::ProxyType.anonymous(ComplexType.try_parse(*tag.types), source: :chain)
+            return Pin::ProxyType.anonymous(ComplexType.try_parse(*tag.types), closure: pin.closure, gates: pin.gates,
+                                                                               source: :chain)
           end
           Pin::ProxyType.anonymous(ComplexType::UNDEFINED, source: :chain)
-        end
-
-        # @param docstring [YARD::Docstring]
-        # @param context [ComplexType]
-        # @return [ComplexType, nil]
-        def extra_return_type docstring, context
-          if docstring.has_tag?('return_single_parameter') # && context.subtypes.one?
-            return context.subtypes.first || ComplexType::UNDEFINED
-          elsif docstring.has_tag?('return_value_parameter') && context.value_types.one?
-            return context.value_types.first
-          end
-          nil
         end
 
         # @param name_pin [Pin::Base]
@@ -377,7 +365,7 @@ module Solargraph
         def super_pins api_map, name_pin
           method_pin = find_method_pin(name_pin)
           return [] if method_pin.nil?
-          pins = api_map.get_method_stack(method_pin.namespace, method_pin.name, scope: method_pin.context.scope)
+          pins = api_map.get_method_stack(method_pin.namespace, method_pin.name, scope: method_pin.scope)
           pins.reject { |p| p.path == name_pin.path }
         end
 
@@ -394,14 +382,6 @@ module Solargraph
             return_type = signature_pin.return_type.qualify(api_map, *name_pin.gates)
             signature_pin.proxy(return_type)
           end
-        end
-
-        # @param type [ComplexType]
-        # @param context [ComplexType, ComplexType::UniqueType]
-        # @return [ComplexType]
-        def with_params type, context
-          return type unless type.to_s.include?('$')
-          ComplexType.try_parse(type.to_s.gsub('$', context.value_types.map(&:rooted_tag).join(', ')).gsub('<>', ''))
         end
 
         # @return [void]

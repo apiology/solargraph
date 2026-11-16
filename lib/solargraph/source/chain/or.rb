@@ -21,7 +21,8 @@ module Solargraph
             combined_type = combined_type.without_nil
           end
 
-          [Solargraph::Pin::ProxyType.anonymous(combined_type, source: :chain)]
+          [Solargraph::Pin::ProxyType.anonymous(combined_type, closure: name_pin.closure,
+                                                               gates: name_pin.gates, source: :chain)]
         end
       end
     end

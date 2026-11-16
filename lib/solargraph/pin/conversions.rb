@@ -42,7 +42,7 @@ module Solargraph
           detail: detail,
           data: {
             path: path,
-            return_type: return_type.tag,
+            return_type: return_type.tags,
             location: location&.to_hash,
             deprecated: deprecated?
           }
@@ -93,7 +93,7 @@ module Solargraph
 
       # @return [String, nil]
       def text_documentation
-        this_path = path || name || return_type.tag
+        this_path = path || name || return_type.tags
         return nil if this_path == 'undefined'
         escape_brackets this_path
       end
@@ -111,7 +111,7 @@ module Solargraph
 
       # @return [String, nil]
       def generate_link
-        this_path = path || name || return_type.tag
+        this_path = path || name || return_type.tags
         return nil if this_path == 'undefined'
         return nil if this_path.nil? || this_path == 'undefined'
         return this_path if path.nil?

@@ -550,6 +550,25 @@ describe Solargraph::SourceMap::Clip do
     expect(clip.complete.pins.map(&:path)).to eq(['Foo::Bar::Baz'])
   end
 
+  it 'completes constants of the leading namespace after an undefined call' do
+    orig = Solargraph::Source.load_string(%(
+      module Foo
+        module Bar
+          module Baz; end
+        end
+      end
+      Foo::Bar.zork
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    updater = Solargraph::Source::Updater.new('test.rb', 1, [
+                                                Solargraph::Source::Change.new(Solargraph::Range.from_to(6, 19, 6, 19), '::')
+                                              ])
+    source = orig.synchronize(updater)
+    api_map.map source
+    clip = api_map.clip_at('test.rb', Solargraph::Position.new(6, 21))
+    expect(clip.complete.pins.map(&:path)).to eq(['Foo::Bar::Baz'])
+  end
+
   it 'resolves conflicts between namespaces names' do
     source = Solargraph::Source.load_string(%(
       class Foo
