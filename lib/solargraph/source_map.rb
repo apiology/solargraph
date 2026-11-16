@@ -106,7 +106,6 @@ module Solargraph
     # @return [Array<Pin::Base>]
     def document_symbols
       @document_symbols ||= (pins + convention_pins).select do |pin|
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
         pin.path && !pin.path.empty?
       end
     end

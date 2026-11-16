@@ -12,7 +12,7 @@ module Solargraph
                                     ivars,
                                     enclosing_breakable_pin,
                                     enclosing_compound_statement_pin,
-                                    region.closure).process_if(node)
+                                    closure: region.closure).process_if(node)
             # s(:if, cond, then, else) - each child is a node, or nil when absent
             node => [:if,
                      ::Parser::AST::Node | nil => condition_node,

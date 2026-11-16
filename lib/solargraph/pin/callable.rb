@@ -147,7 +147,6 @@ module Solargraph
                                               resolved_generic_values: resolved_generic_values)
         end
         if callable.block
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1258
           callable.block = callable.block.resolve_generics_from_context(generics_to_resolve,
                                                                         yield_arg_types,
                                                                         yield_return_type_context,
@@ -220,7 +219,6 @@ module Solargraph
       def transform_types &transform
         # @todo 'super' alone should work here I think, but doesn't typecheck at level typed
         callable = super(&transform)
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
         callable.block = callable.block.transform_types(&transform) if callable.block
         callable.parameters = parameters.map do |param|
           param.transform_types(&transform)
@@ -234,8 +232,6 @@ module Solargraph
       def arity_matches? arguments, with_block
         argcount = arguments.length
         parcount = mandatory_positional_param_count
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
-        #   empty? guards need https://github.com/apiology/solargraph/tree/narrow-first-last-after-empty-guard on top
         parcount -= 1 if !parameters.empty? && parameters.last.block?
         return false if block? && block_required? && !with_block
         # @todo this and its caller should be changed so that this can
@@ -252,7 +248,6 @@ module Solargraph
 
       # @return [String]
       def parameters_to_rbs
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
         "#{rbs_generics}(#{parameters.map(&:to_rbs).join(', ')}) #{"{ #{block.to_rbs} } " unless block.nil?}"
       end
 

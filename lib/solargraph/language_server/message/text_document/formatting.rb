@@ -119,8 +119,6 @@ module Solargraph
                      else
                        {
                          line: original.lines.length - 1,
-                         # @sg-ignore https://github.com/castwide/solargraph/pull/1258
-                         #   empty? guards need https://github.com/apiology/solargraph/tree/narrow-first-last-after-empty-guard on top
                          character: original.lines.last.length
                        }
                      end

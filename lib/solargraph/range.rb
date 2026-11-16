@@ -83,8 +83,6 @@ module Solargraph
     # @return [Range, nil]
     def self.from_node node
       return unless node&.loc&.expression
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1258
-      #   pure calls need https://github.com/apiology/solargraph/tree/narrow-pure-rbs-calls on top
       from_expr(node.loc.expression)
     end
 
