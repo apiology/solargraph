@@ -20,23 +20,19 @@ module Solargraph
           # @sg-ignore include? only expects Symbol, but receives Symbol or nil
           return [] unless VALID_VISIBILITIES.include?(kind.to_sym)
 
-          name = directive.tag.name
           closure = closure_at(pins, source_position) || pins.first
           closure = closure_at(pins, comment_position) if closure.location&.range&.start&.line&.< comment_position.line # rubocop:disable Style/SafeNavigationChainLength
           if closure.is_a?(Pin::Method) && no_empty_lines?(source.code, comment_position.line, source_position.line)
             # @todo Smelly instance variable access
             closure.instance_variable_set(:@visibility, kind)
           else
-            namespace = closure_at(pins, source_position)
+            namespace = closure_at(pins, comment_position)
+            scope = namespace.is_a?(Pin::Singleton) ? :class : :instance
             matches = pins.select do |pin|
-              if pin.is_a?(Pin::Method) &&
-                 pin.name == name &&
-                 pin.namespace == namespace &&
-                 pin.context.scope == namespace.is_a?(Pin::Singleton)
-                :class
-              else
-                :instance
-              end
+              next false unless pin.is_a?(Pin::Method) && pin.closure == namespace && pin.scope == scope
+
+              location = pin.location
+              location && location.range.start.line > comment_position.line
             end
 
             matches.each do |pin|
