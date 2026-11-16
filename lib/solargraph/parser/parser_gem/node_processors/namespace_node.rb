@@ -23,6 +23,7 @@ module Solargraph
               type: node.type,
               location: loc,
               closure: region.closure,
+              compound_statement: region.compound_statement,
               name: name,
               comments: comments,
               visibility: :public,
@@ -39,7 +40,7 @@ module Solargraph
                 source: :parser
               )
             end
-            process_children region.update(closure: nspin, visibility: :public)
+            process_children region.update(closure: nspin, visibility: :public, compound_statement: nspin)
           end
 
           private
