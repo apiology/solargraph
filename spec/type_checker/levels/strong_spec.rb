@@ -24,6 +24,42 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.first.message).to include('does not match inferred type')
     end
 
+    it 'reports a string literal argument outside its declared literal values' do
+      pending 'https://github.com/castwide/solargraph/pull/1451'
+      checker = type_checker(%(
+        # @param key ['a']
+        # @return [void]
+        def only_a(key); end
+
+        only_a('b')
+      ))
+      expect(checker.problems.map(&:message))
+        .to eq(['Wrong argument type for #only_a: key expected \'a\', received "b"'])
+    end
+
+    it 'accepts a string literal argument in its declared literal values' do
+      checker = type_checker(%(
+        # @param key ['a']
+        # @return [void]
+        def only_a(key); end
+
+        only_a('a')
+        only_a("a")
+      ))
+      expect(checker.problems.map(&:message)).to eq([])
+    end
+
+    it 'accepts a string literal argument for a String parameter' do
+      checker = type_checker(%(
+        # @param key [String]
+        # @return [void]
+        def any_string(key); end
+
+        any_string('b')
+      ))
+      expect(checker.problems.map(&:message)).to eq([])
+    end
+
     it 'does not flag attributes whose declared type already allows nil' do
       checker = type_checker(%(
         class Foo

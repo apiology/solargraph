@@ -48,6 +48,26 @@ describe Solargraph::Source::Chain do
     expect(chain.literal?).to be(true)
   end
 
+  it "checks a string literal argument as its literal type against a literal parameter" do
+    chain = described_class.new([Solargraph::Source::Chain::Literal.new('String', Parser::AST::Node.new(:str, ['b']))])
+    param_type = instance_double(Solargraph::ComplexType, literal?: true)
+    expect(chain.argument_type(Solargraph::ComplexType.parse('String'), param_type).to_s).to eq('"b"')
+  end
+
+  it "checks a string literal argument as its inferred type against a non-literal parameter" do
+    chain = described_class.new([Solargraph::Source::Chain::Literal.new('String', Parser::AST::Node.new(:str, ['b']))])
+    param_type = instance_double(Solargraph::ComplexType, literal?: false)
+    inferred = Solargraph::ComplexType.parse('String')
+    expect(chain.argument_type(inferred, param_type)).to eq(inferred)
+  end
+
+  it "checks a non-string literal argument as its inferred type against a literal parameter" do
+    chain = described_class.new([Solargraph::Source::Chain::Literal.new('Integer', Parser::AST::Node.new(:int, [1]))])
+    param_type = instance_double(Solargraph::ComplexType, literal?: true)
+    inferred = Solargraph::ComplexType.parse('Integer')
+    expect(chain.argument_type(inferred, param_type)).to eq(inferred)
+  end
+
   it "recognizes require parameters" do
     method_call_source = Solargraph::Source.load_string('require "some_file"')
     chain = Solargraph::Source::SourceChainer.chain(method_call_source, Solargraph::Position.new(0, 13))

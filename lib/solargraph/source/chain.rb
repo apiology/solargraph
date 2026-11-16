@@ -183,6 +183,20 @@ module Solargraph
         links.last.is_a?(Chain::Literal)
       end
 
+      # The type to check this chain against a parameter as an argument:
+      # a string literal's own type (e.g. `"a"`) when the parameter
+      # declares literal values, so `'b'` does not match `['a']`;
+      # otherwise the inferred type.
+      #
+      # @param inferred [ComplexType] this chain's inferred type
+      # @param param_type [ComplexType, ComplexType::UniqueType]
+      # @return [ComplexType]
+      def argument_type inferred, param_type
+        link = links.last
+        return inferred unless link.is_a?(Chain::Literal) && param_type.literal?
+        link.literal_type.defined? ? link.literal_type : inferred
+      end
+
       # @return [Boolean]
       # @sg-ignore false "return type could not be inferred"
       def require_parameter?
