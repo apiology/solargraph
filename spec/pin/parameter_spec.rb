@@ -385,6 +385,44 @@ describe Solargraph::Pin::Parameter do
     expect(type.tag).to eq('String')
   end
 
+  describe '#kwrestarg?' do
+    # @param code [String]
+    # @return [Array<Solargraph::Pin::Parameter>]
+    def parameters_of code
+      source = Solargraph::Source.load_string(code, 'test.rb')
+      api_map = Solargraph::ApiMap.new
+      api_map.map(source)
+      api_map.get_path_pins('Example#foo').first.parameters
+    end
+
+    it 'is true for a double-splat parameter' do
+      params = parameters_of(%(
+        class Example
+          def foo **opts; end
+        end
+      ))
+      expect(params.map(&:kwrestarg?)).to eq([true])
+    end
+
+    it 'is true for an optional positional hash parameter' do
+      params = parameters_of(%(
+        class Example
+          def foo opts = {}; end
+        end
+      ))
+      expect(params.map(&:kwrestarg?)).to eq([true])
+    end
+
+    it 'is false for a keyword parameter with a hash default' do
+      params = parameters_of(%(
+        class Example
+          def foo a:, opts: {}; end
+        end
+      ))
+      expect(params.map(&:kwrestarg?)).to eq([false, false])
+    end
+  end
+
   context 'when used in an instance methods' do
     it 'infers types from optarg values' do
       source = Solargraph::Source.load_string(%(
