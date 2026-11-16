@@ -2743,6 +2743,29 @@ describe Solargraph::SourceMap::Clip do
     expect(clip.infer.to_s).to eq('Blah')
   end
 
+  it 'skips overloads whose required keyword argument is absent' do
+    source = Solargraph::Source.load_string(%(
+      class Blah
+        # @overload f(a, k:)
+        #   @return [Integer]
+        # @overload f(a)
+        #   @return [String]
+        def self.f a, k: nil; end
+
+        def foo
+          without = Blah.f(1)
+          with = Blah.f(1, k: 2)
+          without
+          with
+        end
+      end
+    ), 'test.rb')
+
+    api_map = Solargraph::ApiMap.new.map(source)
+    expect(api_map.clip_at('test.rb', [11, 10]).infer.to_s).to eq('String')
+    expect(api_map.clip_at('test.rb', [12, 10]).infer.to_s).to eq('Integer')
+  end
+
   it 'handles resolving String#each_line overloads' do
     source = Solargraph::Source.load_string(%(
       def foo

@@ -250,6 +250,8 @@ module Solargraph
         #   look at the kwargs provided and check names against what
         #   we acccept
         return false if argcount < parcount && !(argcount == parcount - 1 && parameters.last.restarg?)
+        # Keyword arguments arrive as a trailing hash
+        return false if parameters.any? { |param| param.decl == :kwarg } && !arguments.last&.links&.last.is_a?(Source::Chain::Hash)
         true
       end
 
