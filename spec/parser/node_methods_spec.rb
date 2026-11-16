@@ -449,6 +449,12 @@ describe Solargraph::Parser::NodeMethods do
       hash = described_class.convert_hash(node)
       expect(hash).to eq({})
     end
+
+    it 'keeps literal keys around double splats' do
+      node = parse('{a: 1, **opts, **{b: 2}}')
+      hash = described_class.convert_hash(node)
+      expect(hash.keys).to eq(%i[a b])
+    end
   end
 
   describe 'call_nodes_from' do
