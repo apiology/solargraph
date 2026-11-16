@@ -416,7 +416,7 @@ module Solargraph
             generics: generics,
             # @param src [Array(String, String)]
             parameters: tag.parameters.map do |src|
-              name, decl = parse_overload_param(src.first)
+              name, decl = parse_overload_param(*src)
               Pin::Parameter.new(
                 location: location,
                 closure: self,
@@ -424,7 +424,7 @@ module Solargraph
                 name: name,
                 decl: decl,
                 presence: location&.range,
-                return_type: param_type_from_name(tag, src.first),
+                return_type: param_type_from_name(tag, name),
                 source: :overloads
               )
             end,
@@ -714,19 +714,25 @@ module Solargraph
         ComplexType.new(types.uniq)
       end
 
-      # When YARD parses an overload tag, it includes rest modifiers in the parameters names.
+      # YARD keeps an overload parameter's prefix or suffix in its name
+      # (`*rest`, `key:`, `&block`) and its default as a separate string.
       #
       # @param name [String]
+      # @param default [String, nil]
       # @return [::Array(String, ::Symbol)]
-      def parse_overload_param name
-        # @todo this needs to handle mandatory vs not args, kwargs, blocks, etc
-        if name.start_with?('**')
-          [name[2..], :kwrestarg]
-        elsif name.start_with?('*')
-          [name[1..], :restarg]
-        else
-          [name, :arg]
-        end
+      def parse_overload_param name, default = nil
+        decl = if name.start_with?('**')
+                 :kwrestarg
+               elsif name.start_with?('*')
+                 :restarg
+               elsif name.start_with?('&')
+                 :blockarg
+               elsif name.end_with?(':')
+                 default.nil? ? :kwarg : :kwoptarg
+               else
+                 default.nil? ? :arg : :optarg
+               end
+        [clean_param(name), decl]
       end
 
       # @return [void]
