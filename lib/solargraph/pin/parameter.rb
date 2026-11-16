@@ -71,7 +71,6 @@ module Solargraph
       end
 
       def kwrestarg?
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
         decl == :kwrestarg || (assignment && %i[HASH hash].include?(assignment.type))
       end
 
@@ -247,7 +246,6 @@ module Solargraph
         ptype.generic?
       end
 
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1258
       def documentation
         tag = param_tag
         return '' if tag.nil? || tag.text.nil?
@@ -274,7 +272,6 @@ module Solargraph
           return p if p.name == name
         end
         idx = index
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
         params[idx] if idx && params[idx] && (params[idx].name.nil? || params[idx].name.empty?)
       end
 

@@ -290,11 +290,9 @@ module Solargraph
         # @type [Hash{String => ComplexType, ComplexType::UniqueType}]
         generic_defaults = {}
         decl.type_params.each do |param|
-          if param.default_type
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1258
-            complex_type = RbsTranslator.to_complex_type(param.default_type, type_alias_decls: type_alias_decls).force_rooted
-            generic_defaults[param.name.to_s] = complex_type
-          end
+          next unless param.default_type
+          complex_type = RbsTranslator.to_complex_type(param.default_type, type_alias_decls: type_alias_decls).force_rooted
+          generic_defaults[param.name.to_s] = complex_type
         end
 
         class_name = fqns(decl.name)
@@ -525,6 +523,12 @@ module Solargraph
         generics = decl.overloads.map(&:method_type).map do |method_type|
           type_parameter_names method_type
         end
+        annotations = method_annotations(decl)
+        if decl.overloading? && decl.overloads.empty?
+          # 'def name: ...' only adds its annotations to a method declared elsewhere
+          annotation_overrides(decl, closure, annotations)
+          return
+        end
 
         if decl.instance?
           name = decl.name.to_s
@@ -540,6 +544,7 @@ module Solargraph
             generics: generics,
             visibility: visibility,
             overloading: decl.overloading?,
+            annotations: annotations,
             source: :rbs
           )
           pin.signatures.concat method_def_to_sigs(decl, pin)
@@ -563,10 +568,39 @@ module Solargraph
           signatures: [],
           generics: generics,
           overloading: decl.overloading?,
+          annotations: annotations,
           source: :rbs
         )
         pin.signatures.concat method_def_to_sigs(decl, pin)
         pins.push pin
+      end
+
+      # The method's annotations, plus any annotation that every overload has
+      #
+      # @param decl [RBS::AST::Members::MethodDefinition]
+      # @return [Set<String>]
+      def method_annotations decl
+        annotations = decl.annotations.to_set(&:string)
+        return annotations if decl.overloads.empty?
+
+        annotations | decl.overloads.map { |overload| overload.annotations.to_set(&:string) }.reduce(:&)
+      end
+
+      # @param decl [RBS::AST::Members::MethodDefinition] a 'def name: ...'
+      #   with no overloads of its own
+      # @param closure [Pin::Closure]
+      # @param annotations [Set<String>]
+      # @return [void]
+      def annotation_overrides decl, closure, annotations
+        return if annotations.empty?
+
+        location = location_decl_to_pin_location(decl.location)
+        paths = []
+        paths.push "#{closure.path}##{decl.name}" if decl.instance?
+        paths.push "#{closure.path}.#{decl.name}" if decl.singleton?
+        paths.each do |path|
+          pins.push Pin::Reference::Override.new(location, path, [], annotations: annotations, source: :rbs)
+        end
       end
 
       # @param decl [RBS::AST::Members::MethodDefinition]
@@ -582,7 +616,6 @@ module Solargraph
           signature_parameters, signature_return_type = parts_of_function(overload.method_type, pin, implicit_nil)
           block = if overload.method_type.block
                     # the annotation describes the method's return value, not the block's
-                    # @sg-ignore https://github.com/castwide/solargraph/pull/1258
                     block_parameters, block_return_type = parts_of_function(overload.method_type.block, pin, false)
                     Pin::Signature.new(generics: generics, parameters: block_parameters, return_type: block_return_type, source: :rbs,
                                        type_location: type_location, closure: pin)

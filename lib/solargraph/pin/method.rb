@@ -14,6 +14,9 @@ module Solargraph
 
       attr_writer :signatures
 
+      # @return [::Set<::String>]
+      attr_writer :annotations
+
       # @return [Parser::AST::Node, nil]
       attr_reader :node
 
@@ -24,11 +27,13 @@ module Solargraph
       # @param attribute [Boolean]
       # @param signatures [::Array<Signature>, nil]
       # @param anon_splat [Boolean]
+      # @param annotations [::Enumerable<::String>] RBS method annotations
+      #   (not YARD tags), e.g. 'pure' from %a{pure}
       # @param context [ComplexType, ComplexType::UniqueType, nil]
       # @param overloading [Boolean] true for an RBS `def m: ... | ...` that adds to an earlier declaration's overloads
       # @param [Hash{Symbol => Object}] splat
       def initialize visibility: :public, explicit: true, block: :undefined, node: nil, attribute: false, signatures: nil, anon_splat: false,
-                     context: nil, overloading: false, **splat
+                     annotations: [], context: nil, overloading: false, **splat
         super(**splat)
         @visibility = visibility
         @explicit = explicit
@@ -38,6 +43,7 @@ module Solargraph
         @attribute = attribute
         @signatures = signatures
         @anon_splat = anon_splat
+        @annotations = annotations.to_set
         @context = context if context
         @overloading = overloading
       end
@@ -73,6 +79,7 @@ module Solargraph
           parameters: parameters,
           signatures: sigs,
           anon_splat: assert_same(other, :anon_splat?),
+          annotations: annotations | other.annotations,
           return_type: nil # pulled from signatures on first call
         }.merge(attrs)
         super(other, new_attrs)
@@ -269,11 +276,7 @@ module Solargraph
       def to_rbs
         return nil if signatures.empty?
 
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
-        #   empty? guards need https://github.com/apiology/solargraph/tree/narrow-first-last-after-empty-guard on top
         rbs = "def #{name}: #{signatures.first.to_rbs}"
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
-        #   empty? guards need https://github.com/apiology/solargraph/tree/narrow-first-last-after-empty-guard on top
         signatures[1..].each do |sig|
           rbs += "\n"
           rbs += (' ' * (4 + name.length))
@@ -401,6 +404,23 @@ module Solargraph
 
       def attribute?
         @attribute
+      end
+
+      # The method's RBS method annotations, e.g. 'pure' from %a{pure};
+      # not YARD tags. See
+      # https://github.com/ruby/rbs/blob/master/docs/syntax.md#annotations
+      #
+      # @return [::Set<::String>]
+      def annotations
+        @annotations ||= Set.new
+      end
+
+      # True when the method is declared to return the same value for the
+      # same receiver and arguments, with no side effects (RBS %a{pure})
+      #
+      # @return [Boolean]
+      def pure?
+        annotations.include?('pure')
       end
 
       # True when this pin's signatures add to, rather than replace,

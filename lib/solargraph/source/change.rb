@@ -31,11 +31,9 @@ module Solargraph
         if nullable && !range.nil? && new_text.match(/[.\[{(@$:]$/)
           [':', '@'].each do |dupable|
             next unless new_text == dupable
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1258
             offset = Position.to_offset(text, range.start)
             if text[offset - 1] == dupable
               p = Position.from_offset(text, offset - 1)
-              # @sg-ignore https://github.com/castwide/solargraph/pull/1258
               r = Change.new(Range.new(p, range.start), ' ')
               text = r.write(text)
             end
@@ -60,7 +58,6 @@ module Solargraph
           fixed
         else
           result = commit text, fixed
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1258
           off = Position.to_offset(text, range.start)
           # @sg-ignore slice [0, n] is nil only for a negative n
           match = result[0, off].match(/[.:]+\z/)

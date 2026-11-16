@@ -82,7 +82,6 @@ module Solargraph
     end
 
     def bundled_directory?
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1258
       gemfile && lockfile && File.file?(gemfile) && File.file?(lockfile)
     end
 

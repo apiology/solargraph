@@ -471,7 +471,6 @@ module Solargraph
       # @return [String, nil]
       def filename
         return nil if location.nil?
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
         location.filename
       end
 

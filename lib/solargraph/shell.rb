@@ -552,12 +552,9 @@ module Solargraph
 
     # @param pin [Solargraph::Pin::Base]
     # @return [String]
-    # @sg-ignore https://github.com/castwide/solargraph/pull/1258
     def pin_description pin
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1258
       desc = if pin.path.nil? || pin.path.empty?
                if pin.closure
-                 # @sg-ignore https://github.com/castwide/solargraph/pull/1258
                  "#{pin.closure.path} | #{pin.name}"
                else
                  "#{pin.context.namespace} | #{pin.name}"
@@ -565,7 +562,6 @@ module Solargraph
              else
                pin.path
              end
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1258
       desc += " (#{pin.location.filename} #{pin.location.range.start.line})" if pin.location
       desc
     end

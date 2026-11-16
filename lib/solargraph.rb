@@ -63,8 +63,6 @@ module Solargraph
   CHDIR_MUTEX = Mutex.new
 
   def self.asserts_on?
-    # @sg-ignore https://github.com/castwide/solargraph/pull/1258
-    #   pure calls need https://github.com/apiology/solargraph/tree/narrow-pure-rbs-calls on top
     if ENV['SOLARGRAPH_ASSERTS'].nil? || ENV['SOLARGRAPH_ASSERTS'].empty?
       false
     elsif ENV['SOLARGRAPH_ASSERTS'] == 'on'

@@ -217,7 +217,6 @@ module Solargraph
 
     # @param pin [Pin::Base]
     def virtual_pin? pin
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1258
       pin.location && source.comment_at?(pin.location.range.ending)
     end
 
@@ -716,7 +715,6 @@ module Solargraph
     # @param pin [Pin::Base]
     def internal? pin
       return false if pin.nil?
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1258
       pin.location && api_map.bundled?(pin.location.filename)
     end
 
@@ -794,8 +792,6 @@ module Solargraph
         if any_splatted_call?(unchecked.map(&:node))
           settled_kwargs = parameters.count(&:keyword?)
         else
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1258
-          #   empty? guards need https://github.com/apiology/solargraph/tree/narrow-first-last-after-empty-guard on top
           kwargs = convert_hash(unchecked.last.node)
           if parameters.any? { |param| %i[kwarg kwoptarg].include?(param.decl) || param.kwrestarg? }
             if kwargs.empty?
@@ -833,8 +829,6 @@ module Solargraph
         end
         return [] if arguments.length - req == parameters.select { |p| %i[optarg kwoptarg].include?(p.decl) }.length
         return [Problem.new(location, "Too many arguments to #{pin.path}")]
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1258
-      #   empty? guards need https://github.com/apiology/solargraph/tree/narrow-first-last-after-empty-guard on top
       elsif unchecked.length < req - settled_kwargs && (arguments.empty? || (!arguments.last.splat? && !arguments.last.links.last.is_a?(Solargraph::Source::Chain::Hash)))
         # HACK: Kernel#raise signature is incorrect in Ruby 2.7 core docs.
         # See https://github.com/castwide/solargraph/issues/418

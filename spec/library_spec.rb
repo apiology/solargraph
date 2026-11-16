@@ -96,6 +96,38 @@ describe Solargraph::Library, order: :defined do
     end
   end
 
+  context 'with a require from a gem whose yardoc another process has locked' do
+    let(:metagem) { Solargraph::Metagem.from_specification(Gem::Specification.find_by_name('backport')) }
+    let(:lock_file) { File.join(Solargraph::Yardoc.path_for(metagem), 'processing') }
+
+    before do
+      Solargraph::Collection::Gem.uncache(metagem)
+      FileUtils.mkdir_p File.dirname(lock_file)
+      FileUtils.touch lock_file
+    end
+
+    after do
+      FileUtils.rm_f lock_file
+    end
+
+    it 'caches the gem anyway' do
+      library = described_class.new(Solargraph::Workspace.new(Dir.pwd,
+                                                              Solargraph::Workspace::Config.new))
+      library.attach Solargraph::Source.load_string(%(
+        require 'backport'
+
+        # @param adapter [Backport::Adapter]
+        def foo(adapter)
+          adapter.remo
+        end
+      ), 'file.rb', 0)
+      Timeout.timeout 60 do
+        sleep 0.25 while (completion = library.completions_at('file.rb', 5, 19)).pins.empty?
+        expect(completion.pins.map(&:name)).to include('remote')
+      end
+    end
+  end
+
   context 'with a require from an already-cached external gem' do
     before do
       metagem = Solargraph::Metagem.from_specification(Gem::Specification.find_by_name('backport'))
@@ -815,6 +847,16 @@ describe Solargraph::Library, order: :defined do
       join_cache_threads
 
       expect(Open3).to have_received(:capture3).once
+    end
+
+    it 'finishes caching when an unexpected error is raised' do
+      allow(Open3).to receive(:capture3).and_raise('cache failed')
+
+      library.catalog
+      library.send(:sync_catalog)
+      join_cache_threads
+
+      expect(library.cache_progress).to be_nil
     end
 
     it 'finishes caching when the cache command cannot run' do

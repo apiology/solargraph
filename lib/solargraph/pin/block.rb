@@ -28,7 +28,21 @@ module Solargraph
       # @param api_map [ApiMap]
       # @return [void]
       def rebind api_map
-        @rebind ||= maybe_rebind(api_map)
+        # inferring the receiver can clip inside this block, which rebinds
+        # it again, e.g. via a downcast var recorded in the block
+        return @rebind if @rebind || @rebinding
+
+        begin
+          @rebinding = true
+          @rebind = maybe_rebind(api_map)
+        ensure
+          @rebinding = false
+        end
+      end
+
+      # True once #rebind found a @yieldreceiver for this block
+      def rebound?
+        !!@rebind&.defined?
       end
 
       def binder
@@ -66,7 +80,6 @@ module Solargraph
         meths.each do |meth|
           next if meth.block.nil?
 
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1258
           yield_types = meth.block.parameters.map(&:return_type)
           # 'arguments' is what the method says it will yield to the
           # block; 'parameters' is what the block accepts

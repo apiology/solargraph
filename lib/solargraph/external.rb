@@ -137,7 +137,6 @@ module Solargraph
 
     # @return [String, nil]
     def rbs_collection_lockfile
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1258
       return if directory.nil? || directory.empty? || directory == '*'
       lockfile = File.join(directory, 'rbs_collection.lock.yaml')
       lockfile if File.file?(lockfile)

@@ -113,8 +113,6 @@ module Solargraph
           message
         elsif request['id']
           if requests[request['id']]
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1258
-            #   pure calls need https://github.com/apiology/solargraph/tree/narrow-pure-rbs-calls on top
             requests[request['id']].process(request['result'])
             requests.delete request['id']
           else
@@ -731,11 +729,7 @@ module Solargraph
       end
 
       # @return [Boolean]
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1258
-      #   pure calls need https://github.com/apiology/solargraph/tree/narrow-pure-rbs-calls on top
       def client_supports_progress?
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
-        #   pure calls need https://github.com/apiology/solargraph/tree/narrow-pure-rbs-calls on top
         client_capabilities['window'] && client_capabilities['window']['workDoneProgress']
       end
 
@@ -836,8 +830,6 @@ module Solargraph
         diffs = Diff::LCS.diff(source.code, change['text'])
         # @sg-ignore https://github.com/castwide/solargraph/pull/1223
         return change if diffs.empty? || diffs.length > 1 || diffs.first.length > 1
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
-        #   empty? guards need https://github.com/apiology/solargraph/tree/narrow-first-last-after-empty-guard on top
         # @type [Diff::LCS::Change]
         diff = diffs.first.first
         return change unless diff.adding? && ['.', ':', '(', ',', ' '].include?(diff.element)
@@ -919,11 +911,7 @@ module Solargraph
       end
 
       # @return [Boolean]
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1258
-      #   pure calls need https://github.com/apiology/solargraph/tree/narrow-pure-rbs-calls on top
       def prepare_rename?
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
-        #   pure calls need https://github.com/apiology/solargraph/tree/narrow-pure-rbs-calls on top
         client_capabilities['rename'] && client_capabilities['rename']['prepareSupport']
       end
 
@@ -940,15 +928,23 @@ module Solargraph
       def sync_library_map library
         total = library.workspace.sources.length
         progress = Progress.new('Mapping workspace')
-        progress.begin "0/#{total} files", 0
-        progress.send self
-        while library.next_map
-          pct = ((library.source_map_hash.keys.length.to_f / total) * 100).to_i
-          progress.report "#{library.source_map_hash.keys.length}/#{total} files", pct
+        begin
+          progress.begin "0/#{total} files", 0
+          progress.send self
+          while library.next_map
+            mapped = library.source_map_hash.length
+            # The workspace can change while it's being mapped, e.g., when the
+            # user opens a file that wasn't included in the original scan. The
+            # progress should never report more than 100%.
+            total = mapped if mapped > total
+            # @sg-ignore Wrong argument type for Integer#/: arg_0 expected BigDecimal, received Integer
+            pct = total.zero? ? 100 : ((mapped * 100) / total).clamp(0, 100)
+            progress.report "#{mapped}/#{total} files", pct
+            progress.send self
+          end
+          progress.finish 'done'
           progress.send self
         end
-        progress.finish 'done'
-        progress.send self
       end
     end
   end

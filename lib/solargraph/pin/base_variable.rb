@@ -289,11 +289,9 @@ module Solargraph
       end
 
       # @param other_loc [Location]
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1258
       def starts_at? other_loc
         location&.filename == other_loc.filename &&
           presence &&
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1258
           presence.start == other_loc.range.start
       end
 
@@ -305,7 +303,6 @@ module Solargraph
       def combine_presence other
         return presence || other.presence if presence.nil? || other.presence.nil?
 
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
         Range.new([presence.start, other.presence.start].max, [presence.ending, other.presence.ending].min)
       end
 
@@ -323,17 +320,11 @@ module Solargraph
           return closure || other.closure
         end
 
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
-        #   pure calls need https://github.com/apiology/solargraph/tree/narrow-pure-rbs-calls on top
         if closure.location.nil? || other.closure.location.nil?
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1258
-          #   pure calls need https://github.com/apiology/solargraph/tree/narrow-pure-rbs-calls on top
           return closure.location.nil? ? other.closure : closure
         end
 
         # if filenames are different, this will just pick one
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
-        #   pure calls need https://github.com/apiology/solargraph/tree/narrow-pure-rbs-calls on top
         return closure if closure.location <= other.closure.location
 
         other.closure
@@ -344,7 +335,6 @@ module Solargraph
       def visible_at? other_closure, other_loc
         # @sg-ignore Unresolved call to filename on Solargraph::Location, nil
         location.filename == other_loc.filename &&
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1258
           (!presence || presence.include?(other_loc.range.start)) &&
           visible_in_closure?(other_closure)
       end

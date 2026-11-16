@@ -187,6 +187,7 @@ module Solargraph
           logger.debug { "ApiMap::Index#map_overrides: pins for path=#{ovr.name}: #{pins}" }
           pins.each do |pin|
             new_pin = (path_pin_hash[ovr.name.sub('#initialize', '.new')].first if ovr.name.end_with?('#initialize'))
+            pin.annotations = pin.annotations | ovr.annotations if pin.is_a?(Pin::Method)
             (ovr.tags.map(&:tag_name) + ovr.delete.map(&:to_s)).uniq.each do |tag|
               pin.docstring.delete_tags tag
               new_pin&.docstring&.delete_tags tag
