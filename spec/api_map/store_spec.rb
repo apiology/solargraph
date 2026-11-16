@@ -67,4 +67,20 @@ describe Solargraph::ApiMap::Store do
       expect(ref.name).to eq('Boolean')
     end
   end
+
+  context 'with ancestors that carry type arguments' do
+    # A superclass is recorded as it was written. Namespaces are keyed by
+    # bare name, so Middle<String> matches nothing and the walk never reaches
+    # what Middle itself includes.
+    it 'reaches a mixin held by a generic superclass' do
+      mixin = Solargraph::Pin::Namespace.new(name: 'Mixin', type: :module)
+      middle = Solargraph::Pin::Namespace.new(name: 'Middle')
+      leaf = Solargraph::Pin::Namespace.new(name: 'Leaf')
+      includes = Solargraph::Pin::Reference::Include.new(closure: middle, name: 'Mixin<String>')
+      inherits = Solargraph::Pin::Reference::Superclass.new(closure: leaf, name: 'Middle<String>')
+      store = described_class.new([mixin, middle, leaf, includes, inherits])
+
+      expect(store.get_ancestors('Leaf')).to include('Mixin')
+    end
+  end
 end
