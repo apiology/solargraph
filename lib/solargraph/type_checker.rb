@@ -337,12 +337,10 @@ module Solargraph
           # @todo Should warn on nil deference here
           closure_pin = closure_pin.closure
         end
-        # @sg-ignore Need to add nil check here
         closure_pin.rebind(api_map)
         # @sg-ignore Need to add nil check here
         location = Location.new(filename, rng)
         locals = source_map.locals_at(location)
-        # @sg-ignore Need to add nil check here
         type = chain.infer(api_map, closure_pin, locals)
         if type.undefined? && !rules.ignore_all_undefined?
           base = chain
@@ -352,7 +350,6 @@ module Solargraph
           # @type [Array<Solargraph::Pin::Base>]
           all_found = []
           until base.links.first.undefined?
-            # @sg-ignore Need to add nil check here
             all_found = base.define(api_map, closure_pin, locals)
             found = all_found.first
             break if found
@@ -371,7 +368,6 @@ module Solargraph
             @marked_ranges.push rng
           end
         end
-        # @sg-ignore Need to add nil check here
         result.concat argument_problems_for(chain, api_map, closure_pin, locals, location)
       end
       result
