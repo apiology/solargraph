@@ -211,6 +211,7 @@ module Solargraph
               type, new_signature_pin = match_overload_type(ol, p, api_map, name_pin, locals, type, new_signature_pin)
               break if type.defined?
             end
+            type = narrow_grepped(type, p, api_map, name_pin, locals)
             p = p.with_single_signature(new_signature_pin) unless new_signature_pin.nil?
             next p.proxy(type) if type.defined?
             if !p.macros.empty?
@@ -421,6 +422,38 @@ module Solargraph
           block_pins = api_map.get_block_pins
           # @sg-ignore Need to add nil check here
           block_pins.find { |pin| pin.location.contain?(node_location) }
+        end
+
+        # Narrow the elements of `grep` results to the class or module
+        # its argument names, since `grep` keeps the elements its
+        # argument is `===` to, e.g. `children.grep(Foo)` is an `Array<Foo>`
+        #
+        # @param type [ComplexType]
+        # @param method_pin [Pin::Method]
+        # @param api_map [ApiMap]
+        # @param name_pin [Pin::Base]
+        # @param locals [::Array<Solargraph::Pin::LocalVariable, Solargraph::Pin::Parameter>]
+        # @return [ComplexType]
+        def narrow_grepped type, method_pin, api_map, name_pin, locals
+          return type unless method_pin.path == 'Enumerable#grep' && arguments.length == 1 && !with_block?
+          return type unless type.items.length == 1 && type.rooted_name == '::Array'
+
+          arg_name_pin = Pin::ProxyType.anonymous(name_pin.context, closure: name_pin.closure,
+                                                                    gates: name_pin.gates, source: :chain)
+          pattern_type = arguments.fetch(0).infer(api_map, arg_name_pin, locals)
+          return type unless pattern_type.items.length == 1 && %w[::Class ::Module].include?(pattern_type.rooted_name)
+          return type if pattern_type.all_params.empty?
+
+          klass = pattern_type.reduce_class_type
+          # A class or module that redefines `===` can match objects of other classes
+          return type unless api_map.get_method_stack(klass.namespace, '===', scope: :class).first&.path == 'Module#==='
+
+          element_type = ComplexType.new(type.all_params.flat_map(&:items))
+          narrowed = element_type.intersect_with(klass, api_map)
+          return type if narrowed.undefined?
+
+          array_type = ComplexType::UniqueType.new('Array', [], [narrowed], rooted: true, parameters_type: :list)
+          ComplexType.new([array_type])
         end
 
         # @param api_map [ApiMap]
