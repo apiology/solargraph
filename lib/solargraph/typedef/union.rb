@@ -78,6 +78,10 @@ module Solargraph
         Union.new(results).order_nil_last
       end
 
+      def to_typedef_typeset
+        self
+      end
+
       # @return [ComplexType]
       def to_complex_type
         ComplexType.new(types.map(&:to_complex_type))

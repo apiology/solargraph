@@ -19,7 +19,7 @@ module Solargraph
       # @return [String, nil]
       attr_reader :type_assertion
 
-      # @param return_type [ComplexType, nil]
+      # @param return_type [Type, nil]
       # @param assignment [Parser::AST::Node, nil] First assignment
       #   that was made to this variable
       # @param assignments [Array<Parser::AST::Node>] Possible
@@ -158,7 +158,7 @@ module Solargraph
 
       # @param parent_node [Parser::AST::Node]
       # @param api_map [ApiMap]
-      # @return [::Array<ComplexType>]
+      # @return [::Array<Type>]
       def return_types_from_node parent_node, api_map
         types = []
         value_position_nodes_only(parent_node).each do |node|
@@ -225,7 +225,7 @@ module Solargraph
         "#{super} = #{assignment&.type.inspect}"
       end
 
-      # @return [ComplexType, nil]
+      # @return [Type, nil]
       def return_type
         generate_complex_type || @return_type || intersection_return_type || ComplexType::UNDEFINED
       end
@@ -309,14 +309,17 @@ module Solargraph
       private
 
       # @param api_map [ApiMap]
-      # @param raw_return_type [ComplexType, ComplexType::UniqueType]
+      # @param raw_return_type [Type]
       #
-      # @return [ComplexType, ComplexType::UniqueType]
+      # @return [Type]
       def adjust_type api_map, raw_return_type
-        qualified_exclude = exclude_return_type&.qualify(api_map, *(closure&.gates || ['']))
-        minus_exclusions = raw_return_type.exclude qualified_exclude, api_map
-        qualified_intersection = intersection_return_type&.qualify(api_map, *(closure&.gates || ['']))
-        minus_exclusions.intersect_with qualified_intersection, api_map
+        gates = closure&.gates || ['']
+        excluded = exclude_return_type
+        minus_exclusions = excluded ? raw_return_type.exclude(excluded.qualify(api_map, *gates), api_map) : raw_return_type
+        intersection = intersection_return_type
+        return minus_exclusions unless intersection
+
+        minus_exclusions.intersect_with(intersection.qualify(api_map, *gates), api_map)
       end
 
       # See if this variable is visible within 'viewing_closure'
@@ -350,7 +353,7 @@ module Solargraph
       end
 
       # @param other [self]
-      # @return [ComplexType, nil]
+      # @return [Type, nil]
       def combine_return_type other
         combine_types(other, :return_type)
       end
@@ -358,11 +361,11 @@ module Solargraph
       # @param other [self]
       # @param attr [::Symbol]
       #
-      # @return [ComplexType, nil]
+      # @return [Type, nil]
       def combine_types other, attr
-        # @type [ComplexType, nil]
+        # @type [Type, nil]
         type1 = send(attr)
-        # @type [ComplexType, nil]
+        # @type [Type, nil]
         type2 = other.send(attr)
         if type1 && type2
           ComplexType.new([type1, type2])

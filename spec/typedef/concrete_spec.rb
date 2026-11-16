@@ -56,4 +56,11 @@ describe Solargraph::Typedef::Concrete do
       expect(described_class.new('Class', 'String')).not_to be_instance
     end
   end
+
+  describe '#to_typedef_typeset' do
+    it 'returns itself, already being a Typedef type' do
+      type = described_class.new('Array', 'String')
+      expect(type.to_typedef_typeset).to be(type)
+    end
+  end
 end

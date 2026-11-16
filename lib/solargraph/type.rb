@@ -75,6 +75,37 @@ module Solargraph
     # @!method to_complex_type
     #   @return [ComplexType]
 
+    # @!method to_typedef_typeset
+    #   This type in the Typedef representation the Typedef linker works
+    #   on; a Typedef type returns itself. Removed when ComplexType and
+    #   UniqueType are retired and every Type is already a Typedef type.
+    #   @return [Type]
+
+    # @!method intersect_with(other, api_map)
+    #   The values that are both values of this type and of +other+
+    #   (+self & other+). Undefined means unknown here as everywhere:
+    #   an undefined receiver returns +other+. An empty result -
+    #   no member known to be in both, including disjoint types such as
+    #   Integer & String - returns undefined until a bottom type with a
+    #   disjointness rule exists.
+    #   @param other [ComplexType] what flow-sensitive typing knows the
+    #     value is (Parser::FlowSensitiveTyping); widened to Type when
+    #     that producer emits Type facts
+    #   @param api_map [ApiMap]
+    #   @return [Type]
+
+    # @!method exclude(other, api_map)
+    #   The values of this type that are not values of +other+
+    #   (+self & !other+), approximated by dropping the members of this
+    #   type that are also members of +other+. An empty result returns
+    #   undefined until a bottom type with a disjointness rule exists.
+    #   Removed when a negation type implements Type: flow-sensitive
+    #   typing then records +!other+ and calls #intersect_with.
+    #   @param other [ComplexType] what flow-sensitive typing knows the
+    #     value is not (Parser::FlowSensitiveTyping)
+    #   @param api_map [ApiMap]
+    #   @return [Type]
+
     # @!method to_s
     #   @return [String]
 
