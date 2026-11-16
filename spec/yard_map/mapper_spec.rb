@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'tmpdir'
+
 describe Solargraph::YardMap::Mapper do
   def pins_with gem
     repo = Solargraph::Repo.new('.')
