@@ -797,6 +797,36 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message)).to be_empty
     end
 
+    it 'checks arguments of a call whose return type comes from a macro' do
+      checker = type_checker(%(
+        class Foo
+          # @param klass [Class]
+          # @return [Integer]
+          def baz(klass); 1; end
+        end
+
+        class Bar
+          # @param klass [Class]
+          # @!macro
+          #   @return [$1]
+          def baz(klass); end
+        end
+
+        # @param foo_or_bar [Foo, Bar]
+        # @param bar [Bar]
+        # @return [void]
+        def run foo_or_bar, bar
+          foo_or_bar.baz(String)
+          bar.baz(1)
+        end
+      ))
+      # Bar#baz needs no @return of its own for the calls to go through the macro
+      expect(checker.problems.map(&:message)).to contain_exactly(
+        'Missing @return tag for Bar#baz',
+        a_string_including('Wrong argument type for Bar#baz')
+      )
+    end
+
     context 'with class name available in more than one gate' do
       let(:checker) do
         type_checker(%(
