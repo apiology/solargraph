@@ -437,6 +437,13 @@ module Solargraph
                 ut.resolve_generics_from_context generics_to_resolve, new_unique_context_type,
                                                  resolved_generic_values: resolved_generic_values
               end
+            elsif context_type && context_type.name == name
+              # An unparameterized context of the same class (e.g. a bare
+              # Array for Array<U>) leaves its parameters undefined;
+              # binding them keeps a later `| U` arm from binding U to
+              # the container itself.
+              ut.resolve_generics_from_context generics_to_resolve, ComplexType::UNDEFINED,
+                                               resolved_generic_values: resolved_generic_values
             else
               ut.resolve_generics_from_context generics_to_resolve, nil,
                                                resolved_generic_values: resolved_generic_values
