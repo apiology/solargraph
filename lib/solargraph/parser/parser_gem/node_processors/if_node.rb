@@ -8,11 +8,6 @@ module Solargraph
           include ParserGem::NodeMethods
 
           def process
-            FlowSensitiveTyping.new(locals,
-                                    ivars,
-                                    enclosing_breakable_pin,
-                                    enclosing_compound_statement_pin,
-                                    region.closure).process_if(node)
             # s(:if, cond, then, else) - each child is a node, or nil when absent
             node => [:if,
                      ::Parser::AST::Node | nil => condition_node,
@@ -28,6 +23,12 @@ module Solargraph
               )
               NodeProcessor.process(condition_node, region, pins, locals, ivars)
             end
+            # After the condition, so its pattern match captures exist to narrow
+            FlowSensitiveTyping.new(locals,
+                                    ivars,
+                                    enclosing_breakable_pin,
+                                    enclosing_compound_statement_pin,
+                                    region.closure).process_if(node)
             if then_node
               pins.push Solargraph::Pin::CompoundStatement.new(
                 location: get_node_location(then_node),
