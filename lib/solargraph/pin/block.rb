@@ -63,6 +63,10 @@ module Solargraph
         locals = clip.locals - [self]
         # @sg-ignore Need to add nil check here
         meths = chain.define(api_map, closure, locals)
+        # The first overload's types, kept so one unknown parameter
+        # does not erase the types known for the others
+        # @type [::Array<ComplexType>, nil]
+        fallback = nil
         # @todo Convert logic to use signatures
         # @param meth [Pin::Method]
         meths.each do |meth|
@@ -87,8 +91,15 @@ module Solargraph
             end
           end
           return param_types if param_types.all?(&:defined?)
+          # One yielded value spread over several parameters is a
+          # destructuring this method could not type, so keep nothing
+          # @sg-ignore https://github.com/apiology/solargraph/pull/195
+          #   https://github.com/castwide/solargraph/pull/1258
+          next if yield_types.length < parameters.length
+
+          fallback ||= parameters.each_index.map { |idx| param_types[idx] || ComplexType::UNDEFINED }
         end
-        parameters.map { ComplexType::UNDEFINED }
+        fallback || parameters.map { ComplexType::UNDEFINED }
       end
 
       private
