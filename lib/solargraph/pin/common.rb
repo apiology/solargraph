@@ -107,7 +107,6 @@ module Solargraph
           elsif here.is_a?(Pin::Method)
             return here.context
           end
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1322
           here = here.closure
         end
         ComplexType::ROOT
