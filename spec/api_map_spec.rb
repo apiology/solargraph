@@ -821,25 +821,25 @@ describe Solargraph::ApiMap do
 
   it 'infers a core method replaced by alias_method from the alias' do
     source = Solargraph::Source.load_string(%(
-      class Time
+      class String
         # @return [Symbol]
-        def compare_with_coercion(other)
-          compare_without_coercion(other)
+        def upcase_with_symbol
+          upcase_without_symbol.to_sym
         end
-        alias_method :compare_without_coercion, :<=>
-        alias_method :<=>, :compare_with_coercion
+        alias_method :upcase_without_symbol, :upcase
+        alias_method :upcase, :upcase_with_symbol
       end
 
-      a = Time.now <=> Time.now
+      a = 'a'.upcase
       a
-      b = Time.now.compare_without_coercion(Time.now)
+      b = 'a'.upcase_without_symbol
       b
     ), 'test.rb')
 
     api_map = described_class.new.map(source)
 
     expect(api_map.clip_at('test.rb', [11, 6]).infer.to_s).to eq('Symbol')
-    expect(api_map.clip_at('test.rb', [13, 6]).infer.to_s).to eq('Integer')
+    expect(api_map.clip_at('test.rb', [13, 6]).infer.to_s).to eq('String')
   end
 
   it 'resolves aliases in identically named deeply nested classes' do
