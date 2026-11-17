@@ -1014,4 +1014,13 @@ describe Solargraph::Pin::Method do
     pin = described_class.new(name: 'foo', node: Solargraph::Parser.parse('foo'))
     expect(pin.send(:method_body_node)).to be_nil
   end
+
+  # Building the missing-location log message used to call #path, whose
+  # result is cached, before Pin::Closure#initialize had assigned @scope.
+  it 'keeps an instance method path when built with a source and no location' do
+    closure = Solargraph::Pin::Namespace.new(name: 'Collection')
+    pin = described_class.new(name: 'first', scope: :instance, parameters: [], closure: closure,
+                              source: :rbs)
+    expect(pin.path).to eq('Collection#first')
+  end
 end
