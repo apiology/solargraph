@@ -819,6 +819,29 @@ describe Solargraph::ApiMap do
     expect(clip.infer.to_s).to eq('Symbol')
   end
 
+  it 'infers a core method replaced by alias_method from the alias' do
+    source = Solargraph::Source.load_string(%(
+      class Time
+        # @return [Symbol]
+        def compare_with_coercion(other)
+          compare_without_coercion(other)
+        end
+        alias_method :compare_without_coercion, :<=>
+        alias_method :<=>, :compare_with_coercion
+      end
+
+      a = Time.now <=> Time.now
+      a
+      b = Time.now.compare_without_coercion(Time.now)
+      b
+    ), 'test.rb')
+
+    api_map = described_class.new.map(source)
+
+    expect(api_map.clip_at('test.rb', [11, 6]).infer.to_s).to eq('Symbol')
+    expect(api_map.clip_at('test.rb', [13, 6]).infer.to_s).to eq('Integer')
+  end
+
   it 'resolves aliases in identically named deeply nested classes' do
     source = Solargraph::Source.load_string(%(
       module A

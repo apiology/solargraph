@@ -852,7 +852,14 @@ module Solargraph
       # Store#get_methods doesn't know about full tags, just
       # namespaces; resolving the generics in the method pins is this
       # class' responsibility
-      methods = store.get_methods(fqns, scope: scope, visibility: visibility).sort { |a, b| a.name <=> b.name }
+      methods = store.get_methods(fqns, scope: scope, visibility: visibility)
+      # An alias_method in Ruby source replaces the RBS method of the same name, so it comes first.
+      replaced = methods.select { |pin| pin.is_a?(Pin::MethodAlias) && pin.source != :rbs }.to_set(&:name)
+      # @param pin [Pin::Method]
+      # @param index [Integer]
+      methods = methods.sort_by.with_index do |pin, index|
+        [pin.name, pin.source == :rbs && replaced.include?(pin.name) ? 1 : 0, index]
+      end
       logger.info do
         "ApiMap#inner_get_methods(rooted_tag=#{rooted_tag.inspect}, scope=#{scope.inspect}, visibility=#{visibility.inspect}, deep=#{deep.inspect}, skip=#{skip.inspect}, fqns=#{fqns}) - added from store: #{methods}"
       end
