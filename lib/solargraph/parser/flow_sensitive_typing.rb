@@ -595,7 +595,6 @@ module Solargraph
       end
 
       # @param var [Parser::AST::Node] a match_var node
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1397
       # @return [Pin::LocalVariable, nil] the capture var declares, not an
       #   earlier one of the same name
       def find_capture var
@@ -660,7 +659,6 @@ module Solargraph
       # @param variable_name [String]
       # @param position [Position]
       #
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1397
       # @return [Solargraph::Pin::LocalVariable, Solargraph::Pin::InstanceVariable, nil]
       def find_var variable_name, position
         if variable_name.start_with?('@')
