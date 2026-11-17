@@ -9,7 +9,7 @@ module Solargraph
         class OpasgnNode < Parser::NodeProcessor::Base
           # @return [void]
           def process
-            target = node.children[0]
+            target = node.children.fetch(0)
             operator = node.children[1]
             argument = node.children[2]
             if target.type == :send
@@ -71,8 +71,7 @@ module Solargraph
             #      :+, # operator
             #      s(:int, 2)) # argument
 
-            # @type [Parser::AST::Node]
-            variable_name = asgn.children[0]
+            variable_name = asgn.children.fetch(0)
             # for lvasgn, gvasgn, cvasgn, convert to lvar, gvar, cvar
             # [6] pry(main)> Parser::CurrentRuby.parse("a = a + 1")
             # => s(:lvasgn, :a,
