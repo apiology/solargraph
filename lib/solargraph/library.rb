@@ -271,41 +271,38 @@ module Solargraph
       return [] unless pin
 
       result = []
+      # @type [Array<Source, SourceMap>]
       files = if only
                 [api_map.source_map(filename)]
               else
                 (workspace.sources + (@current ? [@current] : []))
               end
       files.uniq(&:filename).each do |source|
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1223
         found = source.references(pin.name)
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1223
         found.select! do |loc|
+          # @sg-ignore Need to add nil check here
           referenced = definitions_at(loc.filename, loc.range.ending.line, loc.range.ending.character)&.first
           referenced&.path == pin.path
         end
         if pin.path == 'Class#new'
           caller = cursor.chain.base.infer(api_map, clip.send(:closure), clip.locals).first
           if caller&.defined?
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1223
             found.select! do |loc|
               clip = api_map.clip_at(loc.filename, loc.range.start)
               other = clip.send(:cursor).chain.base.infer(api_map, clip.send(:closure), clip.locals).first
               caller == other
             end
           else
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1223
             found.clear
           end
         end
         # HACK: for language clients that exclude special characters from the start of variable names
         if strip && (match = cursor.word.match(/^[^a-z0-9_]+/i))
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1223
           found.map! do |loc|
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1338
             Solargraph::Location.new(loc.filename, Solargraph::Range.from_to(loc.range.start.line, loc.range.start.column + match[0].length, loc.range.ending.line, loc.range.ending.column))
           end
         end
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1223
         result.concat(found.sort do |a, b|
           a.range.start.line <=> b.range.start.line
         end)
@@ -505,7 +502,7 @@ module Solargraph
       src = workspace.sources.find { |s| !source_map_hash.key?(s.filename) }
       if src
         Logging.logger.debug "Mapping #{src.filename}"
-        source_map_hash[src.filename!] = Solargraph::SourceMap.map(src)
+        mutex.synchronize { source_map_hash[src.filename!] = Solargraph::SourceMap.map(src) }
       else
         false
       end
@@ -635,6 +632,14 @@ module Solargraph
 
         catalog
         sync_catalog
+      rescue StandardError => e
+        logger.warn "Error caching gemspec #{spec.name} #{spec.version}"
+        logger.warn e
+      ensure
+        # The progress notification has to be closed even if caching failed.
+        # Clients have no way to dismiss a notification that never receives an
+        # end.
+        end_cache_progress
       end
     end
 
