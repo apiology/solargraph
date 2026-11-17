@@ -494,7 +494,7 @@ module Solargraph
         result.concat inner_get_methods('Kernel', :instance, [:public], deep, skip) if visibility.include?(:private)
         result.concat inner_get_methods('Module', scope, visibility, deep, skip) if scope == :module
       end
-      result = resolve_method_aliases(result, visibility)
+      result = resolve_method_aliases(prefer_source_aliases(result), visibility)
       if namespace_pin && rooted_tag != rooted_type.name
         result = result.map { |method_pin| method_pin.resolve_generics(namespace_pin, rooted_type) }
       end
@@ -852,14 +852,7 @@ module Solargraph
       # Store#get_methods doesn't know about full tags, just
       # namespaces; resolving the generics in the method pins is this
       # class' responsibility
-      methods = store.get_methods(fqns, scope: scope, visibility: visibility)
-      # An alias_method in Ruby source replaces the RBS method of the same name, so it comes first.
-      replaced = methods.select { |pin| pin.is_a?(Pin::MethodAlias) && pin.source != :rbs }.to_set(&:name)
-      # @param pin [Pin::Method]
-      # @param index [Integer]
-      methods = methods.sort_by.with_index do |pin, index|
-        [pin.name, pin.source == :rbs && replaced.include?(pin.name) ? 1 : 0, index]
-      end
+      methods = store.get_methods(fqns, scope: scope, visibility: visibility).sort { |a, b| a.name <=> b.name }
       logger.info do
         "ApiMap#inner_get_methods(rooted_tag=#{rooted_tag.inspect}, scope=#{scope.inspect}, visibility=#{visibility.inspect}, deep=#{deep.inspect}, skip=#{skip.inspect}, fqns=#{fqns}) - added from store: #{methods}"
       end
@@ -947,6 +940,26 @@ module Solargraph
     end
 
     include Logging
+
+    # An alias_method in Ruby source replaces the RBS method at its path, so
+    # each RBS pin at that path moves to just after the alias.
+    #
+    # @param pins [Array<Pin::Base>]
+    # @return [Array<Pin::Base>]
+    def prefer_source_aliases pins
+      aliases = pins.select { |pin| pin.is_a?(Pin::MethodAlias) && pin.source != :rbs }
+      return pins if aliases.empty?
+
+      paths = aliases.to_set(&:path)
+      replaced, rest = pins.partition { |pin| pin.source == :rbs && paths.include?(pin.path) }
+      replaced_by_path = replaced.group_by(&:path)
+      ordered = []
+      rest.each do |pin|
+        ordered.push pin
+        ordered.concat(replaced_by_path.delete(pin.path) || []) if aliases.include?(pin)
+      end
+      ordered
+    end
 
     # @param alias_pin [Pin::MethodAlias]
     # @return [Pin::Method, nil]
