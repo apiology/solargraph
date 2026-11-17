@@ -570,8 +570,6 @@ module Solargraph
     # @raise [FileNotFoundError] if the file does not exist
     # @param filename [String]
     # @return [Solargraph::Source]
-    # @sg-ignore https://github.com/castwide/solargraph/pull/1258
-    #   pure calls need https://github.com/apiology/solargraph/tree/narrow-pure-rbs-calls on top
     def read filename
       return @current if @current && @current.filename == filename
       raise FileNotFoundError, "File not found: #{filename}" unless workspace.has_file?(filename)
