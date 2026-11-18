@@ -251,6 +251,14 @@ RSpec/MultipleMemoizedHelpers:
 RSpec/NestedGroups:
   Max: 4
 
+RSpec/RepeatedDescription:
+  Exclude:
+    - 'spec/language_server/message/text_document/type_definition_spec.rb'
+
+RSpec/RepeatedExample:
+  Exclude:
+    - 'spec/language_server/message/text_document/type_definition_spec.rb'
+
 # This cop supports unsafe autocorrection (--autocorrect-all).
 # Configuration parameters: EnforcedStyle, AllowModifiersOnSymbols, AllowModifiersOnAttrs, AllowModifiersOnAliasMethod.
 # SupportedStyles: inline, group
