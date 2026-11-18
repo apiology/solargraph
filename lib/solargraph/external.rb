@@ -151,6 +151,7 @@ module Solargraph
       unfound_gem_names.clear
     end
 
+    # @param metagem [Metagem]
     def process_gem metagem
       return if loaded_gems.include?(metagem) || unloaded_gems.include?(metagem)
 
@@ -160,7 +161,9 @@ module Solargraph
         loaded_gems.add metagem
         base_pins = Collection::Gem.load(metagem)
         rbsc_pins = rbs_collection.load(metagem)
-        if rbsc_pins.empty?
+        if rbsc_pins.empty? && RbsMap::Stdlib.has?(metagem.name)
+          pins.concat stdlib_combined_pins(metagem, base_pins)
+        elsif rbsc_pins.empty?
           pins.concat base_pins
         else
           pins.concat RbsMap::Helpers.combine(base_pins, rbsc_pins)
@@ -173,6 +176,23 @@ module Solargraph
                  end
       end
       load_dependencies metagem
+    end
+
+    # A default gem (e.g., benchmark) is typed by stdlib RBS rather than by
+    # its own sig/ or the RBS collection, so combine its source pins with
+    # those signatures. Leave out the stdlib-only pins if a require already
+    # loaded them.
+    #
+    # @param metagem [Metagem]
+    # @param base_pins [Array<Pin::Base>]
+    # @return [Array<Pin::Base>]
+    def stdlib_combined_pins metagem, base_pins
+      stdlib_pins = Collection::Stdlib.load(metagem.name)
+      combined = RbsMap::Helpers.combine(base_pins, stdlib_pins)
+      return combined if loaded_stdlibs.add?(metagem.name)
+
+      # combine returns the base pins, combined, ahead of the stdlib-only ones
+      combined.first(base_pins.length)
     end
 
     def load_dependencies parent
