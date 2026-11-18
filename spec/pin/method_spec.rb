@@ -315,6 +315,27 @@ describe Solargraph::Pin::Method do
     expect(kwrestarg_overload.parameters.first.decl).to eq(:kwrestarg)
   end
 
+  it 'types overload parameters written with prefixes and suffixes' do
+    pin = described_class.new(name: 'foo', comments: %<
+@overload foo(*names, sep: ',', count:, &block)
+  @param names [Array<String>]
+  @param sep [String]
+  @param count [Integer]
+  @param block [Proc]
+    >)
+    params = pin.overloads.first.parameters
+    expect(params.map(&:name)).to eq(%w[names sep count block])
+    expect(params.map(&:decl)).to eq(%i[restarg kwoptarg kwarg blockarg])
+    expect(params.map { |param| param.return_type.tag }).to eq(%w[Array<String> String Integer Proc])
+  end
+
+  it 'marks overload parameters with defaults as optional' do
+    pin = described_class.new(name: 'foo', comments: %<
+@overload foo(bar = 1)
+    >)
+    expect(pin.overloads.first.parameters.first.decl).to eq(:optarg)
+  end
+
   it 'applies yieldparam tags from the matching overload only' do
     pin = described_class.new(name: 'build', comments: %(
 @overload build

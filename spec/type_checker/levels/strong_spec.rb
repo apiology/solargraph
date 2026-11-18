@@ -1619,5 +1619,53 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message))
         .to eq ['Declared type String does not match inferred type String, nil for variable x']
     end
+
+    it 'accepts any body for a method whose signatures include void' do
+      checker = type_checker(%(
+        # @yieldparam [Integer]
+        # @return [void]
+        # @overload each_number()
+        #   @return [Enumerator<Integer>]
+        def each_number &block
+          return enum_for(__method__) unless block_given?
+
+          [1, 2].each(&block)
+        end
+      ))
+      expect(checker.problems.map(&:message)).to be_empty
+    end
+
+    context 'with method-level tags beside @overload tags' do
+      def conv_source call
+        %(
+          # @param value [String, Integer]
+          # @return [String, Integer]
+          # @overload conv(value)
+          #   @param value [String]
+          #   @return [Integer]
+          # @overload conv(value)
+          #   @param value [Integer]
+          #   @return [String]
+          def conv value
+            value.is_a?(String) ? value.length : value.to_s
+          end
+
+          # @return [Integer]
+          def caller_m
+            #{call}
+          end
+        )
+      end
+
+      it 'picks the overload matching the arguments' do
+        checker = type_checker(conv_source("conv('a')"))
+        expect(checker.problems.map(&:message)).to be_empty
+      end
+
+      it 'still rejects arguments no signature accepts' do
+        checker = type_checker(conv_source('conv(1.5)'))
+        expect(checker.problems.map(&:message)).to include(a_string_including('Wrong argument type for #conv'))
+      end
+    end
   end
 end
