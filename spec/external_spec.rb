@@ -63,6 +63,18 @@ describe Solargraph::External do
     end
   end
 
+  context 'with a default gem whose signatures are in stdlib RBS' do
+    let(:directory) { Dir.pwd }
+
+    it 'types the gem methods from the stdlib signatures' do
+      metagem = Solargraph::Metagem.from_specification(Gem::Specification.find_by_name('benchmark'))
+      Solargraph::Collection::Gem.load(metagem)
+      external = described_class.new(directory, ['benchmark'], ['benchmark'])
+      pins = external.pins.select { |pin| pin.path == 'Benchmark::Tms#real' }
+      expect(pins.map { |pin| pin.return_type.to_s }.uniq).to eq(['Float'])
+    end
+  end
+
   it 'tracks unresolved requires' do
     external = described_class.new(directory, ['not_a_valid_path'])
     expect(external.unresolved_requires).to eq(['not_a_valid_path'])
