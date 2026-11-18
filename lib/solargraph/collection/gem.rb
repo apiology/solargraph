@@ -64,9 +64,9 @@ module Solargraph
               load mg
             end
           end
-          # #value! re-raises in this thread if any gem failed, matching
-          # the serial loop this replaces.
-          Concurrent::Promises.zip(*futures).value!
+          # Waiting in order re-raises the first gem's failure in this
+          # thread, matching the serial loop this replaces.
+          futures.each(&:value!)
           pool.shutdown
           pool.wait_for_termination
         ensure

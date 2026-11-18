@@ -59,5 +59,13 @@ describe Solargraph::Collection::Gem do
 
       expect(pools.map(&:running?)).to eq([false])
     end
+
+    it 'raises the first failing gem error, as a serial loop would' do
+      second = instance_double(Solargraph::Metagem, name: 'second', version: '1.0.0')
+      allow(described_class).to receive(:load).with(metagem).and_raise(ArgumentError, 'first')
+      allow(described_class).to receive(:load).with(second).and_raise(RuntimeError, 'second')
+
+      expect { described_class.load_all([metagem, second]) }.to raise_error(ArgumentError, 'first')
+    end
   end
 end
