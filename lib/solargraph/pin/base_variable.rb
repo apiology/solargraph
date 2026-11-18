@@ -7,6 +7,7 @@ module Solargraph
     class BaseVariable < Base
       # include Solargraph::Source::NodeMethods
       include Solargraph::Parser::NodeMethods
+      include Narrowing
 
       # @return [Array<Parser::AST::Node>]
       attr_reader :assignments
@@ -219,6 +220,11 @@ module Solargraph
         return false unless super
         # @sg-ignore Should add type check on other
         assignment == other.assignment
+      end
+
+      # @return [String]
+      def subject
+        name
       end
 
       def type_desc
