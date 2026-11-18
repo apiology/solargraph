@@ -33,8 +33,6 @@ module Solargraph
       # @type [Source, nil]
       @current = nil
       @sync_count = 0
-      # Made here, not lazily: the diagnoser and request threads would each
-      # build their own on first use
       @mutex = Mutex.new
       @api_map_mutex = Mutex.new
     end
@@ -544,8 +542,6 @@ module Solargraph
 
     # @return [ApiMap]
     def api_map
-      # Callers outside #mutex (e.g. diagnostics reporters) would otherwise
-      # build a second, uncataloged ApiMap that replaces the cataloged one
       @api_map_mutex.synchronize { @api_map ||= Solargraph::ApiMap.new }
     end
 
