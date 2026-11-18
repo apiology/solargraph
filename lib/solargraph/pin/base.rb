@@ -159,6 +159,7 @@ module Solargraph
       # @return [Pin::Closure, nil]
       def combine_closure other
         chosen = choose_pin_attr_with_same_name(other, :closure)
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1491
         return chosen unless chosen.is_a?(Pin::Namespace) && chosen.generics.empty?
 
         # Combined types may name type parameters only the other closure declares

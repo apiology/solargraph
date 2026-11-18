@@ -361,6 +361,23 @@ describe Solargraph::TypeChecker do
       expect(checker.problems.map(&:message)).to eq(['Unneeded @sg-ignore comment'])
     end
 
+    it 'does not infer a type from the body of a method tagged @return [undefined]' do
+      checker = type_checker(%(
+        class Foo
+          # @return [undefined]
+          def bar
+            1
+          end
+
+          # @return [String]
+          def baz
+            bar
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).not_to include(a_string_including('inferred type ::Integer'))
+    end
+
     it 'reports missing return tags' do
       checker = type_checker(%(
         class Foo
@@ -1002,8 +1019,7 @@ describe Solargraph::TypeChecker do
 
           # @param other [self]
           #
-          # @sg-ignore Missing @return tag
-          # @return [undefined]
+          # @return [Symbol, nil]
           def baz(other); end
         end
       ))

@@ -297,6 +297,8 @@ module Solargraph
         unresolved_pins.each do |pin|
           # Avoid infinite recursion
           next if @@inference_stack.include?(pin.identity)
+          # @return [undefined] declares the type unknown; the body is no better guess
+          next if pin.docstring.tags(:return).any? { |tag| tag.types&.include?('undefined') }
 
           @@inference_stack.push(pin.identity)
           type = pin.probe(api_map)
