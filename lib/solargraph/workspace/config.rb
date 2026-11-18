@@ -111,15 +111,34 @@ module Solargraph
         validated_array('plugins')
       end
 
-      # Require the configured plugins, recording each one that loads in
-      # the gem cache key.
+      # Require the configured plugins.
       #
-      # @return [void]
-      def require_plugins
-        plugins.each do |plugin|
+      # @return [Hash{String => String, nil}] Solargraph plugin gem name =>
+      #   version, nil when the plugin was not loaded from a gem; selects the
+      #   gem cache directory (see {Workspace#plugin_versions})
+      def require_plugins!
+        Config.require_plugins! plugins
+      end
+
+      # Require plugins.
+      #
+      # @param plugins [Array<String>] entries as the `plugins` key of
+      #   .solargraph.yml lists them. Each is passed to `require`, so it is
+      #   strictly a require path, though usually the same as the plugin
+      #   gem's name (e.g. solargraph-rails). The loaded gem that provides it
+      #   supplies the gem name and version recorded for it.
+      # @param strict [Boolean] raise LoadError for a plugin that fails to
+      #   load instead of leaving it out
+      # @return [Hash{String => String, nil}] Solargraph plugin gem name =>
+      #   version, nil when the plugin was not loaded from a gem; selects the
+      #   gem cache directory (see {Workspace#plugin_versions})
+      def self.require_plugins! plugins, strict: false
+        plugins.each_with_object({}) do |plugin, loaded|
           require plugin
-          CacheDir.add_plugin plugin
+          spec = Gem.loaded_specs.each_value.find { |s| s.name == plugin || s.contains_requirable_file?(plugin) }
+          loaded[spec&.name || plugin] = spec&.version&.to_s
         rescue LoadError
+          raise if strict
           Solargraph.logger.warn "Failed to load plugin '#{plugin}'"
         end
       end

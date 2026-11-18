@@ -1098,7 +1098,7 @@ describe Solargraph::ApiMap do
     let(:metagem) { instance_double(Solargraph::Metagem, name: 'example', cache_name: 'example-1.0.0') }
 
     def api_map_awaiting metagems
-      external = instance_double(Solargraph::External, unloaded_gems: metagems)
+      external = instance_double(Solargraph::External, unloaded_gems: metagems, plugin_versions: {})
       instance_double(described_class, external: external)
     end
 
@@ -1113,7 +1113,7 @@ describe Solargraph::ApiMap do
       # it needed existed, so it is not the one the caller should get.
       expect(described_class.load_with_cache('.', out)).to be(complete)
       expect(out.string).to eq("Caching gem example (example-1.0.0)\n")
-      expect(Solargraph::Collection::Gem).to have_received(:load_all).with([metagem], out: out)
+      expect(Solargraph::Collection::Gem).to have_received(:load_all).with([metagem], {}, out: out)
     end
 
     it 'skips the second load when every gem is already cached' do
