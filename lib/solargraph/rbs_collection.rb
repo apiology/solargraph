@@ -33,11 +33,9 @@ module Solargraph
     # so they can never be located by a gem name/version lookup.
     #
     # @return [Array<String>]
-    # @sg-ignore https://github.com/castwide/solargraph/pull/1479
     def stdlib_names
-      @stdlib_names ||= raw_data[:gems].select { |gem| gem.dig(:source, :type).to_s == 'stdlib' }
-                                       # @sg-ignore https://github.com/castwide/solargraph/pull/1479
-                                       .map { |gem| gem[:name].to_s }.uniq
+      @stdlib_names ||= gems.select { |gem| gem.dig(:source, :type).to_s == 'stdlib' }
+                            .map { |gem| gem[:name].to_s }.uniq
     end
 
     private
@@ -46,21 +44,15 @@ module Solargraph
     #
     # @return [Hash{String => String}]
     def gem_path_map
-      @gem_path_map ||= begin
-        # @type [Array<Hash{Symbol => undefined}>]
-        gems = raw_data[:gems]
-        gems.to_h { |gem| ["#{gem[:name]}-#{gem[:version]}", gem_source_path(gem)] }.compact
-      end
+      @gem_path_map ||= gems.to_h { |gem| ["#{gem[:name]}-#{gem[:version]}", gem_source_path(gem)] }.compact
     end
 
     # The versions available in the collection for each gem name.
     #
     # @return [Hash{String => Array<String>}]
-    # @sg-ignore https://github.com/castwide/solargraph/pull/1479
     def versions_by_name
-      @versions_by_name ||= raw_data[:gems].group_by { |gem| gem[:name].to_s }
-                                           # @sg-ignore https://github.com/castwide/solargraph/pull/1479
-                                           .transform_values { |gems| gems.map { |gem| gem[:version].to_s } }
+      @versions_by_name ||= gems.group_by { |gem| gem[:name].to_s }
+                                .transform_values { |gems| gems.map { |gem| gem[:version].to_s } }
     end
 
     # @param metagem [Metagem]
@@ -120,17 +112,33 @@ module Solargraph
 
     # @return [String, nil]
     def gem_rbs_collection_path
+      # @sg-ignore Wrong argument type for File.expand_path: file_name expected String, _ToStr, _ToPath, received String, Array<Hash{Symbol => String, Hash{Symbol => String}}>, nil
       @gem_rbs_collection_path ||= File.expand_path(raw_data[:path]) if raw_data[:path]
     end
 
-    # @return [Hash]
-    # @sg-ignore https://github.com/castwide/solargraph/pull/1479
+    # @return [Array<Hash{Symbol => String, Hash{Symbol => String}}>]
+    def gems
+      gems = raw_data[:gems]
+      return gems if gems.is_a?(Array) && gems.all?(Hash)
+
+      raise TypeError, "Expected an Array of gem Hashes in #{lockfile}"
+    end
+
+    # @return [Hash{Symbol => String, Array<Hash{Symbol => String, Hash{Symbol => String}}>}]
     def raw_data
       @raw_data ||= if lockfile && File.file?(lockfile)
-                      YAML.load_file(lockfile, symbolize_names: true)
+                      load_lockfile
                     else
                       { gems: [] }
                     end
+    end
+
+    # @return [Hash{Symbol => String, Array<Hash{Symbol => String, Hash{Symbol => String}}>}]
+    def load_lockfile
+      data = YAML.load_file(lockfile, symbolize_names: true)
+      return data if data.is_a?(Hash)
+
+      raise TypeError, "Expected a Hash in #{lockfile}"
     end
 
     # @return [Hash{String => Array<Pin::Base>}]
