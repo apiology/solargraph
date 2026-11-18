@@ -48,9 +48,6 @@ module Solargraph
               namespace_pin.name.to_sym
             )
           end
-          # @sg-ignore Wrong argument type for YARD::CodeObjects::MethodObject.new: namespace
-          # expected YARD::CodeObjects::NamespaceObject, got nil.
-          #   False positive because namespace_object is set in the loop above.
           YARD::CodeObjects::MethodObject.new(namespace_object, method_pin.name)
         end
       end
@@ -101,7 +98,6 @@ module Solargraph
 
         # @param generated_pins [Array<Pin::Base>]
         generate_yardoc_from(chain, source_map).reduce([]) do |generated_pins, directive|
-          # @sg-ignore flow sensitive typing confuses this block variable with the #directive attr reader
           if directive.tag.tag_name == 'scope'
             inherited_scope = Directives::ScopeDirective.parse_scope(directive) || inherited_scope
             next generated_pins
@@ -127,11 +123,14 @@ module Solargraph
       # @param [SourceMap] source_map
       # @return [Array<YARD::Tags::Directive>]
       def generate_yardoc_from chain, source_map
-        name = chain.links.last.word
-        # @sg-ignore chain.links.last is assumed to be a Chain::Call
-        values = chain.links.last.arguments.map(&:node).map { |arg| Solargraph::Parser::ParserGem::NodeMethods.simple_convert(arg).to_s }
-        # @sg-ignore chain.node is assumed to exist
-        code = source_map.source.code_for(chain.node)
+        call = chain.links.last
+        # Macros expand only from method calls, which carry arguments
+        return [] unless call.is_a?(Source::Chain::Call)
+
+        name = call.word
+        values = call.arguments.map(&:node).map { |arg| Solargraph::Parser::ParserGem::NodeMethods.simple_convert(arg).to_s }
+        node = chain.node
+        code = node ? source_map.source.code_for(node) : raise("Macro call chain has no node: #{chain.inspect}")
         expanded_comment = macro_object.expand([name, *values], code)
                                        .gsub(/\n(?!@!|\s)/, "\n  ")
         parsed_docstring = Solargraph::Source.parse_docstring(expanded_comment)
@@ -148,8 +147,7 @@ module Solargraph
         directives.each do |directive|
           next if VALUE_DIRECTIVES.include? directive.tag.tag_name
 
-          # @sg-ignore chain.node is assumed to exist
-          comments = source_map.source.comments_for(chain.node)
+          comments = source_map.source.comments_for(node)
           if comments&.length&.positive?
             directive.tag.text += "\n#{comments}"
           end

@@ -15,6 +15,11 @@ describe 'YARD type specifier list parsing' do
       expect(types.length).to eq(0)
     end
 
+    it 'has no parameters when it has zero types' do
+      types = Solargraph::ComplexType.parse
+      expect(types.all_params).to eq([])
+    end
+
     it 'parses zero types as a string' do
       pending('special case being added')
       types = Solargraph::ComplexType.parse ''
@@ -130,6 +135,18 @@ describe 'YARD type specifier list parsing' do
       expect(qualified.to_rbs).to eq('bool')
     end
 
+    # A `bot` type (e.g. the inferred return of a method that only
+    # raises) never reaches an actual namespace to qualify - #qualify
+    # must skip it rather than asking the ApiMap to resolve 'bot' as
+    # a namespace name.
+    it 'leaves a bot type unqualified' do
+      api_map = instance_double(Solargraph::ApiMap, qualify: nil)
+      type = Solargraph::ComplexType::BOT
+      qualified = type.qualify(api_map)
+      expect(qualified.tag).to eq('bot')
+      expect(api_map).not_to have_received(:qualify)
+    end
+
     # Parametrized Types
     #
     # In addition to basic types (like String or Array), YARD
@@ -238,6 +255,17 @@ describe 'YARD type specifier list parsing' do
       expect(type.tag).to eq('Array(Array(String), String)')
       expect(type.to_rbs).to eq('[[String], String]')
       expect(type.to_s).to eq('Array(Array(String), String)')
+    end
+
+    it 'keeps the arity of a tuple whose parameters are all undefined, so it stays distinct from a bare type across a round trip' do
+      type = Solargraph::ComplexType.parse('::Array(generic<T>, generic<U>)').items.first.erase_generics(%w[T U])
+      expect(type.subtypes.map(&:tags)).to eq(%w[undefined undefined])
+      expect(type.tags).to eq('Array(undefined, undefined)')
+      expect(type.rooted_tags).to eq('::Array(undefined, undefined)')
+      reparsed = Solargraph::ComplexType.parse(type.rooted_tags).items.first
+      expect(reparsed.parameters?).to be(true)
+      expect(reparsed.parameters_type).to eq(:fixed)
+      expect(reparsed.rooted_tags).to eq(type.rooted_tags)
     end
 
     # Literals
@@ -458,7 +486,6 @@ describe 'YARD type specifier list parsing' do
       end
 
       it 'squashes literal types when simplifying literals of same type' do
-        pending 'Maybe feasible'
         api_map = Solargraph::ApiMap.new
         type = Solargraph::ComplexType.parse('1, 2, 3')
         type = type.qualify(api_map, '')
@@ -507,6 +534,11 @@ describe 'YARD type specifier list parsing' do
         expect(type.to_rbs).to eq('Variable')
       end
 
+      it 'renders a generic without a parameter as untyped RBS' do
+        type = Solargraph::ComplexType.parse('generic')
+        expect(type.to_rbs).to eq('untyped')
+      end
+
       it 'recognizes generic parameters' do
         type = Solargraph::ComplexType.parse('Array<generic<Variable>>')
         expect(type).to be_generic
@@ -529,6 +561,58 @@ describe 'YARD type specifier list parsing' do
           comments: '@return [Foo<String>]'
         )
         type = return_type.resolve_generics(generic_class, called_method.return_type)
+        expect(type.tag).to eq('Array<String>')
+      end
+
+      it 'resolves a generic parameter from the receiver parameter in the same position' do
+        return_type = Solargraph::ComplexType.parse('Array<generic<B>>')
+        generic_class = Solargraph::Pin::Namespace.new(name: 'Foo', generics: %w[A B])
+        context_type = Solargraph::ComplexType.parse('Foo<String, Integer>')
+        type = return_type.resolve_generics(generic_class, context_type)
+        expect(type.tag).to eq('Array<Integer>')
+      end
+
+      it 'gives a leading generic parameter only the first receiver parameter' do
+        return_type = Solargraph::ComplexType.parse('Array<generic<A>>')
+        generic_class = Solargraph::Pin::Namespace.new(name: 'Foo', generics: %w[A B])
+        context_type = Solargraph::ComplexType.parse('Foo<String, Integer>')
+        type = return_type.resolve_generics(generic_class, context_type)
+        expect(type.tag).to eq('Array<String>')
+      end
+
+      it 'treats every parameter of an implicit union receiver as one generic value' do
+        return_type = Solargraph::ComplexType.parse('Array<generic<A>>')
+        generic_class = Solargraph::Pin::Namespace.new(name: 'Array', generics: %w[A])
+        context_type = Solargraph::ComplexType.parse('Array<String, Integer>')
+        type = return_type.resolve_generics(generic_class, context_type)
+        expect(type.tag).to eq('Array<String, Integer>')
+      end
+
+      it 'treats extra parameters of a non-union receiver as one generic value' do
+        return_type = Solargraph::ComplexType.parse('Array<generic<A>>')
+        generic_class = Solargraph::Pin::Namespace.new(name: 'Pair', generics: %w[A])
+        context_type = Solargraph::ComplexType.parse('Pair<String, Integer>')
+        type = return_type.resolve_generics(generic_class, context_type)
+        expect(type.tag).to eq('Array<String, Integer>')
+      end
+
+      it 'treats every element of a tuple receiver as one generic value' do
+        return_type = Solargraph::ComplexType.parse('Array<generic<A>>')
+        generic_class = Solargraph::Pin::Namespace.new(name: 'Foo', generics: %w[A])
+        context_type = Solargraph::ComplexType.parse('Foo(String, Integer)')
+        type = return_type.resolve_generics(generic_class, context_type)
+        expect(type.tag).to eq('Array<String, Integer>')
+      end
+
+      it 'falls back to the declared default for a generic the receiver leaves out' do
+        return_type = Solargraph::ComplexType.parse('Array<generic<C>>')
+        generic_class = Solargraph::Pin::Namespace.new(
+          name: 'Foo',
+          generics: %w[A B C],
+          generic_defaults: { 'C' => Solargraph::ComplexType.parse('generic<A>') }
+        )
+        context_type = Solargraph::ComplexType.parse('Foo<String, Integer>')
+        type = return_type.resolve_generics(generic_class, context_type)
         expect(type.tag).to eq('Array<String>')
       end
 
@@ -818,7 +902,6 @@ describe 'YARD type specifier list parsing' do
     end
 
     it 'recognizes a literal conforms with its type' do
-      pending 'Maybe feasible'
       api_map = Solargraph::ApiMap.new
       ptype = Solargraph::ComplexType.parse('Symbol')
       atype = Solargraph::ComplexType.parse(':foo')
@@ -844,6 +927,28 @@ describe 'YARD type specifier list parsing' do
       ptype = Solargraph::ComplexType.parse('#to_s')
       atype = Solargraph::ComplexType.parse('#foo')
       expect(atype.conforms_to?(api_map, ptype, :method_call)).to be(true)
+    end
+  end
+
+  describe '#intersect_with' do
+    let(:api_map) { Solargraph::ApiMap.new }
+
+    it 'narrows to a generic parameter' do
+      type = Solargraph::ComplexType.parse('Numeric')
+      result = type.intersect_with(Solargraph::ComplexType.parse('generic<T>'), api_map)
+      expect(result.to_s).to eq('generic<T>')
+    end
+
+    it 'keeps the conforming type of a non-generic intersection' do
+      type = Solargraph::ComplexType.parse('Numeric')
+      result = type.intersect_with(Solargraph::ComplexType.parse('Integer'), api_map)
+      expect(result.to_s).to eq('Integer')
+    end
+
+    it 'is undefined for unrelated non-generic types' do
+      type = Solargraph::ComplexType.parse('Numeric')
+      result = type.intersect_with(Solargraph::ComplexType.parse('String'), api_map)
+      expect(result).to be_undefined
     end
   end
 end

@@ -12,8 +12,8 @@ module Solargraph
         @api_map = api_map
         @cursor = cursor
         closure_pin = closure
-        # @sg-ignore Need to add nil check here
-        if closure_pin.is_a?(Pin::Block) && !Solargraph::Range.from_node(closure_pin.receiver)&.contain?(cursor.range.start)
+        if closure_pin.is_a?(Pin::Block) && closure_pin.receiver &&
+           !Solargraph::Range.from_node(closure_pin.receiver)&.contain?(cursor.range.start)
           closure_pin.rebind(api_map)
         end
       end
@@ -25,8 +25,7 @@ module Solargraph
         result.concat file_global_methods
         if result.empty?
           result.concat((source_map.pins + source_map.locals).select do |p|
-            # @sg-ignore Need to add nil check here
-            p.name == cursor.word && p.location.range.contain?(cursor.position)
+            p.name == cursor.word && p.location!.range.contain?(cursor.position)
           end)
         end
         result
@@ -41,7 +40,7 @@ module Solargraph
       def complete
         return package_completions([]) if !source_map.source.parsed? || cursor.string?
         # TODO: Improve magic word comparsion == '<::Symbol>', too fragile
-        if cursor.chain.literal? && cursor.chain.links.last.word == '<::Symbol>'
+        if cursor.chain.literal? && cursor.chain.links.fetch(-1).word == '<::Symbol>'
           return package_completions(api_map.get_symbols)
         end
         return Completion.new([], cursor.range) if cursor.chain.literal?
@@ -108,7 +107,6 @@ module Solargraph
 
       # @return [SourceMap]
       def source_map
-        # @sg-ignore Need to add nil check here
         @source_map ||= api_map.source_map(cursor.filename)
       end
 
@@ -142,6 +140,8 @@ module Solargraph
             next unless param.keyword?
             result.push Pin::KeywordParam.new(pin.location, "#{param.name}:")
           end
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1258
+          #   empty? guards need https://github.com/apiology/solargraph/tree/narrow-first-last-after-empty-guard on top
           next unless !pin.parameters.empty? && pin.parameters.last.kwrestarg?
           pin.docstring.tags(:param).each do |tag|
             next if done.include?(tag.name)
@@ -166,23 +166,16 @@ module Solargraph
       # @return [Completion]
       def tag_complete
         result = []
-        # @sg-ignore Need to add nil check here
         match = source_map.code[0..(cursor.offset - 1)].match(/[\[<, ]([a-z0-9_:]*)\z/i)
         if match
-          # @sg-ignore Need to add nil check here
-          full = match[1]
-          # @sg-ignore Need to add nil check here
+          full = match[1].to_s
           if full.include?('::')
-            # @sg-ignore Need to add nil check here
             if full.end_with?('::')
-              # @sg-ignore Need to add nil check here
               result.concat api_map.get_constants(full[0..-3], *gates)
             else
-              # @sg-ignore Need to add nil check here
               result.concat api_map.get_constants(full.split('::')[0..-2].join('::'), *gates)
             end
           else
-            # @sg-ignore Need to add nil check here
             result.concat api_map.get_constants('', full.end_with?('::') ? '' : context_pin.full_context.namespace, *gates) # .select { |pin| pin.name.start_with?(full) }
           end
         end
@@ -194,11 +187,10 @@ module Solargraph
         result = []
         result.concat complete_keyword_parameters
         if cursor.chain.constant? || cursor.start_of_constant?
-          full = cursor.chain.links.first.word
+          full = cursor.chain.links.fetch(0).word
           type = if cursor.chain.undefined?
                    cursor.chain.base.infer(api_map, context_pin, locals)
                  elsif full.include?('::') && cursor.chain.links.length == 1
-                   # @sg-ignore Need to add nil check here
                    ComplexType.try_parse(full.split('::')[0..-2].join('::'))
                  elsif cursor.chain.links.length > 1
                    ComplexType.try_parse(full)
@@ -228,7 +220,8 @@ module Solargraph
             elsif cursor.word.start_with?('$')
               return package_completions(api_map.get_global_variable_pins)
             end
-            result.concat locals
+            # Hash key facts from FlowSensitiveTyping are not variables
+            result.concat(locals.grep(Pin::BaseVariable))
             result.concat file_global_methods unless closure.binder.namespace.empty?
             result.concat api_map.get_constants(context_pin.context.namespace, *gates)
             result.concat api_map.get_methods(closure.binder.namespace, scope: closure.binder.scope,

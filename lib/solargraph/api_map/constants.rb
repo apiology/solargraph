@@ -27,21 +27,16 @@ module Solargraph
       # @param name [String] Namespace which may relative and not be rooted.
       # @param gates [Array<Array<String>, String>] Namespaces to search while resolving the name
       #
-      # @sg-ignore flow sensitive typing needs to eliminate literal from union with return if foo == :bar
       # @return [String, nil] fully qualified namespace (i.e., is
       #   absolute, but will not start with ::)
       def resolve(name, *gates)
-        # @sg-ignore Need to add nil check here
-        return store.get_path_pins(name[2..]).first&.path if name.start_with?('::')
+        return store.get_path_pins(name.delete_prefix('::')).first&.path if name.start_with?('::')
 
         flat = gates.flatten
         flat.push '' if flat.empty?
-        if cached_resolve.include? [name, flat]
-          cached_result = cached_resolve[[name, flat]]
-          # don't recurse
-          return nil if cached_result == :in_process
-          return cached_result
-        end
+        return cached_resolve[[name, flat]] if cached_resolve.include? [name, flat]
+        # don't recurse
+        return nil if in_process.include? [name, flat]
         resolve_and_cache(name, flat)
       end
 
@@ -66,7 +61,7 @@ module Solargraph
       # referenced from the specified open gates. This method will
       # search in each gate until it finds a match for the name.
       #
-      # @param tag [String, nil] The type to match
+      # @param tag [String] The type to match
       # @param gates [Array<String>]
       # @return [String, nil] fully qualified tag
       def qualify tag, *gates
@@ -88,7 +83,6 @@ module Solargraph
         return unless fqns
         pin = store.get_path_pins(fqns).first
         if pin.is_a?(Pin::Constant)
-          # @sg-ignore Need to add nil check here
           const = Solargraph::Parser::NodeMethods.unpack_name(pin.assignment)
           return unless const
           fqns = resolve(const, *pin.gates)
@@ -98,7 +92,7 @@ module Solargraph
 
       # @return [void]
       def clear
-        [cached_collect, cached_resolve].each(&:clear)
+        [cached_collect, cached_resolve, in_process].each(&:clear)
       end
 
       private
@@ -108,11 +102,12 @@ module Solargraph
 
       # @param name [String]
       # @param gates [Array<String>]
-      # @sg-ignore flow sensitive typing should be able to handle redefinition
       # @return [String, nil]
       def resolve_and_cache name, gates
-        cached_resolve[[name, gates]] = :in_process
+        in_process.add [name, gates]
         cached_resolve[[name, gates]] = resolve_uncached(name, gates)
+      ensure
+        in_process.delete [name, gates]
       end
 
       # @param name [String]
@@ -129,7 +124,6 @@ module Solargraph
           if resolved
             base = [resolved]
           else
-            # @sg-ignore flow sensitive typing needs better handling of ||= on lvars
             return resolve(name, first) unless first.empty?
           end
         end
@@ -170,7 +164,6 @@ module Solargraph
         here = "#{gate}::#{name}".sub(/^::/, '').sub(/::$/, '')
         pin = store.get_path_pins(here).first
         if pin.is_a?(Pin::Constant) && internal
-          # @sg-ignore Need to add nil check here
           const = Solargraph::Parser::NodeMethods.unpack_name(pin.assignment)
           return unless const
           resolve(const, pin.gates)
@@ -188,9 +181,16 @@ module Solargraph
         end
       end
 
-      # @return [Hash{Array(String, Array<String>) => String, :in_process, nil}]
+      # @return [Hash{Array(String, Array<String>) => String, nil}]
       def cached_resolve
         @cached_resolve ||= {}
+      end
+
+      # Keys whose resolution is underway, so recursion stops
+      #
+      # @return [Set<Array(String, Array<String>)>]
+      def in_process
+        @in_process ||= Set.new
       end
 
       # @return [Hash{Array<String> => Array<Solargraph::Pin::Namespace, Solargraph::Pin::Constant>}]
@@ -210,8 +210,7 @@ module Solargraph
       # @return [String, nil] fully qualified namespace
       def qualify_namespace namespace, context_namespace = ''
         if namespace.start_with?('::')
-          # @sg-ignore Need to add nil check here
-          inner_qualify(namespace[2..], '', Set.new)
+          inner_qualify(namespace.delete_prefix('::'), '', Set.new)
         else
           inner_qualify(namespace, context_namespace, Set.new)
         end
@@ -266,13 +265,11 @@ module Solargraph
         result = []
 
         store.get_prepends(fqns).each do |pre|
-          # @sg-ignore Need to add nil check here
           pre_fqns = resolve(pre.name, pre.closure.gates - skip.to_a)
           result.concat inner_get_constants(pre_fqns, [:public], skip)
         end
         result.concat(store.get_constants(fqns, visibility).sort { |a, b| a.name <=> b.name })
         store.get_includes(fqns).each do |pin|
-          # @sg-ignore Need to add nil check here
           inc_fqns = resolve(pin.name, pin.closure.gates - skip.to_a)
           result.concat inner_get_constants(inc_fqns, [:public], skip)
         end

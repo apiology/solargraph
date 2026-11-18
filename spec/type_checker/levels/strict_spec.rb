@@ -49,6 +49,25 @@ describe Solargraph::TypeChecker do
         .to eq(['Wrong argument type for #foo: str expected String, received Class<File>'])
     end
 
+    it 'does not leak an unresolved generic from a literal-keyed Hash#fetch' do
+      checker = type_checker(%(
+        class ReproLeak
+          # @param period [Hash{"Index" => Float}]
+          # @return [Float]
+          def literal_key(period)
+            period.fetch('Index')
+          end
+
+          # @param period [Hash{String => Float}]
+          # @return [Float]
+          def class_key(period)
+            period.fetch('Index')
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).to eq([])
+    end
+
     it 'handles compatible interfaces with self types on call' do
       checker = type_checker(%(
         # @param a [Enumerable<String>]
@@ -106,7 +125,9 @@ describe Solargraph::TypeChecker do
         Kramdown::Parser::GFM.undefined_call
       ), 'test.rb')
       api_map = Solargraph::ApiMap.load '.'
-      api_map.catalog Solargraph::Bench.new(source_maps: [source_map], external_requires: ['kramdown-parser-gfm'])
+      bench = Solargraph::Bench.new(source_maps: [source_map], external_requires: ['kramdown-parser-gfm'])
+      api_map.catalog bench
+      cache_unloaded_gems(api_map, bench)
       checker = described_class.new('test.rb', api_map: api_map, level: :strict)
       expect(checker.problems).to be_empty
     end
@@ -295,6 +316,19 @@ describe Solargraph::TypeChecker do
       expect(checker.problems).to be_one
       expect(checker.problems.first.message).to include('Wrong argument type')
       expect(checker.problems.first.message).to include('named')
+    end
+
+    it 'accepts an explicit undefined return tag on an uninferable method' do
+      checker = type_checker(%(
+        class Foo
+          # @return [undefined]
+          def bar
+            unknown_method
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message)).not_to include(a_string_including('could not be inferred for Foo#bar'))
+      expect(checker.problems.map(&:message)).not_to include('Untyped method Foo#bar could not be inferred')
     end
 
     it 'reports untyped methods without inferred types' do
@@ -826,8 +860,6 @@ describe Solargraph::TypeChecker do
     end
 
     it 'uses nil? to refine type' do
-      pending 'nil? support in flow sensitive typing'
-
       checker = type_checker(%(
         # @sg-ignore
         # @type [String, nil]
@@ -838,7 +870,7 @@ describe Solargraph::TypeChecker do
           foo.downcase
         end
       ))
-      expect(checker.problems.map(&:message)).to eq(['Unresolved call to upcase'])
+      expect(checker.problems.map(&:message)).to eq(['Unresolved call to upcase on nil'])
     end
 
     it 'refines types on is_a? and && to downcast and avoid false positives' do
@@ -853,6 +885,24 @@ describe Solargraph::TypeChecker do
         end
       ))
       expect(checker.problems.map(&:message)).to eq([])
+    end
+
+    it 'resolves a call on an exhaustively-excluded (bot-typed) receiver' do
+      checker = type_checker(%(
+        class Box
+          # @return [Integer]
+          def length
+            0
+          end
+        end
+
+        # @param subs [Box]
+        # @return [void]
+        def check(subs)
+          return unless !subs.is_a?(Box) && subs.length == 2
+        end
+      ))
+      expect(checker.problems).to be_empty
     end
 
     it 'interprets self references correctly' do
@@ -1021,7 +1071,6 @@ describe Solargraph::TypeChecker do
     end
 
     it 'does not complain when passing NilClass to nil parameter' do
-      pending 'should be feasible'
       checker = type_checker(%(
         # @param a [nil]
         def foo(a); end
@@ -1108,6 +1157,48 @@ describe Solargraph::TypeChecker do
       ))
 
       expect(checker.problems.map(&:message)).to eq([])
+    end
+
+    it 'reports a pattern match capture passed to a wrongly-typed parameter' do
+      checker = type_checker(%(
+        # @param s [String]
+        # @return [void]
+        def takes_string(s); end
+
+        # @param x [Integer, String]
+        # @return [void]
+        def bar(x)
+          case x
+          in Integer => i
+            takes_string(i)
+          else
+            nil
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message))
+        .to eq(['Wrong argument type for #takes_string: s expected String, received Integer'])
+    end
+
+    it 'types a pattern match capture with a nil alternative' do
+      checker = type_checker(%(
+        # @param s [String]
+        # @return [void]
+        def takes_string(s); end
+
+        # @param x [Integer, String, nil]
+        # @return [void]
+        def bar(x)
+          case x
+          in Integer | nil => i
+            takes_string(i)
+          else
+            nil
+          end
+        end
+      ))
+      expect(checker.problems.map(&:message))
+        .to eq(['Wrong argument type for #takes_string: s expected String, received Integer, nil'])
     end
   end
 end

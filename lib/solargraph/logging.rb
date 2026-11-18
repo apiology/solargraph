@@ -22,7 +22,6 @@ module Solargraph
               DEFAULT_LOG_LEVEL
             end
     @@logger = Logger.new($stderr, level: level)
-    # @sg-ignore Fix cvar issue
     @@logger.formatter = proc do |severity, _datetime, _progname, msg|
       "[#{severity}] #{msg}\n"
     end
@@ -47,6 +46,7 @@ module Solargraph
         new_log_level = LOG_LEVELS[log_level.to_s]
         logger = Logger.new($stderr, level: new_log_level)
 
+        # @sg-ignore Union argument rejected when no single signature accepts every member
         logger.formatter = @@logger.formatter
         logger
       end

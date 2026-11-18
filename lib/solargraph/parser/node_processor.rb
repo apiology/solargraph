@@ -28,11 +28,11 @@ module Solargraph
         #
         # @return [void]
         def deregister type, cls
-          @@processors[type].delete(cls)
+          @@processors[type]&.delete(cls)
         end
       end
 
-      # @param node [Parser::AST::Node]
+      # @param node [Parser::AST::Node, nil]
       # @param region [Region]
       # @param pins [Array<Pin::Base>]
       # @param locals [Array<Pin::LocalVariable>]
@@ -43,10 +43,11 @@ module Solargraph
           pins.push Pin::Namespace.new(
             location: region.source.location,
             name: '',
+            node: node,
             source: :parser
           )
         end
-        return [pins, locals, ivars] unless Parser.is_ast_node?(node)
+        return [pins, locals, ivars] unless node.is_a?(::Parser::AST::Node)
         node_processor_classes = @@processors[node.type] || [NodeProcessor::Base]
 
         node_processor_classes.each do |klass|

@@ -3,13 +3,10 @@
 module Solargraph
   module Pin
     class Callable < Closure
-      # @return [Signature]
+      # @return [Signature, nil]
       attr_reader :block
 
       attr_accessor :parameters
-
-      # @return [ComplexType, nil]
-      attr_reader :return_type
 
       # @param block [Signature, nil]
       # @param return_type [ComplexType, nil]
@@ -30,11 +27,9 @@ module Solargraph
         super
       end
 
-      # @sg-ignore Need to add nil check here
       # @return [String]
       def method_namespace
-        # @sg-ignore Need to add nil check here
-        closure.namespace
+        closure!.namespace
       end
 
       # @param other [self]
@@ -94,7 +89,6 @@ module Solargraph
         end
       end
 
-      # @sg-ignore Need to add nil check here
       # @return [Array<Pin::Parameter>]
       def blockless_parameters
         if parameters.last&.block?
@@ -127,7 +121,6 @@ module Solargraph
       #
       # @return [Array<Array, String, nil>]
       def full_type_arity
-        # @sg-ignore flow sensitive typing needs to handle attrs
         [return_type ? return_type.items.count.to_s : nil] + type_arity
       end
 
@@ -147,19 +140,18 @@ module Solargraph
                                         resolved_generic_values: {}
         callable = super(generics_to_resolve, return_type_context, resolved_generic_values: resolved_generic_values)
         callable.parameters = callable.parameters.each_with_index.map do |param, i|
-          if arg_types.nil?
-            param.dup
-          else
-            param.resolve_generics_from_context(generics_to_resolve,
-                                                arg_types[i],
-                                                resolved_generic_values: resolved_generic_values)
-          end
+          # nil defers to any binding resolved_generic_values already has.
+          arg_type_for_param = arg_types&.[](i)
+          param.resolve_generics_from_context(generics_to_resolve,
+                                              arg_type_for_param,
+                                              resolved_generic_values: resolved_generic_values)
         end
-        if callable.block?
-          callable.block = block.resolve_generics_from_context(generics_to_resolve,
-                                                               yield_arg_types,
-                                                               yield_return_type_context,
-                                                               resolved_generic_values: resolved_generic_values)
+        if callable.block
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1258
+          callable.block = callable.block.resolve_generics_from_context(generics_to_resolve,
+                                                                        yield_arg_types,
+                                                                        yield_return_type_context,
+                                                                        resolved_generic_values: resolved_generic_values)
         end
         callable
       end
@@ -176,12 +168,9 @@ module Solargraph
         end
       end
 
-      # @sg-ignore Need to add nil check here
       # @return [String]
       def method_name
-        raise "closure was nil in #{inspect}" if closure.nil?
-        # @sg-ignore Need to add nil check here
-        @method_name ||= closure.name
+        @method_name ||= closure!.name
       end
 
       # @param generics_to_resolve [::Array<String>]
@@ -231,7 +220,8 @@ module Solargraph
       def transform_types &transform
         # @todo 'super' alone should work here I think, but doesn't typecheck at level typed
         callable = super(&transform)
-        callable.block = block.transform_types(&transform) if block?
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
+        callable.block = callable.block.transform_types(&transform) if callable.block
         callable.parameters = parameters.map do |param|
           param.transform_types(&transform)
         end
@@ -244,12 +234,14 @@ module Solargraph
       def arity_matches? arguments, with_block
         argcount = arguments.length
         parcount = mandatory_positional_param_count
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
+        #   empty? guards need https://github.com/apiology/solargraph/tree/narrow-first-last-after-empty-guard on top
         parcount -= 1 if !parameters.empty? && parameters.last.block?
         return false if block? && block_required? && !with_block
         # @todo this and its caller should be changed so that this can
         #   look at the kwargs provided and check names against what
         #   we acccept
-        return false if argcount < parcount && !(argcount == parcount - 1 && parameters.last.restarg?)
+        return false if argcount < parcount && !(argcount == parcount - 1 && parameters.fetch(-1).restarg?)
         true
       end
 
@@ -260,6 +252,7 @@ module Solargraph
 
       # @return [String]
       def parameters_to_rbs
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1258
         "#{rbs_generics}(#{parameters.map(&:to_rbs).join(', ')}) #{"{ #{block.to_rbs} } " unless block.nil?}"
       end
 
@@ -279,6 +272,18 @@ module Solargraph
       protected
 
       attr_writer :block
+
+      private
+
+      # @return [void]
+      def preassign_ivars
+        super
+        @block = nil
+        # @type [::Array<Pin::Parameter>]
+        @parameters = []
+        @method_name = nil
+        @parameter_names = nil
+      end
     end
   end
 end

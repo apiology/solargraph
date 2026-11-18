@@ -3,12 +3,14 @@
 describe Solargraph::ApiMap do
   let(:api_map) { described_class.new }
   let(:bench) do
-    Solargraph::Bench.new(external_requires: external_requires, workspace: Solargraph::Workspace.new('.'))
+    Solargraph::Bench.new(external_requires: external_requires,
+                          workspace: Solargraph::Workspace.new)
   end
   let(:external_requires) { [] }
+  let(:catalog) { false }
 
   before do
-    api_map.catalog bench
+    api_map.catalog bench if catalog
   end
 
   describe '#resolve_method_alias' do
@@ -118,12 +120,12 @@ describe Solargraph::ApiMap do
   end
 
   describe '#get_method_stack' do
-    let(:out) { StringIO.new }
-    let(:api_map) { described_class.load_with_cache(Dir.pwd, out) }
+    let(:api_map) { described_class.load('') }
 
     context 'with stdlib that has vital dependencies' do
       let(:external_requires) { ['yaml'] }
       let(:method_stack) { api_map.get_method_stack('YAML', 'safe_load', scope: :class) }
+      let(:catalog) { true }
 
       it 'handles the YAML gem aliased to Psych' do
         expect(method_stack).not_to be_empty
@@ -131,8 +133,15 @@ describe Solargraph::ApiMap do
     end
 
     context 'with thor' do
+      # A bundle gem, unlike the stdlib above, has to be cached before its
+      # pins exist.
+      let(:api_map) { described_class.new }
       let(:external_requires) { ['thor'] }
+
       let(:method_stack) { api_map.get_method_stack('Thor', 'desc', scope: :class) }
+      let(:catalog) { true }
+
+      before { cache_unloaded_gems(api_map, bench) }
 
       it 'handles finding Thor.desc' do
         expect(method_stack).not_to be_empty
@@ -184,10 +193,10 @@ describe Solargraph::ApiMap do
         class Example
           # @macro klassify
           def foo(klass)
-          end  
+          end
         end
       ))
-      api_map = Solargraph::ApiMap.new.map(source)
+      api_map = described_class.new.map(source)
       pin = api_map.get_path_pins('Example#foo').first
       expect(pin.typify(api_map).to_s).to eq('Array<klass>')
     end
@@ -201,7 +210,7 @@ describe Solargraph::ApiMap do
           #   @!method $1
           #   @return [$2]
           def make_method(name, klass)
-          end  
+          end
         end
 
         class Example
@@ -210,7 +219,7 @@ describe Solargraph::ApiMap do
           make_method :macro_method, String
         end
       ))
-      api_map = Solargraph::ApiMap.new.map(source)
+      api_map = described_class.new.map(source)
       pin = api_map.get_path_pins('Example#macro_method').first
       expect(pin.return_type.to_s).to eq('String')
     end

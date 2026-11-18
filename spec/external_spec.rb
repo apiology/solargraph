@@ -74,6 +74,14 @@ describe Solargraph::External do
     end
   end
 
+  it 'loads extra gem names and tracks unfound ones' do
+    external = described_class.new(directory, [], %w[backport not_a_valid_gem])
+    external.unloaded_gems.each { |metagem| Solargraph::Collection::Gem.load(metagem) }
+    external.update([], %w[backport not_a_valid_gem])
+    expect(external.loaded_gems.map(&:name)).to include('backport')
+    expect(external.unfound_gem_names).to eq(['not_a_valid_gem'])
+  end
+
   it 'tracks unresolved requires' do
     external = described_class.new(directory, ['not_a_valid_path'])
     expect(external.unresolved_requires).to eq(['not_a_valid_path'])
@@ -81,6 +89,8 @@ describe Solargraph::External do
 
   it 'imports all gems when bundler/require is required' do
     external = described_class.new(directory, ['bundler/require'])
+    external.unloaded_gems.each { |metagem| Solargraph::Collection::Gem.load(metagem) }
+    external.update(['bundler/require'])
     gem_names = external.loaded_gems.map(&:name)
     expect(gem_names).to include('backport')
     expect(gem_names).to include('gem-with-yard-macros')
@@ -89,6 +99,8 @@ describe Solargraph::External do
 
   it 'ignores duplicate gems' do
     external = described_class.new(directory, ['backport', 'backport/version'])
+    external.unloaded_gems.each { |metagem| Solargraph::Collection::Gem.load(metagem) }
+    external.update(['backport', 'backport/version'])
     backport_method_pins = external.pins.select { |pin| pin.path == 'Backport.prepare_stdio_server' }
     expect(backport_method_pins).to be_one
   end

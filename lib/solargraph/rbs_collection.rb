@@ -6,6 +6,7 @@ module Solargraph
   class RbsCollection
     attr_reader :lockfile
 
+    # @param lockfile [String, nil]
     def initialize lockfile
       @lockfile = File.expand_path(lockfile) if lockfile
     end
@@ -15,9 +16,12 @@ module Solargraph
     def load metagem
       key = best_key(metagem)
       return [] unless key
-      mem_cache[key] ||= RbsMap::Path.pins(gem_path_map[key])
+      path = gem_path_map[key]
+      return [] unless path
+      mem_cache[key] ||= RbsMap::Path.pins(path)
     end
 
+    # @return [Array<String>]
     def gem_keys
       gem_path_map.keys
     end
@@ -30,24 +34,29 @@ module Solargraph
     #
     # @return [Array<String>]
     def stdlib_names
-      @stdlib_names ||= raw_data[:gems].select { |gem| gem.dig(:source, :type).to_s == 'stdlib' }
-                                       .map { |gem| gem[:name].to_s }.uniq
+      @stdlib_names ||= gems.select { |gem| gem.dig(:source, :type).to_s == 'stdlib' }
+                            .map { |gem| gem[:name].to_s }.uniq
     end
 
     private
 
+    # Gems whose lockfile entry resolves to no path are left out.
+    #
+    # @return [Hash{String => String}]
     def gem_path_map
-      @gem_path_map ||= raw_data[:gems].to_h { |gem| ["#{gem[:name]}-#{gem[:version]}", gem_source_path(gem)] }
+      @gem_path_map ||= gems.to_h { |gem| ["#{gem[:name]}-#{gem[:version]}", gem_source_path(gem)] }.compact
     end
 
     # The versions available in the collection for each gem name.
     #
     # @return [Hash{String => Array<String>}]
     def versions_by_name
-      @versions_by_name ||= raw_data[:gems].group_by { |gem| gem[:name].to_s }
-                                           .transform_values { |gems| gems.map { |gem| gem[:version].to_s } }
+      @versions_by_name ||= gems.group_by { |gem| gem[:name].to_s }
+                                .transform_values { |gems| gems.map { |gem| gem[:version].to_s } }
     end
 
+    # @param metagem [Metagem]
+    # @return [String, nil]
     def best_key metagem
       key = "#{metagem.name}-#{metagem.version}"
       return key if gem_path_map.key?(key)
@@ -80,6 +89,7 @@ module Solargraph
                end
       chosen ||= usable.min_by { |_, parsed_version| parsed_version }
       chosen ||= parsed.first
+      # @sg-ignore Unresolved call to []
       "#{metagem.name}-#{chosen[0]}"
     end
 
@@ -92,6 +102,7 @@ module Solargraph
     end
 
     # @param gem_hash [Hash]
+    # @return [String, nil]
     def gem_source_path gem_hash
       root_path = gem_hash.dig(:source, :path) || raw_data[:path]
       return unless root_path
@@ -99,19 +110,38 @@ module Solargraph
       File.expand_path(gem_path, File.dirname(lockfile))
     end
 
+    # @return [String, nil]
     def gem_rbs_collection_path
+      # @sg-ignore Wrong argument type for File.expand_path: file_name expected String, _ToStr, _ToPath, received String, Array<Hash{Symbol => String, Hash{Symbol => String}}>, nil
       @gem_rbs_collection_path ||= File.expand_path(raw_data[:path]) if raw_data[:path]
     end
 
-    # @return [Hash]
+    # @return [Array<Hash{Symbol => String, Hash{Symbol => String}}>]
+    def gems
+      gems = raw_data[:gems]
+      return gems if gems.is_a?(Array) && gems.all?(Hash)
+
+      raise TypeError, "Expected an Array of gem Hashes in #{lockfile}"
+    end
+
+    # @return [Hash{Symbol => String, Array<Hash{Symbol => String, Hash{Symbol => String}}>}]
     def raw_data
       @raw_data ||= if lockfile && File.file?(lockfile)
-                      YAML.load_file(lockfile, symbolize_names: true)
+                      load_lockfile
                     else
                       { gems: [] }
                     end
     end
 
+    # @return [Hash{Symbol => String, Array<Hash{Symbol => String, Hash{Symbol => String}}>}]
+    def load_lockfile
+      data = YAML.load_file(lockfile, symbolize_names: true)
+      return data if data.is_a?(Hash)
+
+      raise TypeError, "Expected a Hash in #{lockfile}"
+    end
+
+    # @return [Hash{String => Array<Pin::Base>}]
     def mem_cache
       @mem_cache ||= {}
     end

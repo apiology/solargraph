@@ -147,6 +147,43 @@ describe Solargraph::Parser::ParserGem::NodeProcessors::StructDefinition do
         expect(iv_baz.return_type.tag).to eql('Integer')
       end
     end
+
+    it 'supports assignment to a namespaced constant' do
+      source = Solargraph::SourceMap.load_string(%(
+        # @param bar [String]
+        # @param baz [Integer]
+        Foo::Baz = Struct.new(:bar, :baz)
+      ), 'test.rb')
+
+      params = source.pins.find { |p| p.path == 'Foo::Baz#initialize' }.parameters
+
+      expect(params.map(&:name)).to eql(%w[bar baz])
+      expect(params.map(&:return_type).map(&:tag)).to eql(%w[String Integer])
+    end
+  end
+
+  describe 'node wrappers' do
+    it 'names a struct assigned to a scoped constant' do
+      source = Solargraph::SourceMap.load_string(%(
+        Outer::Foo = Struct.new(:bar)
+      ), 'test.rb')
+
+      expect(source.pins.map(&:path)).to include('Outer::Foo#bar')
+    end
+
+    it 'returns the class body from a struct definition' do
+      node = Solargraph::Parser.parse("class Foo < Struct.new(:bar)\n  def baz; end\nend")
+      body = Solargraph::Parser::ParserGem::NodeProcessors::StructDefinition::StructDefintionNode.new(node).body_node
+
+      expect(body.type).to eq(:def)
+    end
+
+    it 'returns the assigned value from a struct assignment' do
+      node = Solargraph::Parser.parse("Foo = Struct.new(:bar) do\n  def baz; end\nend")
+      body = Solargraph::Parser::ParserGem::NodeProcessors::StructDefinition::StructAssignmentNode.new(node).body_node
+
+      expect(body.type).to eq(:block)
+    end
   end
 
   context 'with typechecking' do
@@ -173,6 +210,18 @@ describe Solargraph::Parser::ParserGem::NodeProcessors::StructDefinition do
         end
       ))
       expect(checker.problems.map(&:message)).not_to include(a_string_matching(/Missing keyword argument/))
+    end
+
+    it 'maps a Struct whose attribute tag will not parse, giving that attribute an undefined type' do
+      source = nil
+      expect do
+        source = Solargraph::SourceMap.load_string(%(
+          # @param dimensions [Hash{Symbol => Integer]
+          Box = Struct.new(:dimensions)
+        ), 'test.rb')
+      end.not_to raise_error
+
+      expect(source.pins.find { |p| p.path == 'Box#dimensions' }.return_type.tag).to eql('undefined')
     end
   end
 end

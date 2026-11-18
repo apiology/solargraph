@@ -26,6 +26,7 @@ module Solargraph
         new(...).load
       end
 
+      # @return [void]
       def self.uncache(...)
         cache_file = new(...).cache_file
         FileUtils.rm_rf cache_file
@@ -34,15 +35,32 @@ module Solargraph
 
       private
 
+      # @return [Array<Pin::Base>, nil]
       def file_cache_pins
-        Marshal.load(File.read(cache_file, mode: 'rb')) if File.exist?(cache_file) # rubocop:disable Security/MarshalLoad
+        return nil unless File.exist?(cache_file)
+
+        loaded = Marshal.load(File.read(cache_file, mode: 'rb')) # rubocop:disable Security/MarshalLoad
+        raise TypeError, "#{cache_file} does not contain an array of pins" unless loaded.is_a?(Array)
+
+        pins = loaded.grep(Pin::Base)
+        raise TypeError, "#{cache_file} contains a non-pin" unless pins.length == loaded.length
+
+        pins
       end
 
+      # @return [Array<Pin::Base>]
       def generate_pin_caches
         Collection.mem_cache[cache_file] = pins
         serial = Marshal.dump(pins)
         FileUtils.mkdir_p File.dirname(cache_file)
-        File.write cache_file, serial, mode: 'wb'
+        # Write to a temp file in the same directory and rename into place
+        # (rename is atomic on the same filesystem) so that concurrent
+        # readers/writers - e.g. multiple parallel_tests worker processes,
+        # or the threads in Collection::Gem.load_all, caching the same gem
+        # for the first time - never observe a partially-written file.
+        tmp = "#{cache_file}.#{Process.pid}.#{Thread.current.object_id}.tmp"
+        File.write tmp, serial, mode: 'wb'
+        File.rename tmp, cache_file
         pins
       end
     end

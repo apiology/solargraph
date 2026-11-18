@@ -57,7 +57,7 @@ module Solargraph
       end
 
       # @return [ComplexType, ComplexType::UniqueType]
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1100
+      # @sg-ignore Solargraph::Pin::Common#binder return type could not be inferred
       def binder
         @binder || context
       end
@@ -90,6 +90,14 @@ module Solargraph
 
       private
 
+      # The ivars this module owns, for Base#preassign_ivars.
+      #
+      # @return [void]
+      def preassign_common_ivars
+        @context = nil
+        @path = nil
+      end
+
       # @return [ComplexType]
       def find_context
         here = closure
@@ -99,7 +107,6 @@ module Solargraph
           elsif here.is_a?(Pin::Method)
             return here.context
           end
-          # @sg-ignore Need to add nil check here
           here = here.closure
         end
         ComplexType::ROOT

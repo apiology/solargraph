@@ -6,61 +6,45 @@ require 'open3'
 describe Solargraph::Shell do
   let(:shell) { described_class.new }
 
-  let(:temp_dir) { Dir.mktmpdir }
-
-  before do
-    File.open(File.join(temp_dir, 'Gemfile'), 'w') do |file|
-      file.puts "source 'https://rubygems.org'"
-      file.puts "gem 'solargraph', path: '#{File.expand_path('..', __dir__)}'"
-    end
-    output, status = Open3.capture2e('bundle install', chdir: temp_dir)
-    raise "Failure installing bundle: #{output}" unless status.success?
-  end
-
-  # @type cmd [Array<String>]
-  # @return [String]
-  def bundle_exec(*cmd)
-    # run the command in the temporary directory with bundle exec
-    output, status = Open3.capture2e("bundle exec #{cmd.join(' ')}", chdir: temp_dir)
-    expect(status.success?).to be(true), "Command failed: #{output}"
-    output
-  end
-
-  after do
-    # remove the temporary directory after the tests
-    FileUtils.rm_rf(temp_dir)
-  end
-
   describe '--version' do
-    let(:output) { bundle_exec('solargraph', '--version') }
-
-    it 'returns output' do
-      expect(output).not_to be_empty
-    end
-
     it 'returns a version when run' do
+      output = capture_stdout do
+        shell.version
+      end
+
       expect(output).to eq("#{Solargraph::VERSION}\n")
     end
   end
 
   describe 'uncache' do
     it 'uncaches without erroring out' do
-      skip 'WIP'
-      output = capture_stdout do
-        shell.uncache('backport')
+      allow(Solargraph::Collection::Gem).to receive(:uncache)
+
+      capture_stdout do
+        shell.uncache('public_suffix')
       end
 
-      expect(output).to include('Clearing pin cache in')
+      expect(Solargraph::Collection::Gem).to have_received(:uncache)
     end
 
     it 'uncaches stdlib without erroring out' do
-      skip 'WIP'
-      expect { shell.uncache('stdlib') }.not_to raise_error
+      allow(FileUtils).to receive(:rm_rf)
+
+      capture_stdout do
+        shell.uncache('stdlib')
+      end
+
+      expect(FileUtils).to have_received(:rm_rf).with(Solargraph::CacheDir.stdlib_dir)
     end
 
     it 'uncaches core without erroring out' do
-      skip 'WIP'
-      expect { shell.uncache('core') }.not_to raise_error
+      allow(Solargraph::Collection::Core).to receive(:uncache)
+
+      capture_stdout do
+        shell.uncache('core')
+      end
+
+      expect(Solargraph::Collection::Core).to have_received(:uncache)
     end
   end
 
@@ -135,6 +119,130 @@ describe Solargraph::Shell do
         expect(output).to include("Gem 'solargraph123' not found")
       end
     end
+
+    context 'with mocked Repo' do
+      let(:repo) { instance_double(Solargraph::Repo) }
+      let(:metagem) do
+        instance_double(Solargraph::Metagem, name: 'abcd343kfk', version: '1.0.0',
+                                             cache_name: 'abcd343kfk-1.0.0', cacheable?: true)
+      end
+
+      before do
+        allow(Solargraph::Repo).to receive(:new).and_return(repo)
+        allow(Solargraph::Collection::Gem).to receive(:load_all)
+      end
+
+      it 'caches all without erroring out' do
+        allow(repo).to receive_messages(bundled?: true, bundled: [metagem])
+
+        capture_both do
+          shell.options = { rebuild: false }
+          shell.cache
+        end
+
+        expect(Solargraph::Collection::Gem).to have_received(:load_all).with([metagem], out: anything, rebuild: false)
+      end
+
+      it 'falls back to every installed gem outside a bundle' do
+        allow(repo).to receive(:bundled?).and_return(false)
+        gemspec = Gem::Specification.find_by_name('backport')
+        allow(Gem::Specification).to receive_messages(all_names: ['backport-1.2.0'],
+                                                      find_by_full_name: gemspec)
+        allow(Solargraph::Metagem).to receive(:from_specification).with(gemspec).and_return(metagem)
+
+        output = capture_both do
+          shell.options = { rebuild: false }
+          shell.cache
+        end
+
+        expect(output).to include('Caching abcd343kfk 1.0.0 (abcd343kfk-1.0.0)')
+        expect(Solargraph::Collection::Gem).to have_received(:load_all).with([metagem], out: anything, rebuild: false)
+      end
+
+      it 'rebuilds core when named alongside a rebuild' do
+        allow(Solargraph::Collection::Core).to receive(:uncache)
+        allow(Solargraph::Collection::Core).to receive(:load)
+
+        output = capture_both do
+          shell.options = { rebuild: true }
+          shell.cache('core')
+        end
+
+        expect(output).to include('Caching core')
+        expect(Solargraph::Collection::Core).to have_received(:uncache)
+        expect(Solargraph::Collection::Core).to have_received(:load)
+      end
+
+      it 'loads core without discarding it when not rebuilding' do
+        allow(Solargraph::Collection::Core).to receive(:uncache)
+        allow(Solargraph::Collection::Core).to receive(:load)
+
+        capture_both do
+          shell.options = { rebuild: false }
+          shell.cache('core')
+        end
+
+        expect(Solargraph::Collection::Core).not_to have_received(:uncache)
+        expect(Solargraph::Collection::Core).to have_received(:load)
+      end
+
+      it 'caches single gem without erroring out' do
+        allow(repo).to receive(:find_by_name).with('98765').and_return(metagem)
+
+        capture_both do
+          shell.options = { rebuild: false }
+          shell.cache('98765')
+        end
+
+        expect(Solargraph::Collection::Gem).to have_received(:load_all).with([metagem], out: anything, rebuild: false)
+      end
+    end
+  end
+
+  context 'with a plugin configured in the workspace' do
+    let(:temp_dir) { Dir.mktmpdir }
+    let(:plugin_dir) { Dir.mktmpdir }
+
+    before do
+      File.write(File.join(plugin_dir, 'cache_probe_plugin.rb'), '')
+      File.write(File.join(temp_dir, '.solargraph.yml'), "plugins:\n  - cache_probe_plugin\n")
+      $LOAD_PATH.unshift plugin_dir
+    end
+
+    after do
+      $LOAD_PATH.delete plugin_dir
+      $LOADED_FEATURES.delete_if { |path| path.end_with?('cache_probe_plugin.rb') }
+      Solargraph::CacheDir.plugins.delete 'cache_probe_plugin'
+      Solargraph::CacheDir.plugin_requires.delete 'cache_probe_plugin'
+      FileUtils.rm_rf plugin_dir
+      FileUtils.rm_rf temp_dir
+    end
+
+    it 'loads the plugin before caching' do
+      capture_both { described_class.new([], directory: temp_dir).cache('nonexistentgem8675309') }
+      expect($LOADED_FEATURES).to include(end_with('cache_probe_plugin.rb'))
+    end
+
+    it 'loads the plugin before uncaching' do
+      capture_both { described_class.new([], directory: temp_dir).uncache('nonexistentgem8675309') }
+      expect($LOADED_FEATURES).to include(end_with('cache_probe_plugin.rb'))
+    end
+
+    it 'loads the plugins it is given instead of the configured ones' do
+      capture_both { described_class.new([], directory: temp_dir, plugins: '').cache('nonexistentgem8675309') }
+      expect($LOADED_FEATURES).not_to include(end_with('cache_probe_plugin.rb'))
+    end
+
+    it 'loads and records the plugins it is given' do
+      capture_both { described_class.new([], directory: temp_dir, plugins: 'cache_probe_plugin').cache('nonexistentgem8675309') }
+      expect(Solargraph::CacheDir.plugin_requires).to include('cache_probe_plugin')
+    end
+
+    it 'warns about a plugin it cannot load' do
+      allow(Solargraph.logger).to receive(:warn)
+      capture_both { described_class.new([], directory: temp_dir, plugins: 'missing_probe_plugin').cache('nonexistentgem8675309') }
+      expect(Solargraph.logger).to have_received(:warn).with("Failed to load plugin 'missing_probe_plugin'")
+    end
   end
 
   describe 'cache' do
@@ -150,17 +258,6 @@ describe Solargraph::Shell do
         # capture stderr output
         expect { call }.to output(/not found/).to_stderr
       end
-    end
-  end
-
-  # @type cmd [Array<String>]
-  # @return [String]
-  def bundle_exec(*cmd)
-    # run the command in the temporary directory with bundle exec
-    Bundler.with_unbundled_env do
-      output, status = Open3.capture2e("bundle exec #{cmd.join(' ')}")
-      expect(status.success?).to be(true), "Command failed: #{output}"
-      output
     end
   end
 
@@ -293,6 +390,90 @@ describe Solargraph::Shell do
     end
   end
 
+  describe 'profile' do
+    # vernier is an optional dependency (see the LoadError rescue in
+    # Shell#profile) and isn't installed in this repo's Gemfile, so stub it
+    # out entirely rather than requiring the real gem.
+    before do
+      allow(shell).to receive(:require).with('vernier').and_return(true)
+      stub_const('Vernier', Module.new)
+      allow(Vernier).to receive(:profile).and_yield
+    end
+
+    it 'profiles go-to-definition against a real workspace' do
+      Dir.mktmpdir do |output_dir|
+        output = capture_both do
+          shell.options = { directory: 'spec/fixtures/workspace', output_dir: output_dir, line: 4, column: 10 }
+          shell.profile
+        end
+
+        expect(output).to include('Processing go-to-definition request...')
+        expect(output).to include('Result: [{')
+        expect(output).to include('uri')
+        expect(output).to include('thing.rb"')
+      end
+    end
+
+    it 'explains how to install vernier when it is missing' do
+      allow(shell).to receive(:require).with('vernier').and_raise(LoadError)
+
+      output = capture_both { shell.profile }
+
+      expect(output).to include("gem 'vernier'")
+    end
+
+    it 'stops when the workspace has no Ruby files' do
+      Dir.mktmpdir do |dir|
+        Dir.mktmpdir do |output_dir|
+          output = capture_both do
+            shell.options = { directory: dir, output_dir: output_dir, line: 0, column: 0 }
+            shell.profile
+          end
+
+          expect(output).to include('No Ruby files found in workspace')
+        end
+      end
+    end
+
+    it 'finishes and lists saved profiles after CTRL-C' do
+      handler = nil
+      allow(Signal).to receive(:trap) do |*_args, &block|
+        handler = block if block
+        'DEFAULT'
+      end
+      allow(Process).to receive(:kill)
+      allow(Vernier).to receive(:profile) { handler.call }
+
+      Dir.mktmpdir do |output_dir|
+        File.write(File.join(output_dir, 'parse_benchmark.json.gz'), '')
+        output = capture_both do
+          shell.options = { directory: 'spec/fixtures/workspace', output_dir: output_dir, line: 4, column: 10 }
+          shell.profile
+        end
+        # A second CTRL-C restores the default handler and re-sends the signal
+        handler.call
+
+        expect(output).to include('Profile run interrupted')
+        expect(output).to include('Profiles saved to:')
+        expect(Process).to have_received(:kill).with('INT', Process.pid)
+      end
+    end
+  end
+
+  describe 'profile_test_file' do
+    it 'uses the given file' do
+      expect(shell.send(:profile_test_file, '/ws', 'a.rb')).to eq('/ws/a.rb')
+    end
+
+    it 'falls back to any Ruby file in the workspace' do
+      Dir.mktmpdir do |dir|
+        File.write(File.join(dir, 'app.rb'), '')
+
+        expect(shell.send(:profile_test_file, dir, nil)).to end_with('app.rb')
+      end
+    end
+  end
+
   context 'with unbundled environments' do
     let!(:command_path) { File.realpath(File.join('spec', 'fixtures', 'shim.rb')) }
     let!(:unbundled_env) { Bundler.unbundled_env.merge({ 'BUNDLE_GEMFILE' => nil }) }
@@ -319,56 +500,56 @@ describe Solargraph::Shell do
       end
     end
 
-  describe 'rbs' do
-    let(:api_map) { instance_double(Solargraph::ApiMap) }
+    describe 'rbs' do
+      let(:api_map) { instance_double(Solargraph::ApiMap) }
 
-    before do
-      allow(shell).to receive(:`)
-      allow(Solargraph::ApiMap).to receive(:load).and_return(api_map)
-      allow(api_map).to receive(:source_maps).and_return(source_maps)
-    end
+      before do
+        allow(shell).to receive(:`)
+        allow(Solargraph::ApiMap).to receive(:load).and_return(api_map)
+        allow(api_map).to receive(:source_maps).and_return(source_maps)
+      end
 
-    context 'without inference' do
-      let(:source_maps) { [] }
+      context 'without inference' do
+        let(:source_maps) { [] }
 
-      it 'invokes sord' do
-        capture_both do
-          shell.options = { filename: 'foo.rbs' }
-          shell.rbs
+        it 'invokes sord' do
+          capture_both do
+            shell.options = { filename: 'foo.rbs' }
+            shell.rbs
+          end
+          expect(shell)
+            .to have_received(:`)
+            .with("sord #{Dir.pwd}/sig/foo.rbs --rbs --no-regenerate")
         end
-        expect(shell)
-          .to have_received(:`)
-          .with("sord #{Dir.pwd}/sig/foo.rbs --rbs --no-regenerate")
-      end
-    end
-
-    context 'with inference' do
-      let(:source_maps) { [source_map] }
-      let(:source_map) { instance_double(Solargraph::SourceMap) }
-      let(:pin) do
-        instance_double(Solargraph::Pin::Method,
-                        namespace: 'My::Namespace', path: 'My::Namespace#foo',
-                        visibility: :public,
-                        parameters: [],
-                        scope: :instance,
-                        location: nil,
-                        name: 'foo',
-                        class: Solargraph::Pin::Method,
-                        return_type: Solargraph::ComplexType::UNDEFINED)
       end
 
-      it 'infers unknown types on pins' do
-        allow(source_map).to receive(:pins).and_return([pin])
-        allow(pin).to receive_messages(typify: Solargraph::ComplexType.parse('String'),
-                                       docstring: YARD::Docstring.new(''), macros: [])
-        allow(pin).to receive(:code_object).and_return(nil)
-        capture_both do
-          shell.options = { filename: 'foo.rbs', inference: true }
-          shell.rbs
+      context 'with inference' do
+        let(:source_maps) { [source_map] }
+        let(:source_map) { instance_double(Solargraph::SourceMap) }
+        let(:pin) do
+          instance_double(Solargraph::Pin::Method,
+                          namespace: 'My::Namespace', path: 'My::Namespace#foo',
+                          visibility: :public,
+                          parameters: [],
+                          scope: :instance,
+                          location: nil,
+                          name: 'foo',
+                          class: Solargraph::Pin::Method,
+                          return_type: Solargraph::ComplexType::UNDEFINED)
         end
-        expect(pin).to have_received(:typify)
+
+        it 'infers unknown types on pins' do
+          allow(source_map).to receive(:pins).and_return([pin])
+          allow(pin).to receive_messages(typify: Solargraph::ComplexType.parse('String'),
+                                         docstring: YARD::Docstring.new(''), macros: [])
+          allow(pin).to receive(:code_object).and_return(nil)
+          capture_both do
+            shell.options = { filename: 'foo.rbs', inference: true }
+            shell.rbs
+          end
+          expect(pin).to have_received(:typify)
+        end
       end
     end
-  end
   end
 end

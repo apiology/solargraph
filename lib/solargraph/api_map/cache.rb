@@ -29,7 +29,7 @@ module Solargraph
       # @param scope [Symbol]
       # @param visibility [Array<Symbol>]
       # @param deep [Boolean]
-      # @return [Array<Pin::Method>]
+      # @return [Array<Pin::Method>, nil]
       def get_methods fqns, scope, visibility, deep
         @methods["#{fqns}|#{scope}|#{visibility}|#{deep}"]
       end
@@ -46,7 +46,7 @@ module Solargraph
 
       # @param namespace [String]
       # @param contexts [Array<String>]
-      # @return [Array<Pin::Base>]
+      # @return [Array<Pin::Base>, nil]
       def get_constants namespace, contexts
         @constants["#{namespace}|#{contexts}"]
       end
@@ -75,7 +75,7 @@ module Solargraph
       end
 
       # @param path [String]
-      # @return [Pin::Method]
+      # @return [Pin::Method, nil]
       def get_receiver_definition path
         @receiver_definitions[path]
       end

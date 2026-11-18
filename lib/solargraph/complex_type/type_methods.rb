@@ -59,7 +59,6 @@ module Solargraph
       end
 
       def tuple?
-        return false
         @tuple ||= (name == 'Tuple') || (name == 'Array' && subtypes.length >= 1 && fixed_parameters?)
       end
 
@@ -73,6 +72,14 @@ module Solargraph
 
       def undefined?
         name == 'undefined'
+      end
+
+      # @return [Boolean] True if this type is RBS's bottom type - an
+      #   expression that never produces a value (e.g., the return type
+      #   of `raise` or `abort`). A bottom type is a subtype of every
+      #   other type.
+      def bot?
+        name == 'bot'
       end
 
       # Variance of the type ignoring any type parameters
@@ -144,6 +151,8 @@ module Solargraph
         @namespace ||= lambda do
           return 'Object' if duck_type?
           return 'NilClass' if nil_type?
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1258
+          #   empty? guards need https://github.com/apiology/solargraph/tree/narrow-first-last-after-empty-guard on top
           %w[Class Module].include?(name) && !subtypes.empty? ? subtypes.first.name : name
         end.call
       end
@@ -182,8 +191,9 @@ module Solargraph
       def generate_substring_from &to_str
         key_types_str = key_types.map(&to_str).join(', ')
         subtypes_str = subtypes.map(&to_str).join(', ')
-        if (key_types.none?(&:defined?) && subtypes.none?(&:defined?)) ||
-           (key_types.empty? && subtypes.empty?)
+        # undefined parameters are dropped, except from a fixed-parameter type, whose arity is part of the type
+        if (key_types.empty? && subtypes.empty?) ||
+           (!fixed_parameters? && key_types.none?(&:defined?) && subtypes.none?(&:defined?))
           ''
         elsif hash_parameters?
           "{#{key_types_str} => #{subtypes_str}}"
@@ -205,27 +215,7 @@ module Solargraph
       # @param other [Object]
       def == other
         return false unless self.class == other.class
-        # @sg-ignore flow sensitive typing should support .class == .class
         tag == other.tag
-      end
-
-      # Generate a ComplexType that fully qualifies this type's namespaces.
-      #
-      # @param api_map [ApiMap] The ApiMap that performs qualification
-      # @param context [String] The namespace from which to resolve names
-      # @return [self, ComplexType, UniqueType] The generated ComplexType
-      def qualify api_map, context = ''
-        transform do |t|
-          next t if t.name == GENERIC_TAG_NAME
-          next t if t.duck_type? || t.void? || t.undefined?
-          recon = (t.rooted? ? '' : context)
-          fqns = api_map.qualify(t.name, recon)
-          if fqns.nil?
-            next UniqueType::BOOLEAN if t.tag == 'Boolean'
-            next UniqueType::UNDEFINED
-          end
-          t.recreate(new_name: fqns, make_rooted: true)
-        end
       end
 
       # @yieldparam [UniqueType]

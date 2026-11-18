@@ -127,6 +127,47 @@ describe Solargraph::Source::Chain do
     Solargraph::Convention.unregister dummy_convention
   end
 
+  it 'infers types from factory methods called with a string literal' do
+    dummy_convention = Class.new(Solargraph::Convention::Base) do
+      def local _source_map
+        Solargraph::Environ.new(
+          pins: [
+            Solargraph::Pin::FactoryParameter.new(
+              method_name: 'build',
+              method_namespace: 'Factory',
+              method_scope: :class,
+              param_name: 'name',
+              value: 'widget',
+              return_type: Solargraph::ComplexType.parse('Widget')
+            )
+          ]
+        )
+      end
+    end
+
+    Solargraph::Convention.register dummy_convention
+
+    source = Solargraph::Source.new(%(
+      class Widget
+      end
+      module Factory
+        # @param name [String]
+        def self.build(name)
+        end
+      end
+
+      Factory.build('widget')
+    ), 'test.rb')
+    source_map = Solargraph::SourceMap.map(source)
+
+    api_map = Solargraph::ApiMap.new
+    api_map.index source_map.pins + source_map.convention_pins
+    chain = Solargraph::Source::SourceChainer.chain(source_map.source, Solargraph::Position.new(9, 16))
+    type = chain.infer(api_map, Solargraph::Pin::ROOT_PIN, [])
+    expect(type.name).to eq('Widget')
+    Solargraph::Convention.unregister dummy_convention
+  end
+
   it "defines factory parameters" do
     dummy_convention = Class.new(Solargraph::Convention::Base) do
       def local _source_map
@@ -206,6 +247,47 @@ describe Solargraph::Source::Chain do
     chain = Solargraph::Source::SourceChainer.chain(source_map.source, Solargraph::Position.new(6, 46))
     pins = chain.define(api_map, Solargraph::Pin::ROOT_PIN, [])
     expect(pins.map(&:value)).to eq([:pinned])
+    Solargraph::Convention.unregister dummy_convention
+  end
+
+  it 'defines no factory parameters for a literal nested in an argument' do
+    dummy_convention = Class.new(Solargraph::Convention::Base) do
+      def local _source_map
+        Solargraph::Environ.new(
+          pins: [
+            Solargraph::Pin::FactoryParameter.new(
+              method_name: 'create',
+              method_namespace: 'FactoryBot',
+              method_scope: :class,
+              param_name: 'traits',
+              value: :published,
+              decl: :restarg,
+              return_type: nil,
+              location: Solargraph::Location.new('test.rb', Solargraph::Range.from_to(0, 6, 0, 18))
+            )
+          ]
+        )
+      end
+    end
+
+    Solargraph::Convention.register dummy_convention
+
+    source = Solargraph::Source.new(%(
+      module FactoryBot
+        def self.create(name, *traits, **overrides)
+        end
+      end
+
+      FactoryBot.create(:post, [:published])
+    ), 'test.rb')
+    source_map = Solargraph::SourceMap.map(source)
+
+    api_map = Solargraph::ApiMap.new
+    api_map.index source_map.pins + source_map.convention_pins
+    chain = Solargraph::Source::SourceChainer.chain(source_map.source, Solargraph::Position.new(6, 34))
+    pins = chain.define(api_map, Solargraph::Pin::ROOT_PIN, [])
+    expect(pins).to be_empty
+  ensure
     Solargraph::Convention.unregister dummy_convention
   end
 

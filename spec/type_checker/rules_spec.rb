@@ -36,4 +36,17 @@ describe Solargraph::TypeChecker::Rules do
     expect(rules.validate_calls?).to be(true)
     expect(rules.validate_tags?).to be(true)
   end
+
+  it 'falls back to normal rules for an unrecognized level' do
+    rules = described_class.new(:bogus, {})
+    expect(rules.level).to eq(:normal)
+    expect(rules.rank).to eq(0)
+    expect(rules.ignore_all_undefined?).to be(true)
+    expect(rules.validate_tags?).to be(false)
+  end
+
+  it 'sets level to the matching symbol' do
+    rules = described_class.new(:strong, {})
+    expect(rules.level).to eq(:strong)
+  end
 end

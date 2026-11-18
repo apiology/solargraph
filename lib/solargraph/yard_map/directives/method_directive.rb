@@ -13,13 +13,15 @@ module Solargraph
         # @param directive [YARD::Tags::Directive]
         # @return [Array<Solargraph::Pin::Method>]
         def process_directive source, pins, source_position, comment_position, directive
-          namespace = closure_at(pins, source_position) || pins.first
+          namespace = closure_at(pins, source_position) || pins.fetch(0)
 
+          # @sg-ignore Unresolved call to location
           namespace = closure_at(pins, comment_position) if namespace.location&.range&.start&.line&.< comment_position.line # rubocop:disable Style/SafeNavigationChainLength
           begin
             src = Solargraph::Source.load_string("def #{directive.tag.name};end", source.filename)
             region = Parser::Region.new(source: src, closure: namespace)
-            method_gen_pins = Parser.process_node(src.node, region).first.select { |pin| pin.is_a?(Pin::Method) }
+            pins_from_directive, = Parser.process_node(src.node, region)
+            method_gen_pins = pins_from_directive.grep(Pin::Method)
             gen_pin = method_gen_pins.last
             return [] if gen_pin.nil?
             # Move the location to the end of the line so it gets recognized
@@ -41,7 +43,7 @@ module Solargraph
 
         # @param [Array<Pin::Base>] pins
         # @param [Position] position
-        # @return [Pin::Closure]
+        # @return [Pin::Closure, nil]
         def closure_at pins, position
           pins.select { |pin| pin.is_a?(Pin::Closure) and pin.location&.range&.contain?(position) }.last
         end

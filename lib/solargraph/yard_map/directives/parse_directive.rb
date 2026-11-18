@@ -19,7 +19,7 @@ module Solargraph
           region = Parser::Region.new(source: src, closure: ns)
           # @todo These pins may need to be marked not explicit
           old_pins_index = pins.length
-          loff = if source.code.lines[comment_position.line].strip.end_with?('@!parse')
+          loff = if source.code.lines.fetch(comment_position.line).strip.end_with?('@!parse')
                    comment_position.line + 1
                  else
                    comment_position.line
@@ -29,9 +29,9 @@ module Solargraph
           new_pins.each do |p|
             # @todo Smelly instance variable access
             next if p.location.nil?
-            # @sg-ignore Unresolved call to range on Solargraph::Location, nil - does not account for next clause above.
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1258
             p.location.range.start.instance_variable_set(:@line, p.location.range.start.line + loff)
-            # @sg-ignore Unresolved call to range on Solargraph::Location, nil
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1258
             p.location.range.ending.instance_variable_set(:@line, p.location.range.ending.line + loff)
           end
 
@@ -43,7 +43,7 @@ module Solargraph
 
         # @param [Array<Pin::Base>] pins
         # @param [Position] position
-        # @return [Pin::Closure]
+        # @return [Pin::Closure, nil]
         def closure_at pins, position
           pins.select { |pin| pin.is_a?(Pin::Closure) and pin.location&.range&.contain?(position) }.last
         end

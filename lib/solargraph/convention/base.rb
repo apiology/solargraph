@@ -23,7 +23,7 @@ module Solargraph
       # The Environ for a DocMap.
       # Subclasses can override this method.
       #
-      # @param doc_map [DocMap]
+      # @param doc_map [Object]
       # @return [Environ]
       def global doc_map
         EMPTY_ENVIRON
@@ -44,6 +44,13 @@ module Solargraph
       def object api_map, rooted_tag, scope, visibility,
                  deep, skip, no_core
         EMPTY_ENVIRON
+      end
+
+      # @param root [String] the gem's root directory
+      # @param require_paths [Array<String>] the gem's require paths, relative to root
+      # @return [Array<String>] paths inside the gem, relative to root, to map beyond require_paths
+      def extra_source_paths(root:, require_paths:, **)
+        []
       end
     end
   end

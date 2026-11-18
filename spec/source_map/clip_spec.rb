@@ -1081,6 +1081,43 @@ describe Solargraph::SourceMap::Clip do
     expect(clip.complete.pins.map(&:name)).not_to include('bar:')
   end
 
+  it 'infers a block parameter that shadows a method parameter' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @param pin [String]
+        def bar pin
+          # @type [Array<Integer>]
+          arr = []
+          arr.each do |pin|
+            pin
+          end
+        end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+
+    clip = api_map.clip_at('test.rb', [7, 13])
+    expect(clip.infer.to_s).to eq('Integer')
+  end
+
+  it 'infers a block parameter that shadows an outer block parameter' do
+    source = Solargraph::Source.load_string(%(
+      # @type [Array<String>]
+      strs = []
+      # @type [Array<Integer>]
+      ints = []
+      strs.each do |val|
+        ints.each do |val|
+          val
+        end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+
+    clip = api_map.clip_at('test.rb', [7, 11])
+    expect(clip.infer.to_s).to eq('Integer')
+  end
+
   it 'includes tagged params for double splats' do
     source = Solargraph::Source.load_string(%(
       class Foo
@@ -2202,7 +2239,6 @@ describe Solargraph::SourceMap::Clip do
   end
 
   it 'dereferences tuple types with [](idx) via literals' do
-    pending 'Probably not feasible'
     source = Solargraph::Source.load_string(%(
       # @type [Array(String, Integer)]
       a = foo
@@ -2220,8 +2256,67 @@ describe Solargraph::SourceMap::Clip do
     expect(type.to_s).to eq('Integer')
   end
 
+  context 'with positional element methods on a declared tuple' do
+    let(:code) do
+      %(
+        class Foo; end
+        class Bar; end
+
+        # @return [Array(Foo, Bar)]
+        def pair; end
+
+        # @return [Array<Foo>]
+        def list; end
+
+        # @param i [Integer]
+        def check i
+          pair.first
+          pair[0]
+          pair[1]
+          pair.last
+          pair[-1]
+          pair[5]
+          pair[i]
+          list.first
+          [Foo.new, Bar.new].first
+        end
+      )
+    end
+
+    let(:api_map) { Solargraph::ApiMap.new.map(Solargraph::Source.load_string(code, 'test.rb')) }
+
+    # @param line [Integer]
+    # @return [String]
+    def infer_at line
+      api_map.clip_at('test.rb', [line, code.lines[line].rstrip.length]).infer.to_s
+    end
+
+    it 'types #first and #[](0) as the first element' do
+      expect([infer_at(12), infer_at(13)]).to eq(%w[Foo Foo])
+    end
+
+    it 'types #last, #[](1) and #[](-1) as the last element' do
+      expect([infer_at(15), infer_at(14), infer_at(16)]).to eq(%w[Bar Bar Bar])
+    end
+
+    it 'types an out-of-range index as nil' do
+      expect(infer_at(17)).to eq('nil')
+    end
+
+    it 'types a variable index as any element' do
+      expect(infer_at(18)).to eq('Foo, Bar, nil')
+    end
+
+    it 'leaves a declared list element nilable' do
+      expect(infer_at(19)).to eq('Foo, nil')
+    end
+
+    it 'does not type an array literal as a tuple' do
+      expect(infer_at(20)).not_to eq('Foo')
+    end
+  end
+
   it 'resolves block parameter types from Hash#each' do
-    pending 'Maybe feasible'
     source = Solargraph::Source.load_string(%(
       # @type [Hash{String => Integer}]
       h = { 'foo' => 1 }
@@ -2242,7 +2337,6 @@ describe Solargraph::SourceMap::Clip do
   end
 
   it 'resolves block parameter types from Array(A, B)#each' do
-    pending 's and i are undefined'
     source = Solargraph::Source.load_string(%(
       # @type [Array<Array(String, Integer)>]
       h = [['foo', 1], ['bar', 2]]
@@ -2284,7 +2378,6 @@ describe Solargraph::SourceMap::Clip do
   end
 
   it 'uses types to determine overload to match' do
-    pending 'Overload resolution by argument type currently unions signatures instead of narrowing (see castwide/solargraph#1246)'
     source = Solargraph::Source.load_string(%(
       # @generic A
       # @generic B
@@ -2314,7 +2407,6 @@ describe Solargraph::SourceMap::Clip do
   end
 
   it 'uses types to determine overload of [] to match' do
-    pending 'Overload resolution by argument type currently unions signatures instead of narrowing (see castwide/solargraph#1246)'
     source = Solargraph::Source.load_string(%(
       # @generic A
       # @generic B
@@ -2501,7 +2593,7 @@ describe Solargraph::SourceMap::Clip do
   ), 'test.rb')
     api_map = Solargraph::ApiMap.new.map(source)
     clip = api_map.clip_at('test.rb', [7, 6])
-    expect(clip.infer.to_s).to eq('Symbol, Integer')
+    expect(clip.infer.to_s).to eq('123, :foo')
   end
 
   it 'replaces type with alternate reassignments' do
@@ -2625,7 +2717,6 @@ describe Solargraph::SourceMap::Clip do
   end
 
   it 'handles mass assignment into instance variables' do
-    pending 'Should be feasible'
     source = Solargraph::Source.load_string(%(
       class Blah
         def initialize
@@ -2648,6 +2739,75 @@ describe Solargraph::SourceMap::Clip do
 
     clip = api_map.clip_at('test.rb', [5, 10])
     expect(clip.infer.to_s).to eq('String')
+  end
+
+  it 'types mass assignment from a declared tuple by position' do
+    source = Solargraph::Source.load_string(%(
+      class Foo; end
+      class Bar; end
+
+      # @return [Array(Foo, Bar)]
+      def pair; end
+
+      a, b = pair
+      a
+      b
+      c, d, e = pair
+      e
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+
+    expect(api_map.clip_at('test.rb', [8, 6]).infer.to_s).to eq('Foo')
+    expect(api_map.clip_at('test.rb', [9, 6]).infer.to_s).to eq('Bar')
+    expect(api_map.clip_at('test.rb', [11, 6]).infer.to_s).not_to include('Foo')
+  end
+
+  it 'types a declared tuple element after a splat as any element' do
+    source = Solargraph::Source.load_string(%(
+      class Foo; end
+      class Bar; end
+      class Baz; end
+
+      # @return [Array(Foo, Bar, Baz)]
+      def triple; end
+
+      *rest, last = triple
+      last
+      rest
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+
+    expect(api_map.clip_at('test.rb', [9, 6]).infer.to_s).to eq('Foo, Bar, Baz')
+    expect(api_map.clip_at('test.rb', [10, 6]).infer.to_s).not_to eq('Foo')
+  end
+
+  it 'types mass assignment from a declared list by its element type' do
+    source = Solargraph::Source.load_string(%(
+      class Foo; end
+
+      # @return [Array<Foo>]
+      def list; end
+
+      a, b = list
+      a
+      b
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+
+    expect(api_map.clip_at('test.rb', [7, 6]).infer.to_s).to eq('Foo')
+    expect(api_map.clip_at('test.rb', [8, 6]).infer.to_s).to eq('Foo')
+  end
+
+  it 'does not infer a tuple from an array literal in mass assignment' do
+    source = Solargraph::Source.load_string(%(
+      a, b = [1, 'two']
+      a
+      b
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+
+    expect(api_map.clip_at('test.rb', [2, 6]).infer.to_s).not_to eq('Integer')
+    expect(api_map.clip_at('test.rb', [3, 6]).infer.to_s).not_to eq('String')
   end
 
   it 'handles a complex yieldreturn type resolution situation' do
@@ -2759,7 +2919,6 @@ describe Solargraph::SourceMap::Clip do
   end
 
   it 'preserves hash value when it is a union without brackets' do
-    pending 'Inferred type contains NilClass'
     source = Solargraph::Source.load_string(%(
       # @type [Hash{String => Array, Hash, Integer, nil}]
       raw_data = {}
@@ -2771,6 +2930,42 @@ describe Solargraph::SourceMap::Clip do
 
     clip = api_map.clip_at('test.rb', [4, 6])
     expect(clip.infer.to_s).to eq('Array, Hash, Integer, nil')
+  end
+
+  it 'keeps declared literal return types' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @return [:foo]
+        def sym; end
+
+        # @return [1]
+        def int; end
+      end
+      a = Foo.new.sym
+      a
+      b = Foo.new.int
+      b
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+
+    clip = api_map.clip_at('test.rb', [9, 6])
+    expect(clip.infer.rooted_tags).to eq(':foo')
+    clip = api_map.clip_at('test.rb', [11, 6])
+    expect(clip.infer.rooted_tags).to eq('1')
+  end
+
+  it 'keeps declared literal parameter types' do
+    source = Solargraph::Source.load_string(%(
+      # @param mode [:read, :write]
+      # @return [void]
+      def open_with mode
+        mode
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+
+    clip = api_map.clip_at('test.rb', [4, 8])
+    expect(clip.infer.rooted_tags).to eq(':read, :write')
   end
 
   it 'infers that type of argument has been overridden' do
@@ -3117,6 +3312,21 @@ describe Solargraph::SourceMap::Clip do
     expect(names).not_to include('bar=', 'baz=')
   end
 
+  it 'defines Data methods via namespaced const assignment' do
+    source = Solargraph::Source.load_string(%(
+      # @param bar [String]
+      # @param baz [Integer]
+      Foo::Baz = Data.define(:bar, :baz)
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new.map(source)
+    pin = api_map.get_path_pins('Foo::Baz#baz').first
+    expect(pin).not_to be_nil
+    expect(pin.return_type.to_s).to eq('Integer')
+    pin = api_map.get_path_pins('Foo::Baz#bar').first
+    expect(pin).not_to be_nil
+    expect(pin.return_type.to_s).to eq('String')
+  end
+
   it 'defines calls with blocks to methods with yieldreceiver tags' do
     source = Solargraph::Source.load_string(%(
       class Base
@@ -3146,7 +3356,9 @@ describe Solargraph::SourceMap::Clip do
       # @return [Array(String, Integer)]
       def foo; end
 
-      foo[0]._
+      # @type [Integer]
+      i = 0
+      foo[i]._
 
       foo.each do |bar|
         bar._
@@ -3154,15 +3366,15 @@ describe Solargraph::SourceMap::Clip do
     ), 'test.rb')
     api_map = Solargraph::ApiMap.new.map(source)
 
-    clip = api_map.clip_at('test.rb', [4, 12])
+    clip = api_map.clip_at('test.rb', [6, 12])
     expect(clip.infer.to_s).to eq('String, Integer, nil')
 
-    clip = api_map.clip_at('test.rb', [4, 13])
+    clip = api_map.clip_at('test.rb', [6, 13])
     paths = clip.complete.pins.map(&:path)
     expect(paths).to include('String#upcase')
     expect(paths).to include('Integer#abs')
 
-    clip = api_map.clip_at('test.rb', [7, 12])
+    clip = api_map.clip_at('test.rb', [9, 12])
     paths = clip.complete.pins.map(&:path)
     expect(paths).to include('String#upcase')
     expect(paths).to include('Integer#abs')
@@ -3367,8 +3579,6 @@ describe Solargraph::SourceMap::Clip do
     end
 
     it 'types elements of tuples' do
-      pending('literal index typing, disabled by castwide/solargraph#1201')
-
       expect(infer_at(%(
         pair = ['a', 1] #: [String, Integer]
         pair[0]

@@ -49,11 +49,18 @@ module Solargraph
         )
       end
 
-      # @sg-ignore Need to add nil check here
       # @return [Array<String>]
       def reference_gates
-        # @sg-ignore Need to add nil check here
-        closure.gates
+        closure!.gates
+      end
+
+      private
+
+      # @return [void]
+      def preassign_ivars
+        super
+        @generic_values = nil
+        @type = nil
       end
     end
   end

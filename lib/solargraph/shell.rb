@@ -41,7 +41,7 @@ module Solargraph
         Signal.trap('TERM') do
           Backport.stop
         end
-        # @sg-ignore Wrong argument type for Backport.prepare_tcp_server: adapter expected Backport::Adapter, received Module<Solargraph::LanguageServer::Transport::Adapter>
+        # @sg-ignore https://github.com/castwide/backport/pull/6
         Backport.prepare_tcp_server host: options[:host], port: port, adapter: Solargraph::LanguageServer::Transport::Adapter
         $stderr.puts "Solargraph is listening PORT=#{port} PID=#{Process.pid}"
       end
@@ -58,7 +58,7 @@ module Solargraph
         Signal.trap('TERM') do
           Backport.stop
         end
-        # @sg-ignore Wrong argument type for Backport.prepare_stdio_server: adapter expected Backport::Adapter, received Module<Solargraph::LanguageServer::Transport::Adapter>
+        # @sg-ignore https://github.com/castwide/backport/pull/6
         Backport.prepare_stdio_server adapter: Solargraph::LanguageServer::Transport::Adapter
         $stderr.puts "Solargraph is listening on stdio PID=#{Process.pid}"
       end
@@ -110,10 +110,13 @@ module Solargraph
       Documentation will be regenerated as needed.
     )
     option :directory, type: :string, desc: 'Workspace directory', default: Dir.pwd
+    option :plugins, type: :string,
+                     desc: "Plugins to require instead of the workspace's, separated by #{File::PATH_SEPARATOR}"
     # @param gems [Array<String>]
     # @return [void]
     def uncache *gems
       raise ArgumentError, 'No gems specified.' if gems.empty?
+      require_plugins
       repo = Solargraph::Repo.new(options[:directory])
 
       gems.each do |gem|
@@ -153,11 +156,13 @@ module Solargraph
         can be stored between CI runs.
     )
     option :directory, type: :string, desc: 'Workspace directory', default: Dir.pwd
+    option :plugins, type: :string,
+                     desc: "Plugins to require instead of the workspace's, separated by #{File::PATH_SEPARATOR}"
     option :rebuild, type: :boolean, desc: 'Rebuild existing documentation', default: false
-    # @param names [Array<String>]
+    # @param gem_names [Array<String>]
     # @return [void]
-    # @param [Array<Object>] gem_names
     def cache *gem_names
+      require_plugins
       repo = Solargraph::Repo.new(options[:directory])
       metagems = if gem_names.empty?
                    if repo.bundled?
@@ -186,11 +191,8 @@ module Solargraph
                      end
                    end
                  end
-      metagems.each do |metagem|
-        Collection::Gem.uncache(metagem) if options[:rebuild]
-        puts "Caching #{metagem.name} #{metagem.version} (#{metagem.cache_name})"
-        Collection::Gem.load(metagem)
-      end
+      metagems.each { |metagem| puts "Caching #{metagem.name} #{metagem.version} (#{metagem.cache_name})" }
+      Collection::Gem.load_all metagems, out: $stdout, rebuild: options[:rebuild]
       puts "Documentation cached for #{metagems.count} gems."
     end
     map 'gems' => :cache
@@ -267,7 +269,7 @@ module Solargraph
       api_map = nil
       time = Benchmark.measure do
         api_map = Solargraph::ApiMap.load_with_cache(directory, $stdout)
-        # @sg-ignore flow sensitive typing should be able to handle redefinition
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1338
         api_map.pins.each do |pin|
           puts pin_description(pin) if options[:verbose]
           pin.typify api_map
@@ -285,8 +287,7 @@ module Solargraph
           exit 1
         end
       end
-      # @sg-ignore Need to add nil check here
-      puts "Scanned #{directory} (#{api_map.pins.length} pins) in #{time.real} seconds."
+      puts "Scanned #{directory} (#{api_map&.pins&.length} pins) in #{time.real} seconds."
     end
 
     desc 'list', 'List the files in the workspace and the total count'
@@ -320,9 +321,6 @@ module Solargraph
                             [:class, *path.split('.', 2)]
                           end
 
-        # @sg-ignore Wrong argument type for
-        #   Solargraph::ApiMap#get_method_stack: rooted_tag
-        #   expected String, received Array<String>
         pins = api_map.get_method_stack(ns, meth, scope: scope)
       else
         pins = api_map.get_path_pins path
@@ -336,7 +334,6 @@ module Solargraph
         exit 1
       when Pin::Namespace
         if options[:references]
-          # @sg-ignore Need to add nil check here
           superclass_tag = api_map.qualify_superclass(pin.return_type.tag)
           superclass_pin = api_map.get_path_pins(superclass_tag).first if superclass_tag
           references[:superclass] = superclass_pin if superclass_pin
@@ -432,20 +429,10 @@ module Solargraph
         end
         catalog_time = Time.now - catalog_start
 
-        # Determine test file
-        if file
-          test_file = File.join(directory, file)
-        else
-          test_file = File.join(directory, 'lib', 'other.rb')
-          unless File.exist?(test_file)
-            # Fallback to any Ruby file in the workspace
-            workspace = Solargraph::Workspace.new(directory)
-            test_file = workspace.filenames.find { |f| f.end_with?('.rb') }
-            unless test_file
-              puts 'No Ruby files found in workspace'
-              return
-            end
-          end
+        test_file = profile_test_file(directory, file)
+        unless test_file
+          puts 'No Ruby files found in workspace'
+          return
         end
 
         file_uri = Solargraph::LanguageServer::UriHelpers.file_to_uri(File.absolute_path(test_file))
@@ -464,9 +451,9 @@ module Solargraph
             }
           )
           puts 'Processing go-to-definition request...'
-          result = message.process
+          message.process
 
-          puts "Result: #{result.inspect}"
+          puts "Result: #{message.result.inspect}"
         end
         definition_time = Time.now - definition_start
       rescue Interrupt
@@ -497,6 +484,7 @@ module Solargraph
     desc 'rbs', 'Generate RBS definitions'
     option :filename, type: :string, alias: :f, desc: 'Generated file name', default: 'sig.rbs'
     option :inference, type: :boolean, desc: 'Enhance definitions with type inference', default: true
+    # @return [void]
     def rbs
       api_map = Solargraph::ApiMap.load('.')
       pins = api_map.source_maps.flat_map(&:pins)
@@ -531,12 +519,45 @@ module Solargraph
 
     private
 
+    # The file to profile go-to-definition against: the given file,
+    # lib/other.rb, or any Ruby file in the workspace.
+    #
+    # @param directory [String]
+    # @param file [String, nil]
+    # @return [String, nil]
+    def profile_test_file directory, file
+      return File.join(directory, file) if file
+
+      test_file = File.join(directory, 'lib', 'other.rb')
+      return test_file if File.exist?(test_file)
+
+      workspace = Solargraph::Workspace.new(directory)
+      workspace.filenames.find { |f| f.end_with?('.rb') }
+    end
+
+    # Plugins change the pins mapped from gem source and the gem cache
+    # directory, so the language server's cache subprocess needs them too.
+    #
+    # @return [void]
+    def require_plugins
+      return Workspace::Config.new(options[:directory] || Dir.pwd).require_plugins if options[:plugins].nil?
+
+      options[:plugins].split(File::PATH_SEPARATOR).each do |plugin|
+        require plugin
+        CacheDir.add_plugin plugin
+      rescue LoadError
+        Solargraph.logger.warn "Failed to load plugin '#{plugin}'"
+      end
+    end
+
     # @param pin [Solargraph::Pin::Base]
     # @return [String]
+    # @sg-ignore https://github.com/castwide/solargraph/pull/1258
     def pin_description pin
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1258
       desc = if pin.path.nil? || pin.path.empty?
                if pin.closure
-                 # @sg-ignore Need to add nil check here
+                 # @sg-ignore https://github.com/castwide/solargraph/pull/1258
                  "#{pin.closure.path} | #{pin.name}"
                else
                  "#{pin.context.namespace} | #{pin.name}"
@@ -544,7 +565,7 @@ module Solargraph
              else
                pin.path
              end
-      # @sg-ignore Need to add nil check here
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1258
       desc += " (#{pin.location.filename} #{pin.location.range.start.line})" if pin.location
       desc
     end

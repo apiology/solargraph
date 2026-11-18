@@ -8,6 +8,30 @@ describe Solargraph::Workspace::Config do
 
   after { FileUtils.remove_entry(dir_path) }
 
+  describe '#require_plugins' do
+    before do
+      File.write(File.join(dir_path, 'config_probe_plugin.rb'), '')
+      File.write(File.join(dir_path, '.solargraph.yml'), "plugins:\n  - config_probe_plugin\n  - missing_probe_plugin\n")
+      $LOAD_PATH.unshift dir_path
+    end
+
+    after do
+      $LOAD_PATH.delete dir_path
+      $LOADED_FEATURES.delete_if { |path| path.end_with?('config_probe_plugin.rb') }
+      Solargraph::CacheDir.plugins.delete 'config_probe_plugin'
+    end
+
+    it 'records the plugins it loads in the gem cache key' do
+      described_class.new(dir_path).require_plugins
+      expect(Solargraph::CacheDir.plugins.keys).to include('config_probe_plugin')
+    end
+
+    it 'leaves plugins that fail to load out of the gem cache key' do
+      described_class.new(dir_path).require_plugins
+      expect(Solargraph::CacheDir.plugins.keys).not_to include('missing_probe_plugin')
+    end
+  end
+
   it 'includes .rb files by default' do
     file = File.join(dir_path, 'file.rb')
     File.write(file, 'exit')
@@ -51,5 +75,58 @@ describe Solargraph::Workspace::Config do
     config = described_class.new(dir_path)
     expect(config.reporters).to include('rubocop')
     expect(config.reporters).to include('require_not_found')
+  end
+
+  it 'rejects a value that should be an array of strings' do
+    File.open(File.join(dir_path, '.solargraph.yml'), 'w') do |file|
+      file.puts 'domains: not_an_array'
+    end
+    config = described_class.new(dir_path)
+    expect { config.domains }.to raise_error(Solargraph::InvalidConfigError, /domains/)
+  end
+
+  it 'falls back to an empty array when a value is explicitly nil' do
+    File.open(File.join(dir_path, '.solargraph.yml'), 'w') do |file|
+      file.puts 'plugins:'
+    end
+    config = described_class.new(dir_path)
+    expect(config.plugins).to eq([])
+  end
+
+  it 'rejects a max_files value that is not an integer' do
+    File.open(File.join(dir_path, '.solargraph.yml'), 'w') do |file|
+      file.puts 'max_files: not_an_integer'
+    end
+    config = described_class.new(dir_path)
+    expect { config.max_files }.to raise_error(Solargraph::InvalidConfigError, /max_files/)
+  end
+
+  it 'rejects a formatter value that is not a hash' do
+    File.open(File.join(dir_path, '.solargraph.yml'), 'w') do |file|
+      file.puts 'formatter: not_a_hash'
+    end
+    config = described_class.new(dir_path)
+    expect { config.formatter }.to raise_error(Solargraph::InvalidConfigError, /formatter/)
+  end
+
+  it 'reads required paths from the require key' do
+    File.open(File.join(dir_path, '.solargraph.yml'), 'w') do |file|
+      file.puts 'require: [set]'
+    end
+    config = described_class.new(dir_path)
+    expect(config.required).to eq(['set'])
+  end
+
+  it 'has no required paths by default' do
+    config = described_class.new(dir_path)
+    expect(config.required).to eq([])
+  end
+
+  it 'rejects a require value that is not an array' do
+    File.open(File.join(dir_path, '.solargraph.yml'), 'w') do |file|
+      file.puts 'require: not_an_array'
+    end
+    config = described_class.new(dir_path)
+    expect { config.required }.to raise_error(Solargraph::InvalidConfigError, /require/)
   end
 end

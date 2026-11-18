@@ -243,6 +243,39 @@ describe Solargraph::Pin::Parameter do
     expect(map.locals.first.return_type.tag).to eq('String')
   end
 
+  it 'detects method parameter return types from inline rbs signatures' do
+    source = Solargraph::Source.load_string(%(
+      #: (String, ?Integer, key: Symbol) -> void
+      def foo bar, baz = 1, key:
+      end
+    ), 'file.rb')
+    map = Solargraph::SourceMap.map(source)
+    expect(map.locals.map { |l| [l.name, l.return_type.to_s] })
+      .to eq([%w[bar String], %w[baz Integer], %w[key Symbol]])
+  end
+
+  it 'prefers inline rbs signatures over @param tags' do
+    source = Solargraph::Source.load_string(%(
+      # @param bar [Integer]
+      #: (String) -> void
+      def foo bar
+      end
+    ), 'file.rb')
+    map = Solargraph::SourceMap.map(source)
+    expect(map.locals.first.return_type.to_s).to eq('String')
+  end
+
+  it 'falls back to @param tags when the inline rbs signature does not parse' do
+    source = Solargraph::Source.load_string(%(
+      # @param bar [Integer]
+      #: (String) -> -> void
+      def foo bar
+      end
+    ), 'file.rb')
+    map = Solargraph::SourceMap.map(source)
+    expect(map.locals.first.return_type.to_s).to eq('Integer')
+  end
+
   it 'tracks its index' do
     smap = Solargraph::SourceMap.load_string(%(
       def foo bar
@@ -260,6 +293,47 @@ describe Solargraph::Pin::Parameter do
     ))
     pin = smap.locals.select { |p| p.name == 'bar' }.first
     expect(pin.return_type.tag).to eq('String')
+  end
+
+  it 'detects unnamed @param tag types via an overridden method' do
+    source = Solargraph::Source.load_string(%(
+      class Base
+        # @param [String]
+        def foo(bar)
+        end
+      end
+
+      class Sub < Base
+        def foo(bar)
+          bar
+        end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+    pin = api_map.source_map('test.rb').locals.find { |p| p.name == 'bar' && p.closure.path == 'Sub#foo' }
+    expect(pin.typify(api_map).tag).to eq('String')
+  end
+
+  it 'infers types from unnamed @param tags on a superclass method' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @param [String]
+        def foo bar; end
+      end
+      class Sub < Foo
+        def foo bar; end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+    pin = api_map.source_map('test.rb').locals.find { |p| p.name == 'bar' && p.closure.path == 'Sub#foo' }
+    expect(pin.typify(api_map).tag).to eq('String')
+  end
+
+  it 'raises from closure! when the closure is not callable' do
+    pin = described_class.new(name: 'bar', closure: Solargraph::Pin::Namespace.new(name: 'Foo'))
+    expect { pin.closure! }.to raise_error(RuntimeError, /not a Pin::Callable/)
   end
 
   it 'infers return types from method reference tags' do
@@ -519,5 +593,18 @@ describe Solargraph::Pin::Parameter do
       clip = api_map.clip_at('test.rb', [14, 16])
       expect(clip.infer.rooted_tags).to eq('::A::B::Method')
     end
+  end
+
+  it 'typifies a parameter that refers to a class with (see)' do
+    source = Solargraph::Source.load_string(%(
+      class Foo
+        # @param baz (see String)
+        def bar baz; end
+      end
+    ), 'test.rb')
+    api_map = Solargraph::ApiMap.new
+    api_map.map source
+    pin = api_map.get_path_pins('Foo#bar').first.parameters.first
+    expect { pin.typify(api_map) }.not_to raise_error
   end
 end
