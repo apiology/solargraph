@@ -71,7 +71,7 @@ module Solargraph
         # @return [String, nil]
         def infer_literal_node_type node
           return nil unless node.is_a?(AST::Node)
-          if %i[str dstr].include?(node.type)
+          if %i[str dstr xstr].include?(node.type)
             return '::String'
           elsif node.type == :array
             return '::Array'
@@ -281,7 +281,7 @@ module Solargraph
         def call_nodes_from node
           return [] unless node.is_a?(::Parser::AST::Node)
           result = []
-          if node in [:block, ::Parser::AST::Node => call, *block_rest]
+          if node in [:block | :numblock, ::Parser::AST::Node => call, *block_rest]
             result.push node
             if call in ::Parser::AST::Node[_, _, _, *call_args]
               call_args.each { |child| result.concat call_nodes_from(child) }
@@ -530,7 +530,7 @@ module Solargraph
             ENSURE = [:ensure].freeze
             COMPOUND_STATEMENTS = %i[begin kwbegin].freeze
             SKIPPABLE = %i[def defs class sclass module].freeze
-            FUNCTION_VALUE = [:block].freeze
+            FUNCTION_VALUE = %i[block numblock].freeze
             CASE_STATEMENT = [:case].freeze
 
             # @param node [AST::Node] a method body compound statement
@@ -653,7 +653,7 @@ module Solargraph
               nodes.each_with_index do |child, idx|
                 # nodes holds only the node children
                 child => ::Parser::AST::Node => node
-                if node in [:block, _, _, ::Parser::AST::Node | nil => body, *]
+                if node in [:block | :numblock, _, _, ::Parser::AST::Node | nil => body, *]
                   result.concat explicit_return_values_from_compound_statement(body) if body
                 elsif node in [:rescue, ::Parser::AST::Node | nil => body, ::Parser::AST::Node => first_resbody, *]
                   # body statements
@@ -736,7 +736,7 @@ module Solargraph
                   # value of whichever resbody handled the exception
                   node => [_, ::Parser::AST::Node | nil => body, ::Parser::AST::Node => first_resbody, *]
                   result.concat reduce_to_value_nodes([body, first_resbody])
-                elsif node.type == :block
+                elsif FUNCTION_VALUE.include?(node.type)
                   body = (node in [_, _, _, ::Parser::AST::Node | nil => block_body, *]) ? block_body : nil
                   result.concat explicit_return_values_from_compound_statement(body) unless body.nil?
                 elsif node.type == :resbody
