@@ -104,11 +104,11 @@ module Solargraph
               add_capture(var, assignment: subject)
             elsif subject
               # The subject narrowed to the pattern, as `in Foo` narrows the subject itself
-              add_capture(var, assignment: subject, intersection_return_type: ComplexType.parse(type_name))
+              add_capture(var, assignment: subject, intersection_return_types: [ComplexType.parse(type_name)])
             else
               # Undeclared and narrowed, so a value constant pattern leaves it unknown
               add_capture(var, return_type: ComplexType::UNDEFINED,
-                               intersection_return_type: ComplexType.parse(type_name))
+                               intersection_return_types: [ComplexType.parse(type_name)])
             end
             # Only a failed match leaves var nil, so its clause can drop the nil
             @non_nil_captures&.push(var) unless type_name.nil? || ComplexType.parse(type_name).nullable?
@@ -177,16 +177,16 @@ module Solargraph
           # @param assignment [Parser::AST::Node, nil]
           # @param mass_assignment [::Array(Parser::AST::Node, Integer), ::Array(Parser::AST::Node, ::Range<Integer>), nil]
           # @param return_type [ComplexType, nil]
-          # @param intersection_return_type [ComplexType, nil]
+          # @param intersection_return_types [::Array<ComplexType>]
           # @param deconstruct [Boolean] see Pin::BaseVariable#initialize
           # @return [void]
-          def add_capture var, assignment: nil, mass_assignment: nil, return_type: nil, intersection_return_type: nil,
+          def add_capture var, assignment: nil, mass_assignment: nil, return_type: nil, intersection_return_types: [],
                           deconstruct: false
             if @nilable
               # A failed match leaves its captures nil
               assignments = [assignment, NIL_NODE] unless assignment.nil?
               return_type = with_nil(return_type)
-              intersection_return_type = with_nil(intersection_return_type)
+              intersection_return_types = intersection_return_types.map { |type| with_nil(type) }
             end
             closure_location = region.closure.location
             # Captures outlive the match, like any local assignment
@@ -199,7 +199,7 @@ module Solargraph
               mass_assignment: mass_assignment,
               deconstruct: deconstruct,
               return_type: return_type,
-              intersection_return_type: intersection_return_type,
+              intersection_return_types: intersection_return_types,
               presence: presence,
               source: :parser
             )
