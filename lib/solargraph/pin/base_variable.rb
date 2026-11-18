@@ -36,29 +36,27 @@ module Solargraph
       #   Example: If a return type is 'Float | Integer | nil' and the
       #   exclude_return_type is 'Integer', the resulting return
       #   type will be 'Float | nil' because Integer is excluded.
-      # @param intersection_return_type [ComplexType, nil] Ensure each unique
-      #   return type is compatible with at least one element of this
-      #   complex type.  If a ComplexType used as a return type is an
-      #   union type - we can return any of these - these are
-      #   intersection types - everything we return needs to meet at least
-      #   one of these unique types.
+      # @param intersection_return_types [::Array<ComplexType>] Ensure each
+      #   unique return type is compatible with at least one element of
+      #   each of these complex types; all of them apply.  If a
+      #   ComplexType used as a return type is an union type - we can
+      #   return any of these - these are intersection types - everything
+      #   we return needs to meet at least one of these unique types.
       #
       #   Example: If a return type is 'Numeric | nil' and the
-      #   intersection_return_type is 'Float | nil', the resulting return
-      #   type will be 'Float | nil' because Float is compatible
+      #   intersection_return_types are ['Float | nil'], the resulting
+      #   return type will be 'Float | nil' because Float is compatible
       #   with Numeric and nil is compatible with nil.
       # @see https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#union-types
       # @see https://en.wikipedia.org/wiki/Intersection_type#TypeScript_example
-      # @param intersection_return_types [::Array<ComplexType>] Further
-      #   constraints like intersection_return_type, all of which apply.
       # @param presence [Range, nil]
       # @param type_assertion [String, nil] RBS type from a trailing
       #   rbs-inline `#: TYPE` comment on the assignment
       # @param [Hash{Symbol => Object}] splat
       def initialize assignment: nil, assignments: [], mass_assignment: nil,
                      presence: nil, return_type: nil,
-                     intersection_return_type: nil, intersection_return_types: [],
-                     exclude_return_type: nil, type_assertion: nil,
+                     intersection_return_types: [], exclude_return_type: nil,
+                     type_assertion: nil,
                      **splat
         super(**splat)
         @type_assertion = type_assertion
@@ -66,22 +64,22 @@ module Solargraph
         # @type [nil, ::Array(Parser::AST::Node, Integer)]
         @mass_assignment = mass_assignment
         @return_type = return_type
-        @intersection_return_types = [intersection_return_type, *intersection_return_types].compact.uniq
+        @intersection_return_types = intersection_return_types
         @exclude_return_type = exclude_return_type
         @presence = presence
       end
 
       # @param presence [Range]
       # @param exclude_return_type [ComplexType, nil]
-      # @param intersection_return_type [ComplexType, nil]
+      # @param intersection_return_types [::Array<ComplexType>]
       # @param source [::Symbol]
       #
       # @return [self]
-      def downcast presence:, exclude_return_type: nil, intersection_return_type: nil,
+      def downcast presence:, exclude_return_type: nil, intersection_return_types: [],
                    source: self.source
         result = dup
         result.exclude_return_type = exclude_return_type
-        result.intersection_return_type = intersection_return_type
+        result.intersection_return_types = intersection_return_types
         result.source = source
         result.presence = presence
         result.reset_generated!
@@ -233,7 +231,7 @@ module Solargraph
 
       # @return [ComplexType, nil]
       def return_type
-        generate_complex_type || @return_type || intersection_return_type || ComplexType::UNDEFINED
+        generate_complex_type || @return_type || intersection_return_types.first || ComplexType::UNDEFINED
       end
 
       def typify api_map
@@ -244,7 +242,7 @@ module Solargraph
 
       # @sg-ignore need boolish support for ? methods
       def presence_certain?
-        exclude_return_type || intersection_return_type
+        exclude_return_type || intersection_return_types.first
       end
 
       # @param other_loc [Location]
@@ -310,18 +308,7 @@ module Solargraph
       attr_accessor :exclude_return_type
 
       # @return [::Array<ComplexType>]
-      attr_reader :intersection_return_types
-
-      # @return [ComplexType, nil]
-      def intersection_return_type
-        intersection_return_types.first
-      end
-
-      # @param type [ComplexType, nil]
-      # @return [void]
-      def intersection_return_type= type
-        @intersection_return_types = [type].compact
-      end
+      attr_accessor :intersection_return_types
 
       # @return [Range]
       attr_writer :presence
