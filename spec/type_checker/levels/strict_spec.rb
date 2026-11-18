@@ -828,8 +828,6 @@ describe Solargraph::TypeChecker do
     end
 
     it 'uses nil? to refine type' do
-      pending 'nil? support in flow sensitive typing'
-
       checker = type_checker(%(
         # @sg-ignore
         # @type [String, nil]
@@ -840,7 +838,7 @@ describe Solargraph::TypeChecker do
           foo.downcase
         end
       ))
-      expect(checker.problems.map(&:message)).to eq(['Unresolved call to upcase'])
+      expect(checker.problems.map(&:message)).to eq(['Unresolved call to upcase on nil'])
     end
 
     it 'refines types on is_a? and && to downcast and avoid false positives' do

@@ -11,12 +11,14 @@ describe Solargraph::YardMap::Mapper do
 
   it 'converts nil docstrings to empty strings' do
     dir = File.absolute_path(File.join('spec', 'fixtures', 'yard_map'))
-    Dir.chdir dir do
-      YARD::Registry.load([File.join(dir, 'attr.rb')], true)
-      mapper = described_class.new(YARD::Registry.all)
-      pins = mapper.map
-      pin = pins.select { |pin| pin.path == 'Foo#bar' }.first
-      expect(pin.comments).to be_a(String)
+    Solargraph::CHDIR_MUTEX.synchronize do
+      Dir.chdir dir do
+        YARD::Registry.load([File.join(dir, 'attr.rb')], true)
+        mapper = described_class.new(YARD::Registry.all)
+        pins = mapper.map
+        pin = pins.select { |pin| pin.path == 'Foo#bar' }.first
+        expect(pin.comments).to be_a(String)
+      end
     end
     # Cleanup
     FileUtils.remove_entry_secure File.join(dir, '.yardoc')
@@ -38,6 +40,7 @@ describe Solargraph::YardMap::Mapper do
   it 'marks non-explicit methods' do
     # Using rspec-expectations because it's a known dependency
     pin = pins_with('rspec-expectations').find { |pin| pin.path == 'RSpec::Matchers#expect' }
+
     expect(pin.explicit?).to be(false)
   end
 
@@ -51,9 +54,11 @@ describe Solargraph::YardMap::Mapper do
 
   it 'skips the Object superclass YARD records when no clause was seen' do
     dir = File.absolute_path(File.join('spec', 'fixtures', 'yard_map'))
-    pins = Dir.chdir dir do
-      YARD::Registry.load([File.join(dir, 'superclass.rb')], true)
-      described_class.new(YARD::Registry.all).map
+    pins = Solargraph::CHDIR_MUTEX.synchronize do
+      Dir.chdir dir do
+        YARD::Registry.load([File.join(dir, 'superclass.rb')], true)
+        described_class.new(YARD::Registry.all).map
+      end
     end
     FileUtils.remove_entry_secure File.join(dir, '.yardoc')
     refs = pins.select do |pin|

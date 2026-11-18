@@ -17,15 +17,17 @@ describe Solargraph::External do
   end
 
   context 'with uncached sources' do
-    let(:metagem) { Solargraph::Metagem.from_specification(Gem::Specification.find_by_name('backport')) }
+    let(:directory) { PROJECT_DIRECTORY }
+    let(:requires) { ['rainbow'] }
+    let(:metagem) { Solargraph::Metagem.from_specification(Gem::Specification.find_by_name('rainbow')) }
 
     it 'tracks and updates unloaded gems' do
       Solargraph::Collection::Gem.uncache(metagem)
-      expect(external.unloaded_gems.map(&:name)).to include('backport')
+      expect(external.unloaded_gems.map(&:name)).to include('rainbow')
       Solargraph::Collection::Gem.load(metagem)
       expect(external.update(requires)).to be(true)
-      expect(external.unloaded_gems.map(&:name)).not_to include('backport')
-      expect(external.loaded_gems.map(&:name)).to include('backport')
+      expect(external.unloaded_gems.map(&:name)).not_to include('rainbow')
+      expect(external.loaded_gems.map(&:name)).to include('rainbow')
     end
   end
 

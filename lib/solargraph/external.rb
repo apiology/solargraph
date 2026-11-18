@@ -42,6 +42,7 @@ module Solargraph
       @loaded_gems ||= Set.new
     end
 
+    # @return [Set<Metagem>]
     def unloaded_gems
       @unloaded_gems ||= Set.new
     end

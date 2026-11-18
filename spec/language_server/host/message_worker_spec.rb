@@ -12,4 +12,13 @@ describe Solargraph::LanguageServer::Host::MessageWorker do
     worker.tick
     expect(host).to have_received(:receive).with(message)
   end
+
+  it 'does not wait for messages once stopped' do
+    worker = described_class.new(instance_double(Solargraph::LanguageServer::Host))
+    # The worker thread can check stopped? just before #stop signals and
+    # take the mutex just after, so its tick must not wait for a signal
+    # that already came and went.
+    worker.stop
+    expect { Timeout.timeout(5) { worker.tick } }.not_to raise_error
+  end
 end

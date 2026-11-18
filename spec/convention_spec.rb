@@ -107,4 +107,30 @@ describe Solargraph::Convention do
 
     described_class.unregister updated_dummy_convention
   end
+
+  it 'registers a convention while another thread iterates the registry' do
+    entered = Queue.new
+    release = Queue.new
+
+    # Blocks inside Convention.for_global until the main thread registers
+    blocking_convention = Class.new(Solargraph::Convention::Base) do
+      define_method(:global) do |_object|
+        entered << true
+        release.pop
+        Solargraph::Environ.new
+      end
+    end
+    other_convention = Class.new(Solargraph::Convention::Base)
+
+    described_class.register blocking_convention
+    reader = Thread.new { described_class.for_global(nil) }
+    entered.pop
+
+    expect { described_class.register other_convention }.not_to raise_error
+  ensure
+    release << true
+    reader&.join
+    described_class.unregister blocking_convention
+    described_class.unregister other_convention
+  end
 end

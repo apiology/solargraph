@@ -31,9 +31,13 @@ module Solargraph
           raise Parser::SyntaxError, e.message
         end
 
+        # A new parser per call: Prism::Translation::Parser keeps the buffer
+        # it is parsing in an instance variable, so one shared instance
+        # fails when several threads parse at once.
+        #
         # @return [::Parser::Base]
         def parser
-          @parser ||= Prism::Translation::Parser.new(FlawedBuilder.new).tap do |parser|
+          Prism::Translation::Parser.new(FlawedBuilder.new).tap do |parser|
             parser.diagnostics.all_errors_are_fatal = true
             parser.diagnostics.ignore_warnings      = true
           end
