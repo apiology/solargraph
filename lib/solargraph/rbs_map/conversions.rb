@@ -102,7 +102,6 @@ module Solargraph
         decls = environment.type_alias_decls
         decls.any? do |name, entry|
           type = entry.decl.type
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1491
           next false unless type.is_a?(RBS::Types::Alias)
 
           type.name.to_s == name.to_s || !decls.key?(type.name)

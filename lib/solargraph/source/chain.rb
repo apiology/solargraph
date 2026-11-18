@@ -45,6 +45,7 @@ module Solargraph
 
       UNDEFINED_CALL = Chain::Call.new('<undefined>', nil)
       UNDEFINED_CONSTANT = Chain::Constant.new('<undefined>')
+      OBJECT = ComplexType.parse('::Object')
 
       # @return [::Array<Source::Chain::Link>]
       attr_reader :links
@@ -111,10 +112,16 @@ module Solargraph
         #
         # @todo ProxyType uses 'type' for the binder, but '
         working_pin = name_pin
+        unknown_receiver = false
         links[0..-2].each do |link|
           pins = link.resolve(api_map, working_pin, locals)
+          pins = public_pins(pins) if unknown_receiver
           type = infer_from_definitions(pins, working_pin, api_map, locals)
           type = type.without_nil if key_present?(link, api_map, name_pin, working_pin, locals)
+          # An unknown value still answers the public methods every
+          # Object has (is_a?, to_s, ==), which is how code narrows it
+          unknown_receiver = type.undefined? && pins.any?
+          type = OBJECT if unknown_receiver
           if type.undefined?
             logger.debug do
               "Chain#define(links=#{links.map(&:desc)}, name_pin=#{name_pin.inspect}, locals=#{locals}) => [] - undefined type from #{link.desc}"
@@ -133,6 +140,7 @@ module Solargraph
         end
         links.fetch(-1).last_context = working_pin
         links.fetch(-1).resolve(api_map, working_pin, locals)
+             .then { |pins| unknown_receiver ? public_pins(pins) : pins }
       end
 
       # @param api_map [ApiMap]
@@ -299,6 +307,15 @@ module Solargraph
 
         declared = api_map.get_declared_global_variable_pins(first.name)
         declared.empty? ? pins : declared
+      end
+
+      # A call on an unknown value reaches only Object's public
+      # methods, not private Kernel ones like puts or select
+      #
+      # @param pins [::Array<Pin::Base>]
+      # @return [::Array<Pin::Base>]
+      def public_pins pins
+        pins.select { |pin| !pin.is_a?(Pin::Method) || pin.visibility == :public }
       end
 
       # @param pins [::Array<Pin::Base>]
