@@ -10,20 +10,20 @@ module Solargraph
           def process
             pins = host.query_symbols(params['query'])
             info = pins.map do |pin|
-              # @sg-ignore Unresolved call to filename on Solargraph::Location, nil
-              uri = file_to_uri(pin.best_location.filename)
+              loc = pin.best_location
+              next if loc.nil? || loc.filename.nil?
+
               {
                 name: pin.path,
                 containerName: pin.namespace,
                 kind: pin.symbol_kind,
                 location: {
-                  uri: uri,
-                  # @sg-ignore Unresolved call to range on Solargraph::Location, nil
-                  range: pin.best_location.range.to_hash
+                  uri: file_to_uri(loc.filename),
+                  range: loc.range.to_hash
                 },
                 deprecated: pin.deprecated?
               }
-            end
+            end.compact
             set_result info
           end
         end
