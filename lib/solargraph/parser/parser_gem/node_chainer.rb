@@ -63,7 +63,7 @@ module Solargraph
           # @type [Array<Chain::Link>]
           result = []
           case n
-          in [:block, ::Parser::AST::Node => call, *]
+          in [:block | :numblock, ::Parser::AST::Node => call, *]
             result.concat NodeChainer.chain(call, @filename, n).links
           in [:send, ::Parser::AST::Node => receiver, Symbol, *]
             result.concat generate_links(receiver)
@@ -261,7 +261,7 @@ module Solargraph
         # @return [Source::Chain, nil]
         def passed_block node
           # s(:block, call, args, body)
-          return unless node == @node && (@parent in [:block, _, _, ::Parser::AST::Node | nil => body])
+          return unless node == @node && (@parent in [:block | :numblock, _, _, ::Parser::AST::Node | nil => body])
 
           # an empty block still passes a block, so it gets an empty chain, not nil
           body ? NodeChainer.chain(body, @filename) : Chain.new([])
