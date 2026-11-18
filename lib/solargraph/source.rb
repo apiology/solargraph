@@ -152,9 +152,9 @@ module Solargraph
           next unless range.include?(inner_range.ending)
           return true if inner.type == :str
           inner_code = at(Solargraph::Range.new(inner_range.start, position))
-          # @sg-ignore Unresolved call to end_with?
+          # @sg-ignore Unresolved call to end_with?; Unresolved call to ending
           return true if (inner.type == :dstr && inner_range.ending.character <= position.character && !inner_code.end_with?('}')) ||
-                         # @sg-ignore Unresolved call to end_with?
+                         # @sg-ignore Unresolved call to ending; Unresolved call to end_with?
                          (inner.type != :dstr && inner_range.ending.line == position.line && position.character <= inner_range.ending.character && inner_code.end_with?('}'))
         end
         break if range.ending.line > position.line

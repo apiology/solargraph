@@ -7,7 +7,7 @@ module Solargraph
     class Problem
       # @todo Missed nil violation
       # @return [Solargraph::Location]
-      # @sg-ignore Declared return type ::Solargraph::Location does not match inferred type ::Solargraph::Location, nil for Solargraph::TypeChecker::Problem#location
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1494
       attr_reader :location
 
       # @return [String]

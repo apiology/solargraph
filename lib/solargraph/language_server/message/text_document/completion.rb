@@ -39,7 +39,7 @@ module Solargraph
             end
           rescue FileNotFoundError => e
             Logging.logger.warn "[#{e.class}] #{e.message}"
-            # @sg-ignore https://github.com/apiology/solargraph/pull/108
+            # @sg-ignore Should better support meaning of '&' in RBS
             Logging.logger.warn e.backtrace.join("\n")
             set_result empty_result
           end

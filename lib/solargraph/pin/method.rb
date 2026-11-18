@@ -238,7 +238,7 @@ module Solargraph
         detail += if signatures.length > 1
                     '(*) '
                   else
-                    # @sg-ignore https://github.com/castwide/solargraph/pull/1392
+                    # @sg-ignore https://github.com/castwide/solargraph/pull/1494
                     "(#{signatures.first.parameters.map(&:full).join(', ')}) " unless signatures.first.parameters.empty?
                   end.to_s
         unless return_type.undefined?
@@ -571,7 +571,7 @@ module Solargraph
         by_type_arity = {}
         signature_pins.each do |signature_pin|
           by_type_arity[signature_pin.type_arity] ||= []
-          # @sg-ignore flow sensitive typing needs to track reassignment
+          # @sg-ignore Unresolved call to << on Array<Solargraph::Pin::Signature>, nil
           by_type_arity[signature_pin.type_arity] << signature_pin
         end
 

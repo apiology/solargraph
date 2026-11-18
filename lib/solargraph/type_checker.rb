@@ -613,7 +613,7 @@ module Solargraph
       result = []
       kwargs.each_pair do |pname, argchain|
         next unless params.key?(pname.to_s)
-        # @sg-ignore https://github.com/apiology/solargraph/pull/198
+        # @sg-ignore Variable type could not be inferred for raw_ptype; Unresolved call to [] on Hash{Symbol => undefined}, nil
         # @type [ComplexType]
         raw_ptype = params[pname.to_s][:qualified]
         ptype = raw_ptype.self_to_type(pin.context)

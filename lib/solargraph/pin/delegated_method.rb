@@ -80,7 +80,7 @@ module Solargraph
       #
       # @param api_map [ApiMap]
       # @return [Pin::Method, nil]
-      # @sg-ignore https://github.com/apiology/solargraph/pull/178
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1338
       def resolve_method api_map
         chain = @receiver_chain
         return if @resolved_method || chain.nil?
@@ -105,7 +105,7 @@ module Solargraph
             [receiver_type.to_s, :instance]
           end
 
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1392
+        # @sg-ignore Wrong argument type for Solargraph::ApiMap#get_method_stack: name expected String, received String, nil
         method_stack = api_map.get_method_stack(receiver_path, @receiver_method_name, scope: method_scope)
         @resolved_method = method_stack.first
       end
