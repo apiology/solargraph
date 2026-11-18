@@ -26,7 +26,7 @@ module Solargraph
       def on_comment *args
         # @type [Array(Symbol, String, Array(Integer, Integer))]
         result = super
-        # @sg-ignore Need to add nil check here
+        # @sg-ignore Use fetch to suppress false alarm
         if @buffer_lines[result[2][0]][0..result[2][1]].strip =~ /^#/
           chomped = result[1].chomp
           if result[2][0].zero? && chomped.encode('UTF-8', 'binary', invalid: :replace, undef: :replace,
@@ -39,16 +39,13 @@ module Solargraph
         result
       end
 
-      # @param result [Array(Symbol, String, Array([Integer, nil], [Integer, nil]))]
+      # @param result [Array(Symbol, String, Array(Integer, Integer))]
       # @return [void]
       def create_snippet result
         chomped = result[1].chomp
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1223
         @comments[result[2][0]] =
           Snippet.new(
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1223
             Range.from_to(result[2][0] || 0, result[2][1] || 0, result[2][0] || 0,
-                          # @sg-ignore https://github.com/castwide/solargraph/pull/1223
                           (result[2][1] || 0) + chomped.length), chomped
           )
       end

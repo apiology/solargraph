@@ -230,7 +230,7 @@ module Solargraph
                                                     source: :chain)
             # @sg-ignore Array#[] chooses wrong signature when Array has no parameters
             atype = atypes[idx] ||= arg.infer(api_map, arg_name_pin, locals)
-            # @sg-ignore Wrong argument type for Solargraph::Pin::Parameter#compatible_arg?: atype expected Solargraph::ComplexType, received Array, Solargraph::ComplexType
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1494
             unless param.compatible_arg?(atype, api_map) || param.restarg?
               match = false
               break

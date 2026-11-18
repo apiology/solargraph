@@ -164,6 +164,7 @@ module Solargraph
       end
 
       # @param args [Source::Chain, nil]
+      # @param args [Source::Chain]
       # @return [Hash{Symbol => Object}]
       def option_hash args
         defaults = {
@@ -176,7 +177,7 @@ module Solargraph
 
         kwargs = Parser::ParserGem::NodeMethods.convert_hash(args.node)
                                                .select { |_, val| val.literal? }
-                                               # @sg-ignore Chain#literal? does not narrow links.last to Chain::Literal
+                                               # @sg-ignore Need a downcast here
                                                .transform_values { |val| val.links.last.value }
         return defaults unless kwargs.is_a?(Hash)
         defaults.merge(kwargs)

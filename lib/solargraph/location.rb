@@ -66,7 +66,7 @@ module Solargraph
       # @sg-ignore https://github.com/castwide/solargraph/pull/1338
       filename = nil if filename.empty?
       range = Range.from_node(node)
-      # @sg-ignore Wrong argument type for Solargraph::Location.new: range expected Solargraph::Range, received Solargraph::Range, nil
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1394
       new(filename, range)
     end
 

@@ -105,23 +105,23 @@ module Solargraph
           # @param a [Array(String, String | nil)]
           # @return [String]
           def arg_name a
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1231
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1474
             a[0].gsub(/[^a-z0-9_]/i, '')
           end
 
           # @param a [Array(String, String | nil)]
           # @return [::Symbol]
           def arg_type a
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1231
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1474
             if a[0].start_with?('**')
               :kwrestarg
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1231
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1474
             elsif a[0].start_with?('*')
               :restarg
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1231
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1474
             elsif a[0].start_with?('&')
               :blockarg
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1231
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1474
             elsif a[0].end_with?(':')
               # @sg-ignore Array#[] chooses wrong signature when Array has no parameters
               a[1] ? :kwoptarg : :kwarg

@@ -59,9 +59,9 @@ module Solargraph
             match = source[offset...eol].to_s.match(/\A\s*#\[([^\]]*)\]/)
             return unless match
 
-            # @sg-ignore https://github.com/apiology/solargraph/pull/193
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1344
             code = match[1].strip
-            # @sg-ignore MatchData#[] is nilable even for a group that always matches
+            # @sg-ignore https://github.com/castwide/solargraph/pull/1344
             return if code.empty?
 
             "<#{code}>"

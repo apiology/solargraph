@@ -32,10 +32,10 @@ module Solargraph
 
         # @todo Fix this map
         @fqns_pins_map = nil
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1223
+        # @sg-ignore https://github.com/apiology/solargraph/pull/386
         return catalog(pinsets) if changed.zero?
 
-        # @sg-ignore Unresolved call to each_with_index on Array<Array<Solargraph::Pin::Base>>, nil
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1395
         pinsets[changed..].each_with_index do |pins, idx|
           @pinsets[changed + idx] = pins
           @indexes[changed + idx] = if pins.empty?

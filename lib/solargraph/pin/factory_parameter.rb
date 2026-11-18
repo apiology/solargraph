@@ -25,7 +25,6 @@ module Solargraph
       attr_reader :method_scope
       # @return [String, nil]
       attr_reader :param_name
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1223
       # @return [::String, ::Symbol] The literal value
       attr_reader :value
       # @return [::Symbol] :arg, :optarg, :kwarg, :kwoptarg, :restarg, :kwrestarg, :block, :blockarg
@@ -37,7 +36,7 @@ module Solargraph
       # @param method_namespace [String] The class of the method that this parameter belongs to
       # @param method_scope [::Symbol] The scope of the method, either :class or :instance
       # @param param_name [String, nil] The name of the parameter
-      # @param value [String, Symbol] The value of the parameter
+      # @param value [::String, ::Symbol] The value of the parameter
       # @param decl [::Symbol] :arg, :kwarg
       # @param location [Location, nil] The location of the parameter in the source code
       # @param return_type [String, nil] The return type of the method that this parameter belongs to

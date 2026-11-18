@@ -238,7 +238,7 @@ module Solargraph
         detail += if signatures.length > 1
                     '(*) '
                   else
-                    # @sg-ignore Unresolved call to parameters on Pin::Signature, nil
+                    # @sg-ignore https://github.com/castwide/solargraph/pull/1392
                     "(#{signatures.first.parameters.map(&:full).join(', ')}) " unless signatures.first.parameters.empty?
                   end.to_s
         unless return_type.undefined?
@@ -666,12 +666,9 @@ module Solargraph
       # @param api_map [ApiMap]
       # @return [ComplexType, ComplexType::UniqueType, nil]
       def see_reference api_map
-        # This should actually be an intersection type
-        # @param ref [YARD::Tags::Tag, YARD::Tags::RefTag]
+        # @param ref [YARD::Tags::RefTagList]
         docstring.ref_tags.each do |ref|
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1231
           next unless ref.tag_name == 'return' && ref.owner
-          # @sg-ignore https://github.com/castwide/solargraph/pull/1231
           result = resolve_reference(ref.owner.to_s, api_map)
           return result unless result.nil?
         end

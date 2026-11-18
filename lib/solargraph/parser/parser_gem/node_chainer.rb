@@ -10,7 +10,7 @@ module Solargraph
 
         Chain = Source::Chain
 
-        # @param node [Parser::AST::Node]
+        # @param node [Parser::AST::Node, nil]
         # @param filename [String, nil]
         # @param parent [Parser::AST::Node, nil]
         # @param tree [Array<Parser::AST::Node>, nil]
@@ -44,7 +44,6 @@ module Solargraph
           # @return [Source::Chain]
           def load_string code, filename, starting_line
             node = Parser.parse(code.sub(/\.$/, ''), filename, starting_line)
-            # @sg-ignore Need to add nil check here
             chain = NodeChainer.new(node).chain
             chain.links.push(Chain::Link.new) if code.end_with?('.')
             chain
@@ -53,7 +52,7 @@ module Solargraph
 
         private
 
-        # @param n [Parser::AST::Node]
+        # @param n [Parser::AST::Node, nil]
         # @return [Array<Chain::Link>]
         def generate_links n
           return [] unless n.is_a?(::Parser::AST::Node)
@@ -170,7 +169,7 @@ module Solargraph
           in _ if inside_method_call? # If the node is inside a method call, it may be a parameter.
             lit = infer_literal_node_type(n)
             if lit
-              # @sg-ignore nil false alarm
+              # @sg-ignore Wrong argument type for Solargraph::Parser::ParserGem::NodeChainer.chain: node expected Parser::AST::Node, received Parser::AST::Node, nil
               method_call_chain = NodeChainer.chain(send_node, @filename, nil, [])
               literal = Chain::Literal.new(lit, n)
               result.push Chain::Parameter.new(literal, method_call_chain)

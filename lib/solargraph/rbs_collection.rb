@@ -33,10 +33,10 @@ module Solargraph
     # so they can never be located by a gem name/version lookup.
     #
     # @return [Array<String>]
-    # @sg-ignore Library method has no usable type
+    # @sg-ignore https://github.com/castwide/solargraph/pull/1479
     def stdlib_names
       @stdlib_names ||= raw_data[:gems].select { |gem| gem.dig(:source, :type).to_s == 'stdlib' }
-                                       # @sg-ignore Library method has no usable type
+                                       # @sg-ignore https://github.com/castwide/solargraph/pull/1479
                                        .map { |gem| gem[:name].to_s }.uniq
     end
 
@@ -56,10 +56,10 @@ module Solargraph
     # The versions available in the collection for each gem name.
     #
     # @return [Hash{String => Array<String>}]
-    # @sg-ignore Library method has no usable type
+    # @sg-ignore https://github.com/castwide/solargraph/pull/1479
     def versions_by_name
       @versions_by_name ||= raw_data[:gems].group_by { |gem| gem[:name].to_s }
-                                           # @sg-ignore Library method has no usable type
+                                           # @sg-ignore https://github.com/castwide/solargraph/pull/1479
                                            .transform_values { |gems| gems.map { |gem| gem[:version].to_s } }
     end
 
@@ -97,7 +97,7 @@ module Solargraph
                end
       chosen ||= usable.min_by { |_, parsed_version| parsed_version }
       chosen ||= parsed.first
-      # @sg-ignore Array#[] chooses wrong signature when Array has no parameters
+      # @sg-ignore Unresolved call to []
       "#{metagem.name}-#{chosen[0]}"
     end
 
@@ -124,7 +124,7 @@ module Solargraph
     end
 
     # @return [Hash]
-    # @sg-ignore Library method has no usable type
+    # @sg-ignore https://github.com/castwide/solargraph/pull/1479
     def raw_data
       @raw_data ||= if lockfile && File.file?(lockfile)
                       YAML.load_file(lockfile, symbolize_names: true)

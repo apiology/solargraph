@@ -19,6 +19,7 @@ module Solargraph
 
         # @param node [Parser::AST::Node, nil]
         # @return [Array<String, Symbol, Numeric>]
+        # @return [Array<String>]
         def pack_name node
           # @type [Array<String, Symbol, Numeric>]
           parts = []
@@ -347,7 +348,7 @@ module Solargraph
           tree = if source.synchronized?
                    match = source.code[0..(offset - 1)].match(/,\s*\z/)
                    if match
-                     # @sg-ignore Unresolved call to length on String, nil
+                     # @sg-ignore https://github.com/castwide/solargraph/pull/1395
                      source.tree_at(position.line, position.column - match[0].length)
                    else
                      source.tree_at(position.line, position.column)
@@ -677,7 +678,8 @@ module Solargraph
                 # from above; now we need to also gather the value
                 # position nodes
                 if idx == nodes.length - 1
-                  # @sg-ignore https://github.com/castwide/solargraph/pull/1223
+                  # @sg-ignore https://github.com/castwide/solargraph/pull/1438
+                  #   https://github.com/castwide/solargraph/pull/1392
                   result.concat from_value_position_statement(nodes.last,
                                                               include_explicit_returns: false)
                 end
@@ -690,7 +692,7 @@ module Solargraph
             # Useful when this statement isn't in value position, but
             # we care explicit return statements nonetheless.
             #
-            # @param parent [Parser::AST::Node]
+            # @param parent [Parser::AST::Node, nil]
             #
             # @return [Array<Parser::AST::Node>]
             def explicit_return_values_from_compound_statement parent

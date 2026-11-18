@@ -61,7 +61,8 @@ module Solargraph
         end
 
         # @return [Chain::Link]
-        # @sg-ignore method_call inferred type includes nil
+        # @sg-ignore https://github.com/castwide/solargraph/pull/1392
+        # @return [Chain::Link]
         def method_call
           @method_call_chain.links.last
         end

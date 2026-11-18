@@ -63,9 +63,9 @@ module Solargraph
               raise ComplexTypeError,
                     "Bad hash type: name=#{name}, substring=#{substring} - must have exactly two parameters"
             end
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1223
+            # @sg-ignore Array#[] integer index relies on fixed arity
             key_types.concat(subs[0].map { |u| ComplexType.new([u]) })
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1223
+            # @sg-ignore Array#[] integer index relies on fixed arity
             subtypes.concat(subs[1].map { |u| ComplexType.new([u]) })
           else
             subtypes.concat subs

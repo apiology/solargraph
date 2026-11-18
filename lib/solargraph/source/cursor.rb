@@ -42,7 +42,7 @@ module Solargraph
           match = source.code[0..(offset - 1)].to_s.match(start_word_pattern)
           result = (match ? match[0] : '')
           # Including the preceding colon if the word appears to be a symbol
-          # @sg-ignore Unresolved call to length
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1395
           if source.code[0..(offset - result.length - 1)].end_with?(':') && !source.code[0..(offset - result.length - 1)].end_with?('::')
             result = ":#{result}"
           end
@@ -141,7 +141,7 @@ module Solargraph
                              # @sg-ignore slice [0, n] is nil only for a negative n
                              match = source.code[0, offset].match(/\s*(\.|:+)\s*$/)
                              if match
-                               # @sg-ignore https://github.com/apiology/solargraph/pull/193
+                               # @sg-ignore Wrong argument type for Solargraph::Position.from_offset: offset expected Integer, received BigDecimal; Unresolved call to []
                                Position.from_offset(source.code, offset - match[0].length)
                              else
                                position

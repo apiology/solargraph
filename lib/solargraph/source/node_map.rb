@@ -10,6 +10,7 @@ module Solargraph
 
       # @param type [Symbol]
       # @return [Enumerable<Parser::AST::Node>]
+      # @return [Set<Parser::AST::Node>, Array<Parser::AST::Node>]
       def find_by_type type
         node_map[type] || []
       end

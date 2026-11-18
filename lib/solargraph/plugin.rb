@@ -16,12 +16,14 @@ module Solargraph
 
     # @param klass [Class<Plugin::Base>]
     # @return [void]
+    # @return [Set<Class<Plugin::Base>>]
     def self.register klass
       registry.add klass
     end
 
     # @param klass [Class<Plugin::Base>]
     # @return [void]
+    # @return [Set<Class<Plugin::Base>>]
     def self.unregister klass
       registry.delete klass
     end

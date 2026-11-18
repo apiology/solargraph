@@ -9,6 +9,7 @@ module Solargraph
         attr_reader :word
 
         # @return [::Integer, ::String, ::Symbol, ::Boolean, nil]
+        # @return [::Integer, ::Symbol, ::Boolean, nil]
         attr_reader :value
 
         # @return [Parser::AST::Node]

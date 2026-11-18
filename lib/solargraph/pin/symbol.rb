@@ -7,7 +7,7 @@ module Solargraph
       # @param name [String]
       # @param [Hash{Symbol => Object}] kwargs
       def initialize(location, name, **kwargs)
-        # @sg-ignore https://github.com/castwide/solargraph/pull/1231
+        # @sg-ignore https://github.com/apiology/solargraph/pull/429
         #   double-splat checks need https://github.com/apiology/solargraph/tree/kwsplat-record-types on top
         super(location: location, name: name, **kwargs)
         # @name = name

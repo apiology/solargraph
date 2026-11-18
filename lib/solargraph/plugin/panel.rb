@@ -34,12 +34,15 @@ module Solargraph
       # @generic T
       # @param klass [Class<generic<T>>]
       # @return [Enumerable<generic<T>>]
+      # @param klass [Class<Pin::Base>]
+      # @return [Set<Pin::Base>, Array<Pin::Base>]
       def pins_by_class klass
         pin_class_hash[klass] || []
       end
 
       # @param path [String]
       # @return [Enumerable<Pin::Base>]
+      # @return [Set<Pin::Base>, Array<Pin::Base>]
       def pins_by_path path
         pin_path_hash[path] || []
       end

@@ -147,7 +147,8 @@ module Solargraph
     # @param line [Integer]
     # @param character [Integer]
     # @return [Pin::Namespace, Pin::Singleton, nil]
-    # @sg-ignore generic<T> from _locate_pin is not resolved from its class arguments
+    # @return [Pin::Namespace, Pin::Singleton]
+    # @sg-ignore Need better generic inference here
     def locate_namespace_pin line, character
       _locate_pin line, character, Pin::Namespace, Pin::Singleton
     end
