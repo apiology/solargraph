@@ -678,9 +678,7 @@ module Solargraph
                 # from above; now we need to also gather the value
                 # position nodes
                 if idx == nodes.length - 1
-                  # @sg-ignore https://github.com/castwide/solargraph/pull/1438
-                  #   https://github.com/castwide/solargraph/pull/1392
-                  result.concat from_value_position_statement(nodes.last,
+                  result.concat from_value_position_statement(nodes.fetch(-1),
                                                               include_explicit_returns: false)
                 end
               end

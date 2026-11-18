@@ -337,7 +337,6 @@ Style/MultilineBlockChain:
 # SupportedStyles: skip_modifier_ifs, always
 Style/Next:
   Exclude:
-    - 'lib/solargraph/parser/parser_gem/node_methods.rb'
     - 'lib/solargraph/rbs_map/conversions.rb'
 
 # This cop supports unsafe autocorrection (--autocorrect-all).
