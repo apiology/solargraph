@@ -347,7 +347,6 @@ Style/NumericPredicate:
   Exclude:
     - 'spec/**/*'
     - 'lib/solargraph/language_server/message/extended/check_gem_version.rb'
-    - 'lib/solargraph/language_server/message/extended/document_gems.rb'
 
 Style/OpenStructUse:
   Exclude:

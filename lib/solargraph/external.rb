@@ -16,14 +16,24 @@ module Solargraph
     # @return [Array<String>]
     attr_reader :extra_gem_names
 
+    # @return [Hash{String => String, nil}] Solargraph plugin gem name =>
+    #   version, nil when the plugin was not loaded from a gem; selects the
+    #   gem cache directory (see {Workspace#plugin_versions})
+    attr_reader :plugin_versions
+
     # @param directory [String, nil]
     # @param requires [Array<String>]
     # @param extra_gem_names [Array<String>]
-    def initialize directory, requires, extra_gem_names = []
+    # @param plugin_versions [Hash{String => String, nil}] the workspace's
+    #   Solargraph plugin gem name => version, nil when the plugin was not
+    #   loaded from a gem; selects the gem cache directory (see
+    #   {Workspace#plugin_versions})
+    def initialize directory, requires, extra_gem_names = [], plugin_versions: {}
       @repo = Repo.new(directory)
       @directory = directory
       @requires = requires
       @extra_gem_names = extra_gem_names
+      @plugin_versions = plugin_versions
       update!
     end
 
@@ -96,7 +106,7 @@ module Solargraph
     end
 
     def cache_changed?
-      unloaded_gems.any? { |gem| Collection::Gem.cached?(gem) }
+      unloaded_gems.any? { |gem| Collection::Gem.cached?(gem, plugin_versions) }
     end
 
     # @return [void]
@@ -159,11 +169,11 @@ module Solargraph
     def process_gem metagem
       return if loaded_gems.include?(metagem) || unloaded_gems.include?(metagem)
 
-      if metagem.cacheable? && !Collection::Gem.cached?(metagem)
+      if metagem.cacheable? && !Collection::Gem.cached?(metagem, plugin_versions)
         unloaded_gems.add metagem
       else
         loaded_gems.add metagem
-        base_pins = Collection::Gem.load(metagem)
+        base_pins = Collection::Gem.load(metagem, plugin_versions)
         rbsc_pins = rbs_collection.load(metagem)
         if rbsc_pins.empty?
           pins.concat base_pins

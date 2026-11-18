@@ -26,7 +26,7 @@ describe Solargraph::Collection::Gem do
 
       described_class.load_all([metagem, metagem])
 
-      expect(described_class).to have_received(:load).with(metagem).twice
+      expect(described_class).to have_received(:load).with(metagem, {}).twice
     end
 
     it 'rebuilds from scratch when asked' do
@@ -35,7 +35,7 @@ describe Solargraph::Collection::Gem do
 
       described_class.load_all([metagem], rebuild: true)
 
-      expect(described_class).to have_received(:uncache).with(metagem)
+      expect(described_class).to have_received(:uncache).with(metagem, {})
     end
 
     it 'reports how long a slow batch took' do

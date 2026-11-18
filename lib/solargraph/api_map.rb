@@ -135,7 +135,7 @@ module Solargraph
 
     # @return [External]
     def external
-      @external ||= External.new(workspace&.directory, [])
+      @external ||= External.new(workspace&.directory, [], plugin_versions: workspace&.plugin_versions || {})
     end
 
     # @return [Array<String>]
@@ -258,7 +258,7 @@ module Solargraph
       end
 
       metagems.each { |metagem| out&.puts "Caching gem #{metagem.name} (#{metagem.cache_name})" }
-      Collection::Gem.load_all metagems, out: out
+      Collection::Gem.load_all metagems, api_map.external.plugin_versions, out: out
       load(directory, loose_unions: loose_unions)
     end
 

@@ -18,13 +18,18 @@ module Solargraph
       @@path_source_cache = {}
 
       # @param metagem [Metagem]
-      def initialize metagem
+      # @param plugin_versions [Hash{String => String, nil}] Solargraph plugin
+      #   gem name => version, nil when the plugin was not loaded from a gem,
+      #   for the workspace the gem is mapped for; selects the gem cache
+      #   directory (see {Workspace#plugin_versions})
+      def initialize metagem, plugin_versions = {}
         super()
         @metagem = metagem
+        @plugin_versions = plugin_versions
       end
 
       def cache_file
-        File.join CacheDir.gem_dir, "#{metagem.cache_name}.ser"
+        File.join CacheDir.gem_dir(@plugin_versions), "#{metagem.cache_name}.ser"
       end
 
       def load
@@ -37,8 +42,11 @@ module Solargraph
       end
 
       # @param metagem [Metagem]
-      def self.cached? metagem
-        metagem.cacheable? && File.exist?(new(metagem).cache_file)
+      # @param plugin_versions [Hash{String => String, nil}] Solargraph plugin
+      #   gem name => version, nil when the plugin was not loaded from a gem;
+      #   selects the gem cache directory (see {Workspace#plugin_versions})
+      def self.cached? metagem, plugin_versions = {}
+        metagem.cacheable? && File.exist?(new(metagem, plugin_versions).cache_file)
       end
 
       # Build the pin caches for several gems at once, one gem per thread.
@@ -49,10 +57,13 @@ module Solargraph
       # the dominant cost of a first run.
       #
       # @param gems [Enumerable<Metagem>]
+      # @param plugin_versions [Hash{String => String, nil}] Solargraph plugin
+      #   gem name => version, nil when the plugin was not loaded from a gem;
+      #   selects the gem cache directory (see {Workspace#plugin_versions})
       # @param out [IO, StringIO, nil] stream for the timing summary
       # @param rebuild [Boolean] discard existing caches and generate them again
       # @return [void]
-      def self.load_all gems, out: nil, rebuild: false
+      def self.load_all gems, plugin_versions = {}, out: nil, rebuild: false
         metagems = gems.to_a
         return if metagems.empty?
 
@@ -61,8 +72,8 @@ module Solargraph
         time = Benchmark.measure do
           futures = metagems.map do |metagem|
             Concurrent::Promises.future_on(pool, metagem) do |mg|
-              uncache mg if rebuild
-              load mg
+              uncache mg, plugin_versions if rebuild
+              load mg, plugin_versions
             end
           end
           # #value! re-raises in this thread if any gem failed, matching
