@@ -36,6 +36,10 @@ module Solargraph
       @stopped = false
       # @type [Thread, nil]
       @cache_thread = nil
+      # Made here, not lazily: the diagnoser and request threads would each
+      # build their own on first use
+      @mutex = Mutex.new
+      @api_map_mutex = Mutex.new
     end
 
     def inspect
@@ -554,13 +558,13 @@ module Solargraph
     end
 
     # @return [Thread::Mutex]
-    def mutex
-      @mutex ||= Mutex.new
-    end
+    attr_reader :mutex
 
     # @return [ApiMap]
     def api_map
-      @api_map ||= Solargraph::ApiMap.new
+      # Callers outside #mutex (e.g. diagnostics reporters) would otherwise
+      # build a second, uncataloged ApiMap that replaces the cataloged one
+      @api_map_mutex.synchronize { @api_map ||= Solargraph::ApiMap.new }
     end
 
     # Get the source for an open file or create a new source if the file

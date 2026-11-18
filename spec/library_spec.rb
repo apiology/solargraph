@@ -248,6 +248,19 @@ describe Solargraph::Library, order: :defined do
     expect(pins.map(&:path)).to include('Foo#bar')
   end
 
+  it 'makes one ApiMap when two threads ask at once' do
+    library = described_class.new
+    # Slow construction so both threads are inside it together
+    allow(Solargraph::ApiMap).to receive(:new).and_wrap_original do |original, *args|
+      sleep 0.2
+      original.call(*args)
+    end
+
+    made = Array.new(2) { Thread.new { library.send(:api_map) } }.map(&:value)
+
+    expect(made.uniq(&:object_id).length).to eq(1)
+  end
+
   describe '#references_from' do
     before :context do
       Solargraph::Shell.new.cache('backport')
