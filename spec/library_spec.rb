@@ -4,9 +4,7 @@ require 'tmpdir'
 require 'yard'
 require 'timeout'
 
-# run these in order so we don't uncache backport right when we
-# need it before
-describe Solargraph::Library, order: :defined do
+describe Solargraph::Library do
   let(:filename) { "file#{rand(1000)}.rb" }
 
   it 'does not open created files in the workspace' do
@@ -36,10 +34,8 @@ describe Solargraph::Library, order: :defined do
   end
 
   context 'with a require from a not-yet-cached external gem' do
-    around { |example| with_private_cache { example.run } }
-
     before do
-      metagem = Solargraph::Metagem.from_specification(Gem::Specification.find_by_name('backport'))
+      metagem = Solargraph::Metagem.from_specification(Gem::Specification.find_by_name('hashdiff'))
       Solargraph::Collection::Gem.uncache(metagem)
     end
 
@@ -47,30 +43,25 @@ describe Solargraph::Library, order: :defined do
       library = described_class.new(Solargraph::Workspace.new(PROJECT_DIRECTORY,
                                                               Solargraph::Workspace::Config.new))
       library.attach Solargraph::Source.load_string(%(
-        require 'backport'
+        require 'hashdiff'
 
-        # @param adapter [Backport::Adapter]
-        def foo(adapter)
-          adapter.remo
-        end
+        Hashdiff.dif
       ), filename, 0)
       Timeout.timeout 60 do
         # give Solargraph time to cache the gem
-        while (completion = library.completions_at(filename, 5, 19)).pins.empty?
+        while (completion = library.completions_at(filename, 3, 20)).pins.empty?
           expect(library.send(:cache_errors)).to be_empty
           sleep 0.25
         end
         expect(completion).to be_a(Solargraph::SourceMap::Completion)
-        expect(completion.pins.map(&:name)).to include('remote')
+        expect(completion.pins.map(&:name)).to include('diff')
       end
     end
   end
 
   context 'with a require from a gem whose yardoc another process has locked' do
-    let(:metagem) { Solargraph::Metagem.from_specification(Gem::Specification.find_by_name('backport')) }
+    let(:metagem) { Solargraph::Metagem.from_specification(Gem::Specification.find_by_name('hashdiff')) }
     let(:lock_file) { File.join(Solargraph::Yardoc.path_for(metagem), 'processing') }
-
-    around { |example| with_private_cache { example.run } }
 
     before do
       Solargraph::Collection::Gem.uncache(metagem)
@@ -86,16 +77,13 @@ describe Solargraph::Library, order: :defined do
       library = described_class.new(Solargraph::Workspace.new(Dir.pwd,
                                                               Solargraph::Workspace::Config.new))
       library.attach Solargraph::Source.load_string(%(
-        require 'backport'
+        require 'hashdiff'
 
-        # @param adapter [Backport::Adapter]
-        def foo(adapter)
-          adapter.remo
-        end
+        Hashdiff.dif
       ), 'file.rb', 0)
       Timeout.timeout 60 do
-        sleep 0.25 while (completion = library.completions_at('file.rb', 5, 19)).pins.empty?
-        expect(completion.pins.map(&:name)).to include('remote')
+        sleep 0.25 while (completion = library.completions_at('file.rb', 3, 20)).pins.empty?
+        expect(completion.pins.map(&:name)).to include('diff')
       end
     end
   end
