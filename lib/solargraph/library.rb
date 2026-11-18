@@ -33,6 +33,8 @@ module Solargraph
       # @type [Source, nil]
       @current = nil
       @sync_count = 0
+      @mutex = Mutex.new
+      @api_map_mutex = Mutex.new
     end
 
     def inspect
@@ -536,13 +538,11 @@ module Solargraph
     end
 
     # @return [Thread::Mutex]
-    def mutex
-      @mutex ||= Mutex.new
-    end
+    attr_reader :mutex
 
     # @return [ApiMap]
     def api_map
-      @api_map ||= Solargraph::ApiMap.new
+      @api_map_mutex.synchronize { @api_map ||= Solargraph::ApiMap.new }
     end
 
     # Get the source for an open file or create a new source if the file
