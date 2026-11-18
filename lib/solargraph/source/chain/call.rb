@@ -228,9 +228,7 @@ module Solargraph
                                                     closure: name_pin.closure,
                                                     gates: name_pin.gates,
                                                     source: :chain)
-            # @sg-ignore Array#[] chooses wrong signature when Array has no parameters
             atype = atypes[idx] ||= arg.infer(api_map, arg_name_pin, locals)
-            # @sg-ignore https://github.com/castwide/solargraph/pull/1494
             unless param.compatible_arg?(atype, api_map) || param.restarg?
               match = false
               break
@@ -313,8 +311,13 @@ module Solargraph
             new_signature_pin = nil
             # @param ol [Pin::Signature]
             sorted_overloads.each do |ol|
+              previous_signature_pin = new_signature_pin
               type, new_signature_pin = match_overload_type(ol, p, api_map, name_pin, locals, type, new_signature_pin)
               break if type.defined?
+              # The first overload that matches the call, block or no
+              # block, describes it even when its return type is
+              # unknown, e.g. Array#[] on an Array of unknown elements
+              break if ol.block? == with_block? && !new_signature_pin.equal?(previous_signature_pin)
             end
             # RBS types slice args as Range[Integer]; Range has one type
             # parameter shared by both ends, so no overload can match only
