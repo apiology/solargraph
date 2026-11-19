@@ -106,10 +106,20 @@ module Solargraph
       source_map_hash.each_value do |map|
         conventions_environ.merge map.conventions_environ
       end
+      addon = Plugin::Addon.new
+      Plugin.registry.each do |plugin|
+        panel ||= Plugin::Panel.new(source_maps: bench.source_maps, live_map: bench.live_map, gem_names: external.configured_gem_names)
+        added = plugin.new(panel).addon
+        addon.gem_names.concat added.gem_names
+        addon.pins.concat added.pins
+      rescue StandardError => e
+        Solargraph.logger.warn "#{plugin} failed - [#{e.class}] #{e.message}"
+      end
+
       # @todo Determine what needs to be sent to global conventions
       conventions_environ.merge Convention.for_global(nil)
-      external_changed = external.update(bench.external_requires.to_a + conventions_environ.requires)
-      store_changed = store.update(@@core_pins, external.pins.clone, conventions_environ.pins, iced_pins, live_pins) { process_macros }
+      external_changed = external.update(bench.external_requires.to_a + conventions_environ.requires, addon.gem_names)
+      store_changed = store.update(@@core_pins, external.pins.clone, conventions_environ.pins, addon.pins, iced_pins, live_pins) { process_macros }
       @cache.clear if external_changed || store_changed
       Solargraph.logger.info "Cataloging ApiMap finished in #{Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time} seconds"
       self
@@ -886,10 +896,6 @@ module Solargraph
             result.concat inner_get_methods('Class', :instance, visibility, deep, skip, no_core) if type == :class
             result.concat inner_get_methods('Module', :instance, visibility, deep, skip, no_core)
           end
-        end
-        store.domains(fqns).each do |d|
-          dt = ComplexType.try_parse(d)
-          result.concat inner_get_methods(dt.namespace, dt.scope, visibility, deep, skip)
         end
       end
       result
