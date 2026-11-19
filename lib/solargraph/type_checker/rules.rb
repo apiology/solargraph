@@ -155,7 +155,7 @@ module Solargraph
       # @todo 2: flow sensitive typing should handle is_a? and next
       # @todo 2: flow sensitive typing needs to handle "if foo = bar"
       # @todo 8: Need intersection type support
-      # @todo 3: Need record type support
+      # @todo 5: Need record type support
       # @todo 2: flow sensitive typing needs to create separate ranges for postfix if
       # @todo 2: Need better handling of #compact
       # @todo 2: downcast output of Enumerable#select

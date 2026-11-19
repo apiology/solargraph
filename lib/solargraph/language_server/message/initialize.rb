@@ -54,8 +54,7 @@ module Solargraph
 
         private
 
-        # @todo '?' methods should type like RBS 'boolish' rather than a strict true or false
-        # @sg-ignore Solargraph::LanguageServer::Message::Initialize#support_workspace_folders? return type could not be inferred
+        # @sg-ignore Need record type support
         def support_workspace_folders?
           params['capabilities'] &&
             params['capabilities']['workspace'] &&
@@ -180,9 +179,7 @@ module Solargraph
 
         # @param section [String]
         # @param capability [String]
-        # @todo Need support for RBS' boolish "type", which doesn't
-        #   enforce strict true/false-ness
-        # @sg-ignore Solargraph::LanguageServer::Message::Initialize#dynamic_registration_for? return type could not be inferred
+        # @sg-ignore Need record type support
         def dynamic_registration_for? section, capability
           result = params['capabilities'] &&
                    params['capabilities'][section] &&
