@@ -35,6 +35,7 @@ module Solargraph
       autoload :Hash,             'solargraph/source/chain/hash'
       autoload :Array,            'solargraph/source/chain/array'
       autoload :Parameter,        'solargraph/source/chain/parameter'
+      autoload :MatchGroup,       'solargraph/source/chain/match_group'
 
       @@inference_stack = []
       @@inference_depth = 0
@@ -110,9 +111,16 @@ module Solargraph
         #
         # @todo ProxyType uses 'type' for the binder, but '
         working_pin = name_pin
+        # @type [Link, nil]
+        receiver_link = nil
+        # @type [::Array<Pin::Base>]
+        receiver_pins = []
         # @sg-ignore Need to add nil check here
         links[0..-2].each do |link|
-          pins = link.resolve(api_map, working_pin, locals)
+          pins = MatchGroup.narrow(link, link.resolve(api_map, working_pin, locals), receiver_link, receiver_pins,
+                                   api_map)
+          receiver_link = link
+          receiver_pins = pins
           type = infer_from_definitions(pins, working_pin, api_map, locals)
           if type.undefined?
             logger.debug do
@@ -131,7 +139,9 @@ module Solargraph
           end
         end
         links.last.last_context = working_pin
-        links.last.resolve(api_map, working_pin, locals)
+        last_link = links.fetch(-1)
+        MatchGroup.narrow(last_link, last_link.resolve(api_map, working_pin, locals), receiver_link, receiver_pins,
+                          api_map)
       end
 
       # @param api_map [ApiMap]
