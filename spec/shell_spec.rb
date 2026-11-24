@@ -103,6 +103,22 @@ describe Solargraph::Shell do
 
         expect(output).to include('Typecheck finished in')
       end
+
+      it 'prints problems with and without a location' do
+        location = Solargraph::Location.new('Gemfile', Solargraph::Range.from_to(2, 0, 2, 1))
+        allow(type_checker).to receive(:problems).and_return(
+          [Solargraph::TypeChecker::Problem.new(location, 'located'),
+           Solargraph::TypeChecker::Problem.new(nil, 'unlocated')]
+        )
+        output = capture_stdout do
+          shell.options = { level: 'normal', directory: '.' }
+          shell.typecheck('Gemfile')
+        rescue SystemExit
+          nil
+        end
+
+        expect(output).to include('Gemfile:3: located').and include('Gemfile: unlocated')
+      end
     end
   end
 

@@ -89,4 +89,11 @@ describe Solargraph::Pin::Base do
       expect { pin1.nearly?(pin2) }.not_to raise_error
     end
   end
+
+  it 'raises TypeError when a combined name is not a String' do
+    pin1 = described_class.new(name: 'foo')
+    pin2 = described_class.new(name: 'foo')
+    allow(pin1).to receive(:assert_same).with(pin2, :name).and_return(nil)
+    expect { pin1.combine_name(pin2) }.to raise_error(TypeError, /name must be a String/)
+  end
 end

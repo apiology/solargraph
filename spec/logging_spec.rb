@@ -14,4 +14,16 @@ describe Solargraph::Logging do
     described_class.logger.reopen File::NULL
     expect(msg).to include('WARN')
   end
+
+  it 'builds a logger at a class-specific log level' do
+    klass = Class.new do
+      include Solargraph::Logging
+
+      def log_level
+        :debug
+      end
+    end
+
+    expect(klass.new.send(:logger).level).to eq(Logger::DEBUG)
+  end
 end
