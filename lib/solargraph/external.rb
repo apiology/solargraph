@@ -83,23 +83,6 @@ module Solargraph
       true
     end
 
-    # @return [Array<String>]
-    # @sg-ignore https://github.com/castwide/solargraph/pull/1477
-    def rbs_collection_paths
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1477
-      @rbs_collection_paths ||= read_rbs_collection_paths
-    end
-
-    # @return [String, nil]
-    def rbs_collection_config_path
-      # @todo Get rid of the '*' case
-      # @sg-ignore https://github.com/castwide/solargraph/pull/1258
-      @rbs_collection_config_path ||= unless directory.nil? || directory.empty? || directory == '*'
-                                        yaml_file = File.join(directory, 'rbs_collection.yaml')
-                                        yaml_file if File.file?(yaml_file)
-                                      end
-    end
-
     private
 
     # @return [void]
