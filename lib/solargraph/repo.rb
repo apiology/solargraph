@@ -249,6 +249,7 @@ module Solargraph
     # @param version [String]
     # @return [Array(String, String), nil]
     def locate_loaded_gem name, version
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1494
       spec = Gem::Specification.find_all_by_name(name).find { |gs| gs.version.to_s == version }
       spec && [spec.full_gem_path, spec.spec_file]
     end
@@ -294,6 +295,7 @@ module Solargraph
       exact = File.join(home, 'specifications', "#{name}-#{version}.gemspec")
       return exact if File.file?(exact)
       variants = Dir[File.join(home, 'specifications', "#{name}-#{version}-*.gemspec")].select { |f| File.file?(f) }
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1494
       local = variants.find { |f| File.basename(f) == "#{name}-#{version}-#{Gem::Platform.local}.gemspec" }
       local || variants.first
     end
@@ -309,6 +311,7 @@ module Solargraph
     # @return [String]
     def rubygems_source_string source
       remotes = source.respond_to?(:remotes) ? source.remotes : []
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1494
       remotes.empty? ? 'https://rubygems.org' : remotes.map { |r| r.to_s.chomp('/') }.join(',')
     end
 
