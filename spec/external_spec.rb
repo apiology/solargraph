@@ -5,17 +5,6 @@ describe Solargraph::External do
   let(:requires) { ['backport', 'gem/with/yard/macros', 'reverse_markdown', 'addressable'] }
   let(:external) { described_class.new(directory, requires) }
 
-  before(:all) do # rubocop:disable RSpec/BeforeAfterAll
-    FileUtils.rm_f File.join('spec', 'fixtures', 'external_bundled_gem', 'Gemfile.lock')
-    Solargraph.with_clean_env do
-      `cd #{File.join('spec', 'fixtures', 'external_bundled_gem')} && bundle install`
-    end
-  end
-
-  after(:all) do # rubocop:disable RSpec/BeforeAfterAll
-    FileUtils.rm_f File.join('spec', 'fixtures', 'external_bundled_gem', 'Gemfile.lock')
-  end
-
   context 'with uncached sources' do
     let(:metagem) { Solargraph::Metagem.from_specification(Gem::Specification.find_by_name('backport')) }
 
@@ -81,6 +70,8 @@ describe Solargraph::External do
 
   it 'imports all gems when bundler/require is required' do
     external = described_class.new(directory, ['bundler/require'])
+    external.unloaded_gems.each { |metagem| Solargraph::Collection::Gem.load(metagem) }
+    external.update(['bundler/require'])
     gem_names = external.loaded_gems.map(&:name)
     expect(gem_names).to include('backport')
     expect(gem_names).to include('gem-with-yard-macros')
@@ -89,6 +80,8 @@ describe Solargraph::External do
 
   it 'ignores duplicate gems' do
     external = described_class.new(directory, ['backport', 'backport/version'])
+    external.unloaded_gems.each { |metagem| Solargraph::Collection::Gem.load(metagem) }
+    external.update(['backport', 'backport/version'])
     backport_method_pins = external.pins.select { |pin| pin.path == 'Backport.prepare_stdio_server' }
     expect(backport_method_pins).to be_one
   end

@@ -9,9 +9,6 @@ module Solargraph
     autoload :Gemfile, 'solargraph/convention/gemfile'
     autoload :Gemspec, 'solargraph/convention/gemspec'
     autoload :Rakefile, 'solargraph/convention/rakefile'
-    autoload :StructDefinition, 'solargraph/convention/struct_definition'
-    autoload :DataDefinition,   'solargraph/convention/data_definition'
-    autoload :ActiveSupportConcern, 'solargraph/convention/active_support_concern'
 
     # @type [Set<Convention::Base>]
     @@conventions = Set.new
@@ -26,6 +23,25 @@ module Solargraph
     # @return [void]
     def self.unregister convention
       @@conventions.delete_if { |c| c.is_a?(convention) }
+    end
+
+    # The gems other than Solargraph that define the registered conventions,
+    # keyed like {Workspace#plugin_versions}. A Workspace with no directory
+    # has no config naming its plugins, so it uses these to pick its gem
+    # cache directory. A convention's gem is the loaded gem whose directory
+    # holds the file that defines the convention's class.
+    #
+    # @return [Hash{String => String}] gem name => version
+    def self.plugin_versions
+      @@conventions.to_a.filter_map do |conv|
+        name = conv.class.name
+        next if name.nil?
+        file = Object.const_source_location(name)&.first
+        next if file.nil?
+        spec = Gem.loaded_specs.values.find { |s| file.start_with?(File.join(s.full_gem_path, '')) }
+        next if spec.nil? || spec.name == 'solargraph'
+        [spec.name, spec.version.to_s]
+      end.to_h
     end
 
     # @param source_map [SourceMap]
@@ -75,6 +91,5 @@ module Solargraph
     register Gemfile
     register Gemspec
     register Rakefile
-    register ActiveSupportConcern
   end
 end

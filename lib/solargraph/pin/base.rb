@@ -158,7 +158,17 @@ module Solargraph
       # @param other [self]
       # @return [Pin::Closure, nil]
       def combine_closure other
-        choose_pin_attr_with_same_name(other, :closure)
+        chosen = choose_pin_attr_with_same_name(other, :closure)
+        return chosen unless chosen.is_a?(Pin::Namespace) && chosen.generics.empty?
+
+        # Combined types may name type parameters only the other closure declares
+        own = closure
+        return own if own.is_a?(Pin::Namespace) && !own.generics.empty?
+
+        theirs = other.closure
+        return theirs if theirs.is_a?(Pin::Namespace) && !theirs.generics.empty?
+
+        chosen
       end
 
       # @param other [self]
@@ -386,15 +396,15 @@ module Solargraph
           # :nocov:
         end
         # arbitrary way of choosing a pin
-        [val1, val2].compact.max_by do |closure|
+        # @type [Array<Pin::Base>]
+        candidates = [val1, val2].compact
+        candidates.max_by do |closure|
           [
             # maximize number of gates, as types in other combined pins may
             # depend on those gates
 
-            # @sg-ignore Need better handling of #compact
             closure.gates.length,
             # use basename so that results don't vary system to system
-            # @sg-ignore Need better handling of #compact
             File.basename(closure.best_location.to_s)
           ]
         end
@@ -435,6 +445,7 @@ module Solargraph
       # @param context_type [ComplexType] The receiver type
       # @return [self]
       def resolve_generics definitions, context_type
+        definitions = declaring_definitions(definitions)
         transform_types { |t| t&.resolve_generics(definitions, context_type) }
       end
 
@@ -730,6 +741,19 @@ module Solargraph
       attr_writer :docstring, :directives
 
       private
+
+      # Declarations of a reopened generic may spell its parameters
+      # differently, so bind by position against this pin's own one.
+      #
+      # @param definitions [Pin::Namespace, nil]
+      # @return [Pin::Namespace, nil]
+      def declaring_definitions definitions
+        own = closure
+        return definitions unless definitions.is_a?(Pin::Namespace) && own.is_a?(Pin::Namespace)
+        return definitions unless own.path == definitions.path && !own.generics.empty?
+
+        own
+      end
 
       # @return [void]
       def parse_comments
