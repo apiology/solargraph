@@ -957,6 +957,22 @@ describe Solargraph::Source::Chain::Call do
       end
     end
 
+    context 'when a gem adds overloads with ... the way the bigdecimal RBS does' do
+      let(:rbs) do
+        <<~RBS
+          class BigDecimal < Numeric
+          end
+          class Integer
+            def -: (BigDecimal) -> BigDecimal | ...
+          end
+        RBS
+      end
+
+      it 'matches only the overloads it adds to for an argument of unknown type' do
+        expect(infer_value('1 - unknown_method')).to eq('Integer')
+      end
+    end
+
     context 'when the same overloads are declared twice' do
       let(:rbs) do
         <<~RBS

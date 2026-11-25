@@ -68,7 +68,7 @@ module Solargraph
             else
               ns_tag = context.namespace == '' ? '' : context.namespace_type.tag
               stack = api_map.get_method_stack(ns_tag, word, scope: context.scope)
-              pin = with_overloaded_signatures(stack)
+              pin = with_overloaded_signatures(stack, api_map, name_pin, locals)
             end
             if pin.nil?
               unresolved_type = true
@@ -97,8 +97,11 @@ module Solargraph
         # replacing it, so match the call's arguments against both.
         #
         # @param stack [::Array<Pin::Base>]
+        # @param api_map [ApiMap]
+        # @param name_pin [Pin::Base]
+        # @param locals [::Array<Solargraph::Pin::LocalVariable, Solargraph::Pin::Parameter>]
         # @return [Pin::Base, nil]
-        def with_overloaded_signatures stack
+        def with_overloaded_signatures stack, api_map, name_pin, locals
           pin = stack.first
           return pin unless pin.is_a?(Pin::Method) && pin.source == :rbs
 
@@ -113,9 +116,23 @@ module Solargraph
           # declaration need not come after the ones reopening it
           signatures = overloading.flat_map(&:signatures)
           reopened = declared.first
+          # An argument of unknown type would match the first added overload
+          return reopened if reopened && any_argument_undefined?(api_map, name_pin, locals)
           signatures.concat reopened.signatures if reopened
           # a gem's sig and its stdlib copy declare the same overloads
           pin.with_signatures(signatures.uniq(&:to_rbs))
+        end
+
+        # @param api_map [ApiMap]
+        # @param name_pin [Pin::Base]
+        # @param locals [::Array<Solargraph::Pin::LocalVariable, Solargraph::Pin::Parameter>]
+        # @return [Boolean]
+        def any_argument_undefined? api_map, name_pin, locals
+          arg_name_pin = Pin::ProxyType.anonymous(name_pin.context,
+                                                  closure: name_pin.closure,
+                                                  gates: name_pin.gates,
+                                                  source: :chain)
+          arguments.any? { |arg| arg.infer(api_map, arg_name_pin, locals).undefined? }
         end
 
         # Checks whether a single overload signature matches the call's
