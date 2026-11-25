@@ -177,6 +177,7 @@ module Solargraph
       remote = options['path'] || options['remote']
       root = File.expand_path(remote.to_s, directory)
       spec_file = File.join(root, "#{spec.name}.gemspec")
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1338
       spec_file = Dir[File.join(root, '*.gemspec')].first unless File.file?(spec_file)
       Metagem.new(name: spec.name,
                   full_path: root,
@@ -195,6 +196,7 @@ module Solargraph
       git_home_paths.each do |home|
         Dir[File.join(home, 'bundler', 'gems', "*#{spec.name}-#{scope}*")].each do |dir|
           spec_file = File.join(dir, "#{spec.name}.gemspec")
+          # @sg-ignore https://github.com/castwide/solargraph/pull/1338
           spec_file = Dir[File.join(dir, '*.gemspec')].first unless File.file?(spec_file)
           next unless spec_file && File.file?(spec_file)
           return Metagem.new(name: spec.name,
