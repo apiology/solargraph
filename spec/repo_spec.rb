@@ -21,6 +21,13 @@ describe Solargraph::Repo do
     end
   end
 
+  context 'without a directory' do
+    it 'skips reading a lockfile' do
+      repo = described_class.new(nil)
+      expect(repo.send(:build_from_gemfile_lock)).to be_nil
+    end
+  end
+
   context 'with a bundle' do
     let(:directory) { File.join('spec', 'fixtures', 'external_bundled_gem') }
     let(:repo) { described_class.new(directory) }

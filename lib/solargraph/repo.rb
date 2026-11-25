@@ -115,8 +115,11 @@ module Solargraph
     end
 
     def build_from_gemfile_lock
+      lockfile_path = lockfile
+      return unless lockfile_path
+
       require 'bundler'
-      parser = Bundler::LockfileParser.new(File.read(lockfile))
+      parser = Bundler::LockfileParser.new(File.read(lockfile_path))
       metagems = []
       parsed = Set.new
       parser.specs.each do |spec|
