@@ -117,6 +117,7 @@ module Solargraph
 
     def build_from_gemfile_lock
       require 'bundler'
+      # @sg-ignore https://github.com/castwide/solargraph/pull/1494
       parser = Bundler::LockfileParser.new(File.read(lockfile))
       metagems = []
       parsed = Set.new
