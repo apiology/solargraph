@@ -113,6 +113,7 @@ module Solargraph
       groups = Bundler.definition.groups.to_h do |group|
         [group, Bundler.definition.specs_for([group]).map(&:name)]
       end
+      # @sg-ignore Need to resolve @generic T from a block's yieldreturn
       @bundled_group_map = groups.transform_values { |names| names.map { |name| bundled_metagem_name_map[name] } }
     end
 

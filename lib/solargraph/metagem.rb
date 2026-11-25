@@ -89,11 +89,15 @@ module Solargraph
       source = Solargraph::Source.load(spec_file)
       node = Parser::NodeMethods.call_nodes_from(source.node)
                                 .flatten
+                                # @sg-ignore Array#flatten returns a bare Array
                                 .find { |node| node.children[1] == :require_paths= }
       return ['lib'] unless node &&
+                            # @sg-ignore Array#flatten returns a bare Array
                             node.children[2]&.type == :array &&
+                            # @sg-ignore Array#flatten returns a bare Array
                             node.children[2].children.all? { |elem| elem.type == :str }
 
+      # @sg-ignore Array#flatten returns a bare Array
       node.children[2]
           .children
           .map { |elem| elem.children[0] }

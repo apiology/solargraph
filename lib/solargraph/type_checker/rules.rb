@@ -139,7 +139,7 @@ module Solargraph
       # @todo 1: Unresolved call to + on String, nil
       # @todo 1: Wrong argument type for Solargraph::Position.from_offset: offset expected Integer, received BigDecimal; Unresolved call to []
       #
-      # flow sensitive typing could handle (174):
+      # flow sensitive typing could handle (181):
       #
       # @todo 30: https://github.com/castwide/solargraph/issues/1249
       # @todo 28: https://github.com/castwide/solargraph/issues/1241
@@ -161,7 +161,7 @@ module Solargraph
       # @todo 2: downcast output of Enumerable#select
       # @todo 1: flow sensitive typing should support ivars
       # @todo 1: Need to be able to resolve generics based on a
-      # @todo 1: Need to resolve @generic T from a block's yieldreturn
+      # @todo 2: Need to resolve @generic T from a block's yieldreturn
       # @todo 1: Need to support this in flow sensitive typing
       # @todo 1: flow sensitive typing needs to handle "if foo.nil?"
       # @todo 1: flow sensitive typing should be able to identify more blocks that always return
@@ -172,7 +172,7 @@ module Solargraph
       # @todo 1: flow sensitive typing needs to handle constants
       # @todo 1: Need to handle duck-typed method calls on union types
       # @todo 1: flow sensitive typing needs to remove literal with
-      # @todo 1: Array#flatten returns a bare Array
+      # @todo 5: Array#flatten returns a bare Array
       def require_all_unique_types_match_expected?
         report?(:require_all_unique_types_match_expected, :strong)
       end
