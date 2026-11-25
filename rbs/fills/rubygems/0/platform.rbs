@@ -1,0 +1,9 @@
+# <!-- rdoc-file=lib/rubygems/platform.rb -->
+# Available list of platforms for targeting Gem installations.
+#
+class Gem::Platform
+  # The platform of the running Ruby.
+  def self.local: () -> Gem::Platform
+
+  def to_s: () -> String
+end

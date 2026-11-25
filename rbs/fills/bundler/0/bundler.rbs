@@ -3982,7 +3982,7 @@ class Bundler::Source::Rubygems < Bundler::Source
 
   def remote_specs: () -> untyped
 
-  def remotes: () -> untyped
+  def remotes: () -> Array[URI::Generic]
 
   def remotes_for_spec: (untyped spec) -> untyped
 

@@ -777,7 +777,7 @@ class Gem::Specification < Gem::BasicSpecification
   # -->
   # Returns every spec that matches `name` and optional `requirements`.
   #
-  def self.find_all_by_name: (untyped name, *untyped requirements) -> untyped
+  def self.find_all_by_name: (String name, *untyped requirements) -> Array[Gem::Specification]
 
   # <!--
   #   rdoc-file=lib/rubygems/specification.rb
