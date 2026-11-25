@@ -201,6 +201,7 @@ module Solargraph
 
     desc 'bundle', 'Cache all bundled gems'
     option :directory, type: :string, desc: 'Workspace directory', default: Dir.pwd
+    # @return [void]
     def bundle
       repo = Solargraph::Repo.new(options[:directory])
       raise "Bundle not found in #{options[:directory]}" unless repo.bundled?

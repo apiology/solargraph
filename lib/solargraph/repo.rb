@@ -105,6 +105,7 @@ module Solargraph
       nil
     end
 
+    # @return [void]
     def build_from_bundler_definition
       @metagems = Bundler.definition.specs.map do |spec|
         Metagem.from_specification(spec)
@@ -115,6 +116,7 @@ module Solargraph
       @bundled_group_map = groups.transform_values { |names| names.map { |name| bundled_metagem_name_map[name] } }
     end
 
+    # @return [void]
     def build_from_gemfile_lock
       require 'bundler'
       parser = Bundler::LockfileParser.new(File.read(lockfile))

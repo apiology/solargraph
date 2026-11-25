@@ -81,7 +81,7 @@ module Solargraph
                   dependencies: gem.runtime_dependencies.map(&:name))
     end
 
-    # @parse [String, nil]
+    # @param spec_file [String, nil]
     # @return [Array<String>]
     def self.parse_require_paths spec_file
       return ['lib'] unless spec_file && File.file?(spec_file)
