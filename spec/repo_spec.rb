@@ -22,9 +22,9 @@ describe Solargraph::Repo do
   end
 
   context 'without a directory' do
-    it 'skips reading a lockfile' do
+    it 'finds system gems by name' do
       repo = described_class.new(nil)
-      expect(repo.send(:build_from_gemfile_lock)).to be_nil
+      expect(repo.find_by_name('backport').name).to eq('backport')
     end
   end
 

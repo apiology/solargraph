@@ -90,12 +90,13 @@ module Solargraph
     #
     # @return [void]
     def build_from_directory
-      return unless bundled_directory?
+      lockfile_path = lockfile
+      return unless lockfile_path && bundled_directory?
 
       if use_bundler?
         build_from_bundler_definition
       else
-        build_from_gemfile_lock
+        build_from_gemfile_lock lockfile_path
       end
     rescue StandardError => e
       Solargraph.logger.warn "Failed to load gems from bundle at #{directory}: #{e}"
@@ -114,10 +115,9 @@ module Solargraph
       @bundled_group_map = groups.transform_values { |names| names.map { |name| bundled_metagem_name_map[name] } }
     end
 
-    def build_from_gemfile_lock
-      lockfile_path = lockfile
-      return unless lockfile_path
-
+    # @param lockfile_path [String]
+    # @return [void]
+    def build_from_gemfile_lock lockfile_path
       require 'bundler'
       parser = Bundler::LockfileParser.new(File.read(lockfile_path))
       metagems = []

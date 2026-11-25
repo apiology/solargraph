@@ -22,8 +22,12 @@ describe Solargraph::Logging do
       def log_level
         :debug
       end
+
+      def current_logger
+        logger
+      end
     end
 
-    expect(klass.new.send(:logger).level).to eq(Logger::DEBUG)
+    expect(klass.new.current_logger.level).to eq(Logger::DEBUG)
   end
 end
