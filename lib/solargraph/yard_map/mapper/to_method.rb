@@ -44,6 +44,8 @@ module Solargraph
             pin = Pin::MethodAlias.new(
               name: name,
               location: location,
+              # @sg-ignore https://github.com/castwide/solargraph/pull/1494
+              #   https://github.com/castwide/solargraph/pull/1266
               original: origin_code_object.name.to_s,
               closure: closure,
               comments: comments,
