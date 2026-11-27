@@ -40,7 +40,7 @@ module Solargraph
           final_visibility ||= :public if code_object.module_function? && final_scope == :class
           final_visibility ||= code_object.visibility
           if code_object.is_alias?
-            origin_code_object = code_object.namespace.aliases[code_object]
+            origin_code_object = code_object.namespace.aliases.fetch(code_object)
             pin = Pin::MethodAlias.new(
               name: name,
               location: location,
