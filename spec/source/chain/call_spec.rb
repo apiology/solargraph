@@ -986,6 +986,27 @@ describe Solargraph::Source::Chain::Call do
     end
   end
 
+  context 'with an overload that requires a positional argument a keyword call omits' do
+    include_context 'with a Box declared in RBS'
+
+    let(:rbs) do
+      <<~RBS
+        class Box
+          def self.read: (String path, String? sep, ?chomp: bool) -> Integer
+                        | (String path, ?chomp: bool) -> String
+        end
+      RBS
+    end
+
+    it 'skips the overload whose required positional argument is missing' do
+      code = %(
+        Box.read("x", chomp: false)
+      )
+      type = infer_at(code, [1, code.lines[1].chomp.length])
+      expect(type.rooted_tags).to eq('::String')
+    end
+  end
+
   context 'with overloads that differ only in which keyword(s) they accept' do
     include_context 'with a Box declared in RBS'
 

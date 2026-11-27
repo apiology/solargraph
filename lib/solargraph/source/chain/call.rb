@@ -289,7 +289,8 @@ module Solargraph
             atype = atypes[idx] ||= arg.infer(api_map, arg_name_pin, locals)
             return false unless param.compatible_arg?(atype, api_map) || param.restarg?
           end
-          true
+          # arity_matches? counted the keyword-arguments hash as positional
+          positional_arguments.length >= overload.mandatory_positional_param_count
         end
 
         # @param keyword_argument [Chain, nil]
